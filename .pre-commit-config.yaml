@@ -1,0 +1,52 @@
+  repos:
+    # Standard hooks
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: "v4.4.0"
+      hooks:
+        - id: check-added-large-files
+        - id: check-case-conflict
+        - id: check-docstring-first
+        - id: check-merge-conflict
+        - id: check-symlinks
+        - id: check-toml
+        - id: check-yaml
+        - id: debug-statements
+        - id: end-of-file-fixer
+        - id: mixed-line-ending
+        - id: requirements-txt-fixer
+        - id: trailing-whitespace
+
+    # Changes tabs to spaces
+    - repo: https://github.com/Lucas-C/pre-commit-hooks
+      rev: "v1.4.2"
+      hooks:
+        - id: remove-tabs
+
+    # Checking for common mistakes
+    - repo: https://github.com/pre-commit/pygrep-hooks
+      rev: "v1.10.0"
+      hooks:
+        - id: rst-backticks
+        - id: rst-directive-colons
+        - id: rst-inline-touching-normal
+
+    # CMake formatting
+    - repo: https://github.com/cheshirekow/cmake-format-precommit
+      rev: "v0.6.13"
+      hooks:
+        - id: cmake-format
+          additional_dependencies: [pyyaml]
+          types: [file]
+          files: (\.cmake|CMakeLists.txt)(.in)?$
+
+    # Check for common shell mistakes
+    - repo: https://github.com/shellcheck-py/shellcheck-py
+      rev: "v0.9.0.2"
+      hooks:
+        - id: shellcheck
+
+    # Clang format the codebase automatically
+    - repo: https://github.com/pre-commit/mirrors-clang-format
+      rev: 'v16.0.0'  # Use the sha / tag you want to point at
+      hooks:
+        -   id: clang-format

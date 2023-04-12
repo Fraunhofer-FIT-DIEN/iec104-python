@@ -1,0 +1,16 @@
+text eol=lf
+
+.gitattributes text
+.gitignore text
+.gitkeep text
+Dockerfile text
+Doxyfile text
+LICENSE text
+README text
+
+*.env text
+*.json text
+*.sh text
+*.yml text
+
+*.zip binary

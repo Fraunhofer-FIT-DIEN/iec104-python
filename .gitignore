@@ -1,0 +1,16 @@
+.idea
+cmake-build-*
+build
+dist
+*.egg-info
+*.so
+*.so.*
+~*
+callgrind.*
+valgrind.log
+*.prof
+bin/upload*
+.vscode/
+/depends/lib60870/lib60870-C/dependencies/mbedtls-2.28/
+venv/
+tests/certs/*
