@@ -146,13 +146,13 @@ std::shared_ptr<Client> Connection::getClient() const {
   return client.lock();
 }
 
-void Connection::connect() {
+bool Connection::connect() {
   ConnectionState const current = state.load();
   if (CLOSED != current && CLOSED_AWAIT_RECONNECT != current)
-    return;
+    return true;
 
   Module::ScopedGilRelease const scoped("Connection.connect");
-  //    bool success = false;
+  bool success = false;
 
   // connect
   setState(CLOSED_AWAIT_OPEN);
@@ -162,14 +162,21 @@ void Connection::connect() {
     CS104_Connection_close(connection);
 
     // reconnect
-    CS104_Connection_connectAsync(connection);
+    success = CS104_Connection_connect(connection);
   }
 
-  DEBUG_PRINT(Debug::Connection,
-              "connect] Asynchronous connect to " + getConnectionString());
+  if (success) {
+    DEBUG_PRINT(Debug::Connection,
+                "connect] Connected to " + getConnectionString());
+  } else {
+    setState(CLOSED_AWAIT_RECONNECT);
+    DEBUG_PRINT(Debug::Connection, "Connection.connect] Failed to connect to " +
+                                       getConnectionString());
+  }
+  return success;
 }
 
-void Connection::disconnect() {
+bool Connection::disconnect() {
   {
     // free connection thread
     std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
@@ -187,6 +194,8 @@ void Connection::disconnect() {
   } else {
     setState(CLOSED);
   }
+
+  return true;
 }
 
 bool Connection::isOpen() const {

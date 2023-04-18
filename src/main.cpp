@@ -1396,19 +1396,31 @@ PYBIND11_MODULE(c104, m) {
 
     initiate connection to remote terminal unit (server) in a background thread (non-blocking)
 
+    Returns
+    -------
+    bool
+        True, if connected, False otherwise
+
     Example
     -------
     >>> my_connection.connect()
-)def")
+)def",
+           py::return_value_policy::copy)
       .def("disconnect", &Remote::Connection::disconnect, R"def(
     disconnect(self: c104.Connection) -> None
 
     close connection to remote terminal unit (server)
 
+    Returns
+    -------
+    bool
+        True, if disconnected, False otherwise
+
     Example
     -------
     >>> my_connection.disconnect()
-)def")
+)def",
+           py::return_value_policy::copy)
       .def("mute", &Remote::Connection::mute, R"def(
     mute(self: c104.Connection) -> bool
 

@@ -72,13 +72,6 @@ void Client::start() {
     runThread = new std::thread(&Client::thread_run, this);
   }
 
-  {
-    std::lock_guard<Module::GilAwareMutex> const con_lock(connections_mutex);
-    for (auto &c : connections) {
-      c->connect();
-    }
-  }
-
   DEBUG_PRINT(Debug::Client, "start] Started");
 }
 

@@ -110,12 +110,12 @@ The library is used as testing framework for test-automation.
 
 #### Install from pypi package (comming soon)
 ```bash
-python3 -m pip install c104~=1.16.0
+python3 -m pip install c104~=1.15.2
 ```
 
 #### Add to requirements.txt
 ```
-c104~=1.16.0
+c104~=1.15.2
 ```
 
 ### Source distribution
@@ -123,14 +123,14 @@ c104~=1.16.0
 #### Install from source
 
 ```bash
-sudo apt-get install build-essential cmake python3-dev ninja-build
-python3 -m pip install --upgrade pip setuptools wheel ninja
-python3 -m pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.16.0
+sudo apt-get install build-essential cmake python3-pip python3-dev
+python3 -m pip install --upgrade pip setuptools wheel
+python3 -m pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.15.2
 ```
 
 #### Add to requirements.txt
 ```
-c104 @ git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.16.0
+c104 @ git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.15.2
 ```
 
 ## Wiki
@@ -158,7 +158,7 @@ Read more about the **Classes** and their **Properties** in our [project Wiki](h
    ```bash
    sudo apt-get install build-essential cmake python3-dev python3-dbg
    python3 -m pip install --upgrade pip
-   python3 -m pip install setuptools wheel ninja
+   python3 -m pip install setuptools wheel
    ```
 
 1. Build wheel
@@ -190,7 +190,7 @@ Read more about the **Classes** and their **Properties** in our [project Wiki](h
 
 1. Install dependencies
     - [Python 3](https://www.python.org/downloads/windows/)
-    - `python3 -m pip install --upgrade setuptools wheel ninja`
+    - `python3 -m pip install --upgrade setuptools wheel`
     - [Buildtools für Visual Studio 201*x*](https://visualstudio.microsoft.com/de/downloads/) (Nach unten scrollen &raquo; Alle Downloads &raquo; Tools für Visual Studio 201*x*)
     - [CMake binary](https://cmake.org/download/)
 

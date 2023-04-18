@@ -123,14 +123,15 @@ public:
 
   /**
    * @brief Open a created connection to remote server
+   * @return information on operation success
    */
-  void connect();
+  bool connect();
 
   /**
    * @brief Close a created connection to remote server
    * @return information on operation success
    */
-  void disconnect();
+  bool disconnect();
 
   /**
    * @brief Test if connection to remote server is open
