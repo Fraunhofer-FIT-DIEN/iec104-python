@@ -1,9 +1,17 @@
-__iec104-python__
+# iec104-python
 
+__Table of contents__
+1. [Introduction](#introduction)
+2. [Licensing](#licensing)
+3. [System requirements](#system-requirements)
+4. [Installation](#installation)
+5. [Wiki](#wiki)
+6. [Contribution](#contribution)
 
-[[_TOC_]]
 
 ---
+
+## Introduction
 
 This software provides an object-oriented high-level python module to simulate scada systems and remote terminal units communicating via 60870-5-104 protocol.
 
@@ -188,9 +196,7 @@ Read more about the **Classes** and their **Properties** in our [project Wiki](h
 
 1. Install dependencies
     - [Python 3](https://www.python.org/downloads/windows/)
-    - `python3 -m pip install --upgrade setuptools wheel ninja`
-    - [Buildtools für Visual Studio 201*x*](https://visualstudio.microsoft.com/de/downloads/) (Nach unten scrollen &raquo; Alle Downloads &raquo; Tools für Visual Studio 201*x*)
-    - [CMake binary](https://cmake.org/download/)
+    - [Buildtools für Visual Studio 201*x*](https://visualstudio.microsoft.com/de/downloads/) (Scroll down &raquo; All Downloads &raquo; Tools for Visual Studio 201*x*)
 
 1. Build wheel
    ```bash
