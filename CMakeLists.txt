@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.12)
 project(c104)
 
 # ##############################################################################
@@ -100,6 +100,8 @@ set_target_properties(
              CUDA_VISIBILITY_PRESET "hidden"
              PREFIX "${PYTHON_MODULE_PREFIX}"
              SUFFIX "${PYTHON_MODULE_EXTENSION}")
+
+target_compile_definitions(c104 PRIVATE VERSION_INFO=${C104_VERSION_INFO})
 
 # ##############################################################################
 # Tests with Catch2

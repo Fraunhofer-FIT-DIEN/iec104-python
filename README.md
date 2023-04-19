@@ -123,8 +123,7 @@ c104~=1.16.0
 #### Install from source
 
 ```bash
-sudo apt-get install build-essential cmake python3-dev ninja-build
-python3 -m pip install --upgrade pip setuptools wheel ninja
+sudo apt-get install build-essential python3-dev python3-pip
 python3 -m pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.16.0
 ```
 
@@ -156,14 +155,13 @@ Read more about the **Classes** and their **Properties** in our [project Wiki](h
 
 1. Install dependencies
    ```bash
-   sudo apt-get install build-essential cmake python3-dev python3-dbg
+   sudo apt-get install build-essential python3-pip python3-dev python3-dbg
    python3 -m pip install --upgrade pip
-   python3 -m pip install setuptools wheel ninja
    ```
 
 1. Build wheel
    ```bash
-   python3 setup.py bdist_wheel
+   python3 -m pip wheel .
    ```
 
 ### How to analyze performance (linux)
@@ -196,7 +194,7 @@ Read more about the **Classes** and their **Properties** in our [project Wiki](h
 
 1. Build wheel
    ```bash
-   python3 setup.py bdist_wheel
+   python3 -m pip wheel .
    ```
 
 ### Generate documentation
