@@ -53,6 +53,44 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     throw std::invalid_argument("Unsupported type " +
                                 std::string(TypeID_toString(type)));
   }
+
+  is_server = dp_station && dp_station->isLocal();
+
+  if (dp_ioa < 1 || dp_ioa > 16777216) {
+    throw std::invalid_argument("Invalid information object address " +
+                                std::to_string(dp_ioa));
+  }
+
+  if (reportInterval_ms) {
+    if (dp_type > M_EP_TF_1) {
+      throw std::invalid_argument("Report interval option is only allowed for "
+                                  "monitoring types, but not for " +
+                                  std::string(TypeID_toString(type)));
+    }
+    if (!is_server) {
+      throw std::invalid_argument(
+          "Report interval option is only allowed for server-sided points");
+    }
+  }
+
+  if (relatedInformationObjectAddress > 0) {
+    if (!is_server) {
+      throw std::invalid_argument(
+          "Related IO address option is only allowed for server-sided points");
+    }
+  }
+  if (relatedInformationObjectAutoReturn) {
+    if (relatedInformationObjectAddress < 1) {
+      throw std::invalid_argument("Related IO auto return option cannot be "
+                                  "used without the related IO address option");
+    }
+    if (dp_type < C_SC_NA_1 || dp_type > C_BO_TA_1) {
+      throw std::invalid_argument("Related IO auto return option is only "
+                                  "allowed for control types, but not for " +
+                                  std::string(TypeID_toString(type)));
+    }
+  }
+
   DEBUG_PRINT(Debug::Point, "Created");
 }
 
@@ -75,6 +113,19 @@ std::uint_fast32_t DataPoint::getRelatedInformationObjectAddress() const {
 
 void DataPoint::setRelatedInformationObjectAddress(
     const std::uint_fast32_t related_io_address) {
+  if (related_io_address > 0) {
+
+    if (related_io_address > 16777216) {
+      throw std::invalid_argument(
+          "Invalid related information object address " +
+          std::to_string(related_io_address));
+    }
+
+    if (!is_server) {
+      throw std::invalid_argument(
+          "Related IO address option is only allowed for server-sided points");
+    }
+  }
   relatedInformationObjectAddress.store(related_io_address);
 }
 
@@ -83,6 +134,17 @@ bool DataPoint::getRelatedInformationObjectAutoReturn() const {
 }
 
 void DataPoint::setRelatedInformationObjectAutoReturn(const bool auto_return) {
+  if (auto_return) {
+    if (relatedInformationObjectAddress.load() < 1) {
+      throw std::invalid_argument("Related IO auto return option cannot be "
+                                  "used without the related IO address option");
+    }
+    if (type < C_SC_NA_1 || type > C_BO_TA_1) {
+      throw std::invalid_argument("Related IO auto return option is only "
+                                  "allowed for control types, but not for " +
+                                  std::string(TypeID_toString(type)));
+    }
+  }
   relatedInformationObjectAutoReturn.store(auto_return);
 }
 
@@ -282,6 +344,15 @@ std::uint_fast32_t DataPoint::getReportInterval_ms() const {
 }
 
 void DataPoint::setReportInterval_ms(const std::uint_fast32_t interval_ms) {
+  if (type > M_EP_TF_1) {
+    throw std::invalid_argument("Report interval option is only allowed for "
+                                "monitoring types, but not for " +
+                                std::string(TypeID_toString(type)));
+  }
+  if (!is_server) {
+    throw std::invalid_argument(
+        "Report interval option is only allowed for server-sided points");
+  }
   reportInterval_ms.store(interval_ms);
 }
 

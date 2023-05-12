@@ -66,7 +66,7 @@ public:
   }
 
   /**
-   * @brief Remove object
+   * @brief Remove DataPoint and owned references
    */
   ~DataPoint();
 
@@ -79,12 +79,14 @@ private:
    * @param dp_report_ms auto reporting interval
    * @param dp_related_ioa related information object address
    * @param dp_related_auto_return auto transmit related point on command
-   * @throws std::invalid_argument if type is invalid
+   * @throws std::invalid_argument if arguments provided are not compatible
    */
   DataPoint(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
             std::shared_ptr<Station> dp_station,
             std::uint_fast32_t dp_report_ms, std::uint_fast32_t dp_related_ioa,
             bool dp_related_auto_return);
+
+  bool is_server{false};
 
   /// @brief IEC60870-5 remote address of this DataPoint
   std::uint_fast32_t informationObjectAddress{0};
@@ -92,6 +94,8 @@ private:
   /// @brief IEC60870-5 remote address of a related measurement DataPoint
   std::atomic_uint_fast32_t relatedInformationObjectAddress{0};
 
+  /// @brief configure if related point should be auto transmitted if this point
+  /// is a command point that was updated via client
   std::atomic_bool relatedInformationObjectAutoReturn{false};
 
   /// @brief current value
@@ -142,37 +146,100 @@ public:
    */
   std::shared_ptr<Station> getStation();
 
+  /**
+   * @brief Get the information object address
+   * @return IOA
+   */
   std::uint_fast32_t getInformationObjectAddress() const;
 
+  /**
+   * @brief Get the information object address of a related monitoring point
+   * @return IOA
+   */
   std::uint_fast32_t getRelatedInformationObjectAddress() const;
 
+  /**
+   * @brief Set the information object address of a related monitoring point
+   * @throws std::invalid_argument if not a server-sided control point or
+   * invalid IOA
+   */
   void
   setRelatedInformationObjectAddress(std::uint_fast32_t related_io_address);
 
+  /**
+   * @brief Test if a related monitoring point should be auto-transmitted on
+   * incoming update of this control point
+   * @return if auto-transmit of related point is enabled
+   */
   bool getRelatedInformationObjectAutoReturn() const;
 
+  /**
+   * @brief Configure if the related monitoring point should be auto-transmitted
+   * on incoming update of this control point
+   * @throws std::invalid_argument if not a server-sided control point or
+   * invalid IOA
+   */
   void setRelatedInformationObjectAutoReturn(bool auto_return);
 
   IEC60870_5_TypeID getType() const;
 
+  /**
+   * @brief Get automatic report transmission interval of this point
+   * @return interval in milliseconds, 0 if disabled
+   */
   std::uint_fast32_t getReportInterval_ms() const;
 
+  /**
+   * @brief Configure automatic report transmission interval of this monitoring
+   * point
+   * @throws std::invalid_argument if not a server-sided monitoring point
+   */
   void setReportInterval_ms(std::uint_fast32_t interval_ms);
 
+  /**
+   * @brief Get quality restriction bitset for the current value
+   * @return qualit restrictions
+   */
   Quality getQuality() const;
 
+  /**
+   * @brief Set quality restriction bitset for the current value
+   */
   void setQuality(const Quality &new_quality);
 
+  /**
+   * @brief Get point value
+   * @return value
+   */
   double getValue() const;
 
+  /**
+   * @brief Get point value
+   * @return value converted to signed integer
+   */
   std::int32_t getValueAsInt32() const;
 
+  /**
+   * @brief Get point value
+   * @return value converted to signed float
+   */
   float getValueAsFloat() const;
 
+  /**
+   * @brief Get point value
+   * @return value converted to unsigned integer
+   */
   std::uint32_t getValueAsUInt32() const;
 
+  /**
+   * @brief Set point value
+   */
   void setValue(double new_value);
 
+  /**
+   * @brief Set point value with quality restriction bitset and updated at
+   * timestamp
+   */
   void setValueEx(double new_value, const Quality &new_quality,
                   std::uint_fast64_t timestamp_ms);
 

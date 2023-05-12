@@ -1037,7 +1037,7 @@ PYBIND11_MODULE(c104, m) {
     station: :ref:`c104.Station`
         station reporting point
     io_address: int
-        point information object address
+        point information object address (value between 0 and 16777216)
     point_type: :ref:`c104.Type`
         point information type
 
@@ -1745,14 +1745,22 @@ PYBIND11_MODULE(c104, m) {
 )def",
            "io_address"_a)
       .def("add_point", &Object::Station::addPoint, R"def(
-    add_point(self: c104.Station, common_address: int) -> Optional[c104.Point]
+    add_point(self: c104.Station, io_address: int, type: c104.Type, report_ms: int = 0, related_io_address: int = 0, related_io_autoreturn: bool = False) -> Optional[c104.Point]
 
     add a new point to this station and return the new point object
 
     Parameters
     ----------
-    common_address: int
-        station common address (value between 0 and 65535)
+    io_address: int
+        point information object address (value between 0 and 16777216)
+    type: :ref:`c104.Type`
+        point information type
+    report_ms: int
+        automatic reporting interval in milliseconds (monitoring points server-sided only)
+    related_io_address: int
+        related monitoring point identified by information object address, that should be auto transmitted on incoming client command (for control points server-sided only)
+    related_io_autoreturn: bool
+        automatic reporting interval in milliseconds (for control points server-sided only)
 
     Returns
     -------
@@ -1762,7 +1770,13 @@ PYBIND11_MODULE(c104, m) {
     Raises
     ------
     ValueError
-        If type is invalid
+        If io_address or type is invalid
+    ValueError
+        If report_ms, related_io_address or related_auto_return is set, but type is not a monitoring type
+    ValueError
+        If related_auto_return is set, but related_io_address is not set
+    ValueError
+        If related_auto_return is set, but type is not a control type
 
     Example
     -------
