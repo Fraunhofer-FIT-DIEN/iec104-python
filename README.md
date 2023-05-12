@@ -208,7 +208,7 @@ Read more about the **Classes** and their **Properties** in our [project Wiki](h
 1. Build c104 module
 
 1. Install dependencies
-   - `python3 -m pip install --upgrade sphinx breathe-apidoc`
+   - `python3 -m pip install --upgrade sphinx breathe sphinx-autodoc-typehints`
    - doxygen
    - graphviz
 
