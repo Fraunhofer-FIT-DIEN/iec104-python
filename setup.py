@@ -16,11 +16,11 @@ PLAT_TO_CMAKE = {
     "win-arm32": "ARM",
     "win-arm64": "ARM64",
 }
+PROJECT_DIR = Path(__file__).parent
 
 
 def readme():
-    with open("README.md", "r") as f:
-        return f.read()
+    return (PROJECT_DIR / "README.md").read_text()
 
 
 class CMakeExtension(Extension):
@@ -137,7 +137,7 @@ setup(
     long_description=readme(),
     long_description_content_type="text/markdown",
     url="https://github.com/fraunhofer-fit-dien/iec104-python",
-    ext_modules=[CMakeExtension('c104')],
+    ext_modules=[CMakeExtension('c104', str(PROJECT_DIR))],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
     python_requires='>=3.6'

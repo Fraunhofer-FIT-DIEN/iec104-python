@@ -3,8 +3,7 @@
 IncomingMessage
 ###############
 
-
 .. autoclass:: c104.IncomingMessage
    :members:
    :noindex:
-   :show-inheritance:
+   :exclude-members: __init__,__new__
