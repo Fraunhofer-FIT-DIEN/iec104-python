@@ -253,3 +253,12 @@ std::string Remote::connectionStringFormatter(const std::string &ip,
   return (0 == port) ? ip + ":" + std::to_string(IEC_60870_5_104_DEFAULT_PORT)
                      : ip + ":" + std::to_string(port);
 }
+
+bool Remote::file_exists(const std::string &name) {
+  if (FILE *file = fopen(name.c_str(), "r")) {
+    fclose(file);
+    return true;
+  } else {
+    return false;
+  }
+}

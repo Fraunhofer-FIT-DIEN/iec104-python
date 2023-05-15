@@ -97,6 +97,14 @@ std::string CP56Time2a_toString(CP56Time2a time);
  */
 std::string connectionStringFormatter(const std::string &ip,
                                       uint_fast16_t port);
+
+/**
+ * @brief test if a file exists and is readable
+ * @param name file path
+ * @return if file is readable or not
+ */
+bool file_exists(const std::string &name);
+
 } // namespace Remote
 
 #endif // C104_REMOTE_HELPER_H

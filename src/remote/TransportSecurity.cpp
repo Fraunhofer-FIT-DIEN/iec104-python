@@ -29,9 +29,8 @@
  *
  */
 
-#include <filesystem>
-
 #include "TransportSecurity.h"
+#include "Helper.h"
 
 using namespace Remote;
 
@@ -89,14 +88,14 @@ void TransportSecurity::setCertificate(const std::string &cert,
   if (cert.empty()) {
     throw std::invalid_argument("Missing value for cert argument");
   }
-  if (!std::filesystem::exists(cert)) {
+  if (!file_exists(cert)) {
     throw std::invalid_argument(
         "Provided certificate filepath does not exist: " + cert);
   }
   if (key.empty()) {
     throw std::invalid_argument("Missing value for key argument");
   }
-  if (!std::filesystem::exists(key)) {
+  if (!file_exists(key)) {
     throw std::invalid_argument("Provided key filepath does not exist: " +
                                 cert);
   }
@@ -117,7 +116,7 @@ void TransportSecurity::setCACertificate(const std::string &cert) {
   if (cert.empty()) {
     throw std::invalid_argument("Missing value for cert argument");
   }
-  if (!std::filesystem::exists(cert)) {
+  if (!file_exists(cert)) {
     throw std::invalid_argument(
         "Provided certificate filepath does not exist: " + cert);
   }
@@ -128,7 +127,7 @@ void TransportSecurity::addAllowedRemoteCertificate(const std::string &cert) {
   if (cert.empty()) {
     throw std::invalid_argument("Missing value for cert argument");
   }
-  if (!std::filesystem::exists(cert)) {
+  if (!file_exists(cert)) {
     throw std::invalid_argument(
         "Provided certificate filepath does not exist: " + cert);
   }
