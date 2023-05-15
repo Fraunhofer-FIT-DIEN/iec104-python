@@ -116,7 +116,7 @@ The library is used as testing framework for test-automation.
 
 ### Package distribution
 
-#### Install from pypi package (comming soon)
+#### Install from pypi.org
 ```bash
 python3 -m pip install c104~=1.16.0
 ```
