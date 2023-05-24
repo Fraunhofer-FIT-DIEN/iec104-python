@@ -300,13 +300,7 @@ void DataPoint::setValueEx(const double new_value, const Quality &new_quality,
     case M_ME_TF_1:
     case C_SE_NC_1:
     case C_SE_TC_1: {
-      if (new_value < -16777216. || new_value > 16777215.) {
-        // unexpected bad quality
-        std::cerr << "[c104.Point.setValueEx] Cannot set value of M_ME (short) "
-                     "to numbers other than [-2^24, ... , +2^24 - 1] at IOA "
-                  << std::to_string(informationObjectAddress) << std::endl;
-        quality.store(Quality::Invalid);
-      }
+      // no validation required
     } break;
     case M_IT_NA_1:
     case M_IT_TA_1:

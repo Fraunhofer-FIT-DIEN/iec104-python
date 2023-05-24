@@ -130,7 +130,7 @@ class CMakeBuild(build_ext):
 
 setup(
     name="c104",
-    version="1.16.0",
+    version="1.16.1",
     author="Martin Unkel, Fraunhofer FIT",
     author_email="martin.unkel@fit.fraunhofer.de",
     description="iec104-python",

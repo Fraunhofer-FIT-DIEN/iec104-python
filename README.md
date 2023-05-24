@@ -104,7 +104,7 @@ The library is used as testing framework for test-automation.
 
 ### Operating systems
 
-* Debian/Ubuntu (x64): YES
+* Debian/Ubuntu (x64): YES >= 20.04
 * Raspbian (arm32v7): YES
 * Windows (x64): YES
 * Raspbian (aarch64): Not yet
@@ -113,36 +113,21 @@ The library is used as testing framework for test-automation.
 * python >= 3.6, < 3.11
 
 ## Installation
+Please adjust the version number to the latest version or use a specific version according to your needs.
 
-### Package distribution
-
-#### Install from pypi.org
+### Install from pypi.org
 ```bash
 python3 -m pip install c104~=1.16.0
 ```
 
-#### Add to requirements.txt
-```
-c104~=1.16.0
-```
-
-### Source distribution
-
-#### Install from source
-
+### Install from git
 ```bash
-sudo apt-get install build-essential python3-dev python3-pip
 python3 -m pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.16.0
-```
-
-#### Add to requirements.txt
-```
-c104 @ git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.16.0
 ```
 
 ## Wiki
 
-Read more about the **Classes** and their **Properties** in our [project Wiki](https://iec104-python.readthedocs.io/).
+Read more about the **Classes** and their **Properties** in our [project Wiki](https://iec104-python.readthedocs.io/python/index.html).
 
 ## Contribution
 
