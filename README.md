@@ -91,7 +91,7 @@ The library is used to wrap c++ code into a python module and allow seamless ope
 
 #### catch2
 
-This project is build on top of catch2 from the Catch2 Authors, which is licensed under [BSL-1.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
+This project is build on top of catch2 from the Catch2 Authors, which is licensed under [BSL-1.0](https://www.boost.org/users/license.html).
 
 The library is used as testing framework for test-automation.
 
