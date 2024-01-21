@@ -49,13 +49,13 @@ command_point = station.add_point(io_address=12, type=c104.Type.C_RC_TA_1)
 client.start()
 ```
 
-See [examples](examples) folder for more detailed examples.
+See [examples](https://github.com/Fraunhofer-FIT-DIEN/iec104-python/tree/main/examples) folder for more detailed examples.
 
 ## Licensing
 
 This software is licensed under the GPLv3 (https://www.gnu.org/licenses/gpl-3.0.en.html).
 
-See [LICENSE](LICENSE) file for the complete license text.
+See [LICENSE](https://github.com/Fraunhofer-FIT-DIEN/iec104-python/blob/main/LICENSE) file for the complete license text.
 
 ### Dependencies
 
@@ -209,4 +209,4 @@ Read more about the **Classes** and their **Properties** in our [project Wiki](h
 
 ## Change log
 
-Track all changes in our [CHANGELOG](CHANGELOG.md) documentation.
+Track all changes in our [CHANGELOG](https://github.com/Fraunhofer-FIT-DIEN/iec104-python/blob/main/CHANGELOG.md) documentation.

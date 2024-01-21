@@ -13,4 +13,5 @@ List
    informationtype
    connectionstate
    connectioninit
-   responsestate
+   commandresponsestate
+   commandtransmissionmode

@@ -21,9 +21,10 @@
 """
 
 import functools
+import time
+import sys
 
 import c104
-import time
 from pathlib import Path
 
 USE_TLS = True
@@ -37,7 +38,7 @@ if USE_TLS:
     tlsconf.set_certificate(cert=str(ROOT / "certs/client1.crt"), key=str(ROOT / "certs/client1.key"))
     tlsconf.set_ca_certificate(cert=str(ROOT / "certs/ca.crt"))
     tlsconf.set_version(min=c104.TlsVersion.TLS_1_2, max=c104.TlsVersion.TLS_1_2)
-    tlsconf.add_allowed_remote_certificate(cert=str(ROOT / "certs/server.crt"))
+    tlsconf.add_allowed_remote_certificate(cert=str(ROOT / "certs/server1.crt"))
     my_client = c104.Client(tick_rate_ms=1000, command_timeout_ms=5000, transport_security=tlsconf)
 else:
     my_client = c104.Client(tick_rate_ms=1000, command_timeout_ms=5000)
@@ -174,6 +175,35 @@ if cl_measurement_point:
     cl_measurement_point.on_receive(callable=cl_pt_on_receive_point)
 
 time.sleep(1)
+
+##################################
+# Send single commands
+##################################
+
+
+cl_single_command = cl_station_2.add_point(io_address=16, type=c104.Type.C_SC_NA_1)
+print(cl_single_command.command_mode)
+
+cl_single_command.value = False
+if cl_single_command.transmit(cause=c104.Cot.ACTIVATION):
+    print("CL] transmit: Single command OFF successful")
+else:
+    print("CL] transmit: Single command OFF failed")
+
+time.sleep(1)
+
+cl_single_command.command_mode = c104.CommandMode.SELECT_AND_EXECUTE
+print(cl_single_command.command_mode)
+
+cl_single_command.value = False
+if cl_single_command.transmit(cause=c104.Cot.ACTIVATION):
+    print("CL] transmit: Single command OFF successful")
+else:
+    print("CL] transmit: Single command OFF failed")
+
+time.sleep(1)
+my_client.stop()
+sys.exit(1)
 
 ##################################
 # Send double commands

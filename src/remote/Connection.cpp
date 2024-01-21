@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -36,17 +36,19 @@
 #include "remote/Helper.h"
 #include "remote/message/IncomingMessage.h"
 #include "remote/message/OutgoingMessage.h"
+#include "remote/message/PointCommand.h"
 
 using namespace Remote;
 using namespace std::chrono_literals;
 
 Connection::Connection(
-    std::shared_ptr<Client> cl, const std::string &_ip,
+    std::shared_ptr<Client> _client, const std::string &_ip,
     const uint_fast16_t _port, const uint_fast32_t command_timeout_ms,
     const ConnectionInit _init,
     std::shared_ptr<Remote::TransportSecurity> transport_security,
     const uint_fast8_t originator_address)
-    : client(cl), ip(_ip), port(_port), commandTimeout_ms(command_timeout_ms) {
+    : client(_client), ip(_ip), port(_port),
+      commandTimeout_ms(command_timeout_ms) {
   Assert_IPv4(_ip);
   Assert_Port(_port);
 
@@ -62,18 +64,17 @@ Connection::Connection(
   // @todo add python config options for APCI parameters
   auto param = CS104_Connection_getAPCIParameters(connection);
   param->t0 = 2; // Timeout for connection establishment (in s)
-  param->t1 = std::max(
-      1, (int)round(
-             command_timeout_ms /
-             1000)); // Timeout for transmitted APDUs in I/U format (in s) when
-                     // timeout elapsed without confirmation the connection will
-                     // be closed. This is used by the sender to determine if
-                     // the receiver has failed to confirm a message.
-  param->t2 = 2;  // Timeout to confirm messages (in s). This timeout is used by
-                  // the receiver to determine the time when the message
-                  // confirmation has to be sent.
+  // Timeout for transmitted APDUs in I/U format (in s) when
+  // timeout elapsed without confirmation the connection will
+  // be closed. This is used by the sender to determine if
+  // the receiver has failed to confirm a message.
+  param->t1 = std::max(1, (int)round(command_timeout_ms / 1000));
+  // Timeout to confirm messages (in s). This timeout is used by
+  // the receiver to determine the time when the message
+  // confirmation has to be sent.
+  param->t2 = 2;
   param->t3 = 20; // time until test telegrams will be sent in case of an idle
-                  // connection
+  // connection
   CS104_Connection_setAPCIParameters(connection, param);
 
   init.store(_init);
@@ -305,10 +306,20 @@ bool Connection::setClosed() {
   return true;
 }
 
-void Connection::prepareCommandSuccess(const std::string &cmdId) {
+bool Connection::prepareCommandSuccess(
+    const std::string &cmdId,
+    CommandProcessState const process_state = COMMAND_AWAIT_CON) {
   std::lock_guard<Module::GilAwareMutex> const map_lock(
       expectedResponseMap_mutex);
-  expectedResponseMap[cmdId] = 3;
+  expectedResponseMap[cmdId] = process_state;
+  if (process_state > COMMAND_AWAIT_CON) {
+    if (sequenceId.empty()) {
+      sequenceId = cmdId;
+    } else {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool Connection::awaitCommandSuccess(const std::string &cmdId) {
@@ -328,10 +339,18 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
                     "await_command_success] Timeout " + cmdId);
         break; // timeout
       } else {
-        // has result?
         auto const _it = expectedResponseMap.find(cmdId);
-        if ((_it != expectedResponseMap.end()) && _it->second != 3) {
-          success = _it->second == 1;
+        // is result still requested?
+        if (_it == expectedResponseMap.end()) {
+          success = false;
+          DEBUG_PRINT(Debug::Connection,
+                      "await_command_success] missing cmdId" + cmdId + ": " +
+                          std::to_string(success));
+          break; // failed -> result is not needed anymore
+        }
+        // has final result?
+        if (_it->second < COMMAND_AWAIT_CON) {
+          success = _it->second == COMMAND_SUCCESS;
           DEBUG_PRINT(Debug::Connection, "await_command_success] Result " +
                                              cmdId + ": " +
                                              std::to_string(success));
@@ -364,12 +383,14 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
 
 void Connection::setCommandSuccess(
     std::shared_ptr<Message::IncomingMessage> message) {
+  // fix for READ command
   TypeID const type = message->getCauseOfTransmission() == CS101_COT_REQUEST
                           ? C_RD_NA_1
                           : message->getType();
   ConnectionState const current = state.load();
   bool found = false;
 
+  // continue init procedure event though the response might be negative
   if (type == C_CS_NA_1 && current == OPEN_AWAIT_CLOCK_SYNC) {
     setState(OPEN);
   }
@@ -396,13 +417,55 @@ void Connection::setCommandSuccess(
     auto it = expectedResponseMap.find(cmdId);
     if (it != expectedResponseMap.end()) {
       found = true;
-      expectedResponseMap[cmdId] = message->isNegative() ? 0 : 1;
+      if (message->isNegative()) {
+        expectedResponseMap[cmdId] = COMMAND_FAILURE;
+      } else {
+        switch (expectedResponseMap[cmdId]) {
+        case COMMAND_AWAIT_CON:
+          expectedResponseMap[cmdId] =
+              (message->getCauseOfTransmission() == CS101_COT_ACTIVATION_CON)
+                  ? COMMAND_SUCCESS
+                  : COMMAND_FAILURE;
+          break;
+        case COMMAND_AWAIT_CON_TERM:
+          expectedResponseMap[cmdId] =
+              (message->getCauseOfTransmission() == CS101_COT_ACTIVATION_CON)
+                  ? COMMAND_AWAIT_TERM
+                  : COMMAND_FAILURE;
+          break;
+        case COMMAND_AWAIT_TERM:
+          expectedResponseMap[cmdId] = (message->getCauseOfTransmission() ==
+                                        CS101_COT_ACTIVATION_TERMINATION)
+                                           ? COMMAND_SUCCESS
+                                           : COMMAND_FAILURE;
+          break;
+        default:
+          expectedResponseMap[cmdId] = COMMAND_SUCCESS;
+        }
+        // clear active sequence
+        if (expectedResponseMap[cmdId] == COMMAND_SUCCESS &&
+            sequenceId == cmdId) {
+          sequenceId = "";
+        }
+      }
     }
   }
 
   // notify about update
   if (found) {
     response_wait.notify_all();
+  }
+}
+
+void Connection::cancelCommandSuccess(const std::string &cmdId) {
+  std::lock_guard<Module::GilAwareMutex> const map_lock(
+      expectedResponseMap_mutex);
+  auto it = expectedResponseMap.find(cmdId);
+  if (it != expectedResponseMap.end()) {
+    expectedResponseMap.erase(it);
+  }
+  if (sequenceId == cmdId) {
+    sequenceId = "";
   }
 }
 
@@ -505,8 +568,9 @@ bool Connection::interrogation(std::uint_fast16_t commonAddress,
                                 std::to_string(qualifier));
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_IC_NA_1-0";
-  if (wait_for_response) {
-    prepareCommandSuccess(cmdId);
+  if (wait_for_response &&
+      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM)) {
+    return false;
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -514,14 +578,14 @@ bool Connection::interrogation(std::uint_fast16_t commonAddress,
       connection, cause, commonAddress, qualifier);
   lock.unlock();
 
-  if (result) {
-    if (wait_for_response) {
+  if (wait_for_response) {
+    if (result) {
       return awaitCommandSuccess(cmdId);
     }
-    return true;
+    // result not required anymore, because no message was sent
+    cancelCommandSuccess(cmdId);
   }
-
-  return false;
+  return result;
 }
 
 bool Connection::counterInterrogation(std::uint_fast16_t commonAddress,
@@ -538,8 +602,9 @@ bool Connection::counterInterrogation(std::uint_fast16_t commonAddress,
                                 std::to_string(qualifier));
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_CI_NA_1-0";
-  if (wait_for_response) {
-    prepareCommandSuccess(cmdId);
+  if (wait_for_response &&
+      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM)) {
+    return false;
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -547,14 +612,14 @@ bool Connection::counterInterrogation(std::uint_fast16_t commonAddress,
       connection, cause, commonAddress, qualifier);
   lock.unlock();
 
-  if (result) {
-    if (wait_for_response) {
+  if (wait_for_response) {
+    if (result) {
       return awaitCommandSuccess(cmdId);
     }
-    return true;
+    // result not required anymore, because no message was sent
+    cancelCommandSuccess(cmdId);
   }
-
-  return false;
+  return result;
 }
 
 bool Connection::clockSync(std::uint_fast16_t commonAddress,
@@ -565,8 +630,8 @@ bool Connection::clockSync(std::uint_fast16_t commonAddress,
     return false;
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_CS_NA_1-0";
-  if (wait_for_response) {
-    prepareCommandSuccess(cmdId);
+  if (wait_for_response && !prepareCommandSuccess(cmdId)) {
+    return false;
   }
 
   sCP56Time2a time;
@@ -577,14 +642,14 @@ bool Connection::clockSync(std::uint_fast16_t commonAddress,
       CS104_Connection_sendClockSyncCommand(connection, commonAddress, &time);
   lock.unlock();
 
-  if (result) {
-    if (wait_for_response) {
+  if (wait_for_response) {
+    if (result) {
       return awaitCommandSuccess(cmdId);
     }
-    return true;
+    // result not required anymore, because no message was sent
+    cancelCommandSuccess(cmdId);
   }
-
-  return false;
+  return result;
 }
 
 bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
@@ -595,8 +660,8 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
     return false;
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_TS_TA_1-0";
-  if (wait_for_response) {
-    prepareCommandSuccess(cmdId);
+  if (wait_for_response && !prepareCommandSuccess(cmdId)) {
+    return false;
   }
 
   if (with_time) {
@@ -608,14 +673,14 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
         connection, commonAddress, testSequenceCounter++, &time);
     lock.unlock();
 
-    if (result) {
-      if (wait_for_response) {
+    if (wait_for_response) {
+      if (result) {
         return awaitCommandSuccess(cmdId);
       }
-      return true;
+      // result not required anymore, because no message was sent
+      cancelCommandSuccess(cmdId);
     }
-
-    return false;
+    return result;
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -623,18 +688,49 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
       CS104_Connection_sendTestCommand(connection, commonAddress);
   lock.unlock();
 
-  if (result) {
-    if (wait_for_response) {
+  if (wait_for_response) {
+    if (result) {
       return awaitCommandSuccess(cmdId);
     }
-    return true;
+    // result not required anymore, because no message was sent
+    cancelCommandSuccess(cmdId);
+  }
+  return result;
+}
+
+bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
+                          const CS101_CauseOfTransmission cause) {
+  auto type = point->getType();
+
+  // is a supported control command?
+  if (type <= S_IT_TC_1 || type >= M_EI_NA_1) {
+    throw std::invalid_argument("Invalid point type");
   }
 
-  return false;
+  bool selectAndExecute = point->getCommandMode() == SELECT_AND_EXECUTE_COMMAND;
+  // send select command
+  if (selectAndExecute) {
+    auto message = Message::PointCommand::create(point, true);
+    message->setCauseOfTransmission(cause);
+    // Select success ?
+    if (!command(std::move(message), true)) {
+      return false;
+    }
+  }
+  // send execute command
+
+  auto message = Message::PointCommand::create(point);
+  message->setCauseOfTransmission(cause);
+  if (selectAndExecute) {
+    // wait for ACT_TERM after ACT_CON
+    return command(std::move(message), true, COMMAND_AWAIT_CON_TERM);
+  }
+  return command(std::move(message), true);
 }
 
 bool Connection::command(std::shared_ptr<Message::OutgoingMessage> message,
-                         const bool wait_for_response) {
+                         const bool wait_for_response,
+                         const CommandProcessState state) {
   Module::ScopedGilRelease const scoped("Connection.command");
 
   if (!isOpen())
@@ -643,33 +739,25 @@ bool Connection::command(std::shared_ptr<Message::OutgoingMessage> message,
   std::string const cmdId = std::to_string(message->getCommonAddress()) + "-" +
                             TypeID_toString(message->getType()) + "-" +
                             std::to_string(message->getIOA());
-  if (wait_for_response) {
-    prepareCommandSuccess(cmdId);
+  if (wait_for_response && !prepareCommandSuccess(cmdId, state)) {
+    return false;
   }
 
-  DEBUG_PRINT(Debug::Connection, "command prepared.. SEND");
-
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
-  DEBUG_PRINT(Debug::Connection, "command prepared.. SEND lock");
   bool const result = CS104_Connection_sendProcessCommandEx(
       connection, message->getCauseOfTransmission(),
       message->getCommonAddress(), message->getInformationObject());
-  DEBUG_PRINT(Debug::Connection, "command prepared.. SEND ok");
   lock.unlock();
 
-  DEBUG_PRINT(Debug::Connection, "command send.. WAIT");
-
-  if (result) {
-    DEBUG_PRINT(Debug::Connection, "command WAIT");
-    if (wait_for_response) {
+  DEBUG_PRINT(Debug::Connection, "command SEND " + std::to_string(result));
+  if (wait_for_response) {
+    if (result) {
       return awaitCommandSuccess(cmdId);
     }
-    DEBUG_PRINT(Debug::Connection, "command SEND SUCCESS");
-    return true;
+    // result not required anymore, because no message was sent
+    cancelCommandSuccess(cmdId);
   }
-  DEBUG_PRINT(Debug::Connection, "command SEND FAILURE");
-
-  return false;
+  return result;
 }
 
 bool Connection::read(std::shared_ptr<Object::DataPoint> point,
@@ -690,22 +778,23 @@ bool Connection::read(std::shared_ptr<Object::DataPoint> point,
 
   std::string const cmdId =
       std::to_string(ca) + "-C_RD_NA_1-" + std::to_string(ioa);
-  if (wait_for_response) {
-    prepareCommandSuccess(cmdId);
+  if (wait_for_response &&
+      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM)) {
+    return false;
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
   bool const result = CS104_Connection_sendReadCommand(connection, ca, ioa);
   lock.unlock();
 
-  if (result) {
-    if (wait_for_response) {
+  if (wait_for_response) {
+    if (result) {
       return awaitCommandSuccess(cmdId);
     }
-    return true;
+    // result not required anymore, because no message was sent
+    cancelCommandSuccess(cmdId);
   }
-
-  return false;
+  return result;
 }
 
 /* Callback handler to log sent or received messages (optional) */
@@ -884,19 +973,6 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
     // command response
     if (type < P_ME_NA_1) {
       instance->setCommandSuccess(message);
-
-      switch (cot) {
-      case CS101_COT_UNKNOWN_TYPE_ID:
-      case CS101_COT_UNKNOWN_COT:
-      case CS101_COT_UNKNOWN_CA:
-      case CS101_COT_UNKNOWN_IOA:
-        // @todo error callback
-        break;
-      case CS101_COT_ACTIVATION_CON:
-      case CS101_COT_ACTIVATION_TERMINATION:
-        // @todo success callback
-        break;
-      }
 
       if (debug) {
         end = std::chrono::steady_clock::now();

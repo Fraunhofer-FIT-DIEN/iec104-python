@@ -4,6 +4,7 @@ Enums
 .. toctree::
    :maxdepth: 4
 
+   commandmode
    connectionstate
    cot
    data

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -120,13 +120,15 @@ public:
    * @param relatedInformationObjectAddress related information object address
    * @param relatedInformationObjectAutoReturn auto transmit related point on
    * command
+   * @param commandMode command transmission mode (direct or select-and-execute)
    * @throws std::invalid_argument if type is invalid
    */
   std::shared_ptr<DataPoint>
   addPoint(std::uint_fast32_t informationObjectAddress, IEC60870_5_TypeID type,
            std::uint_fast32_t reportInterval_ms = 0,
            std::uint_fast32_t relatedInformationObjectAddress = 0,
-           bool relatedInformationObjectAutoReturn = false);
+           bool relatedInformationObjectAutoReturn = false,
+           CommandTransmissionMode commandMode = DIRECT_COMMAND);
 
   bool isLocal();
 

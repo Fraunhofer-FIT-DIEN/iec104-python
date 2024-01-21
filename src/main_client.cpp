@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
   py::scoped_interpreter guard{};
 
   auto client = Client::create(1000, 1000);
-  auto connection = client->addConnection("127.0.0.1", 2404);
+  auto connection = client->addConnection("127.0.0.1", 19998);
   auto station = connection->addStation(47);
 
   auto point = station->addPoint(11, M_ME_NC_1);
@@ -54,6 +54,23 @@ int main(int argc, char *argv[]) {
       std::cout << "Waiting for connection" << std::endl;
       std::this_thread::sleep_for(1s);
     }
+
+    auto cl_single_command = station->addPoint(16, C_SC_NA_1);
+    cl_single_command->setValue(0);
+    if (cl_single_command->transmit()) {
+      std::cout << "CL] transmit: Single command OFF successful" << std::endl;
+    } else {
+      std::cout << "CL] transmit: Single command OFF failed" << std::endl;
+    }
+    std::this_thread::sleep_for(1s);
+    cl_single_command->setCommandMode(SELECT_AND_EXECUTE_COMMAND);
+    if (cl_single_command->transmit()) {
+      std::cout << "CL] transmit: Single command OFF successful" << std::endl;
+    } else {
+      std::cout << "CL] transmit: Single command OFF failed" << std::endl;
+    }
+
+    std::this_thread::sleep_for(1s);
     while (connection->getState() == OPEN) {
       std::cout << "READ" << std::endl;
       if (point->read()) {

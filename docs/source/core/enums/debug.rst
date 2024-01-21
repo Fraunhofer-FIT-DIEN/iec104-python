@@ -8,4 +8,5 @@ Quality
 InformationType
 ConnectionState
 ConnectionInit
-ResponseState
+CommandResponseState
+CommandTransmissionMode

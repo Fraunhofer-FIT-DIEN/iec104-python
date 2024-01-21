@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -40,7 +40,6 @@ namespace Message {
 /**
  * @brief IEC60870-5 generic data point information message
  * @details Valid cause of transmission: x
- * @deprecated since all used messages are implemented in their own classes a
  * generic point information should not be used anymore
  */
 class PointMessage : public OutgoingMessage {

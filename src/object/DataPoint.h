@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -51,6 +51,7 @@ public:
    * @param dp_report_ms auto reporting interval
    * @param dp_related_ioa related information object address
    * @param dp_related_auto_return auto transmit related point on command
+   * @param dp_cmd_mode command transmission mode (direct or select-and-execute)
    * @throws std::invalid_argument if type is invalid
    */
   [[nodiscard]] static std::shared_ptr<DataPoint>
@@ -58,11 +59,12 @@ public:
          std::shared_ptr<Station> dp_station,
          std::uint_fast32_t dp_report_ms = 0,
          std::uint_fast32_t dp_related_ioa = 0,
-         bool dp_related_auto_return = false) {
+         bool dp_related_auto_return = false,
+         CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND) {
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<DataPoint>(
         new DataPoint(dp_ioa, dp_type, std::move(dp_station), dp_report_ms,
-                      dp_related_ioa, dp_related_auto_return));
+                      dp_related_ioa, dp_related_auto_return, dp_cmd_mode));
   }
 
   /**
@@ -79,12 +81,13 @@ private:
    * @param dp_report_ms auto reporting interval
    * @param dp_related_ioa related information object address
    * @param dp_related_auto_return auto transmit related point on command
+   * @param dp_cmd_mode command transmission mode (direct or select-and-execute)
    * @throws std::invalid_argument if arguments provided are not compatible
    */
   DataPoint(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
             std::shared_ptr<Station> dp_station,
             std::uint_fast32_t dp_report_ms, std::uint_fast32_t dp_related_ioa,
-            bool dp_related_auto_return);
+            bool dp_related_auto_return, CommandTransmissionMode dp_cmd_mode);
 
   bool is_server{false};
 
@@ -97,6 +100,13 @@ private:
   /// @brief configure if related point should be auto transmitted if this point
   /// is a command point that was updated via client
   std::atomic_bool relatedInformationObjectAutoReturn{false};
+
+  /// @brief command transmission mode (direct or select-and-execute)
+  std::atomic<CommandTransmissionMode> commandMode{DIRECT_COMMAND};
+
+  /// @brief current client execution lock - selected by address for exclusive
+  /// update execution
+  std::atomic_uint_fast8_t selectedByOriginatorAddress{0};
 
   /// @brief current value
   std::atomic<double> value{0};
@@ -127,7 +137,7 @@ private:
   std::weak_ptr<Station> station{};
 
   /// @brief python callback function pointer
-  Module::Callback<ResponseState> py_onReceive{
+  Module::Callback<CommandResponseState> py_onReceive{
       "Point.on_receive", "(point: c104.Point, previous_state: dict, message: "
                           "c104.IncomingMessage) -> c104.ResponseState"};
 
@@ -180,6 +190,30 @@ public:
    * invalid IOA
    */
   void setRelatedInformationObjectAutoReturn(bool auto_return);
+
+  /**
+   * @brief Get command transmission mode
+   * @return direct or select-and-execute
+   */
+  CommandTransmissionMode getCommandMode() const;
+
+  /**
+   * @brief Configure command transmission mode to direct or select-and-execute
+   */
+  void setCommandMode(CommandTransmissionMode mode);
+
+  /**
+   * @brief Get select-and-execute lock originator address
+   * @return client originator address or zero if no active selection lock
+   * exists
+   */
+  std::uint_fast8_t getSelectedByOriginatorAddress() const;
+
+  /**
+   * @brief Configure select-and-execute lock originator address
+   * @throws std::invalid_argument if not a server-sided control point
+   */
+  void setSelectedByOriginatorAddress(std::uint_fast8_t originatorAddress);
 
   IEC60870_5_TypeID getType() const;
 
@@ -243,17 +277,41 @@ public:
   void setValueEx(double new_value, const Quality &new_quality,
                   std::uint_fast64_t timestamp_ms);
 
+  /**
+   * @brief get timestamp of last value update
+   * @return seconds since unix-epoch
+   */
   std::uint64_t getUpdatedAt_ms() const;
 
+  /**
+   * @brief get timestamp of last cyclic report (server-only)
+   * @return seconds since unix-epoch
+   */
   std::uint64_t getReportedAt_ms() const;
 
+  /**
+   * @brief get timestamp of last incoming transmission
+   * @return seconds since unix-epoch
+   */
   std::uint64_t getReceivedAt_ms() const;
 
+  /**
+   * @brief get timestamp of last non-cyclic transmission
+   * @return seconds since unix-epoch
+   */
   std::uint64_t getSentAt_ms() const;
 
+  /**
+   * @brief set timestamp of last outgoing transmission from server to client
+   */
   void setReportedAt_ms(std::uint_fast64_t timestamp_ms);
 
-  ResponseState
+  /**
+   * @brief handle remote point update, execute python callback
+   * @param message incoming messsage information
+   * @return response handling information (success, failure or none)
+   */
+  CommandResponseState
   onReceive(std::shared_ptr<Remote::Message::IncomingMessage> message);
 
   /**
@@ -262,6 +320,10 @@ public:
    */
   void setOnReceiveCallback(py::object &callable);
 
+  /**
+   * @brief handle point value request before automatic read-command response,
+   * execute python callback
+   */
   void onBeforeRead();
 
   /**
@@ -272,6 +334,10 @@ public:
    */
   void setOnBeforeReadCallback(py::object &callable);
 
+  /**
+   * @brief handle point value request before automatic transmission, execute
+   * python callback
+   */
   void onBeforeAutoTransmit();
 
   /**
@@ -297,17 +363,6 @@ public:
    * invalid
    */
   bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT);
-
-  /**
-   * @brief transmit point
-   * @param cause cause of transmission
-   * @param master connection reference
-   * @return success information
-   * @throws std::invalid_argument if parent station or connection reference is
-   * invalid
-   */
-  bool transmitEx(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT,
-                  IMasterConnection master = nullptr);
 
   inline friend std::ostream &operator<<(std::ostream &os, DataPoint &dp) {
     os << std::endl

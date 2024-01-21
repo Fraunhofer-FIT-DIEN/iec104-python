@@ -33,7 +33,7 @@ print("SV] DEBUG MODE: {0}".format(c104.get_debug_mode()))
 
 if USE_TLS:
     tlsconf = c104.TransportSecurity(validate=True, only_known=True)
-    tlsconf.set_certificate(cert=str(ROOT / "certs/server.crt"), key=str(ROOT / "certs/server.key"))
+    tlsconf.set_certificate(cert=str(ROOT / "certs/server1.crt"), key=str(ROOT / "certs/server1.key"))
     tlsconf.set_ca_certificate(cert=str(ROOT / "certs/ca.crt"))
     tlsconf.set_version(min=c104.TlsVersion.TLS_1_2, max=c104.TlsVersion.TLS_1_2)
     tlsconf.add_allowed_remote_certificate(cert=str(ROOT / "certs/client1.crt"))
@@ -103,14 +103,38 @@ def sv_pt_on_setpoint_command(point: c104.Point, previous_state: dict, message: 
 sv_measurement_point = sv_station_2.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
 sv_measurement_point.value = 12.34
 
-sv_measurement_setpoint = sv_station_2.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=sv_measurement_point.io_address, related_io_autoreturn=True)
-sv_measurement_setpoint.on_receive(callable=sv_pt_on_setpoint_command)
+sv_control_setpoint = sv_station_2.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=sv_measurement_point.io_address, related_io_autoreturn=True)
+sv_control_setpoint.on_receive(callable=sv_pt_on_setpoint_command)
 
-sv_measurement_setpoint_2 = sv_station_2.add_point(io_address=13, type=c104.Type.C_SE_NC_1)
-sv_measurement_setpoint_2.related_io_address = 14  # use invalid IOA for testing purpose
-sv_measurement_setpoint_2.related_io_autoreturn = False
-sv_measurement_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
+sv_control_setpoint_2 = sv_station_2.add_point(io_address=13, type=c104.Type.C_SE_NC_1)
+sv_control_setpoint_2.related_io_address = 14  # use invalid IOA for testing purpose
+sv_control_setpoint_2.related_io_autoreturn = False
+sv_control_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
 
+##################################
+# SINGLE POINT WITH COMMAND
+##################################
+
+def sv_pt_on_single_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+    print("SV] {0} SINGLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+
+    if point.quality.is_good():
+        if message.is_select_command:
+            print("SV] -> SELECTED BY: {}".format(point.selected_by))
+        else:
+            print("SV] -> EXECUTED BY {}, NEW SELECTED BY={}".format(message.originator_address, point.selected_by))
+        return c104.ResponseState.SUCCESS
+
+    return c104.ResponseState.FAILURE
+
+
+sv_single_point = sv_station_2.add_point(io_address=15, type=c104.Type.M_SP_NA_1)
+sv_single_point.value = True
+
+sv_single_command = sv_station_2.add_point(io_address=16, type=c104.Type.C_SC_NA_1, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
+sv_single_command.related_io_address = 15
+sv_single_command.related_io_autoreturn = True
+sv_single_command.on_receive(callable=sv_pt_on_single_command)
 
 ##################################
 # DOUBLE POINT WITH COMMAND

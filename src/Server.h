@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -184,7 +184,7 @@ public:
    */
   void setOnClockSyncCallback(py::object &callable);
 
-  ResponseState onClockSync(std::string _ip, CP56Time2a time);
+  CommandResponseState onClockSync(std::string _ip, CP56Time2a time);
 
   /**
    * @brief set python callback that will be executed on unexpected incoming
@@ -204,6 +204,17 @@ public:
    * @throws std::invalid_argument if callable signature does not match
    */
   void setOnConnectCallback(py::object &callable);
+
+  /**
+   * @brief transmit a datapoint related message to a remote client
+   * @param point datapoint that should be send via server
+   * @param cause reason for transmission
+   * @return information on operation success
+   * @throws std::invalid_argument if point type is not supported for this
+   * operation
+   */
+  bool transmit(std::shared_ptr<Object::DataPoint> point,
+                CS101_CauseOfTransmission cause);
 
   /**
    * @brief send a message object to a remote client
@@ -320,7 +331,7 @@ private:
       "Server.on_send_raw", "(server: c104.Server, data: bytes) -> None"};
 
   /// @brief python callback function pointer
-  Module::Callback<ResponseState> py_onClockSync{
+  Module::Callback<CommandResponseState> py_onClockSync{
       "Server.on_clock_sync", "(server: c104.Server, ip: str, date_time: "
                               "datetime.datetime) -> c104.ResponseState"};
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -111,7 +111,15 @@ public:
    */
   bool isValidCauseOfTransmission() const;
 
+  /**
+   * @brief test if message is a command and requires a confirmation (ACK)
+   */
   bool requireConfirmation() const;
+
+  /**
+   * @brief test if message is a command with select flag set
+   */
+  bool isSelectCommand() const;
 
 private:
   /**
@@ -149,6 +157,10 @@ private:
 
   /// @brief timestamp in milliseconds since latest value update
   std::atomic_uint_fast64_t updatedAt{0};
+
+  /// @brief state that describes if a command results in a SELECT or an EXECUTE
+  /// action
+  std::atomic_bool selectFlag{false};
 
   /**
    * @brief extract meta data from this message: commonAddress,

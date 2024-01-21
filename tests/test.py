@@ -342,7 +342,7 @@ cl_dump()
 time.sleep(3)
 print("-"*60)
 
-if sv_step_point.read():
+if cl_step_point.read():
     print("CL] read: command successful")
 else:
     print("CL] read: command failed")
