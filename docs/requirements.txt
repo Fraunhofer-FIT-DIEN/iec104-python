@@ -1,3 +1,4 @@
 breathe==4.35.0
 cmake==3.26.3
 sphinx-autodoc-typehints==1.23.0
+sphinx-rtd-theme==2.0.0

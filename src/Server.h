@@ -256,11 +256,11 @@ private:
   /**
    * @brief Create a new remote connection handler instance that acts as a
    * server
-   * @details create a map of local common addresses and setup callbacks
-   * @param remoteAccess Link to RemoteAccessHandler
-   * @param tcpPort port for listening to connections from clients
-   * @param periodicMeasurementInterval_ms Interval in milliseconds between two
-   * cyclic measurement transmissions
+   * @param bind_ip ip-address the server should listen on for incoming client requests
+   * @param tcp_port port for listening to connections from clients
+   * @param tick_rate_ms Interval in milliseconds between two cyclic measurement transmissions
+   * @param max_open_connections maximum number of allowed open connections
+   * @param transport_security communication encryption instance reference
    */
   Server(const std::string &bind_ip, std::uint_fast16_t tcp_port,
          std::uint_fast32_t tick_rate_ms,

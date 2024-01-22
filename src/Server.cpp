@@ -42,7 +42,7 @@ using namespace std::chrono_literals;
 
 Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
                const std::uint_fast32_t tick_rate_ms,
-               const uint_fast8_t max_open_connections,
+               const std::uint_fast8_t max_open_connections,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : ip(bind_ip), port(tcp_port), tickRate_ms(tick_rate_ms),
       maxOpenConnections(max_open_connections) {

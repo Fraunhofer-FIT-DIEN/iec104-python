@@ -321,8 +321,7 @@ public:
    * @param point control point
    * @param cause reason for transmission
    * @returns if operation was successful
-   * @throws std::invalid_argument if point type is not supported for this
-   * operation
+   * @throws std::invalid_argument if point type is not supported for this operation
    */
   bool transmit(std::shared_ptr<Object::DataPoint> point,
                 CS101_CauseOfTransmission cause);
@@ -332,8 +331,7 @@ public:
    * @param message outgoing message
    * @param wait_for_response blocking or non-blocking
    * @param state command process state
-   * @returns if command preparation was successfully (no collision with active
-   * sequence)
+   * @returns if command preparation was successfully (no collision with active sequence)
    */
   bool command(std::shared_ptr<Message::OutgoingMessage> message,
                bool wait_for_response = true,
@@ -341,11 +339,10 @@ public:
 
   /**
    * @brief send a point read command to remote server
-   * @param point monitoring or control point
-   * @param cause reason for transmission
+   * @param point monitoring point
+   * @param wait_for_response blocking or non-blocking
    * @returns if operation was successful
-   * @throws std::invalid_argument if point type is not supported for this
-   * operation
+   * @throws std::invalid_argument if point type is not supported for this operation
    */
   bool read(std::shared_ptr<Object::DataPoint> point,
             bool wait_for_response = true);
@@ -366,8 +363,7 @@ public:
    * @brief Callback to handle connection state changes
    * @param parameter reference to custom bound connection data
    * @param connection internal CS104_Connection connection object reference
-   * @param event state change event (opened,closed,muted,unmuted identified via
-   * constants)
+   * @param event state change event (opened,closed,muted,unmuted identified via constants)
    */
   static void connectionHandler(void *parameter, CS104_Connection connection,
                                 CS104_ConnectionEvent event);
@@ -386,12 +382,12 @@ private:
    * @brief Create a new (still closed) connection to a remote server identified
    * via ip and port
    * @param _client client instance reference
-   * @param ip ip address or hostname of remote server
-   * @param port port address of remote server
-   * @param command_timeout_ms
-   * @param init
-   * @param transport_security
-   * @param originator_address
+   * @param _ip ip address or hostname of remote server
+   * @param _port port address of remote server
+   * @param command_timeout_ms default timeout for command confirmation
+   * @param init connection initialization procedure
+   * @param transport_security communication encryption instance reference
+   * @param originator_address client identification address
    * @throws std::invalid_argument if ip or port invalid
    */
   Connection(std::shared_ptr<Client> _client, const std::string &_ip,
