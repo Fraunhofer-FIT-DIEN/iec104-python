@@ -1,5 +1,12 @@
 # Change log
 
+## v1.17
+
+- Add optional feature **Select-And-Execute** (also called Select-Before-Execute)
+- Fix free command response state key if command was never send
+- Improve point transmission handling
+- Improve documentation
+
 ## v1.16
 
 - Add feature TLS (working versions: SSLv3.0, TLSv1.0, TLSv1.1, TLSv1.2; not working: TLSv1.3)
