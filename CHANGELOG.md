@@ -3,6 +3,11 @@
 ## v1.17
 
 - Add optional feature **Select-And-Execute** (also called Select-Before-Execute)
+  - Add enum c104.CommandMode
+  - Add properties point.command_mode, point.selected_by and incomingmessage.is_select_command
+  -  on_receive callback argument previous_state contains key selected_by
+  - Add select field to explain_bytes and explain_bytes_dict
+
 - Fix free command response state key if command was never send
 - Improve point transmission handling
 - Improve documentation
