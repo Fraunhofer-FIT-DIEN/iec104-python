@@ -202,8 +202,6 @@ else:
     print("CL] transmit: Single command OFF failed")
 
 time.sleep(1)
-my_client.stop()
-sys.exit(1)
 
 ##################################
 # Send double commands

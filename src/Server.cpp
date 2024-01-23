@@ -570,6 +570,9 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
     DEBUG_PRINT_CONDITION(
         true, Debug::Server,
         "send] Send " + std::string(TypeID_toString(message->getType())) +
+            " | COT: " +
+            CS101_CauseOfTransmission_toString(
+                message->getCauseOfTransmission()) +
             " | TOTAL " +
             std::to_string(
                 std::chrono::duration_cast<std::chrono::microseconds>(end -

@@ -439,6 +439,12 @@ void Connection::setCommandSuccess(
                                            ? COMMAND_SUCCESS
                                            : COMMAND_FAILURE;
           break;
+        case COMMAND_AWAIT_REQUEST:
+          expectedResponseMap[cmdId] =
+              (message->getCauseOfTransmission() == CS101_COT_REQUEST)
+                  ? COMMAND_SUCCESS
+                  : COMMAND_FAILURE;
+          break;
         default:
           expectedResponseMap[cmdId] = COMMAND_SUCCESS;
         }
@@ -779,7 +785,7 @@ bool Connection::read(std::shared_ptr<Object::DataPoint> point,
   std::string const cmdId =
       std::to_string(ca) + "-C_RD_NA_1-" + std::to_string(ioa);
   if (wait_for_response &&
-      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM)) {
+      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_REQUEST)) {
     return false;
   }
 
