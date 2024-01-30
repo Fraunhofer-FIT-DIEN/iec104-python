@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -30,12 +30,11 @@
  */
 
 #include "object/DataPoint.h"
+#include "Server.h"
 #include "module/ScopedGilAcquire.h"
 #include "object/Station.h"
 #include "remote/Connection.h"
 #include "remote/message/IncomingMessage.h"
-#include "remote/message/PointCommand.h"
-#include "remote/message/PointMessage.h"
 
 using namespace Object;
 
@@ -44,11 +43,13 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
                      std::shared_ptr<Station> dp_station,
                      const std::uint_fast32_t dp_report_ms,
                      const std::uint_fast32_t dp_related_ioa,
-                     const bool dp_related_auto_return)
+                     const bool dp_related_auto_return,
+                     const CommandTransmissionMode dp_cmd_mode)
     : informationObjectAddress(dp_ioa), type(dp_type), station(dp_station),
       reportInterval_ms(dp_report_ms),
       relatedInformationObjectAddress(dp_related_ioa),
-      relatedInformationObjectAutoReturn(dp_related_auto_return) {
+      relatedInformationObjectAutoReturn(dp_related_auto_return),
+      commandMode(dp_cmd_mode) {
   if (type >= M_EI_NA_1) {
     throw std::invalid_argument("Unsupported type " +
                                 std::string(TypeID_toString(type)));
@@ -146,6 +147,28 @@ void DataPoint::setRelatedInformationObjectAutoReturn(const bool auto_return) {
     }
   }
   relatedInformationObjectAutoReturn.store(auto_return);
+}
+
+CommandTransmissionMode DataPoint::getCommandMode() const {
+  return commandMode.load();
+}
+
+void DataPoint::setCommandMode(const CommandTransmissionMode mode) {
+  commandMode.store(mode);
+}
+
+std::uint_fast8_t DataPoint::getSelectedByOriginatorAddress() const {
+  return selectedByOriginatorAddress.load();
+}
+
+void DataPoint::setSelectedByOriginatorAddress(
+    const std::uint_fast8_t originatorAddress) {
+  if (!is_server || (type < C_SC_NA_1 && type > C_SE_NC_1) ||
+      (type < C_SC_TA_1 && type > C_SE_TC_1)) {
+    throw std::invalid_argument(
+        "Only server-sided control points can be selected");
+  }
+  selectedByOriginatorAddress.store(originatorAddress);
 }
 
 IEC60870_5_TypeID DataPoint::getType() const { return type; }
@@ -330,7 +353,7 @@ uint64_t DataPoint::getUpdatedAt_ms() const { return updatedAt_ms.load(); }
 uint64_t DataPoint::getReportedAt_ms() const { return reportedAt_ms.load(); }
 
 void DataPoint::setReportedAt_ms(const std::uint_fast64_t timestamp_ms) {
-  return reportedAt_ms.store(timestamp_ms);
+  reportedAt_ms.store(timestamp_ms);
 }
 
 std::uint_fast32_t DataPoint::getReportInterval_ms() const {
@@ -358,14 +381,59 @@ void DataPoint::setOnReceiveCallback(py::object &callable) {
   py_onReceive.reset(callable);
 }
 
-ResponseState DataPoint::onReceive(
+CommandResponseState DataPoint::onReceive(
     std::shared_ptr<Remote::Message::IncomingMessage> message) {
+  bool select_only = false;
   double const prev_value = value.load();
   Quality const prev_quality = quality.load();
   uint64_t const prev_updatedAt = updatedAt_ms.load();
-  setValueEx(message->getValue(), message->getQuality(),
-             message->getUpdatedAt());
-  receivedAt_ms = GetTimestamp_ms();
+  uint8_t prev_selected = selectedByOriginatorAddress.load();
+
+  if ((type >= C_SC_NA_1 && type <= C_SE_NC_1) ||
+      (type >= C_SC_TA_1 && type <= C_SE_TC_1)) {
+    std::uint_fast8_t originatorAddress = message->getOriginatorAddress();
+    // SELECT
+    if (message->isSelectCommand()) {
+      if (commandMode == DIRECT_COMMAND) {
+        std::cerr << "Cannot select point in DIRECT command mode" << std::endl;
+        return RESPONSE_STATE_FAILURE;
+      }
+      if (selectedByOriginatorAddress > 0 &&
+          selectedByOriginatorAddress != originatorAddress) {
+        std::cerr << "Cannot select point by X, already selected by Y"
+                  << std::endl;
+        return RESPONSE_STATE_FAILURE;
+      }
+      // set select lock
+      selectedByOriginatorAddress.store(originatorAddress);
+      select_only = true;
+    }
+    // EXECUTE
+    else {
+      if (commandMode == SELECT_AND_EXECUTE_COMMAND) {
+        if (selectedByOriginatorAddress == 0) {
+          std::cerr << "Cannot execute command on point in SELECT_AND_EXECUTE "
+                       "command mode without selection"
+                    << std::endl;
+          return RESPONSE_STATE_FAILURE;
+        }
+        if (selectedByOriginatorAddress != originatorAddress) {
+          std::cerr << "Cannot select point by X, already selected by Y"
+                    << std::endl;
+          return RESPONSE_STATE_FAILURE;
+        }
+        // release select lock
+        selectedByOriginatorAddress.store(0);
+      }
+    }
+  }
+
+  // do not store a select command value
+  if (!select_only) {
+    setValueEx(message->getValue(), message->getQuality(),
+               message->getUpdatedAt());
+    receivedAt_ms = GetTimestamp_ms();
+  }
 
   if (py_onReceive.is_set()) {
     DEBUG_PRINT(Debug::Point, "CALLBACK on_receive at IOA " +
@@ -376,6 +444,7 @@ ResponseState DataPoint::onReceive(
     prev["value"] = prev_value;
     prev["quality"] = prev_quality;
     prev["updatedAt_ms"] = prev_updatedAt;
+    prev["selected_by"] = prev_selected;
 
     if (py_onReceive.call(shared_from_this(), prev, message)) {
       try {
@@ -392,11 +461,7 @@ ResponseState DataPoint::onReceive(
 }
 
 void DataPoint::setOnBeforeReadCallback(py::object &callable) {
-  auto _station = getStation();
-  if (!_station) {
-    throw std::invalid_argument("Station reference deleted");
-  }
-  if (!_station->isLocal()) {
+  if (!is_server) {
     throw std::invalid_argument("Cannot set callback as client");
   }
   py_onBeforeRead.reset(callable);
@@ -412,11 +477,7 @@ void DataPoint::onBeforeRead() {
 }
 
 void DataPoint::setOnBeforeAutoTransmitCallback(py::object &callable) {
-  auto _station = getStation();
-  if (!_station) {
-    throw std::invalid_argument("Station reference deleted");
-  }
-  if (!_station->isLocal()) {
+  if (!is_server) {
     throw std::invalid_argument("Cannot set callback as client");
   }
   py_onBeforeAutoTransmit.reset(callable);
@@ -452,48 +513,30 @@ bool DataPoint::read() {
 }
 
 bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
-  return transmitEx(cause, nullptr);
-}
-
-bool DataPoint::transmitEx(const CS101_CauseOfTransmission cause,
-                           IMasterConnection master) {
   DEBUG_PRINT(Debug::Point,
               "transmit_ex] " + std::string(TypeID_toString(type)) +
                   " at IOA " + std::to_string(informationObjectAddress));
 
   auto _station = getStation();
   if (!_station) {
-    throw std::invalid_argument("Cannot get station from point");
+    throw std::invalid_argument("Station reference deleted");
   }
 
   // as server
   if (_station->isLocal()) {
-    sentAt_ms = GetTimestamp_ms();
-
-    // lazy confirm previous command
-    if (cause == CS101_COT_ACTIVATION_CON ||
-        cause == CS101_COT_DEACTIVATION_CON ||
-        cause == CS101_COT_ACTIVATION_TERMINATION) {
-
-      // manual command confirmation to client (modbus extension support)
-      auto message = Remote::Message::PointCommand::create(shared_from_this());
-      message->setCauseOfTransmission(cause);
-      return message->send();
-
-    } else {
-
-      // transmit value to client
-      auto message = Remote::Message::PointMessage::create(shared_from_this());
-      message->setCauseOfTransmission(cause);
-      return message->send(master);
+    auto server = _station->getServer();
+    if (!server) {
+      throw std::invalid_argument("Server reference deleted");
     }
+    sentAt_ms = GetTimestamp_ms();
+    return server->transmit(shared_from_this(), cause);
   }
 
   // as client
+  auto connection = _station->getConnection();
+  if (!connection) {
+    throw std::invalid_argument("Client connection reference deleted");
+  }
   sentAt_ms = GetTimestamp_ms();
-
-  // transmit value to server
-  auto message = Remote::Message::PointCommand::create(shared_from_this());
-  message->setCauseOfTransmission(cause);
-  return message->send();
+  return connection->transmit(shared_from_this(), cause);
 }

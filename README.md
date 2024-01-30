@@ -49,13 +49,13 @@ command_point = station.add_point(io_address=12, type=c104.Type.C_RC_TA_1)
 client.start()
 ```
 
-See [examples](examples) folder for more detailed examples.
+See [examples](https://github.com/Fraunhofer-FIT-DIEN/iec104-python/tree/main/examples) folder for more detailed examples.
 
 ## Licensing
 
 This software is licensed under the GPLv3 (https://www.gnu.org/licenses/gpl-3.0.en.html).
 
-See [LICENSE](LICENSE) file for the complete license text.
+See [LICENSE](https://github.com/Fraunhofer-FIT-DIEN/iec104-python/blob/main/LICENSE) file for the complete license text.
 
 ### Dependencies
 
@@ -107,7 +107,7 @@ The library is used as testing framework for test-automation.
 * Debian/Ubuntu (x64): YES >= 20.04
 * Raspbian (arm32v7): YES
 * Windows (x64): YES
-* Raspbian (aarch64): Not yet
+* Raspbian (aarch64): Not yet tested
 
 ### Python versions
 * python >= 3.6, < 3.11
@@ -117,17 +117,17 @@ Please adjust the version number to the latest version or use a specific version
 
 ### Install from pypi.org
 ```bash
-python3 -m pip install c104~=1.16.0
+python3 -m pip install c104~=1.17.0
 ```
 
-### Install from git
+### Install from git with tag
 ```bash
-python3 -m pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.16.0
+python3 -m pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.17.0
 ```
 
-## Wiki
+## Documentation
 
-Read more about the **Classes** and their **Properties** in our [project Wiki](https://iec104-python.readthedocs.io/python/index.html).
+Read more about the **Classes** and their **Properties** in our [read the docs documentation](https://iec104-python.readthedocs.io/python/index.html).
 
 ## Contribution
 
@@ -135,7 +135,7 @@ Read more about the **Classes** and their **Properties** in our [project Wiki](h
 
 1. Add feature requests and report bugs using GitHub's issues
 
-1. Create merge requests
+1. Create pull requests
 
 ### How to build for multiple python versions (linux with docker)
 
@@ -209,4 +209,4 @@ Read more about the **Classes** and their **Properties** in our [project Wiki](h
 
 ## Change log
 
-Track all changes in our [CHANGELOG](CHANGELOG.md) documentation.
+Track all changes in our [CHANGELOG](https://github.com/Fraunhofer-FIT-DIEN/iec104-python/blob/main/CHANGELOG.md) documentation.

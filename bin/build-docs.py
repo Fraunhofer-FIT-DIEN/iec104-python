@@ -1,5 +1,13 @@
+#!/usr/bin/env python3
+
 from pathlib import Path
-from sphinx.cmd.build import main
+try:
+    from sphinx.cmd.build import main
+except ImportError:
+    import sys
+    print('Please install requirements first:\npython3 -m pip install -r docs/requirements.txt')
+    sys.exit(1)
+
 
 # path variables
 PROJECT_DIR = Path(__file__).parent.parent

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -49,13 +49,16 @@ public:
    * @brief Create a message for a certain DataPoint, type of message is
    * identified via DataPoint
    * @param point point whom's value should be reported to remote client
+   * @param select flag for select and execute command mode (lock control
+   * access)
    * @throws std::invalid_argument if point reference, connection or server
    * reference is invalid
    */
   [[nodiscard]] static std::shared_ptr<PointCommand>
-  create(std::shared_ptr<Object::DataPoint> point) {
+  create(std::shared_ptr<Object::DataPoint> point, const bool select = false) {
     // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<PointCommand>(new PointCommand(std::move(point)));
+    return std::shared_ptr<PointCommand>(
+        new PointCommand(std::move(point), select));
   }
 
   /**
@@ -68,10 +71,12 @@ private:
    * @brief Create a message for a certain DataPoint, type of message is
    * identified via DataPoint
    * @param point point whom's value should be reported to remote client
+   * @param select flag for select and execute command mode (lock control
+   * access)
    * @throws std::invalid_argument if point reference, connection or server
    * reference is invalid
    */
-  explicit PointCommand(std::shared_ptr<Object::DataPoint> point);
+  explicit PointCommand(std::shared_ptr<Object::DataPoint> point, bool select);
 
   /// @brief timestamp of measurement in milliseconds
   uint_fast64_t updated_at;

@@ -29,7 +29,7 @@ def main():
     print("read")
     print("read")
     if point.read():
-        print("-> SUCCESS")
+        print(f"-> SUCCESS {point.value}")
     else:
         print("-> FAILURE")
 

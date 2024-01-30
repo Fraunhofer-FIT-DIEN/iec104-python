@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -288,10 +288,31 @@ enum ConnectionInit {
  * @brief command response states, control servers response behaviour with
  * python callbacks return value
  */
-enum ResponseState {
+enum CommandResponseState {
   RESPONSE_STATE_FAILURE,
   RESPONSE_STATE_SUCCESS,
   RESPONSE_STATE_NONE
+};
+
+/**
+ * @brief command processing progress states
+ */
+enum CommandProcessState {
+  COMMAND_FAILURE,
+  COMMAND_SUCCESS,
+  COMMAND_AWAIT_CON,
+  COMMAND_AWAIT_TERM,
+  COMMAND_AWAIT_CON_TERM,
+  COMMAND_AWAIT_REQUEST
+};
+
+/**
+ * @brief command transmission modes (execute directly or select before execute
+ * for unique control access)
+ */
+enum CommandTransmissionMode {
+  DIRECT_COMMAND,
+  SELECT_AND_EXECUTE_COMMAND,
 };
 
 #endif // C104_ENUMS_H

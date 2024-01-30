@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -33,6 +33,7 @@
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
 #include "remote/TransportSecurity.h"
+#include "remote/message/PointCommand.h"
 #include "remote/message/PointMessage.h"
 #include <datetime.h>
 
@@ -41,7 +42,7 @@ using namespace std::chrono_literals;
 
 Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
                const std::uint_fast32_t tick_rate_ms,
-               const uint_fast8_t max_open_connections,
+               const std::uint_fast8_t max_open_connections,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : ip(bind_ip), port(tcp_port), tickRate_ms(tick_rate_ms),
       maxOpenConnections(max_open_connections) {
@@ -315,7 +316,7 @@ void Server::setOnClockSyncCallback(py::object &callable) {
   py_onClockSync.reset(callable);
 }
 
-ResponseState Server::onClockSync(std::string _ip, CP56Time2a time) {
+CommandResponseState Server::onClockSync(std::string _ip, CP56Time2a time) {
   if (py_onClockSync.is_set()) {
     DEBUG_PRINT(Debug::Server, "CALLBACK on_clock_sync");
     Module::ScopedGilAcquire const scoped("Server.on_clock_sync");
@@ -358,10 +359,17 @@ void Server::onUnexpectedMessage(
   CS101_ASDU asdu = message->getAsdu();
   switch (cause) {
   case INVALID_TYPE_ID:
+    DEBUG_PRINT(Debug::Server, "on_unexpected_message] Invalid type id");
+    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_TYPE_ID);
+    IMasterConnection_sendASDU(connection, asdu);
+    break;
   case MISMATCHED_TYPE_ID:
+    DEBUG_PRINT(Debug::Server, "on_unexpected_message] Mismatching type id");
+    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_TYPE_ID);
+    IMasterConnection_sendASDU(connection, asdu);
+    break;
   case UNKNOWN_TYPE_ID:
-    DEBUG_PRINT(Debug::Server,
-                "on_unexpected_message] Invalid message or type");
+    DEBUG_PRINT(Debug::Server, "on_unexpected_message] Unknown type id");
     CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_TYPE_ID);
     IMasterConnection_sendASDU(connection, asdu);
     break;
@@ -498,6 +506,27 @@ void Server::connectionEventHandler(void *parameter,
   }
 }
 
+bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
+                      const CS101_CauseOfTransmission cause) {
+  auto type = point->getType();
+
+  // report monitoring point
+  if (type < S_IT_TC_1) {
+    auto message = Message::PointMessage::create(std::move(point));
+    message->setCauseOfTransmission(cause);
+    return send(std::move(message));
+  }
+
+  // lazy confirm previous control command
+  if (type > S_IT_TC_1 && type < M_EI_NA_1) {
+    auto message = Message::PointCommand::create(std::move(point));
+    message->setCauseOfTransmission(cause);
+    return send(std::move(message));
+  }
+
+  throw std::invalid_argument("Invalid point type");
+}
+
 bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
                   IMasterConnection connection) {
   if (!enabled.load() || !hasActiveConnections())
@@ -509,6 +538,11 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
   std::chrono::steady_clock::time_point begin, end;
   if (debug) {
     begin = std::chrono::steady_clock::now();
+  }
+
+  if (connection) {
+    auto param = IMasterConnection_getApplicationLayerParameters(connection);
+    message->setOriginatorAddress(param->originatorAddress);
   }
 
   CS101_ASDU asdu = CS101_ASDU_create(
@@ -536,6 +570,9 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
     DEBUG_PRINT_CONDITION(
         true, Debug::Server,
         "send] Send " + std::string(TypeID_toString(message->getType())) +
+            " | COT: " +
+            CS101_CauseOfTransmission_toString(
+                message->getCauseOfTransmission()) +
             " | TOTAL " +
             std::to_string(
                 std::chrono::duration_cast<std::chrono::microseconds>(end -
@@ -1119,7 +1156,7 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
           point->onBeforeRead();
 
           try {
-            point->transmitEx(CS101_COT_REQUEST, connection);
+            instance->transmit(point, CS101_COT_REQUEST);
           } catch (const std::exception &e) {
             std::cerr << "[c104.Server.read] Auto respond failed for "
                       << TypeID_toString(point->getType()) << " at IOA "
@@ -1176,9 +1213,10 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
   // message with more than one object is not allowed for command type ids
   if (auto message = instance->getValidMessage(connection, asdu)) {
 
-    ResponseState responseState = RESPONSE_STATE_FAILURE;
+    CommandResponseState responseState = RESPONSE_STATE_FAILURE;
     UnexpectedMessageCause cause = NO_ERROR_CAUSE;
     std::shared_ptr<Object::DataPoint> related_point{nullptr};
+    bool requireTermination = false;
 
     // new clockSyncHandler
     if (message->getType() == C_CS_NA_1) {
@@ -1202,11 +1240,17 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
 
               responseState = point->onReceive(message);
 
-              // only in case of auto return
               if ((responseState == RESPONSE_STATE_SUCCESS) &&
-                  point->getRelatedInformationObjectAutoReturn()) {
-                related_point = station->getPoint(
-                    point->getRelatedInformationObjectAddress());
+                  !message->isSelectCommand()) {
+                // only in case of select-and-execute
+                if (point->getCommandMode() == SELECT_AND_EXECUTE_COMMAND) {
+                  requireTermination = true;
+                }
+                // only in case of auto return
+                if (point->getRelatedInformationObjectAutoReturn()) {
+                  related_point = station->getPoint(
+                      point->getRelatedInformationObjectAddress());
+                }
               }
 
             } else {
@@ -1230,6 +1274,11 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
           connection, asdu, (responseState == RESPONSE_STATE_FAILURE));
     }
 
+    // activation termination
+    if (requireTermination) {
+      instance->sendActivationTermination(connection, asdu);
+    }
+
     // report error cause
     if (cause != NO_ERROR_CAUSE) {
       instance->onUnexpectedMessage(connection, message, cause);
@@ -1238,7 +1287,7 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
     // send related point info
     if (related_point) {
       try {
-        related_point->transmitEx(CS101_COT_RETURN_INFO_REMOTE, connection);
+        instance->transmit(related_point, CS101_COT_RETURN_INFO_REMOTE);
       } catch (const std::exception &e) {
         std::cerr
             << "[c104.Server.asdu] Auto transmit related point failed for "

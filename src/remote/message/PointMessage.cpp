@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -46,7 +46,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
   // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_SP_NA_1: {
     io = (InformationObject)SinglePointInformation_create(
-        nullptr, informationObjectAddress, (bool)point->getValue(),
+        nullptr, informationObjectAddress, (bool)value.load(),
         static_cast<uint8_t>(quality.load()));
   } break;
 
@@ -54,14 +54,14 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_SP_TB_1: {
     io = (InformationObject)SinglePointWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (bool)point->getValue(),
+        nullptr, informationObjectAddress, (bool)value.load(),
         static_cast<uint8_t>(quality.load()), &time);
   } break;
 
     // enum Double Point [INTERMEDIATE|ON|OFF|INDETERMINATE]
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_DP_NA_1: {
-    auto state = (DoublePointValue)point->getValue();
+    auto state = (DoublePointValue)value.load();
     io = (InformationObject)DoublePointInformation_create(
         nullptr, informationObjectAddress, state,
         static_cast<uint8_t>(quality.load()));
@@ -70,7 +70,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // enum Double Point [INTERMEDIATE|ON|OFF|INDETERMINATE] + Extended Time
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_DP_TB_1: {
-    auto state = (DoublePointValue)point->getValue();
+    auto state = (DoublePointValue)value.load();
     io = (InformationObject)DoublePointWithCP56Time2a_create(
         nullptr, informationObjectAddress, state,
         static_cast<uint8_t>(quality.load()), &time);
@@ -80,7 +80,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_ST_NA_1: {
     io = (InformationObject)StepPositionInformation_create(
-        nullptr, informationObjectAddress, point->getValueAsInt32(), false,
+        nullptr, informationObjectAddress, (int)value.load(), false,
         static_cast<uint8_t>(quality.load()));
   } break;
 
@@ -88,7 +88,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_ST_TB_1: {
     io = (InformationObject)StepPositionWithCP56Time2a_create(
-        nullptr, informationObjectAddress, point->getValueAsInt32(), false,
+        nullptr, informationObjectAddress, (int)value.load(), false,
         static_cast<uint8_t>(quality.load()), &time);
   } break;
 
@@ -96,14 +96,14 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
   case M_BO_NA_1: {
     // @todo what happens in case of bad quality ??
     io = (InformationObject)BitString32_create(
-        nullptr, informationObjectAddress, point->getValueAsUInt32());
+        nullptr, informationObjectAddress, (uint32_t)value.load());
   } break;
 
     // uint32_t [0,2^32] BitString 32bits + Extended Time
   case M_BO_TB_1: {
     // @todo what happens in case of bad quality ??
     io = (InformationObject)Bitstring32WithCP56Time2a_create(
-        nullptr, informationObjectAddress, point->getValueAsUInt32(), &time);
+        nullptr, informationObjectAddress, (uint32_t)value.load(), &time);
   } break;
 
     // float Measurement Value (NORMALIZED)
@@ -111,7 +111,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // to 32.767] Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_NA_1: {
     io = (InformationObject)MeasuredValueNormalized_create(
-        nullptr, informationObjectAddress, point->getValueAsFloat(),
+        nullptr, informationObjectAddress, (float)value.load(),
         static_cast<uint8_t>(quality.load()));
   } break;
 
@@ -120,7 +120,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_TD_1: {
     io = (InformationObject)MeasuredValueNormalizedWithCP56Time2a_create(
-        nullptr, informationObjectAddress, point->getValueAsFloat(),
+        nullptr, informationObjectAddress, (float)value.load(),
         static_cast<uint8_t>(quality.load()), &time);
   } break;
 
@@ -129,7 +129,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // values + 65535 Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_NB_1: {
     io = (InformationObject)MeasuredValueScaled_create(
-        nullptr, informationObjectAddress, point->getValueAsInt32(),
+        nullptr, informationObjectAddress, (int)value.load(),
         static_cast<uint8_t>(quality.load()));
   } break;
 
@@ -138,7 +138,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // values + 65535 Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_TE_1: {
     io = (InformationObject)MeasuredValueScaledWithCP56Time2a_create(
-        nullptr, informationObjectAddress, point->getValueAsInt32(),
+        nullptr, informationObjectAddress, (int)value.load(),
         static_cast<uint8_t>(quality.load()), &time);
   } break;
 
@@ -147,7 +147,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_NC_1: {
     io = (InformationObject)MeasuredValueShort_create(
-        nullptr, informationObjectAddress, point->getValueAsFloat(),
+        nullptr, informationObjectAddress, (float)value.load(),
         static_cast<uint8_t>(quality.load()));
   } break;
 
@@ -156,7 +156,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_TF_1: {
     io = (InformationObject)MeasuredValueShortWithCP56Time2a_create(
-        nullptr, informationObjectAddress, point->getValueAsFloat(),
+        nullptr, informationObjectAddress, (float)value.load(),
         static_cast<uint8_t>(quality.load()), &time);
   } break;
 
@@ -168,8 +168,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     bool hasCarry = ::test(quality.load(), Quality::Overflow),
          isAdjusted = false, isInvalid = is_any(quality.load());
     io = (InformationObject)BinaryCounterReading_create(
-        nullptr, point->getValueAsInt32(), seqNumber, hasCarry, isAdjusted,
-        isInvalid);
+        nullptr, (int)value.load(), seqNumber, hasCarry, isAdjusted, isInvalid);
   } break;
 
     // Encoded Counter Value + Extended Timer
@@ -179,11 +178,10 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     uint_fast8_t seqNumber = 0;
     bool hasCarry = ::test(quality.load(), Quality::Overflow),
          isAdjusted = false, isInvalid = is_any(quality.load());
-    BinaryCounterReading value =
-        BinaryCounterReading_create(nullptr, point->getValueAsInt32(),
-                                    seqNumber, hasCarry, isAdjusted, isInvalid);
+    BinaryCounterReading _value = BinaryCounterReading_create(
+        nullptr, (int)value.load(), seqNumber, hasCarry, isAdjusted, isInvalid);
     io = (InformationObject)IntegratedTotalsWithCP56Time2a_create(
-        nullptr, informationObjectAddress, value, &time);
+        nullptr, informationObjectAddress, _value, &time);
   } break;
 
     // SingleEvent Protection Equipment + Extended Timer
@@ -236,7 +234,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
   case M_ME_ND_1: {
     // @todo what happens in case of bad quality ??
     io = (InformationObject)MeasuredValueNormalizedWithoutQuality_create(
-        nullptr, informationObjectAddress, point->getValueAsFloat());
+        nullptr, informationObjectAddress, (float)value.load());
   } break;
 
     // End of initialization

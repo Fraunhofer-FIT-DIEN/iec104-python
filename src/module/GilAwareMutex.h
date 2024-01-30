@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -42,6 +42,17 @@
 using namespace std::chrono_literals;
 
 namespace Module {
+/**
+ * @class GilAwareMutex
+ *
+ * @brief A mutex class that handles the GIL (Global Interpreter Lock)
+ * automatically.
+ *
+ * The GilAwareMutex class provides a mutex that automatically releases and
+ * re-acquires the GIL when locking and unlocking. This is useful in
+ * multi-threaded applications that interact with the Python interpreter, as it
+ * allows other Python threads to continue executing while the lock is held.
+ */
 class GilAwareMutex {
 public:
   // Create a new combined mutex that automatically handles the GIL
@@ -49,6 +60,16 @@ public:
 
   inline explicit GilAwareMutex(std::string _name) : name(std::move(_name)) {}
 
+  /**
+   * @brief Locks the GilAwareMutex.
+   *
+   * This function acquires the GilAwareMutex lock. If the lock is not available
+   * within 100 milliseconds, it throws a std::runtime_error with a potential
+   * deadlock message.
+   *
+   * @throws std::runtime_error If the GilAwareMutex is unable to acquire the
+   * lock within 100ms.
+   */
   inline void lock() {
     ScopedGilRelease const scoped_gil(name + "::lock_gil_aware");
     if (!this->wrapped_mutex.try_lock_for(100ms)) {
@@ -57,11 +78,32 @@ public:
     }
   }
 
+  /**
+   * @brief Unlocks the GilAwareMutex.
+   *
+   * This function unlocks the GilAwareMutex by releasing the lock. It ensures
+   * that the GIL (Global Interpreter Lock) is re-acquired after unlocking. This
+   * is useful in multi-threaded applications that interact with the Python
+   * interpreter, as it allows other Python threads to continue executing while
+   * the lock is released.
+   *
+   * @note This function should only be called after acquiring the lock using
+   * the `lock()` function.
+   */
   inline void unlock() {
     ScopedGilRelease const scoped_gil(name + "::unlock_gil_aware");
     this->wrapped_mutex.unlock();
   }
 
+  /**
+   * @brief Tries to lock the GilAwareMutex.
+   *
+   * This function attempts to acquire the GilAwareMutex lock. If the lock is
+   * available, it will be acquired and the function will return true. If the
+   * lock is not available, the function will return false.
+   *
+   * @return True if the lock was acquired successfully, false otherwise.
+   */
   inline bool try_lock() {
     ScopedGilRelease const scoped_gil(name + "::try_lock_gil_aware");
     return this->wrapped_mutex.try_lock();

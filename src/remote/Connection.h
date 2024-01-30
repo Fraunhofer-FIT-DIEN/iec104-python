@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -51,18 +51,18 @@ public:
   /**
    * @brief Create a new (still closed) connection to a remote server identified
    * via ip and port
-   * @param cl
+   * @param client client instance reference
    * @param ip ip address or hostname of remote server
    * @param port port address of remote server
-   * @param command_timeout_ms
-   * @param init
-   * @param transport_security
-   * @param originator_address
+   * @param command_timeout_ms default timeout for command confirmation
+   * @param init connection initialization procedure
+   * @param transport_security communication encryption instance reference
+   * @param originator_address client identification address
    * @return owning pointer of new Connection instance
    * @throws std::invalid_argument if ip or port invalid
    */
   [[nodiscard]] static std::shared_ptr<Connection> create(
-      std::shared_ptr<Client> cl, const std::string &ip,
+      std::shared_ptr<Client> client, const std::string &ip,
       const uint_fast16_t port = IEC_60870_5_104_DEFAULT_PORT,
       const uint_fast32_t command_timeout_ms = 4000,
       const ConnectionInit init = INIT_ALL,
@@ -70,7 +70,7 @@ public:
       const uint_fast8_t originator_address = 0) {
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<Connection>(
-        new Connection(std::move(cl), ip, port, command_timeout_ms, init,
+        new Connection(std::move(client), ip, port, command_timeout_ms, init,
                        std::move(transport_security), originator_address));
   }
 
@@ -186,8 +186,18 @@ public:
   /**
    * @brief add command id to awaiting command result map
    * @param cmdId unique command id
+   * @param state command process state
+   * @returns if command preparation was successfully (no collision with active
+   * sequence)
    */
-  void prepareCommandSuccess(const std::string &cmdId);
+  bool prepareCommandSuccess(const std::string &cmdId,
+                             CommandProcessState state);
+
+  /**
+   * @brief mark a command success as failed to fail fast
+   * @param cmdId unique command id
+   */
+  void cancelCommandSuccess(const std::string &cmdId);
 
   /**
    * @brief Wait for command confirmation and success information, release
@@ -274,10 +284,10 @@ public:
 
   /**
    * @brief send counter interrogation command
-   * @param commonAddress
-   * @param cause
-   * @param qualifier
-   * @param wait_for_response
+   * @param commonAddress station address
+   * @param cause transmission reason
+   * @param qualifier parameter for counter interrogation
+   * @param wait_for_response blocking or non-blocking
    * @return success information
    * @throws std::invalid_argument if qualifier is invalid
    */
@@ -287,15 +297,53 @@ public:
                        QualifierOfCIC qualifier = IEC60870_QCC_RQT_GENERAL,
                        bool wait_for_response = true);
 
+  /**
+   * @brief send clock synchronization command
+   * @param commonAddress station address
+   * @param wait_for_response blocking or non-blocking
+   * @return success information
+   */
   bool clockSync(std::uint_fast16_t commonAddress,
                  bool wait_for_response = true);
 
+  /**
+   * @brief send test command
+   * @param commonAddress station address
+   * @param with_time include a timestamp in the test command
+   * @param wait_for_response blocking or non-blocking
+   * @return success information
+   */
   bool test(std::uint_fast16_t commonAddress, bool with_time = true,
             bool wait_for_response = true);
 
-  bool command(std::shared_ptr<Message::OutgoingMessage> message,
-               bool wait_for_response = true);
+  /**
+   * @brief transmit a command to a remote server
+   * @param point control point
+   * @param cause reason for transmission
+   * @returns if operation was successful
+   * @throws std::invalid_argument if point type is not supported for this operation
+   */
+  bool transmit(std::shared_ptr<Object::DataPoint> point,
+                CS101_CauseOfTransmission cause);
 
+  /**
+   * @brief add command id to awaiting command result map
+   * @param message outgoing message
+   * @param wait_for_response blocking or non-blocking
+   * @param state command process state
+   * @returns if command preparation was successfully (no collision with active sequence)
+   */
+  bool command(std::shared_ptr<Message::OutgoingMessage> message,
+               bool wait_for_response = true,
+               CommandProcessState state = COMMAND_AWAIT_CON);
+
+  /**
+   * @brief send a point read command to remote server
+   * @param point monitoring point
+   * @param wait_for_response blocking or non-blocking
+   * @returns if operation was successful
+   * @throws std::invalid_argument if point type is not supported for this operation
+   */
   bool read(std::shared_ptr<Object::DataPoint> point,
             bool wait_for_response = true);
 
@@ -315,8 +363,7 @@ public:
    * @brief Callback to handle connection state changes
    * @param parameter reference to custom bound connection data
    * @param connection internal CS104_Connection connection object reference
-   * @param event state change event (opened,closed,muted,unmuted identified via
-   * constants)
+   * @param event state change event (opened,closed,muted,unmuted identified via constants)
    */
   static void connectionHandler(void *parameter, CS104_Connection connection,
                                 CS104_ConnectionEvent event);
@@ -334,16 +381,16 @@ private:
   /**
    * @brief Create a new (still closed) connection to a remote server identified
    * via ip and port
-   * @param cl
-   * @param ip ip address or hostname of remote server
-   * @param port port address of remote server
-   * @param command_timeout_ms
-   * @param init
-   * @param transport_security
-   * @param originator_address
+   * @param _client client instance reference
+   * @param _ip ip address or hostname of remote server
+   * @param _port port address of remote server
+   * @param command_timeout_ms default timeout for command confirmation
+   * @param init connection initialization procedure
+   * @param transport_security communication encryption instance reference
+   * @param originator_address client identification address
    * @throws std::invalid_argument if ip or port invalid
    */
-  Connection(std::shared_ptr<Client> cl, const std::string &_ip,
+  Connection(std::shared_ptr<Client> _client, const std::string &_ip,
              uint_fast16_t _port, uint_fast32_t command_timeout_ms,
              ConnectionInit init,
              std::shared_ptr<Remote::TransportSecurity> transport_security,
@@ -393,7 +440,13 @@ private:
   mutable Module::GilAwareMutex expectedResponseMap_mutex{
       "Connection::expectedResponseMap_mutex"};
 
-  std::map<std::string, uint_fast8_t> expectedResponseMap{};
+  /// @brief awaited command responses (must be access with
+  /// expectedResponseMap_mutex)
+  std::map<std::string, CommandProcessState> expectedResponseMap{};
+
+  /// @brief currently active command sequence, if any (must be access with
+  /// expectedResponseMap_mutex)
+  std::string sequenceId{""};
 
   /// @brief Condition to wait for successfully command confirmation and success
   /// information or timeout

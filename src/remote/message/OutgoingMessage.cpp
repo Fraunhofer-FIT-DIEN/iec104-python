@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -39,13 +39,8 @@
 
 using namespace Remote::Message;
 
-OutgoingMessage::OutgoingMessage(const std::uint_fast16_t ca)
-    : IMessageInterface(), sent(false), success(false) {
-  commonAddress = ca;
-}
-
 OutgoingMessage::OutgoingMessage(std::shared_ptr<Object::DataPoint> point)
-    : sent(false), success(false) {
+    : IMessageInterface() {
   if (!point)
     throw std::invalid_argument("Cannot create OutgoingMessage without point");
 
@@ -64,21 +59,6 @@ OutgoingMessage::OutgoingMessage(std::shared_ptr<Object::DataPoint> point)
 
   commonAddress = _station->getCommonAddress();
 
-  if (_station->isLocal()) {
-    auto _server = _station->getServer();
-    if (!_server) {
-      throw std::invalid_argument("Cannot get server from station");
-    }
-    server = _server;
-  } else {
-    auto _connection = _station->getConnection();
-    if (!_connection) {
-      throw std::invalid_argument("Cannot get connection from station");
-    }
-    connection = _connection;
-    connectionString = _connection->getConnectionString();
-  }
-
   informationObjectAddress = point->getInformationObjectAddress();
   DEBUG_PRINT(Debug::Message, "Created (outgoing)");
 }
@@ -96,78 +76,4 @@ void OutgoingMessage::setCauseOfTransmission(
   std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
 
   causeOfTransmission = cause;
-}
-
-void OutgoingMessage::setIsPeriodicTransmission() {
-  std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
-
-  causeOfTransmission = CS101_COT_PERIODIC;
-}
-
-void OutgoingMessage::setIsSpontaneousTransmission() {
-  std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
-
-  causeOfTransmission = CS101_COT_SPONTANEOUS;
-}
-
-void OutgoingMessage::setIsRequestedTransmission() {
-  std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
-
-  causeOfTransmission = CS101_COT_REQUEST;
-}
-
-void OutgoingMessage::setQuality(const Quality descriptor) {
-  std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
-
-  quality.store(descriptor);
-}
-
-// IS_SENT
-
-bool OutgoingMessage::getIsSent() const { return sent.load(); }
-
-bool OutgoingMessage::send(IMasterConnection master) {
-  auto _server = getServer();
-  if (_server) {
-    if (master) {
-      auto param = IMasterConnection_getApplicationLayerParameters(master);
-      originatorAddress = param->originatorAddress;
-    }
-    DEBUG_PRINT(Debug::Message, "OutgoingMessage.send] As Server: " +
-                                    std::string(TypeID_toString(type)) +
-                                    " | IOA " +
-                                    std::to_string(informationObjectAddress));
-    success = _server->send(shared_from_this(), master);
-  } else {
-    auto _connection = getConnection();
-    if (!_connection) {
-      throw std::invalid_argument("Server or connection reference deleted");
-    }
-
-    // originator is auto-injected by lib60870-c for commands, but add to
-    // message object for convenience
-    originatorAddress = _connection->getOriginatorAddress();
-    DEBUG_PRINT(Debug::Message, "OutgoingMessage.send] As Client: " +
-                                    std::string(TypeID_toString(type)) +
-                                    " | IOA " +
-                                    std::to_string(informationObjectAddress));
-    success = _connection->command(shared_from_this());
-  }
-  sent = true;
-
-  return success;
-}
-
-std::shared_ptr<Server> OutgoingMessage::getServer() {
-  if (server.expired()) {
-    return {nullptr};
-  }
-  return server.lock();
-}
-
-std::shared_ptr<Remote::Connection> OutgoingMessage::getConnection() {
-  if (connection.expired()) {
-    return {nullptr};
-  }
-  return connection.lock();
 }

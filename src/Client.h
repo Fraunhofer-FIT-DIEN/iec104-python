@@ -166,7 +166,9 @@ private:
    * @brief Create a new remote connection handler instance that acts as a
    * client
    * @details create a map of possible connections
+   * @param tick_rate_ms intervall in milliseconds between the client checks connection states
    * @param timeout_ms timeout in milliseconds before an inactive connection
+   * @param transport_security communication encryption instance reference
    * gets closed
    */
   Client(std::uint_fast32_t tick_rate_ms, std::uint_fast32_t timeout_ms,

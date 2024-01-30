@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -99,7 +99,8 @@ Station::addPoint(const std::uint_fast32_t informationObjectAddress,
                   const IEC60870_5_TypeID type,
                   const std::uint_fast32_t reportInterval_ms,
                   const std::uint_fast32_t relatedInformationObjectAddress,
-                  const bool relatedInformationObjectAutoReturn) {
+                  const bool relatedInformationObjectAutoReturn,
+                  const CommandTransmissionMode commandMode) {
   if (getPoint(informationObjectAddress)) {
     return {nullptr};
   }
@@ -109,9 +110,10 @@ Station::addPoint(const std::uint_fast32_t informationObjectAddress,
                   std::to_string(informationObjectAddress));
 
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
-  auto point = DataPoint::create(
-      informationObjectAddress, type, shared_from_this(), reportInterval_ms,
-      relatedInformationObjectAddress, relatedInformationObjectAutoReturn);
+  auto point =
+      DataPoint::create(informationObjectAddress, type, shared_from_this(),
+                        reportInterval_ms, relatedInformationObjectAddress,
+                        relatedInformationObjectAutoReturn, commandMode);
   // auto point = new DataPoint(informationObjectAddress, type, this,
   // reportInterval_ms, relatedInformationObjectAddress,
   // relatedInformationObjectAutoReturn);

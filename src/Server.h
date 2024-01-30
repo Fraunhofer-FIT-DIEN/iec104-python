@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -184,7 +184,7 @@ public:
    */
   void setOnClockSyncCallback(py::object &callable);
 
-  ResponseState onClockSync(std::string _ip, CP56Time2a time);
+  CommandResponseState onClockSync(std::string _ip, CP56Time2a time);
 
   /**
    * @brief set python callback that will be executed on unexpected incoming
@@ -204,6 +204,17 @@ public:
    * @throws std::invalid_argument if callable signature does not match
    */
   void setOnConnectCallback(py::object &callable);
+
+  /**
+   * @brief transmit a datapoint related message to a remote client
+   * @param point datapoint that should be send via server
+   * @param cause reason for transmission
+   * @return information on operation success
+   * @throws std::invalid_argument if point type is not supported for this
+   * operation
+   */
+  bool transmit(std::shared_ptr<Object::DataPoint> point,
+                CS101_CauseOfTransmission cause);
 
   /**
    * @brief send a message object to a remote client
@@ -245,11 +256,11 @@ private:
   /**
    * @brief Create a new remote connection handler instance that acts as a
    * server
-   * @details create a map of local common addresses and setup callbacks
-   * @param remoteAccess Link to RemoteAccessHandler
-   * @param tcpPort port for listening to connections from clients
-   * @param periodicMeasurementInterval_ms Interval in milliseconds between two
-   * cyclic measurement transmissions
+   * @param bind_ip ip-address the server should listen on for incoming client requests
+   * @param tcp_port port for listening to connections from clients
+   * @param tick_rate_ms Interval in milliseconds between two cyclic measurement transmissions
+   * @param max_open_connections maximum number of allowed open connections
+   * @param transport_security communication encryption instance reference
    */
   Server(const std::string &bind_ip, std::uint_fast16_t tcp_port,
          std::uint_fast32_t tick_rate_ms,
@@ -320,7 +331,7 @@ private:
       "Server.on_send_raw", "(server: c104.Server, data: bytes) -> None"};
 
   /// @brief python callback function pointer
-  Module::Callback<ResponseState> py_onClockSync{
+  Module::Callback<CommandResponseState> py_onClockSync{
       "Server.on_clock_sync", "(server: c104.Server, ip: str, date_time: "
                               "datetime.datetime) -> c104.ResponseState"};
 

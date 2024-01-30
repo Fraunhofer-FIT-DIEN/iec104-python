@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -200,7 +200,8 @@ py::dict Remote::rawMessageDictionaryFormatter(uint_fast8_t *msg,
                (msg[IEC60870_FORMAT_OFFSET + 3] << 8)) >>
               1;
 
-    d["type"] = (IEC60870_5_TypeID)msg[IEC60870_TYPEID_OFFSET];
+    IEC60870_5_TypeID type = (IEC60870_5_TypeID)msg[IEC60870_TYPEID_OFFSET];
+    d["type"] = type;
 
     d["numberOfObjects"] =
         (uint8_t)(msg[IEC60870_STRUCTURE_OFFSET] & 0b01111111);
@@ -222,6 +223,11 @@ py::dict Remote::rawMessageDictionaryFormatter(uint_fast8_t *msg,
             (uint32_t)msg[IEC60870_OBJECT_OFFSET] +
             (msg[IEC60870_OBJECT_OFFSET + 1] << 8) +
             (msg[IEC60870_OBJECT_OFFSET + 2] << 16);
+
+        if ((type >= C_SC_NA_1 && type <= C_SE_NC_1) ||
+            (type >= C_SC_TA_1 && type <= C_SE_TC_1)) {
+          d["select"] = (bool)(msg[IEC60870_OBJECT_OFFSET + 3] << 7);
+        }
       }
 
       std::string s;

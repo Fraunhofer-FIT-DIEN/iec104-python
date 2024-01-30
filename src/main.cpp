@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -275,7 +275,7 @@ PYBIND11_MODULE(c104, m) {
       .value("OPEN", OPEN)
       .value("OPEN_AWAIT_CLOSED", OPEN_AWAIT_CLOSED);
 
-  py::enum_<ResponseState>(
+  py::enum_<CommandResponseState>(
       m, "ResponseState",
       "This enum contains all command response states, that add the ability to "
       "control the servers command response behaviour via python callbacks "
@@ -283,6 +283,13 @@ PYBIND11_MODULE(c104, m) {
       .value("FAILURE", RESPONSE_STATE_FAILURE)
       .value("SUCCESS", RESPONSE_STATE_SUCCESS)
       .value("NONE", RESPONSE_STATE_NONE);
+
+  py::enum_<CommandTransmissionMode>(
+      m, "CommandMode",
+      "This enum contains all command transmission modes a client"
+      "may use to send commands.")
+      .value("DIRECT", DIRECT_COMMAND)
+      .value("SELECT_AND_EXECUTE", SELECT_AND_EXECUTE_COMMAND);
 
   py::enum_<CS101_QualifierOfInterrogation>(
       m, "Qoi",
@@ -1745,7 +1752,7 @@ PYBIND11_MODULE(c104, m) {
 )def",
            "io_address"_a)
       .def("add_point", &Object::Station::addPoint, R"def(
-    add_point(self: c104.Station, io_address: int, type: c104.Type, report_ms: int = 0, related_io_address: int = 0, related_io_autoreturn: bool = False) -> Optional[c104.Point]
+    add_point(self: c104.Station, io_address: int, type: c104.Type, report_ms: int = 0, related_io_address: int = 0, related_io_autoreturn: bool = False, command_mode: c104.CommandMode = c104.CommandMode.DIRECT) -> Optional[c104.Point]
 
     add a new point to this station and return the new point object
 
@@ -1761,6 +1768,8 @@ PYBIND11_MODULE(c104, m) {
         related monitoring point identified by information object address, that should be auto transmitted on incoming client command (for control points server-sided only)
     related_io_autoreturn: bool
         automatic reporting interval in milliseconds (for control points server-sided only)
+    command_mode: :ref:`c104.CommandMode`
+        command transmission mode (direct or select-and-execute)
 
     Returns
     -------
@@ -1780,10 +1789,13 @@ PYBIND11_MODULE(c104, m) {
 
     Example
     -------
-    >>> station_1 = my_server.add_station(common_address=15)
+    >>> point_1 = sv_station_1.add_point(common_address=15, type=c104.Type.M_ME_NC_1)
+    >>> point_2 = sv_station_1.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
+    >>> point_3 = sv_station_1.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=point_2.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
 )def",
            "io_address"_a, "type"_a, "report_ms"_a = 0,
-           "related_io_address"_a = 0, "related_io_autoreturn"_a = false);
+           "related_io_address"_a = 0, "related_io_autoreturn"_a = false,
+           "command_mode"_a = DIRECT_COMMAND);
 
   py::class_<Object::DataPoint, std::shared_ptr<Object::DataPoint>>(
       m, "Point",
@@ -1813,6 +1825,16 @@ PYBIND11_MODULE(c104, m) {
           &Object::DataPoint::getRelatedInformationObjectAutoReturn,
           &Object::DataPoint::setRelatedInformationObjectAutoReturn,
           "bool: toggle automatic return info remote response on or off",
+          py::return_value_policy::copy)
+      .def_property("command_mode", &Object::DataPoint::getCommandMode,
+                    &Object::DataPoint::setCommandMode,
+                    "c104.CommandMode: set direct or select-and-execute "
+                    "command transmission mode",
+                    py::return_value_policy::copy)
+      .def_property(
+          "selected_by", &Object::DataPoint::getSelectedByOriginatorAddress,
+          &Object::DataPoint::setSelectedByOriginatorAddress,
+          "int: originator address (1-255) = SELECTED, 0 = NOT SELECTED",
           py::return_value_policy::copy)
       .def_property("report_ms", &Object::DataPoint::getReportInterval_ms,
                     &Object::DataPoint::setReportInterval_ms,
@@ -1851,6 +1873,14 @@ PYBIND11_MODULE(c104, m) {
       .def_property_readonly( // todo convert to datetime.datetime
           "reported_at_ms", &Object::DataPoint::getReportedAt_ms,
           "int: timestamp in milliseconds of last transmission (read-only)",
+          py::return_value_policy::copy)
+      .def_property_readonly( // todo convert to datetime.datetime
+          "received_at_ms", &Object::DataPoint::getReceivedAt_ms,
+          "int: timestamp in milliseconds of last incoming message (read-only)",
+          py::return_value_policy::copy)
+      .def_property_readonly( // todo convert to datetime.datetime
+          "sent_at_ms", &Object::DataPoint::getSentAt_ms,
+          "int: timestamp in milliseconds of last outgoing message (read-only)",
           py::return_value_policy::copy)
       .def("on_receive", &Object::DataPoint::setOnReceiveCallback, R"def(
     on_receive(self: c104.Point, callable: Callable[[c104.Point, dict, c104.IncomingMessage], c104.ResponseState]) -> None
@@ -1897,7 +1927,7 @@ PYBIND11_MODULE(c104, m) {
     >>>
     >>> sv_measurement_point = sv_station_2.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
     >>> sv_measurement_point.value = 12.34
-    >>> sv_command_point = sv_station_2.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=sv_measurement_point.io_address, related_io_autoreturn=True)
+    >>> sv_command_point = sv_station_2.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=sv_measurement_point.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
     >>> sv_command_point.on_receive(callable=on_setpoint_command)
 )def",
            "callable"_a)
@@ -2109,6 +2139,11 @@ PYBIND11_MODULE(c104, m) {
           &Remote::Message::IncomingMessage::getNumberOfObject,
           "int: number of information objects (read-only)",
           py::return_value_policy::copy)
+      .def_property_readonly("is_select_command",
+                             &Remote::Message::IncomingMessage::isSelectCommand,
+                             "bool: test if message is a point command and has "
+                             "select flag set (read-only)",
+                             py::return_value_policy::copy)
       .def("first", &Remote::Message::IncomingMessage::first, R"def(
     first(self: c104.IncomingMessage) -> None
 

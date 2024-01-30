@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -64,68 +64,7 @@ public:
    */
   void setCauseOfTransmission(CS101_CauseOfTransmission cause);
 
-  /**
-   * @brief Setter for cause of transmission: Mark this message as periodic
-   */
-  void setIsPeriodicTransmission();
-
-  /**
-   * @brief Setter for cause of transmission: Mark this message as spontaneous
-   */
-  void setIsSpontaneousTransmission();
-
-  /**
-   * @brief Setter for cause of transmission: Mark this message as requested by
-   * client
-   */
-  void setIsRequestedTransmission();
-
-  // QUALITY
-
-  /**
-   * @brief Setter for quality of information
-   * @param descriptor quality as enum
-   */
-  void setQuality(Quality descriptor = Quality::None);
-
-  // IS_SENT
-
-  /**
-   * @brief Test if message was sent
-   * @return information if message was sent
-   */
-  bool getIsSent() const;
-
-  /**
-   * @brief Send the message via client or specific server connection
-   * @param master internal connection reference used to send a message via
-   * server to a single client
-   * @return information on success
-   * @throws std::invalid_argument if server or connection reference is invalid
-   */
-  bool send(IMasterConnection master = nullptr);
-
-  std::shared_ptr<Server> getServer();
-
-  std::shared_ptr<Connection> getConnection();
-
-  // SUCCESS
-
-  /**
-   * @brief Get information on success
-   * @return information on success
-   */
-  bool wasSuccessful() { return success; }
-
 protected:
-  /**
-   * @brief Create an outgoing message that should be send via client or server
-   * @param ca receiver station common address
-   * @throws std::invalid_argument if point reference, connection or server
-   * reference is invalid
-   */
-  explicit OutgoingMessage(uint_fast16_t ca);
-
   /**
    * @brief Create an outgoing message that should be send via client or server
    * to a given DataPoint
@@ -133,19 +72,6 @@ protected:
    * outgoing message
    */
   explicit OutgoingMessage(std::shared_ptr<Object::DataPoint> point);
-
-  /// @brief state that defines if message was sent via client or server
-  std::atomic_bool sent{false};
-
-  /// @brief state that defines if message was received successfully and if
-  /// client message was executed successfully
-  std::atomic_bool success{false};
-
-  /// @brief reference to related server connection (if server)
-  std::weak_ptr<Server> server{};
-
-  /// @brief reference to related client connection (if client)
-  std::weak_ptr<Connection> connection{};
 };
 
 } // namespace Message

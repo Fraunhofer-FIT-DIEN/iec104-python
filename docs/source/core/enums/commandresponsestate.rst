@@ -1,5 +1,5 @@
-ResponseState
+CommandResponseState
 ======================================================================
 
-.. doxygenenum:: ResponseState
+.. doxygenenum:: CommandResponseState
    :project: iec104-python
