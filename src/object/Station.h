@@ -29,8 +29,8 @@
  *
  */
 
-#ifndef C104_OJECT_STATION_H
-#define C104_OJECT_STATION_H
+#ifndef C104_OBJECT_STATION_H
+#define C104_OBJECT_STATION_H
 
 #include "DataPoint.h"
 #include "module/GilAwareMutex.h"
@@ -151,4 +151,4 @@ public:
 typedef std::vector<std::shared_ptr<Station>> StationVector;
 } // namespace Object
 
-#endif // C104_OJECT_STATION_H
+#endif // C104_OBJECT_STATION_H

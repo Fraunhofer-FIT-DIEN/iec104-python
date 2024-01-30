@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -41,6 +41,14 @@ using namespace pybind11::literals;
 
 namespace Module {
 
+/**
+ * @brief The CallbackBase class.
+ *
+ * This class represents a base class for callback functions.
+ * A callback function is a function that is passed as an argument to another
+ * function. This class provides functionality for setting, resetting, and
+ * checking if the callback function is set.
+ */
 class CallbackBase {
 public:
   CallbackBase(std::string cb_name, std::string cb_signature)
@@ -51,6 +59,18 @@ public:
     signature = std::move(cb_signature);
   }
 
+  /**
+   * @brief Resets the callback function to a new value.
+   *
+   * This function generates a signature for the `callable` object, and compares
+   *it with the expected signature. If the signatures don't match, the callback
+   *function is unset, and an `invalid_argument ` exception is thrown.
+   *
+   * @param callable The new callback function.
+   *
+   * @throws std::invalid_argument If the `callable` object is not a callable or
+   *if its signature does not match the expected signature.
+   */
   void reset(py::object &callable) {
     DEBUG_PRINT(Debug::Callback, "REGISTER " + name);
 
@@ -91,6 +111,13 @@ public:
     }
   }
 
+  /**
+   * @brief Check if the callback function is set.
+   *
+   * This function checks if the callback object is not None.
+   *
+   * @return true if the callback function is set, false otherwise.
+   */
   bool is_set() const {
     std::lock_guard<Module::GilAwareMutex> const lock(callback_mutex);
 
@@ -98,6 +125,11 @@ public:
   }
 
 protected:
+  /**
+   * @brief Unsets the callback function.
+   *
+   * This function unsets the callback function by setting it to `py::none()`.
+   */
   void unset() {
     DEBUG_PRINT(Debug::Callback, "CLEAR " + name);
     {
@@ -126,6 +158,13 @@ public:
   Callback(std::string cb_name, std::string cb_signature)
       : CallbackBase(std::move(cb_name), std::move(cb_signature)) {}
 
+  /**
+   * @brief Calls the callback function with the given values.
+   *
+   * @tparam Types The types of the values to pass to the callback
+   * @param values The values to pass to the callback
+   * @return bool True if the callback was called successfully, false otherwise
+   */
   template <typename... Types> bool call(Types &&...values) {
     std::unique_lock<Module::GilAwareMutex> lock(this->callback_mutex);
     auto const cb = this->callback;
@@ -178,9 +217,11 @@ public:
   }
 
   /**
-   * get result from callback execution
-   * @return result
-   * @throws std::invalid_argument if not result set
+   * @brief Retrieves the result of a callback.
+   *
+   * @tparam T The type of the result
+   * @return T The result of the callback
+   * @throws std::invalid_argument if no result is set
    */
   T getResult() {
     std::lock_guard<Module::GilAwareMutex> lock(this->callback_mutex);
@@ -201,6 +242,14 @@ public:
   Callback(const std::string &cb_name, const std::string &cb_signature)
       : CallbackBase(cb_name, cb_signature) {}
 
+  /**
+   * @brief Calls the callback function with the given values.
+   *
+   * @tparam Types The types of the values.
+   * @param values The values to pass to the callback function.
+   * @return bool Returns true if the callback function is called successfully,
+   * false otherwise.
+   */
   template <typename... Types> bool call(Types &&...values) {
     std::unique_lock<Module::GilAwareMutex> lock(this->callback_mutex);
     auto const cb = this->callback;

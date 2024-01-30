@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -39,6 +39,15 @@
 
 namespace Module {
 
+/**
+ * @class ScopedGilAcquire
+ * @brief The ScopedGilAcquire class is a utility class that provides a scoped
+ * acquisition and release of the Global Interpreter Lock (GIL).
+ *
+ * The ScopedGilAcquire is used to safely acquire and release the GIL within a
+ * specific scope, ensuring that the Python interpreter is protected from
+ * concurrent access by multiple threads.
+ */
 class ScopedGilAcquire {
 public:
   inline explicit ScopedGilAcquire(std::string callback_name)

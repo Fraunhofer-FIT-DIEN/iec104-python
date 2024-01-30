@@ -29,8 +29,8 @@
  *
  */
 
-#ifndef C104_OJECT_DATAPOINT_H
-#define C104_OJECT_DATAPOINT_H
+#ifndef C104_OBJECT_DATAPOINT_H
+#define C104_OBJECT_DATAPOINT_H
 
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
@@ -388,4 +388,4 @@ public:
 typedef std::vector<std::shared_ptr<DataPoint>> DataPointVector;
 } // namespace Object
 
-#endif // C104_OJECT_DATAPOINT_H
+#endif // C104_OBJECT_DATAPOINT_H
