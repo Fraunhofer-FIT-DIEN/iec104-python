@@ -106,7 +106,7 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
     // float Setpoint Command (NORMALIZED)
   case C_SE_NA_1: {
     io = (InformationObject)SetpointCommandNormalized_create(
-        nullptr, informationObjectAddress, (float)value.load(), false,
+        nullptr, informationObjectAddress, (float)value.load(), select,
         static_cast<uint8_t>(quality.load()));
   } break;
 
