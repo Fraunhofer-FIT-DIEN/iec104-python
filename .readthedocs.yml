@@ -6,6 +6,10 @@
 # Required
 version: 2
 
+# clone submodules
+submodules:
+  include: all
+
 # Set the OS, Python version and other tools you might need
 build:
   os: ubuntu-22.04
