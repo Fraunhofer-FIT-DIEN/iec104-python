@@ -1,6 +1,8 @@
 # Change log
 
 ## v1.17
+- Fix (1.17.1): Fix select-and-execute for C_SE_NA
+- Fix (1.17.1): Fix armv7 build
 
 - Add optional feature **Select-And-Execute** (also called Select-Before-Execute)
   - Add enum c104.CommandMode
