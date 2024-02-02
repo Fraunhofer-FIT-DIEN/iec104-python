@@ -22,6 +22,35 @@ endif()
 
 message(STATUS "Add Pybind11")
 add_subdirectory(depends/pybind11)
+list(APPEND c104_PRIVATE_LIBRARIES pybind11::module pybind11::windows_extras)
+list(APPEND c104_tests_PRIVATE_LIBRARIES pybind11::embed
+     pybind11::windows_extras)
+if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+  list(APPEND c104_PRIVATE_LIBRARIES pybind11::lto)
+endif()
+
+# ##############################################################################
+# atomic
+# ##############################################################################
+
+if(COMPILER_IS_GCC_OR_CLANG)
+  set(ATOMIC_TEST_SOURCE
+      "
+        #include <atomic>
+        int main() { std::atomic<int64_t> i(0); i++; return 0; }
+    ")
+  check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" ATOMIC_INT64_IS_BUILTIN)
+  if(NOT ATOMIC_INT64_IS_BUILTIN)
+    set(CMAKE_REQUIRED_LIBRARIES atomic)
+    check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}"
+                              ATOMIC_INT64_REQUIRES_LIBATOMIC)
+    if(ATOMIC_INT64_REQUIRES_LIBATOMIC)
+      list(APPEND c104_PRIVATE_LIBRARIES atomic)
+      list(APPEND c104_tests_PRIVATE_LIBRARIES atomic)
+    endif()
+    unset(CMAKE_REQUIRED_LIBRARIES)
+  endif()
+endif()
 
 # ##############################################################################
 # lib60870-C 2.3.2
@@ -38,6 +67,8 @@ file(
   DESTINATION
     ${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-2.28)
 add_subdirectory(depends/lib60870/lib60870-C)
+list(APPEND c104_PRIVATE_LIBRARIES lib60870)
+list(APPEND c104_tests_PRIVATE_LIBRARIES lib60870)
 
 # ##############################################################################
 # c104
@@ -83,10 +114,8 @@ add_library(
   src/object/Station.cpp
   src/main.cpp)
 
-target_link_libraries(c104 PRIVATE pybind11::module pybind11::windows_extras
-                                   lib60870 atomic)
-if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-  target_link_libraries(c104 PRIVATE pybind11::lto)
+if(c104_PRIVATE_LIBRARIES)
+  target_link_libraries(c104 PRIVATE ${c104_PRIVATE_LIBRARIES})
 endif()
 
 pybind11_extension(c104)
@@ -110,6 +139,7 @@ target_compile_definitions(c104 PRIVATE VERSION_INFO=${C104_VERSION_INFO})
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
 
 add_subdirectory(depends/catch)
+list(APPEND c104_tests_PRIVATE_LIBRARIES Catch2::Catch2)
 
 add_executable(
   c104_tests
@@ -147,9 +177,10 @@ add_executable(
   tests/test_object_datapoint.cpp
   tests/test_object_station.cpp
   tests/main.cpp)
-target_link_libraries(
-  c104_tests PRIVATE pybind11::embed pybind11::windows_extras lib60870 atomic
-                     Catch2::Catch2)
+
+if(c104_tests_PRIVATE_LIBRARIES)
+  target_link_libraries(c104_tests PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
+endif()
 
 include(CTest)
 include(Catch)
@@ -189,6 +220,8 @@ add_executable(
   src/object/DataPoint.cpp
   src/object/Station.cpp
   src/main_client.cpp)
-target_link_libraries(
-  c104_test_client PRIVATE pybind11::embed pybind11::windows_extras lib60870
-                           atomic)
+
+if(c104_tests_PRIVATE_LIBRARIES)
+  target_link_libraries(c104_test_client
+                        PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
+endif()
