@@ -84,7 +84,7 @@ add_library(
   src/main.cpp)
 
 target_link_libraries(c104 PRIVATE pybind11::module pybind11::windows_extras
-                                   lib60870)
+                                   lib60870 atomic)
 if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
   target_link_libraries(c104 PRIVATE pybind11::lto)
 endif()
@@ -148,7 +148,7 @@ add_executable(
   tests/test_object_station.cpp
   tests/main.cpp)
 target_link_libraries(
-  c104_tests PRIVATE pybind11::embed pybind11::windows_extras lib60870
+  c104_tests PRIVATE pybind11::embed pybind11::windows_extras lib60870 atomic
                      Catch2::Catch2)
 
 include(CTest)
@@ -189,5 +189,6 @@ add_executable(
   src/object/DataPoint.cpp
   src/object/Station.cpp
   src/main_client.cpp)
-target_link_libraries(c104_test_client
-                      PRIVATE pybind11::embed pybind11::windows_extras lib60870)
+target_link_libraries(
+  c104_test_client PRIVATE pybind11::embed pybind11::windows_extras lib60870
+                           atomic)

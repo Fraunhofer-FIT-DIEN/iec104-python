@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
- Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology FIT
+ Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology FIT
 
  This file is part of iec104-python.
  iec104-python is free software: you can redistribute it and/or modify
