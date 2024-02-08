@@ -1,0 +1,7 @@
+graft depends
+graft src
+include tests/*.cpp
+global-exclude **/.*
+prune **/.*
+prune **/docs
+include CHANGELOG.md CMakeLists.txt LICENSE README.md pyproject.toml setup.cfg setup.py

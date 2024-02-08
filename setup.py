@@ -19,10 +19,6 @@ PLAT_TO_CMAKE = {
 PROJECT_DIR = Path(__file__).parent
 
 
-def readme():
-    return (PROJECT_DIR / "README.md").read_text()
-
-
 class CMakeExtension(Extension):
     def __init__(self, name: str, sourcedir: str = "") -> None:
         super().__init__(name, sources=[])
@@ -61,7 +57,9 @@ class CMakeBuild(build_ext):
         if "CMAKE_ARGS" in os.environ:
             cmake_args += [item for item in os.environ["CMAKE_ARGS"].split(" ") if item]
 
-        cmake_args += [f"-DC104_VERSION_INFO={self.distribution.get_version()}"]
+        # strip .postX version suffix
+        v = '.'.join(self.distribution.get_version().split('.')[:3])
+        cmake_args += [f"-DC104_VERSION_INFO={v}"]
 
         if self.compiler.compiler_type != "msvc":
             # Using Ninja-build since it a) is available as a wheel and b)
@@ -127,18 +125,7 @@ class CMakeBuild(build_ext):
             ["cmake", "--build", ".", *build_args], cwd=build_temp, check=True
         )
 
-
 setup(
-    name="c104",
-    version="1.17.1",
-    author="Martin Unkel, Fraunhofer FIT",
-    author_email="martin.unkel@fit.fraunhofer.de",
-    description="iec104-python",
-    long_description=readme(),
-    long_description_content_type="text/markdown",
-    url="https://github.com/fraunhofer-fit-dien/iec104-python",
     ext_modules=[CMakeExtension('c104', str(PROJECT_DIR))],
-    cmdclass={"build_ext": CMakeBuild},
-    zip_safe=False,
-    python_requires='>=3.6'
+    cmdclass={"build_ext": CMakeBuild}
 )

@@ -110,19 +110,19 @@ The library is used as testing framework for test-automation.
 * Raspbian (aarch64): Not yet tested
 
 ### Python versions
-* python >= 3.6, < 3.11
+* python >= 3.6, < 3.13
 
 ## Installation
 Please adjust the version number to the latest version or use a specific version according to your needs.
 
 ### Install from pypi.org
 ```bash
-python3 -m pip install c104~=1.17.0
+python3 -m pip install c104
 ```
 
 ### Install from git with tag
 ```bash
-python3 -m pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git@v1.17.0
+python3 -m pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git
 ```
 
 ## Documentation
