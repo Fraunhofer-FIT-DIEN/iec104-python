@@ -11,6 +11,7 @@ Enums
    double
    eventstate
    init
+   qoc
    qoi
    responsestate
    step

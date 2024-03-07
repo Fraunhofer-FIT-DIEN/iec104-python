@@ -116,7 +116,7 @@ sv_control_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
 ##################################
 
 def sv_pt_on_single_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} SINGLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("SV] {0} SINGLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
 
     if point.quality.is_good():
         if message.is_select_command:
@@ -141,7 +141,7 @@ sv_single_command.on_receive(callable=sv_pt_on_single_command)
 ##################################
 
 def sv_pt_on_double_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
 
     if point.quality.is_good():
         if point.related_io_address:
@@ -173,7 +173,7 @@ sv_global_step_point_value = 0
 
 def sv_pt_on_step_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
     global sv_global_step_point_value
-    print("SV] {0} STEP COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("SV] {0} STEP COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
 
     if point.value == c104.Step.LOWER:
         sv_global_step_point_value -= 1

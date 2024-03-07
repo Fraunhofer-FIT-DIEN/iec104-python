@@ -242,6 +242,14 @@ PYBIND11_MODULE(c104, m) {
       .value("UNKNOWN_CA", CS101_CauseOfTransmission::CS101_COT_UNKNOWN_CA)
       .value("UNKNOWN_IOA", CS101_CauseOfTransmission::CS101_COT_UNKNOWN_IOA);
 
+  py::enum_<CS101_QualifierOfCommand>(m, "Qoc",
+                                      "This enum contains all valid IEC60870 "
+                                      "qualifier of command duration options.")
+      .value("NONE", CS101_QualifierOfCommand::NONE)
+      .value("SHORT_PULSE", CS101_QualifierOfCommand::SHORT_PULSE)
+      .value("LONG_PULSE", CS101_QualifierOfCommand::LONG_PULSE)
+      .value("CONTINUOUS", CS101_QualifierOfCommand::CONTINUOUS);
+
   py::enum_<UnexpectedMessageCause>(
       m, "Umc",
       "This enum contains all unexpected message cause identifier to interpret "
@@ -2057,11 +2065,14 @@ PYBIND11_MODULE(c104, m) {
     ----------
     cause: :ref:`c104.Cot`
         cause of the transmission
+    qualifier: :ref:`c104.Qoc`
+        command duration parametrization (only for following command points: single, double and regulation step)
 
     Raises
     ------
     ValueError
         If parent station, server or connection reference is invalid
+        If qualifier is set for points in monitoring direction
 
     Warning
     -------
@@ -2075,8 +2086,11 @@ PYBIND11_MODULE(c104, m) {
     Example
     -------
     >>> sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
+    >>> cl_single_command_point.transmit(qualifier=c104.Qoc.SHORT_PULSE)
 )def",
-           "cause"_a = CS101_COT_UNKNOWN_COT, py::return_value_policy::copy);
+           "cause"_a = CS101_COT_UNKNOWN_COT,
+           "qualifier"_a = CS101_QualifierOfCommand::NONE,
+           py::return_value_policy::copy);
 
   py::class_<Remote::Message::IncomingMessage,
              std::shared_ptr<Remote::Message::IncomingMessage>>(
@@ -2144,6 +2158,12 @@ PYBIND11_MODULE(c104, m) {
                              "bool: test if message is a point command and has "
                              "select flag set (read-only)",
                              py::return_value_policy::copy)
+      .def_property_readonly(
+          "command_qualifier",
+          &Remote::Message::IncomingMessage::getCommandQualifier,
+          ":ref:`c104.Qoc`: duration parameter, only for single, double "
+          "and regulating step command messages (read-only)",
+          py::return_value_policy::copy)
       .def("first", &Remote::Message::IncomingMessage::first, R"def(
     first(self: c104.IncomingMessage) -> None
 

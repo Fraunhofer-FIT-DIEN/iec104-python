@@ -121,6 +121,12 @@ public:
    */
   bool isSelectCommand() const;
 
+  /**
+   * @brief get the command duration qualifier, only available for single,
+   * double or regulation step commands
+   */
+  CS101_QualifierOfCommand getCommandQualifier() const;
+
 private:
   /**
    * @brief Create an IncomingMessage as facade pattern to access an incoming
@@ -161,6 +167,11 @@ private:
   /// @brief state that describes if a command results in a SELECT or an EXECUTE
   /// action
   std::atomic_bool selectFlag{false};
+
+  /// @brief command duration parameter, only used for single, double and
+  /// regulation step command messages
+  std::atomic_uint_fast8_t qualifierOfCommand{
+      IEC60870_QOC_NO_ADDITIONAL_DEFINITION};
 
   /**
    * @brief extract meta data from this message: commonAddress,

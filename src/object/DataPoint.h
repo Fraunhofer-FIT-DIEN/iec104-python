@@ -358,11 +358,14 @@ public:
   /**
    * @brief transmit point
    * @param cause cause of transmission
+   * @param qualifier parameter for command duration
    * @return success information
    * @throws std::invalid_argument if parent station or connection reference is
    * invalid
    */
-  bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT);
+  bool
+  transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT,
+           CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE);
 
   inline friend std::ostream &operator<<(std::ostream &os, DataPoint &dp) {
     os << std::endl

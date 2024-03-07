@@ -705,7 +705,8 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
 }
 
 bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
-                          const CS101_CauseOfTransmission cause) {
+                          const CS101_CauseOfTransmission cause,
+                          const CS101_QualifierOfCommand qualifier) {
   auto type = point->getType();
 
   // is a supported control command?
@@ -716,7 +717,7 @@ bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
   bool selectAndExecute = point->getCommandMode() == SELECT_AND_EXECUTE_COMMAND;
   // send select command
   if (selectAndExecute) {
-    auto message = Message::PointCommand::create(point, true);
+    auto message = Message::PointCommand::create(point, true, qualifier);
     message->setCauseOfTransmission(cause);
     // Select success ?
     if (!command(std::move(message), true)) {
@@ -725,7 +726,7 @@ bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
   }
   // send execute command
 
-  auto message = Message::PointCommand::create(point);
+  auto message = Message::PointCommand::create(point, false, qualifier);
   message->setCauseOfTransmission(cause);
   if (selectAndExecute) {
     // wait for ACT_TERM after ACT_CON

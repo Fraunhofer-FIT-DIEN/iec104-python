@@ -1,5 +1,8 @@
 # Change log
 
+## v1.18
+- Add support for Qualifier of Command for single, double and regulating step commands
+
 ## v1.17
 - Fix (1.17.1): Fix select-and-execute for C_SE_NA
 - Fix (1.17.1): Fix armv7 build
