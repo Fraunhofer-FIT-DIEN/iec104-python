@@ -181,7 +181,8 @@ int main(int argc, char *argv[]) {
 
   auto cl_double_command = cl_station_2->addPoint(22, C_DC_TA_1);
 
-  cl_double_command->setValue(IEC60870_DOUBLE_POINT_ON);
+  cl_double_command->setValueEx(IEC60870_DOUBLE_POINT_ON, Quality::None,
+                                11110000);
   if (cl_double_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Double command ON successful" << std::endl;
   } else {

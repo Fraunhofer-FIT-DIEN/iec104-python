@@ -141,7 +141,7 @@ sv_single_command.on_receive(callable=sv_pt_on_single_command)
 ##################################
 
 def sv_pt_on_double_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, timestamp: {3}, prev: {4}, cot: {5}, quality: {6}, command_qualifier: {7}".format(point.type, point.io_address, point.value, point.updated_at_ms, previous_state, message.cot, point.quality, message.command_qualifier))
 
     if point.quality.is_good():
         if point.related_io_address:
@@ -225,12 +225,12 @@ class ServerPointMethodCallbackTestClass:
 sv_pmct = ServerPointMethodCallbackTestClass("SV] CALLBACK METHOD")
 
 time.sleep(5)
-sv_measurement_point.value = 1234
+sv_measurement_point.set(value=1234, timestamp_ms=11110000)
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 sv_measurement_point.on_before_auto_transmit(callable=sv_pmct.pt_on_before_auto_transmit_measurement_point)
 
 time.sleep(5)
-sv_measurement_point.set(value=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=int(time.time() * 1000))
+sv_measurement_point.set(value=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=11110000)
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 
 ##################################

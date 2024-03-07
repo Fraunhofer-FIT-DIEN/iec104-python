@@ -198,7 +198,7 @@ void DataPoint::setValue(const double new_value) {
   setValueEx(new_value, Quality::None, 0);
 }
 
-void DataPoint::setValueEx(const double new_value, const Quality &new_quality,
+void DataPoint::setValueEx(const double new_value, const Quality new_quality,
                            const std::uint_fast64_t timestamp_ms) {
   // set predefined timestamp if provided (as client)
   if (timestamp_ms > 0) {

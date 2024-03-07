@@ -523,9 +523,8 @@ void IncomingMessage::extractInformationObject() {
           DoubleCommandWithCP56Time2a_getQU((DoubleCommandWithCP56Time2a)io);
       value =
           DoubleCommandWithCP56Time2a_getState((DoubleCommandWithCP56Time2a)io);
-      // timestamp56 =
-      // DoubleCommandWithCP56Time2a_getTimestamp((DoubleCommandWithCP56Time2a)io);
-      // not found
+      timestamp56 = DoubleCommandWithCP56Time2a_getTimestamp(
+          (DoubleCommandWithCP56Time2a)io);
       if (value == 0 || value == 1 || value == 2 || value == 3) {
         quality.store(Quality::None);
       }
@@ -550,8 +549,8 @@ void IncomingMessage::extractInformationObject() {
       StepCommandValue scv2 =
           StepCommandWithCP56Time2a_getState((StepCommandWithCP56Time2a)io);
       value = scv2;
-      // timestamp56 =
-      // StepCommandWithCP56Time2a_((StepCommandWithCP56Time2a)io); not found
+      timestamp56 =
+          StepCommandWithCP56Time2a_getTimestamp((StepCommandWithCP56Time2a)io);
       if (value == 1 || value == 2) {
         quality.store(Quality::None);
       }
@@ -578,8 +577,8 @@ void IncomingMessage::extractInformationObject() {
           (SetpointCommandNormalizedWithCP56Time2a)io);
       value = SetpointCommandNormalizedWithCP56Time2a_getValue(
           (SetpointCommandNormalizedWithCP56Time2a)io);
-      // timestamp56 =
-      // SetpointCommandNormalizedWithCP56Time2a_((SetpointCommandNormalizedWithCP56Time2a)io);
+      timestamp56 = SetpointCommandNormalizedWithCP56Time2a_getTimestamp(
+          (SetpointCommandNormalizedWithCP56Time2a)io);
       if (value >= -1 && value <= 1) {
         quality.store(Quality::None);
       }
@@ -605,8 +604,8 @@ void IncomingMessage::extractInformationObject() {
           (SetpointCommandScaledWithCP56Time2a)io);
       value = SetpointCommandScaledWithCP56Time2a_getValue(
           (SetpointCommandScaledWithCP56Time2a)io);
-      // timestamp56 =
-      // SetpointCommandScaledWithCP56Time2a_((SetpointCommandScaledWithCP56Time2a)io);
+      timestamp56 = SetpointCommandScaledWithCP56Time2a_getTimestamp(
+          (SetpointCommandScaledWithCP56Time2a)io);
       if (value >= -65536. && value <= 65535.) {
         quality.store(Quality::None);
       }
@@ -632,8 +631,8 @@ void IncomingMessage::extractInformationObject() {
           (SetpointCommandShortWithCP56Time2a)io);
       value = SetpointCommandShortWithCP56Time2a_getValue(
           (SetpointCommandShortWithCP56Time2a)io);
-      // timestamp56 =
-      // SetpointCommandShortWithCP56Time2a_((SetpointCommandShortWithCP56Time2a)io);
+      timestamp56 = SetpointCommandShortWithCP56Time2a_getTimestamp(
+          (SetpointCommandShortWithCP56Time2a)io);
       if (value >= -16777216. && value <= 16777215.) {
         quality.store(Quality::None);
       }

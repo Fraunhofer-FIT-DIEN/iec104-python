@@ -273,9 +273,12 @@ public:
   /**
    * @brief Set point value with quality restriction bitset and updated at
    * timestamp
+   * @param new_value the value to be assigned to the point
+   * @param new_quality value quality information
+   * @param timestamp_ms value updated at timestamp in milliseconds
    */
-  void setValueEx(double new_value, const Quality &new_quality,
-                  std::uint_fast64_t timestamp_ms);
+  void setValueEx(double new_value, const Quality new_quality = Quality::None,
+                  std::uint_fast64_t timestamp_ms = 0);
 
   /**
    * @brief get timestamp of last value update

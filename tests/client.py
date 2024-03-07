@@ -64,7 +64,7 @@ cl_connection_1.on_state_change(callable=cl_ct_on_state_change)
 ##################################
 
 def cl_pt_on_receive_point(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("CL] {0} REPORT on IOA: {1} , new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("CL] {0} REPORT on IOA: {1} , new: {2}, timestamp: {3}, prev: {5}, cot: {6}, quality: {6}".format(point.type, point.io_address, point.value, point.updated_at_ms, previous_state, message.cot, point.quality))
     # print("{0}".format(message.is_negative))
     # print("-->| POINT: 0x{0} | EXPLAIN: {1}".format(message.raw.hex(), c104.explain_bytes(apdu=message.raw)))
     return c104.ResponseState.SUCCESS

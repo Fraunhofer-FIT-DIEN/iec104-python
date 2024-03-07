@@ -2039,9 +2039,9 @@ PYBIND11_MODULE(c104, m) {
     value: float
         point value
     quality: :ref:`c104.Quality`
-        quality restrictions if any
+        quality restrictions if any, default: c104.Quality.None
     timestamp_ms: int
-        modification timestamp in milliseconds
+        modification timestamp in milliseconds, default: current utc timestamp
 
     Returns
     -------
@@ -2051,9 +2051,9 @@ PYBIND11_MODULE(c104, m) {
     -------
     >>> sv_measurement_point.set(value=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=int(time.time() * 1000))
 )def",
-           "value"_a, "quality"_a, "timestamp_ms"_a)
+           "value"_a, "quality"_a = Quality::None, "timestamp_ms"_a = 0)
       .def("transmit", &Object::DataPoint::transmit, R"def(
-    transmit(self: c104.Point, cause: c104.Cot = c104.Cot.UNKNOWN_COT) -> bool
+    transmit(self: c104.Point, cause: c104.Cot = c104.Cot.SPONTANEOUS, qualifier: c104.Qoc = c104.Qoc.NONE) -> bool
 
     **Server-side point**
     report a measurement value to connected clients
