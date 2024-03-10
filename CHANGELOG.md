@@ -2,6 +2,11 @@
 
 ## v1.18
 - Add support for Qualifier of Command for single, double and regulating step commands
+- Fix transmit updated_at timestamp for time aware point
+- c104.Point.set method signature improved (non-breaking):
+  - Add keyword argument timestamp_ms to allow setting a points value in combination with an updated_at_ms timestamp
+  - Improve value argument to support instances of type c104.Double and c104.Step as setter for c104.Point.value does
+- Improve GIL handling for methods station.add_point, server.stop and client.stop
 
 ## v1.17
 - Fix (1.17.1): Fix select-and-execute for C_SE_NA
