@@ -287,8 +287,7 @@ bool Connection::setClosed() {
   // DO NOT LOCK connection_mutex: disconnect locks
   ConnectionState const current = state.load();
 
-  if (CLOSED == current || CLOSED_AWAIT_OPEN == current ||
-      CLOSED_AWAIT_RECONNECT == current) {
+  if (CLOSED == current) {
     // print
     DEBUG_PRINT(Debug::Connection, "set_closed] Already closed to " +
                                        getConnectionString() + " | State " +
@@ -300,7 +299,10 @@ bool Connection::setClosed() {
                 "set_closed] Connection closed to " + getConnectionString());
   }
 
-  disconnectedAt_ms.store(GetTimestamp_ms());
+  if (CLOSED_AWAIT_OPEN != current && CLOSED_AWAIT_RECONNECT != current) {
+    // set disconnected if connected previously
+    disconnectedAt_ms.store(GetTimestamp_ms());
+  }
 
   // controlled close or connection lost?
   setState((OPEN_AWAIT_CLOSED == current) ? CLOSED : CLOSED_AWAIT_RECONNECT);
