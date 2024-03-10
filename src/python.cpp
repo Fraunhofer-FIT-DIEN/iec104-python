@@ -36,6 +36,12 @@
 #include "Server.h"
 
 #include <pybind11/stl.h>
+#ifdef VERSION_INFO
+#define PY_MODULE(name, var) PYBIND11_MODULE(name, var)
+#else
+#include <pybind11/embed.h>
+#define PY_MODULE(name, var) PYBIND11_EMBEDDED_MODULE(name, var)
+#endif
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
@@ -77,7 +83,7 @@ py::dict explain_bytes_dict(const py::bytes &obj) {
                                                (unsigned char)buffer->len);
 }
 
-PYBIND11_MODULE(c104, m) {
+PY_MODULE(c104, m) {
 #ifdef _WIN32
   system("chcp 65001 > nul");
 #endif
@@ -1852,14 +1858,6 @@ PYBIND11_MODULE(c104, m) {
       .def_property(
           "value", &Object::DataPoint::getValue,
           [](Object::DataPoint &d1, const py::object &o) {
-            if (py::isinstance<StepCommandValue>(o)) {
-              d1.setValue(static_cast<int>(py::cast<StepCommandValue>(o)));
-              return;
-            }
-            if (py::isinstance<DoublePointValue>(o)) {
-              d1.setValue(static_cast<int>(py::cast<DoublePointValue>(o)));
-              return;
-            }
             d1.setValue(py::cast<double>(o));
           },
           "float: value", py::return_value_policy::copy)
@@ -2029,14 +2027,20 @@ PYBIND11_MODULE(c104, m) {
     >>>     print("read command successful")
 )def",
            py::return_value_policy::copy)
-      .def("set", &Object::DataPoint::setValueEx, R"def(
-    set(self: c104.Point, value: float, quality: c104.Quality, timestamp_ms: int) -> None
+      .def(
+          "set",
+          [](Object::DataPoint &d1, const py::object &o, const Quality &q,
+             const std::uint_fast64_t &t) {
+            d1.setValueEx(py::cast<double>(o), q, t);
+          },
+          R"def(
+    set(self: c104.Point, value: typing.Union[float, c104.Step, c104.Double], quality: c104.Quality, timestamp_ms: int) -> None
 
     set value, quality and timestamp
 
     Parameters
     ----------
-    value: float
+    value: float, c104.Step, c104.Double
         point value
     quality: :ref:`c104.Quality`
         quality restrictions if any, default: c104.Quality.None
@@ -2051,7 +2055,7 @@ PYBIND11_MODULE(c104, m) {
     -------
     >>> sv_measurement_point.set(value=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=int(time.time() * 1000))
 )def",
-           "value"_a, "quality"_a = Quality::None, "timestamp_ms"_a = 0)
+          "value"_a, "quality"_a = Quality::None, "timestamp_ms"_a = 0)
       .def("transmit", &Object::DataPoint::transmit, R"def(
     transmit(self: c104.Point, cause: c104.Cot = c104.Cot.SPONTANEOUS, qualifier: c104.Qoc = c104.Qoc.NONE) -> bool
 

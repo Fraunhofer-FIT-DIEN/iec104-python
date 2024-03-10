@@ -34,6 +34,7 @@
 
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
+#include "module/ScopedGilAcquire.h"
 #include "types.h"
 
 namespace Object {
@@ -61,6 +62,8 @@ public:
          std::uint_fast32_t dp_related_ioa = 0,
          bool dp_related_auto_return = false,
          CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND) {
+    Module::ScopedGilAcquire scoped("DataPoint.create");
+
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<DataPoint>(
         new DataPoint(dp_ioa, dp_type, std::move(dp_station), dp_report_ms,

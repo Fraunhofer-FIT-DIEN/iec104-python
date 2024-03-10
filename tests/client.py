@@ -196,7 +196,7 @@ cl_single_command.command_mode = c104.CommandMode.SELECT_AND_EXECUTE
 print(cl_single_command.command_mode)
 
 cl_single_command.value = False
-if cl_single_command.transmit(qualifier=c104.Qoc.SHORT_PULSE):
+if cl_single_command.transmit(cause=c104.Cot.ACTIVATION, qualifier=c104.Qoc.SHORT_PULSE):
     print("CL] transmit: Single command OFF successful")
 else:
     print("CL] transmit: Single command OFF failed")
@@ -209,15 +209,15 @@ time.sleep(1)
 
 cl_double_command = cl_station_2.add_point(io_address=22, type=c104.Type.C_DC_TA_1)
 
-cl_double_command.value = c104.Double.ON
-if cl_double_command.transmit(qualifier=c104.Qoc.LONG_PULSE):
+cl_double_command.set(value=c104.Double.ON, timestamp_ms=1711111111111)
+if cl_double_command.transmit(cause=c104.Cot.ACTIVATION, qualifier=c104.Qoc.LONG_PULSE):
     print("CL] transmit: Double command ON successful")
 else:
     print("CL] transmit: Double command ON failed")
 
 time.sleep(1)
 
-cl_double_command.value = c104.Double.OFF
+cl_double_command.set(value=c104.Double.OFF, timestamp_ms=1711111111111)
 if cl_double_command.transmit(cause=c104.Cot.ACTIVATION):
     print("CL] transmit: Double command OFF successful")
 else:
@@ -263,7 +263,7 @@ while cl_connection_1.is_connected:
     time.sleep(3)
 
     if cl_step_command:
-        if cl_step_command.transmit(qualifier=c104.Qoc.CONTINUOUS):
+        if cl_step_command.transmit(cause=c104.Cot.ACTIVATION, qualifier=c104.Qoc.CONTINUOUS):
             print("CL]  > transmit: Step command successful")
         else:
             print("CL]  > transmit: Step command failed")

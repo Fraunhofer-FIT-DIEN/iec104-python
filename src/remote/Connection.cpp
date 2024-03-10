@@ -287,7 +287,8 @@ bool Connection::setClosed() {
   // DO NOT LOCK connection_mutex: disconnect locks
   ConnectionState const current = state.load();
 
-  if (CLOSED == current) {
+  if (CLOSED == current || CLOSED_AWAIT_OPEN == current ||
+      CLOSED_AWAIT_RECONNECT == current) {
     // print
     DEBUG_PRINT(Debug::Connection, "set_closed] Already closed to " +
                                        getConnectionString() + " | State " +

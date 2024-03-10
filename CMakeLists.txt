@@ -77,40 +77,41 @@ include_directories(
   depends/lib60870/lib60870-C/src/hal/inc
   depends/lib60870/lib60870-C/src/common/inc)
 
-add_library(
-  c104 MODULE
-  src/enums.h
-  src/enums.cpp
-  src/types.cpp
-  src/types.h
-  src/module/Callback.h
-  src/module/ScopedGilAcquire.h
-  src/module/ScopedGilRelease.h
-  src/module/GilAwareMutex.h
-  src/object/DataPoint.h
-  src/object/Station.h
-  src/remote/Helper.h
-  src/remote/Helper.cpp
-  src/remote/TransportSecurity.cpp
-  src/remote/TransportSecurity.h
-  src/remote/Connection.cpp
-  src/remote/Connection.h
-  src/remote/message/IMessageInterface.h
-  src/remote/message/IncomingMessage.cpp
-  src/remote/message/IncomingMessage.h
-  src/remote/message/OutgoingMessage.cpp
-  src/remote/message/OutgoingMessage.h
-  src/remote/message/PointCommand.cpp
-  src/remote/message/PointCommand.h
-  src/remote/message/PointMessage.cpp
-  src/remote/message/PointMessage.h
-  src/Client.cpp
-  src/Client.h
-  src/Server.cpp
-  src/Server.h
-  src/object/DataPoint.cpp
-  src/object/Station.cpp
-  src/main.cpp)
+set(c104_SOURCES
+    src/enums.h
+    src/enums.cpp
+    src/types.cpp
+    src/types.h
+    src/module/Callback.h
+    src/module/ScopedGilAcquire.h
+    src/module/ScopedGilRelease.h
+    src/module/GilAwareMutex.h
+    src/object/DataPoint.h
+    src/object/Station.h
+    src/remote/Helper.h
+    src/remote/Helper.cpp
+    src/remote/TransportSecurity.cpp
+    src/remote/TransportSecurity.h
+    src/remote/Connection.cpp
+    src/remote/Connection.h
+    src/remote/message/IMessageInterface.h
+    src/remote/message/IncomingMessage.cpp
+    src/remote/message/IncomingMessage.h
+    src/remote/message/OutgoingMessage.cpp
+    src/remote/message/OutgoingMessage.h
+    src/remote/message/PointCommand.cpp
+    src/remote/message/PointCommand.h
+    src/remote/message/PointMessage.cpp
+    src/remote/message/PointMessage.h
+    src/Client.cpp
+    src/Client.h
+    src/Server.cpp
+    src/Server.h
+    src/object/DataPoint.cpp
+    src/object/Station.cpp
+    src/python.cpp)
+
+add_library(c104 MODULE ${c104_SOURCES})
 
 if(c104_PRIVATE_LIBRARIES)
   target_link_libraries(c104 PRIVATE ${c104_PRIVATE_LIBRARIES})
@@ -139,42 +140,8 @@ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
 add_subdirectory(depends/catch)
 list(APPEND c104_tests_PRIVATE_LIBRARIES Catch2::Catch2)
 
-add_executable(
-  c104_tests
-  src/enums.h
-  src/enums.cpp
-  src/types.cpp
-  src/types.h
-  src/module/Callback.h
-  src/module/ScopedGilAcquire.h
-  src/module/ScopedGilRelease.h
-  src/module/GilAwareMutex.h
-  src/object/DataPoint.h
-  src/object/Station.h
-  src/remote/Helper.h
-  src/remote/Helper.cpp
-  src/remote/TransportSecurity.cpp
-  src/remote/TransportSecurity.h
-  src/remote/Connection.cpp
-  src/remote/Connection.h
-  src/remote/message/IMessageInterface.h
-  src/remote/message/IncomingMessage.cpp
-  src/remote/message/IncomingMessage.h
-  src/remote/message/OutgoingMessage.cpp
-  src/remote/message/OutgoingMessage.h
-  src/remote/message/PointCommand.cpp
-  src/remote/message/PointCommand.h
-  src/remote/message/PointMessage.cpp
-  src/remote/message/PointMessage.h
-  src/Client.cpp
-  src/Client.h
-  src/Server.cpp
-  src/Server.h
-  src/object/DataPoint.cpp
-  src/object/Station.cpp
-  tests/test_object_datapoint.cpp
-  tests/test_object_station.cpp
-  tests/main.cpp)
+add_executable(c104_tests ${c104_SOURCES} tests/test_object_datapoint.cpp
+                          tests/test_object_station.cpp tests/main.cpp)
 
 if(c104_tests_PRIVATE_LIBRARIES)
   target_link_libraries(c104_tests PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
@@ -184,42 +151,16 @@ include(CTest)
 include(Catch)
 catch_discover_tests(c104_tests)
 
-add_executable(
-  c104_test_client
-  src/enums.h
-  src/enums.cpp
-  src/types.cpp
-  src/types.h
-  src/module/Callback.h
-  src/module/ScopedGilAcquire.h
-  src/module/ScopedGilRelease.h
-  src/module/GilAwareMutex.h
-  src/object/DataPoint.h
-  src/object/Station.h
-  src/remote/Helper.h
-  src/remote/Helper.cpp
-  src/remote/TransportSecurity.cpp
-  src/remote/TransportSecurity.h
-  src/remote/Connection.cpp
-  src/remote/Connection.h
-  src/remote/message/IMessageInterface.h
-  src/remote/message/IncomingMessage.cpp
-  src/remote/message/IncomingMessage.h
-  src/remote/message/OutgoingMessage.cpp
-  src/remote/message/OutgoingMessage.h
-  src/remote/message/PointCommand.cpp
-  src/remote/message/PointCommand.h
-  src/remote/message/PointMessage.cpp
-  src/remote/message/PointMessage.h
-  src/Client.cpp
-  src/Client.h
-  src/Server.cpp
-  src/Server.h
-  src/object/DataPoint.cpp
-  src/object/Station.cpp
-  src/main_client.cpp)
+add_executable(c104_test_client ${c104_SOURCES} src/main_client.cpp)
 
 if(c104_tests_PRIVATE_LIBRARIES)
   target_link_libraries(c104_test_client
+                        PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
+endif()
+
+add_executable(c104_test_server ${c104_SOURCES} src/main_server.cpp)
+
+if(c104_tests_PRIVATE_LIBRARIES)
+  target_link_libraries(c104_test_server
                         PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
 endif()

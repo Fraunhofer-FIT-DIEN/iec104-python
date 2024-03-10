@@ -86,6 +86,8 @@ void cl_dump(std::shared_ptr<Client> my_client,
 
 int main(int argc, char *argv[]) {
   py::scoped_interpreter guard{};
+  auto c104 = py::module_::import("c104");
+
   bool const USE_TLS = true;
   std::string ROOT = argv[0];
 
@@ -124,6 +126,8 @@ int main(int argc, char *argv[]) {
   auto cl_step_command = cl_station_1->addPoint(32, C_RC_TA_1);
   cl_step_command->setValue(IEC60870_STEP_HIGHER);
 
+  Module::ScopedGilRelease scoped("main");
+
   /*
    * connect loop
    */
@@ -160,7 +164,7 @@ int main(int argc, char *argv[]) {
 
   auto cl_single_command = cl_station_2->addPoint(16, C_SC_NA_1);
   cl_single_command->setValue(0);
-  if (cl_single_command->transmit()) {
+  if (cl_single_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Single command OFF successful" << std::endl;
   } else {
     std::cout << "CL] transmit: Single command OFF failed" << std::endl;
@@ -168,7 +172,7 @@ int main(int argc, char *argv[]) {
   std::this_thread::sleep_for(1s);
 
   cl_single_command->setCommandMode(SELECT_AND_EXECUTE_COMMAND);
-  if (cl_single_command->transmit()) {
+  if (cl_single_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Single command OFF successful" << std::endl;
   } else {
     std::cout << "CL] transmit: Single command OFF failed" << std::endl;
@@ -182,7 +186,7 @@ int main(int argc, char *argv[]) {
   auto cl_double_command = cl_station_2->addPoint(22, C_DC_TA_1);
 
   cl_double_command->setValueEx(IEC60870_DOUBLE_POINT_ON, Quality::None,
-                                11110000);
+                                1711111111111);
   if (cl_double_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Double command ON successful" << std::endl;
   } else {
@@ -191,7 +195,7 @@ int main(int argc, char *argv[]) {
   std::this_thread::sleep_for(1s);
 
   cl_double_command->setValue(IEC60870_DOUBLE_POINT_OFF);
-  if (cl_double_command->transmit()) {
+  if (cl_double_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Double command OFF successful" << std::endl;
   } else {
     std::cout << "CL] transmit: Double command OFF failed" << std::endl;
@@ -214,7 +218,7 @@ int main(int argc, char *argv[]) {
   std::this_thread::sleep_for(1s);
 
   cl_setpoint_2->setValue(13.45);
-  if (cl_setpoint_2->transmit()) {
+  if (cl_setpoint_2->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Setpoint2 command successful" << std::endl;
   } else {
     std::cout << "CL] transmit: Setpoint2 command failed" << std::endl;
@@ -236,7 +240,7 @@ int main(int argc, char *argv[]) {
     std::this_thread::sleep_for(3s);
 
     if (cl_step_command) {
-      if (cl_step_command->transmit()) {
+      if (cl_step_command->transmit(CS101_COT_ACTIVATION)) {
         std::cout << "CL] transmit: Step command successful" << std::endl;
       } else {
         std::cout << "CL] transmit: Step command failed" << std::endl;
