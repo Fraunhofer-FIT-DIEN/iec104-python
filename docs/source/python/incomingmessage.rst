@@ -5,5 +5,4 @@ IncomingMessage
 
 .. autoclass:: c104.IncomingMessage
    :members:
-   :noindex:
    :exclude-members: __init__,__new__

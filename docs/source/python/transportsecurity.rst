@@ -6,5 +6,4 @@ TransportSecurity
 
 .. autoclass:: c104.TransportSecurity
    :members:
-   :noindex:
    :exclude-members: __new__
