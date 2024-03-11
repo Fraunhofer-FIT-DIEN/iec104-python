@@ -198,7 +198,7 @@ void DataPoint::setValue(const double new_value) {
   setValueEx(new_value, Quality::None, 0);
 }
 
-void DataPoint::setValueEx(const double new_value, const Quality &new_quality,
+void DataPoint::setValueEx(const double new_value, const Quality new_quality,
                            const std::uint_fast64_t timestamp_ms) {
   // set predefined timestamp if provided (as client)
   if (timestamp_ms > 0) {
@@ -512,7 +512,8 @@ bool DataPoint::read() {
   return _connection->read(shared_from_this());
 }
 
-bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
+bool DataPoint::transmit(const CS101_CauseOfTransmission cause,
+                         const CS101_QualifierOfCommand qualifier) {
   DEBUG_PRINT(Debug::Point,
               "transmit_ex] " + std::string(TypeID_toString(type)) +
                   " at IOA " + std::to_string(informationObjectAddress));
@@ -524,6 +525,10 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
 
   // as server
   if (_station->isLocal()) {
+    if (qualifier != CS101_QualifierOfCommand::NONE) {
+      throw std::invalid_argument(
+          "The qualifier argument must not be used in monitoring direction");
+    }
     auto server = _station->getServer();
     if (!server) {
       throw std::invalid_argument("Server reference deleted");
@@ -538,5 +543,5 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
     throw std::invalid_argument("Client connection reference deleted");
   }
   sentAt_ms = GetTimestamp_ms();
-  return connection->transmit(shared_from_this(), cause);
+  return connection->transmit(shared_from_this(), cause, qualifier);
 }

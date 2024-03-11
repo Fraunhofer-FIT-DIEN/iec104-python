@@ -36,6 +36,12 @@
 #include "Server.h"
 
 #include <pybind11/stl.h>
+#ifdef VERSION_INFO
+#define PY_MODULE(name, var) PYBIND11_MODULE(name, var)
+#else
+#include <pybind11/embed.h>
+#define PY_MODULE(name, var) PYBIND11_EMBEDDED_MODULE(name, var)
+#endif
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
@@ -77,7 +83,7 @@ py::dict explain_bytes_dict(const py::bytes &obj) {
                                                (unsigned char)buffer->len);
 }
 
-PYBIND11_MODULE(c104, m) {
+PY_MODULE(c104, m) {
 #ifdef _WIN32
   system("chcp 65001 > nul");
 #endif
@@ -241,6 +247,14 @@ PYBIND11_MODULE(c104, m) {
       .value("UNKNOWN_COT", CS101_CauseOfTransmission::CS101_COT_UNKNOWN_COT)
       .value("UNKNOWN_CA", CS101_CauseOfTransmission::CS101_COT_UNKNOWN_CA)
       .value("UNKNOWN_IOA", CS101_CauseOfTransmission::CS101_COT_UNKNOWN_IOA);
+
+  py::enum_<CS101_QualifierOfCommand>(m, "Qoc",
+                                      "This enum contains all valid IEC60870 "
+                                      "qualifier of command duration options.")
+      .value("NONE", CS101_QualifierOfCommand::NONE)
+      .value("SHORT_PULSE", CS101_QualifierOfCommand::SHORT_PULSE)
+      .value("LONG_PULSE", CS101_QualifierOfCommand::LONG_PULSE)
+      .value("CONTINUOUS", CS101_QualifierOfCommand::CONTINUOUS);
 
   py::enum_<UnexpectedMessageCause>(
       m, "Umc",
@@ -1844,14 +1858,6 @@ PYBIND11_MODULE(c104, m) {
       .def_property(
           "value", &Object::DataPoint::getValue,
           [](Object::DataPoint &d1, const py::object &o) {
-            if (py::isinstance<StepCommandValue>(o)) {
-              d1.setValue(static_cast<int>(py::cast<StepCommandValue>(o)));
-              return;
-            }
-            if (py::isinstance<DoublePointValue>(o)) {
-              d1.setValue(static_cast<int>(py::cast<DoublePointValue>(o)));
-              return;
-            }
             d1.setValue(py::cast<double>(o));
           },
           "float: value", py::return_value_policy::copy)
@@ -2021,19 +2027,25 @@ PYBIND11_MODULE(c104, m) {
     >>>     print("read command successful")
 )def",
            py::return_value_policy::copy)
-      .def("set", &Object::DataPoint::setValueEx, R"def(
-    set(self: c104.Point, value: float, quality: c104.Quality, timestamp_ms: int) -> None
+      .def(
+          "set",
+          [](Object::DataPoint &d1, const py::object &o, const Quality &q,
+             const std::uint_fast64_t &t) {
+            d1.setValueEx(py::cast<double>(o), q, t);
+          },
+          R"def(
+    set(self: c104.Point, value: typing.Union[float, c104.Step, c104.Double], quality: c104.Quality, timestamp_ms: int) -> None
 
     set value, quality and timestamp
 
     Parameters
     ----------
-    value: float
+    value: float, c104.Step, c104.Double
         point value
     quality: :ref:`c104.Quality`
-        quality restrictions if any
+        quality restrictions if any, default: c104.Quality.None
     timestamp_ms: int
-        modification timestamp in milliseconds
+        modification timestamp in milliseconds, default: current utc timestamp
 
     Returns
     -------
@@ -2043,9 +2055,9 @@ PYBIND11_MODULE(c104, m) {
     -------
     >>> sv_measurement_point.set(value=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=int(time.time() * 1000))
 )def",
-           "value"_a, "quality"_a, "timestamp_ms"_a)
+          "value"_a, "quality"_a = Quality::None, "timestamp_ms"_a = 0)
       .def("transmit", &Object::DataPoint::transmit, R"def(
-    transmit(self: c104.Point, cause: c104.Cot = c104.Cot.UNKNOWN_COT) -> bool
+    transmit(self: c104.Point, cause: c104.Cot = c104.Cot.SPONTANEOUS, qualifier: c104.Qoc = c104.Qoc.NONE) -> bool
 
     **Server-side point**
     report a measurement value to connected clients
@@ -2057,11 +2069,14 @@ PYBIND11_MODULE(c104, m) {
     ----------
     cause: :ref:`c104.Cot`
         cause of the transmission
+    qualifier: :ref:`c104.Qoc`
+        command duration parametrization (only for following command points: single, double and regulation step)
 
     Raises
     ------
     ValueError
         If parent station, server or connection reference is invalid
+        If qualifier is set for points in monitoring direction
 
     Warning
     -------
@@ -2075,8 +2090,11 @@ PYBIND11_MODULE(c104, m) {
     Example
     -------
     >>> sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
+    >>> cl_single_command_point.transmit(qualifier=c104.Qoc.SHORT_PULSE)
 )def",
-           "cause"_a = CS101_COT_UNKNOWN_COT, py::return_value_policy::copy);
+           "cause"_a = CS101_COT_UNKNOWN_COT,
+           "qualifier"_a = CS101_QualifierOfCommand::NONE,
+           py::return_value_policy::copy);
 
   py::class_<Remote::Message::IncomingMessage,
              std::shared_ptr<Remote::Message::IncomingMessage>>(
@@ -2144,6 +2162,12 @@ PYBIND11_MODULE(c104, m) {
                              "bool: test if message is a point command and has "
                              "select flag set (read-only)",
                              py::return_value_policy::copy)
+      .def_property_readonly(
+          "command_qualifier",
+          &Remote::Message::IncomingMessage::getCommandQualifier,
+          ":ref:`c104.Qoc`: duration parameter, only for single, double "
+          "and regulating step command messages (read-only)",
+          py::return_value_policy::copy)
       .def("first", &Remote::Message::IncomingMessage::first, R"def(
     first(self: c104.IncomingMessage) -> None
 

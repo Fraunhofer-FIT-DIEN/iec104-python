@@ -34,6 +34,7 @@
 
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
+#include "module/ScopedGilAcquire.h"
 #include "types.h"
 
 namespace Object {
@@ -61,6 +62,8 @@ public:
          std::uint_fast32_t dp_related_ioa = 0,
          bool dp_related_auto_return = false,
          CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND) {
+    Module::ScopedGilAcquire scoped("DataPoint.create");
+
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<DataPoint>(
         new DataPoint(dp_ioa, dp_type, std::move(dp_station), dp_report_ms,
@@ -273,9 +276,12 @@ public:
   /**
    * @brief Set point value with quality restriction bitset and updated at
    * timestamp
+   * @param new_value the value to be assigned to the point
+   * @param new_quality value quality information
+   * @param timestamp_ms value updated at timestamp in milliseconds
    */
-  void setValueEx(double new_value, const Quality &new_quality,
-                  std::uint_fast64_t timestamp_ms);
+  void setValueEx(double new_value, const Quality new_quality = Quality::None,
+                  std::uint_fast64_t timestamp_ms = 0);
 
   /**
    * @brief get timestamp of last value update
@@ -358,11 +364,14 @@ public:
   /**
    * @brief transmit point
    * @param cause cause of transmission
+   * @param qualifier parameter for command duration
    * @return success information
    * @throws std::invalid_argument if parent station or connection reference is
    * invalid
    */
-  bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT);
+  bool
+  transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT,
+           CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE);
 
   inline friend std::ostream &operator<<(std::ostream &os, DataPoint &dp) {
     os << std::endl

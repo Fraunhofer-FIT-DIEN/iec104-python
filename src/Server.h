@@ -38,6 +38,7 @@
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
 #include "object/Station.h"
+#include "remote/TransportSecurity.h"
 #include "remote/message/IncomingMessage.h"
 
 /**
@@ -256,9 +257,11 @@ private:
   /**
    * @brief Create a new remote connection handler instance that acts as a
    * server
-   * @param bind_ip ip-address the server should listen on for incoming client requests
+   * @param bind_ip ip-address the server should listen on for incoming client
+   * requests
    * @param tcp_port port for listening to connections from clients
-   * @param tick_rate_ms Interval in milliseconds between two cyclic measurement transmissions
+   * @param tick_rate_ms Interval in milliseconds between two cyclic measurement
+   * transmissions
    * @param max_open_connections maximum number of allowed open connections
    * @param transport_security communication encryption instance reference
    */

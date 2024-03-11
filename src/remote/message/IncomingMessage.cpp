@@ -485,10 +485,8 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: bool
     case C_SC_NA_1: {
-      //@todo state vs selected? what is qu,selected?
-      //@todo what about quality ?
-      int qu1 = SingleCommand_getQU((SingleCommand)io);
       selectFlag = SingleCommand_isSelect((SingleCommand)io);
+      qualifierOfCommand = SingleCommand_getQU((SingleCommand)io);
       value = SingleCommand_getState((SingleCommand)io);
       if (value == 0 || value == 1) {
         quality.store(Quality::None);
@@ -497,10 +495,8 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: bool + Extended Time
     case C_SC_TA_1: {
-      //@todo state vs selected? what is qu,selected?
-      //@todo what about quality ?
-      int qu2 = SingleCommand_getQU((SingleCommand)io);
       selectFlag = SingleCommand_isSelect((SingleCommand)io);
+      qualifierOfCommand = SingleCommand_getQU((SingleCommand)io);
       value = SingleCommand_getState((SingleCommand)io);
       timestamp56 = SingleCommandWithCP56Time2a_getTimestamp(
           (SingleCommandWithCP56Time2a)io);
@@ -511,10 +507,8 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: int /enum??
     case C_DC_NA_1: {
-      //@todo what is qu,selected?
-      //@todo what about quality / use qu for command ?
-      int qu3 = DoubleCommand_getQU((DoubleCommand)io);
       selectFlag = DoubleCommand_isSelect((DoubleCommand)io);
+      qualifierOfCommand = DoubleCommand_getQU((DoubleCommand)io);
       value = DoubleCommand_getState((DoubleCommand)io);
       if (value == 0 || value == 1 || value == 2 || value == 3) {
         quality.store(Quality::None);
@@ -523,17 +517,14 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: int /enum? + Extended Time
     case C_DC_TA_1: {
-      //@todo what is qu,selected?
-      //@todo what about quality / use qu for command ?
-      int qu4 =
-          DoubleCommandWithCP56Time2a_getQU((DoubleCommandWithCP56Time2a)io);
       selectFlag =
           DoubleCommandWithCP56Time2a_isSelect((DoubleCommandWithCP56Time2a)io);
+      qualifierOfCommand =
+          DoubleCommandWithCP56Time2a_getQU((DoubleCommandWithCP56Time2a)io);
       value =
           DoubleCommandWithCP56Time2a_getState((DoubleCommandWithCP56Time2a)io);
-      // timestamp56 =
-      // DoubleCommandWithCP56Time2a_getTimestamp((DoubleCommandWithCP56Time2a)io);
-      // not found
+      timestamp56 = DoubleCommandWithCP56Time2a_getTimestamp(
+          (DoubleCommandWithCP56Time2a)io);
       if (value == 0 || value == 1 || value == 2 || value == 3) {
         quality.store(Quality::None);
       }
@@ -541,9 +532,8 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: Regulation Step Command
     case C_RC_NA_1: {
-      //@todo what about quality / use qu for command ?
-      int qu5 = StepCommand_getQU((StepCommand)io);
       selectFlag = StepCommand_isSelect((StepCommand)io);
+      qualifierOfCommand = StepCommand_getQU((StepCommand)io);
       StepCommandValue scv1 = StepCommand_getState((StepCommand)io);
       value = scv1;
       if (value == 1 || value == 2) {
@@ -553,14 +543,14 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: Regulation Step Command + Extended Time
     case C_RC_TA_1: {
-      //@todo what about quality / use qu for command ?
-      int qu6 = StepCommandWithCP56Time2a_getQU((StepCommandWithCP56Time2a)io);
       selectFlag = StepCommand_isSelect((StepCommand)io);
+      qualifierOfCommand =
+          StepCommandWithCP56Time2a_getQU((StepCommandWithCP56Time2a)io);
       StepCommandValue scv2 =
           StepCommandWithCP56Time2a_getState((StepCommandWithCP56Time2a)io);
       value = scv2;
-      // timestamp56 =
-      // StepCommandWithCP56Time2a_((StepCommandWithCP56Time2a)io); not found
+      timestamp56 =
+          StepCommandWithCP56Time2a_getTimestamp((StepCommandWithCP56Time2a)io);
       if (value == 1 || value == 2) {
         quality.store(Quality::None);
       }
@@ -568,7 +558,7 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: Setpoint Command (NORMALIZED)
     case C_SE_NA_1: {
-      //@todo what about quality / use qu for command ?
+      //@todo what about quality / use ql for command ?
       int ql1 = SetpointCommandNormalized_getQL((SetpointCommandNormalized)io);
       selectFlag =
           SetpointCommandNormalized_isSelect((SetpointCommandNormalized)io);
@@ -580,15 +570,15 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: Setpoint Command (NORMALIZED) * Extended Time
     case C_SE_TA_1: {
-      //@todo what about quality / use qu for command ?
+      //@todo what about quality / use ql for command ?
       int ql2 = SetpointCommandNormalizedWithCP56Time2a_getQL(
           (SetpointCommandNormalizedWithCP56Time2a)io);
       selectFlag = SetpointCommandNormalizedWithCP56Time2a_isSelect(
           (SetpointCommandNormalizedWithCP56Time2a)io);
       value = SetpointCommandNormalizedWithCP56Time2a_getValue(
           (SetpointCommandNormalizedWithCP56Time2a)io);
-      // timestamp56 =
-      // SetpointCommandNormalizedWithCP56Time2a_((SetpointCommandNormalizedWithCP56Time2a)io);
+      timestamp56 = SetpointCommandNormalizedWithCP56Time2a_getTimestamp(
+          (SetpointCommandNormalizedWithCP56Time2a)io);
       if (value >= -1 && value <= 1) {
         quality.store(Quality::None);
       }
@@ -596,7 +586,7 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: Setpoint Command (SCALED)
     case C_SE_NB_1: {
-      //@todo what about quality / use qu for command ?
+      //@todo what about quality / use ql for command ?
       int ql3 = SetpointCommandScaled_getQL((SetpointCommandScaled)io);
       selectFlag = SetpointCommandScaled_isSelect((SetpointCommandScaled)io);
       value = SetpointCommandScaled_getValue((SetpointCommandScaled)io);
@@ -607,15 +597,15 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: Setpoint Command (SCALED) + Extended Time
     case C_SE_TB_1: {
-      //@todo what about quality / use qu for command ?
+      //@todo what about quality / use ql for command ?
       int ql4 = SetpointCommandScaledWithCP56Time2a_getQL(
           (SetpointCommandScaledWithCP56Time2a)io);
       selectFlag = SetpointCommandScaledWithCP56Time2a_isSelect(
           (SetpointCommandScaledWithCP56Time2a)io);
       value = SetpointCommandScaledWithCP56Time2a_getValue(
           (SetpointCommandScaledWithCP56Time2a)io);
-      // timestamp56 =
-      // SetpointCommandScaledWithCP56Time2a_((SetpointCommandScaledWithCP56Time2a)io);
+      timestamp56 = SetpointCommandScaledWithCP56Time2a_getTimestamp(
+          (SetpointCommandScaledWithCP56Time2a)io);
       if (value >= -65536. && value <= 65535.) {
         quality.store(Quality::None);
       }
@@ -623,7 +613,7 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: Setpoint Command (SHORT)
     case C_SE_NC_1: {
-      //@todo what about quality / use qu for command ?
+      //@todo what about quality / use ql for command ?
       int ql5 = SetpointCommandShort_getQL((SetpointCommandShort)io);
       selectFlag = SetpointCommandShort_isSelect((SetpointCommandShort)io);
       value = SetpointCommandShort_getValue((SetpointCommandShort)io);
@@ -634,15 +624,15 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: Setpoint Command (SHORT) + Extended Time
     case C_SE_TC_1: {
-      //@todo what about quality / use qu for command ?
+      //@todo what about quality / use ql for command ?
       int ql6 = SetpointCommandShortWithCP56Time2a_getQL(
           (SetpointCommandShortWithCP56Time2a)io);
       selectFlag = SetpointCommandShortWithCP56Time2a_isSelect(
           (SetpointCommandShortWithCP56Time2a)io);
       value = SetpointCommandShortWithCP56Time2a_getValue(
           (SetpointCommandShortWithCP56Time2a)io);
-      // timestamp56 =
-      // SetpointCommandShortWithCP56Time2a_((SetpointCommandShortWithCP56Time2a)io);
+      timestamp56 = SetpointCommandShortWithCP56Time2a_getTimestamp(
+          (SetpointCommandShortWithCP56Time2a)io);
       if (value >= -16777216. && value <= 16777215.) {
         quality.store(Quality::None);
       }
@@ -650,14 +640,14 @@ void IncomingMessage::extractInformationObject() {
 
       // c->s: BitString 32bit Command
     case C_BO_NA_1: {
-      //@todo what about quality / use qu for command ?
+      //@todo what about quality / use ql for command ?
       value = (double)Bitstring32Command_getValue((Bitstring32Command)io);
       quality.store(Quality::None);
     } break;
 
       // c->s: BitString 32bit Command + Extended Time
     case C_BO_TA_1: {
-      //@todo what about quality / use qu for command ?
+      //@todo what about quality / use ql for command ?
       value = (double)Bitstring32CommandWithCP56Time2a_getValue(
           (Bitstring32CommandWithCP56Time2a)io);
       timestamp56 = Bitstring32CommandWithCP56Time2a_getTimestamp(
@@ -914,4 +904,17 @@ bool IncomingMessage::isSelectCommand() const {
                     TypeID_toString(type) + " does not carry a SELECT flag");
   }
   return selectFlag;
+}
+
+CS101_QualifierOfCommand IncomingMessage::getCommandQualifier() const {
+  if ((type < C_SC_NA_1 || (type > C_RC_NA_1 && type < C_SC_TA_1) ||
+       type > C_RC_TA_1)) {
+
+    DEBUG_PRINT(Debug::Message,
+                "IncomingMessage.getCommandQualifier] point at IOA " +
+                    std::to_string(informationObjectAddress) + " of TypeID " +
+                    TypeID_toString(type) +
+                    " does not carry a command QUALIFIER");
+  }
+  return static_cast<CS101_QualifierOfCommand>(qualifierOfCommand.load());
 }

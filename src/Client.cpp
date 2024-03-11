@@ -83,6 +83,8 @@ void Client::start() {
 }
 
 void Client::stop() {
+  Module::ScopedGilRelease const scoped("Client.stop");
+
   // stop all connections
   disconnectAll();
 

@@ -51,14 +51,17 @@ public:
    * @param point point whom's value should be reported to remote client
    * @param select flag for select and execute command mode (lock control
    * access)
+   * @param qualifier parameter for command duration
    * @throws std::invalid_argument if point reference, connection or server
    * reference is invalid
    */
   [[nodiscard]] static std::shared_ptr<PointCommand>
-  create(std::shared_ptr<Object::DataPoint> point, const bool select = false) {
+  create(std::shared_ptr<Object::DataPoint> point, const bool select = false,
+         const CS101_QualifierOfCommand qualifier =
+             CS101_QualifierOfCommand::NONE) {
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<PointCommand>(
-        new PointCommand(std::move(point), select));
+        new PointCommand(std::move(point), select, qualifier));
   }
 
   /**
@@ -73,10 +76,12 @@ private:
    * @param point point whom's value should be reported to remote client
    * @param select flag for select and execute command mode (lock control
    * access)
+   * @param qualifier parameter for command duration
    * @throws std::invalid_argument if point reference, connection or server
    * reference is invalid
    */
-  explicit PointCommand(std::shared_ptr<Object::DataPoint> point, bool select);
+  explicit PointCommand(std::shared_ptr<Object::DataPoint> point, bool select,
+                        CS101_QualifierOfCommand qualifier);
 
   /// @brief timestamp of measurement in milliseconds
   uint_fast64_t updated_at;

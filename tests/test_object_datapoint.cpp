@@ -64,7 +64,7 @@ TEST_CASE("Set point value", "[object::point]") {
 }
 
 TEST_CASE("Set point value via message", "[object::point]") {
-  auto point = Object::DataPoint::create(11, IEC60870_5_TypeID::M_SP_NA_1,
+  auto point = Object::DataPoint::create(11, IEC60870_5_TypeID::C_DC_TA_1,
                                          nullptr, 0, 0, false);
 
   sCS101_AppLayerParameters appLayerParameters{.sizeOfTypeId = 1,
@@ -76,10 +76,10 @@ TEST_CASE("Set point value via message", "[object::point]") {
                                                .maxSizeOfASDU = 249};
   sCP56Time2a time{.encodedValue = {0, 0, 0, 0, 0, 0, 0}};
   CS101_ASDU asdu = CS101_ASDU_create(
-      &appLayerParameters, false, CS101_COT_SPONTANEOUS, 0, 14, false, false);
+      &appLayerParameters, false, CS101_COT_ACTIVATION, 0, 14, false, false);
   CP56Time2a_createFromMsTimestamp(&time, 1680517666000);
-  InformationObject io = (InformationObject)SinglePointWithCP56Time2a_create(
-      nullptr, 14, 1, 0, &time);
+  InformationObject io = (InformationObject)DoubleCommandWithCP56Time2a_create(
+      nullptr, 14, 1, false, 0, &time);
   CS101_ASDU_addInformationObject(asdu, io);
   auto message =
       Remote::Message::IncomingMessage::create(asdu, &appLayerParameters);

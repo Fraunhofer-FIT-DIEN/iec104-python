@@ -186,6 +186,7 @@ void Server::thread_run() {
 }
 
 void Server::stop() {
+  Module::ScopedGilRelease const scoped("Server.stop");
   bool expected = true;
   if (!enabled.compare_exchange_strong(expected, false)) {
     DEBUG_PRINT(Debug::Server, "stop] Already stopped");
