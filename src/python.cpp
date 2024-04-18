@@ -50,15 +50,12 @@ using namespace pybind11::literals;
 
 // @todo Ubuntu 18 x64, Ubuntu 20 x64, arm7v32, later: arm aarch64
 
-PyObject *
+py::bytes
 IncomingMessage_getRawBytes(Remote::Message::IncomingMessage *message) {
   unsigned char *msg = message->getRawBytes();
   unsigned char msgSize = 2 + msg[1];
 
-  PyObject *pymemview =
-      PyMemoryView_FromMemory((char *)msg, msgSize, PyBUF_READ);
-
-  return PyBytes_FromObject(pymemview);
+  return py::bytes(reinterpret_cast<const char *>(msg), msgSize);
 }
 
 std::string explain_bytes(const py::bytes &obj) {
@@ -2147,7 +2144,7 @@ PY_MODULE(c104, m) {
                              py::return_value_policy::copy)
       .def_property_readonly("raw", &IncomingMessage_getRawBytes,
                              "bytes: asdu message bytes (read-only)",
-                             py::return_value_policy::copy)
+                             py::return_value_policy::take_ownership)
       .def_property_readonly(
           "raw_explain", &Remote::Message::IncomingMessage::getRawMessageString,
           "str: asdu message bytes explained (read-only)",
