@@ -151,7 +151,8 @@ void Connection::connect(const bool autoConnect) {
   std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
 
   ConnectionState const current = state.load();
-  if ((autoConnect && CLOSED_AWAIT_RECONNECT != current) || (CLOSED != current))
+  if ((autoConnect && CLOSED_AWAIT_RECONNECT != current) ||
+      (!autoConnect && CLOSED != current))
     return;
 
   DEBUG_PRINT(Debug::Connection,
