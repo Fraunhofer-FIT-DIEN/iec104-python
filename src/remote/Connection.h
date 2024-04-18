@@ -123,8 +123,9 @@ public:
 
   /**
    * @brief Open a created connection to remote server
+   * @param autoConnect if autoConnect is set, connect will reject on CLOSED
    */
-  void connect();
+  void connect(bool autoConnect = false);
 
   /**
    * @brief Close a created connection to remote server

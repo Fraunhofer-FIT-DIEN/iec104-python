@@ -299,7 +299,7 @@ void Client::thread_run() {
         c->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, false);
         break;
       case CLOSED_AWAIT_RECONNECT:
-        c->connect();
+        c->connect(true);
         break;
       }
     }

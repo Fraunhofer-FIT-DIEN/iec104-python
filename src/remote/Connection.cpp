@@ -147,35 +147,30 @@ std::shared_ptr<Client> Connection::getClient() const {
   return client.lock();
 }
 
-void Connection::connect() {
+void Connection::connect(const bool autoConnect) {
+  std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+
   ConnectionState const current = state.load();
-  if (CLOSED != current && CLOSED_AWAIT_RECONNECT != current)
+  if ((autoConnect && CLOSED_AWAIT_RECONNECT != current) || (CLOSED != current))
     return;
-
-  Module::ScopedGilRelease const scoped("Connection.connect");
-  //    bool success = false;
-
-  // connect
-  setState(CLOSED_AWAIT_OPEN);
-  {
-    std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
-    // free connection thread if exists
-    CS104_Connection_close(connection);
-
-    // reconnect
-    CS104_Connection_connectAsync(connection);
-  }
 
   DEBUG_PRINT(Debug::Connection,
               "connect] Asynchronous connect to " + getConnectionString());
+
+  // connect
+  setState(CLOSED_AWAIT_OPEN);
+
+  // free connection thread if exists
+  CS104_Connection_close(connection);
+
+  // reconnect
+  CS104_Connection_connectAsync(connection);
 }
 
 void Connection::disconnect() {
-  {
-    // free connection thread
-    std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
-    CS104_Connection_close(connection);
-  }
+  // free connection thread
+  std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+  CS104_Connection_close(connection);
 
   if (isOpen()) {
     setState(OPEN_AWAIT_CLOSED);
