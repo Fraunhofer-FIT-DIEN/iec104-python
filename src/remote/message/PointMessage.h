@@ -59,18 +59,9 @@ private:
   /**
    * @brief Create a message for a certain DataPoint, type of message is
    * identified via DataPoint
-   * @param point point whom's value should be reported to remote client
+   * @param point point who's value should be reported to remote client
    */
   explicit PointMessage(std::shared_ptr<Object::DataPoint> point);
-
-  /// @brief timestamp of measurement in milliseconds
-  uint_fast64_t updated_at;
-
-  /// @brief duration of event if required
-  sCP16Time2a duration;
-
-  /// @brief timestamp of measurement formatted as CP56Time2a
-  sCP56Time2a time;
 };
 } // namespace Message
 

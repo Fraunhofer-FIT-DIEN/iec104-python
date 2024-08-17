@@ -101,8 +101,6 @@ public:
    */
   bool next();
 
-  std::uint_fast64_t getUpdatedAt() const;
-
   /**
    * @brief test if cause of transmission is compatible with information type
    * @return if cause is valid
@@ -117,15 +115,9 @@ public:
   bool requireConfirmation() const;
 
   /**
-   * @brief test if message is a command with select flag set
+   * @brief test if message is a command and requires a confirmation (ACK)
    */
   bool isSelectCommand() const;
-
-  /**
-   * @brief get the command duration qualifier, only available for single,
-   * double or regulation step commands
-   */
-  CS101_QualifierOfCommand getCommandQualifier() const;
 
 private:
   /**
@@ -140,9 +132,9 @@ private:
                            CS101_AppLayerParameters app_layer_parameters);
 
   /// @brief IEC60870-5-104 asdu struct
-  CS101_ASDU asdu{nullptr};
+  CS101_ASDU asdu;
 
-  CS101_AppLayerParameters parameters{nullptr};
+  const CS101_AppLayerParameters parameters;
 
   ///< @brief MUTEX Lock to change extracted information object position
   mutable Module::GilAwareMutex position_mutex{
@@ -161,18 +153,6 @@ private:
   /// @brief number of available information objects inside this message
   std::atomic_uint_fast8_t numberOfObject{0};
 
-  /// @brief timestamp in milliseconds since latest value update
-  std::atomic_uint_fast64_t updatedAt{0};
-
-  /// @brief state that describes if a command results in a SELECT or an EXECUTE
-  /// action
-  std::atomic_bool selectFlag{false};
-
-  /// @brief command duration parameter, only used for single, double and
-  /// regulation step command messages
-  std::atomic_uint_fast8_t qualifierOfCommand{
-      IEC60870_QOC_NO_ADDITIONAL_DEFINITION};
-
   /**
    * @brief extract meta data from this message: commonAddress,
    * originatorAddress, message identifier and mode, ...
@@ -184,7 +164,7 @@ private:
   /**
    * @brief extract values of an information object at the current position
    */
-  void extractInformationObject();
+  void extractInformation();
 };
 } // namespace Message
 } // namespace Remote

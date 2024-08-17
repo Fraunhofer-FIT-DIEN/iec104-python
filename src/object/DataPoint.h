@@ -20,7 +20,7 @@
  *
  *
  * @file DataPoint.h
- * @brief 60870-5-104 information object
+ * @brief abstract data point
  *
  * @package iec104-python
  * @namespace object
@@ -33,11 +33,12 @@
 #define C104_OBJECT_DATAPOINT_H
 
 #include "module/Callback.h"
-#include "module/GilAwareMutex.h"
 #include "module/ScopedGilAcquire.h"
+#include "object/Information.h"
 #include "types.h"
 
 namespace Object {
+
 class DataPoint : public std::enable_shared_from_this<DataPoint> {
 public:
   // noncopyable
@@ -89,13 +90,20 @@ private:
    */
   DataPoint(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
             std::shared_ptr<Station> dp_station,
-            std::uint_fast32_t dp_report_ms, std::uint_fast32_t dp_related_ioa,
+            std::uint_fast32_t dp_report_ms,
+            std::optional<std::uint_fast32_t> dp_related_ioa,
             bool dp_related_auto_return, CommandTransmissionMode dp_cmd_mode);
 
   bool is_server{false};
 
   /// @brief IEC60870-5 remote address of this DataPoint
-  std::uint_fast32_t informationObjectAddress{0};
+  const std::uint_fast32_t informationObjectAddress;
+
+  /// @brief IEC60870-5 TypeID for related remote message
+  const IEC60870_5_TypeID type;
+
+  /// @brief parent Station object (not owning pointer)
+  const std::weak_ptr<Station> station;
 
   /// @brief IEC60870-5 remote address of a related measurement DataPoint
   std::atomic_uint_fast32_t relatedInformationObjectAddress{0};
@@ -107,42 +115,21 @@ private:
   /// @brief command transmission mode (direct or select-and-execute)
   std::atomic<CommandTransmissionMode> commandMode{DIRECT_COMMAND};
 
-  /// @brief current client execution lock - selected by address for exclusive
-  /// update execution
-  std::atomic_uint_fast8_t selectedByOriginatorAddress{0};
+  /// @brief current client execution lock holder
+  uint_fast8_t selectedByOriginatorAddress{0};
 
-  /// @brief current value
-  std::atomic<double> value{0};
-
-  /// @brief value quality descriptor
-  std::atomic<Quality> quality{Quality::None};
-
-  /// @brief timestamp (in milliseconds) of last value assignment
-  std::atomic_uint_fast64_t updatedAt_ms{0};
-
-  /// @brief timestamp (in milliseconds) of last periodic transmission
-  std::atomic_uint_fast64_t reportedAt_ms{0};
+  /// @brief abstract representation of information
+  std::shared_ptr<Information> info{nullptr};
 
   /// @brief interval (in milliseconds) between periodic transmissions, 0 => no
   /// periodic transmission
   std::atomic_uint_fast32_t reportInterval_ms{0};
 
-  /// @brief timestamp (in milliseconds) of last receiving
-  std::atomic_uint_fast64_t receivedAt_ms{0};
-
-  /// @brief timestamp (in milliseconds) of last transmission
-  std::atomic_uint_fast64_t sentAt_ms{0};
-
-  /// @brief IEC60870-5 TypeID for related remote message
-  IEC60870_5_TypeID type{IEC60870_5_TypeID::C_TS_TA_1};
-
-  /// @brief parent Station object (not owning pointer)
-  std::weak_ptr<Station> station{};
-
   /// @brief python callback function pointer
   Module::Callback<CommandResponseState> py_onReceive{
-      "Point.on_receive", "(point: c104.Point, previous_state: dict, message: "
-                          "c104.IncomingMessage) -> c104.ResponseState"};
+      "Point.on_receive",
+      "(point: c104.Point, previous_info: c104.Information, message: "
+      "c104.IncomingMessage) -> c104.ResponseState"};
 
   /// @brief python callback function pointer
   Module::Callback<void> py_onBeforeRead{"Point.on_before_read",
@@ -169,15 +156,15 @@ public:
    * @brief Get the information object address of a related monitoring point
    * @return IOA
    */
-  std::uint_fast32_t getRelatedInformationObjectAddress() const;
+  std::optional<std::uint_fast32_t> getRelatedInformationObjectAddress() const;
 
   /**
    * @brief Set the information object address of a related monitoring point
    * @throws std::invalid_argument if not a server-sided control point or
    * invalid IOA
    */
-  void
-  setRelatedInformationObjectAddress(std::uint_fast32_t related_io_address);
+  void setRelatedInformationObjectAddress(
+      std::optional<std::uint_fast32_t> related_io_address);
 
   /**
    * @brief Test if a related monitoring point should be auto-transmitted on
@@ -210,13 +197,7 @@ public:
    * @return client originator address or zero if no active selection lock
    * exists
    */
-  std::uint_fast8_t getSelectedByOriginatorAddress() const;
-
-  /**
-   * @brief Configure select-and-execute lock originator address
-   * @throws std::invalid_argument if not a server-sided control point
-   */
-  void setSelectedByOriginatorAddress(std::uint_fast8_t originatorAddress);
+  std::optional<std::uint_fast8_t> getSelectedByOriginatorAddress();
 
   IEC60870_5_TypeID getType() const;
 
@@ -233,55 +214,26 @@ public:
    */
   void setReportInterval_ms(std::uint_fast32_t interval_ms);
 
-  /**
-   * @brief Get quality restriction bitset for the current value
-   * @return qualit restrictions
-   */
-  Quality getQuality() const;
-
-  /**
-   * @brief Set quality restriction bitset for the current value
-   */
-  void setQuality(const Quality &new_quality);
-
-  /**
-   * @brief Get point value
-   * @return value
-   */
-  double getValue() const;
-
-  /**
-   * @brief Get point value
-   * @return value converted to signed integer
-   */
-  std::int32_t getValueAsInt32() const;
-
-  /**
-   * @brief Get point value
-   * @return value converted to signed float
-   */
-  float getValueAsFloat() const;
-
-  /**
-   * @brief Get point value
-   * @return value converted to unsigned integer
-   */
-  std::uint32_t getValueAsUInt32() const;
+  std::shared_ptr<Information> getInfo() const;
 
   /**
    * @brief Set point value
    */
-  void setValue(double new_value);
+  void setInfo(std::shared_ptr<Information> new_info);
+
+  InfoValue getValue();
 
   /**
-   * @brief Set point value with quality restriction bitset and updated at
-   * timestamp
-   * @param new_value the value to be assigned to the point
-   * @param new_quality value quality information
-   * @param timestamp_ms value updated at timestamp in milliseconds
+   * @brief Set point value
    */
-  void setValueEx(double new_value, const Quality new_quality = Quality::None,
-                  std::uint_fast64_t timestamp_ms = 0);
+  void setValue(InfoValue new_value);
+
+  InfoQuality getQuality();
+
+  /**
+   * @brief Set point value
+   */
+  void setQuality(InfoQuality new_value);
 
   /**
    * @brief get timestamp of last value update
@@ -293,24 +245,18 @@ public:
    * @brief get timestamp of last cyclic report (server-only)
    * @return seconds since unix-epoch
    */
-  std::uint64_t getReportedAt_ms() const;
+  std::optional<uint64_t> getRecordedAt_ms() const;
 
   /**
-   * @brief get timestamp of last incoming transmission
+   * @brief get timestamp of last cyclic report (server-only)
    * @return seconds since unix-epoch
    */
-  std::uint64_t getReceivedAt_ms() const;
-
-  /**
-   * @brief get timestamp of last non-cyclic transmission
-   * @return seconds since unix-epoch
-   */
-  std::uint64_t getSentAt_ms() const;
+  std::uint64_t getProcessedAt_ms() const;
 
   /**
    * @brief set timestamp of last outgoing transmission from server to client
    */
-  void setReportedAt_ms(std::uint_fast64_t timestamp_ms);
+  void setProcessedAt_ms(const std::uint_fast64_t timestamp_ms);
 
   /**
    * @brief handle remote point update, execute python callback
@@ -373,22 +319,23 @@ public:
   transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT,
            CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE);
 
-  inline friend std::ostream &operator<<(std::ostream &os, DataPoint &dp) {
-    os << std::endl
-       << "+------------------------------+" << '\n'
-       << "| DUMP Asset/DataPoint         |" << '\n'
-       << "+------------------------------+" << '\n'
-       << "|" << std::setw(19) << "IOA: " << std::setw(10)
-       << std::to_string(dp.informationObjectAddress) << " |" << '\n'
-       << "|" << std::setw(19) << "value: " << std::setw(10)
-       << std::to_string(dp.value) << " |" << '\n'
-       << "|" << std::setw(19) << "type: " << std::setw(10)
-       << TypeID_toString(dp.type) << " |" << '\n'
-       << "|" << std::setw(19) << "updated_at: " << std::setw(10)
-       << dp.updatedAt_ms << " |" << '\n'
-       << "+------------------------------+" << std::endl;
-    return os;
-  }
+  std::string toString() const {
+    std::ostringstream oss;
+    oss << "<c104.Point io_address=" << informationObjectAddress
+        << ", type=" << TypeID_toString(type) << ", info=" << info->name()
+        << ", report_ms=" << reportInterval_ms << ", related_io_address=";
+
+    if (relatedInformationObjectAddress < MAX_INFORMATION_OBJECT_ADDRESS)
+      oss << relatedInformationObjectAddress;
+    else
+      oss << "None";
+
+    oss << ", related_io_autoreturn=" << relatedInformationObjectAutoReturn
+        << ", command_mode=" << CommandTransmissionMode_toString(commandMode)
+        << " at " << std::hex << std::showbase
+        << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 
 /**

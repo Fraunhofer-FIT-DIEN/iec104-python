@@ -133,16 +133,18 @@ public:
   bool isLocal();
 
 public:
-  inline friend std::ostream &operator<<(std::ostream &os, Station &s) {
-    os << std::endl
-       << "+------------------------------+" << '\n'
-       << "| DUMP Asset/Station           |" << '\n'
-       << "+------------------------------+" << '\n'
-       << "|" << std::setw(19) << "ASDU/CA: " << std::setw(10)
-       << std::to_string(s.commonAddress) << " |" << '\n'
-       << "|------------------------------+" << std::endl;
-    return os;
-  }
+  std::string toString() const {
+    size_t len = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
+      len = points.size();
+    }
+    std::ostringstream oss;
+    oss << "<104.Station common_address=" << commonAddress
+        << ", #points=" << len << " at " << std::hex << std::showbase
+        << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 
 /**

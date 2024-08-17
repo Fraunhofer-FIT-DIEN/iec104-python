@@ -50,15 +50,53 @@ using namespace pybind11::literals;
 
 // @todo Ubuntu 18 x64, Ubuntu 20 x64, arm7v32, later: arm aarch64
 
-PyObject *
+// Bind Number with Template
+template <typename T, T Min, T Max, typename W>
+void bind_BaseNumber(py::module &m, const std::string &name) {
+  py::class_<BaseNumber<T, Min, Max, W>,
+             std::shared_ptr<BaseNumber<T, Min, Max, W>>>(m, name.c_str())
+      .def(py::init<T>())
+      .def(py::init<W>())
+      // Overloading operators with different types
+      .def("__add__", [](const BaseNumber<T, Min, Max, W> &self,
+                         const W &other) { return self + other; })
+      .def("__sub__", [](const BaseNumber<T, Min, Max, W> &self,
+                         const W &other) { return self - other; })
+      .def("__mul__", [](const BaseNumber<T, Min, Max, W> &self,
+                         const W &other) { return self * other; })
+      .def("__truediv__", [](const BaseNumber<T, Min, Max, W> &self,
+                             const W &other) { return self / other; })
+      .def("__iadd__",
+           [](BaseNumber<T, Min, Max, W> &self, const W &other) {
+             self += other;
+             return self;
+           })
+      .def("__isub__",
+           [](BaseNumber<T, Min, Max, W> &self, const W &other) {
+             self -= other;
+             return self;
+           })
+      .def("__imul__",
+           [](BaseNumber<T, Min, Max, W> &self, const W &other) {
+             self *= other;
+             return self;
+           })
+      .def("__itruediv__",
+           [](BaseNumber<T, Min, Max, W> &self, const W &other) {
+             self /= other;
+             return self;
+           })
+      .def("__repr__", [name](const BaseNumber<T, Min, Max, W> &a) {
+        return "<c104." + name + " value=" + std::to_string(a.get()) + ">";
+      });
+}
+
+py::bytes
 IncomingMessage_getRawBytes(Remote::Message::IncomingMessage *message) {
   unsigned char *msg = message->getRawBytes();
   unsigned char msgSize = 2 + msg[1];
 
-  PyObject *pymemview =
-      PyMemoryView_FromMemory((char *)msg, msgSize, PyBUF_READ);
-
-  return PyBytes_FromObject(pymemview);
+  return py::bytes(reinterpret_cast<const char *>(msg), msgSize);
 }
 
 std::string explain_bytes(const py::bytes &obj) {
@@ -91,21 +129,6 @@ PY_MODULE(c104, m) {
   py::options options;
   options.disable_function_signatures();
   options.disable_enum_members_docstring();
-
-  py::enum_<InformationType>(
-      m, "Data",
-      "This enum contains all available information types for a datapoint")
-      .value("SINGLE", SINGLE)
-      .value("DOUBLE", DOUBLE)
-      .value("STEP", STEP)
-      .value("BITS", BITS)
-      .value("NORMALIZED", NORMALIZED)
-      .value("SCALED", SCALED)
-      .value("SHORT", SHORT)
-      .value("INTEGRATED", INTEGRATED)
-      .value("NORMALIZED_PARAMETER", NORMALIZED_PARAMETER)
-      .value("SCALED_PARAMETER", SCALED_PARAMETER)
-      .value("SHORT_PARAMETER", SHORT_PARAMETER);
 
   py::enum_<IEC60870_5_TypeID>(m, "Type",
                                "This enum contains all valid IEC60870 message "
@@ -254,7 +277,7 @@ PY_MODULE(c104, m) {
       .value("NONE", CS101_QualifierOfCommand::NONE)
       .value("SHORT_PULSE", CS101_QualifierOfCommand::SHORT_PULSE)
       .value("LONG_PULSE", CS101_QualifierOfCommand::LONG_PULSE)
-      .value("CONTINUOUS", CS101_QualifierOfCommand::CONTINUOUS);
+      .value("PERSISTENT", CS101_QualifierOfCommand::PERSISTENT);
 
   py::enum_<UnexpectedMessageCause>(
       m, "Umc",
@@ -271,23 +294,46 @@ PY_MODULE(c104, m) {
       .value("UNIMPLEMENTED_GROUP", UNIMPLEMENTED_GROUP);
 
   py::enum_<ConnectionInit>(
-      m, "Init", "This enum contains all connection init command options.")
-      .value("ALL", INIT_ALL)
-      .value("INTERROGATION", INIT_INTERROGATION)
-      .value("CLOCK_SYNC", INIT_CLOCK_SYNC)
-      .value("NONE", INIT_NONE);
+      m, "Init",
+      "This enum contains all connection init command options. Everytime the "
+      "connection is established the client will behave as follows:")
+      .value("ALL", INIT_ALL,
+             "Unmute the connection, send an interrogation command and after "
+             "that send a clock synchronization command")
+      .value("INTERROGATION", INIT_INTERROGATION,
+             "Unmute the connection and send an interrogation command")
+      .value("CLOCK_SYNC", INIT_CLOCK_SYNC,
+             "Unmute the connection and send a clock synchronization command")
+      .value("NONE", INIT_NONE,
+             "Unmute the connection, but without triggering a command")
+      .value("MUTED", INIT_MUTED,
+             "Act as a redundancy client without active communication");
 
   py::enum_<ConnectionState>(m, "ConnectionState",
                              "This enum contains all link states for "
                              "connection state machine behaviour.")
-      .value("CLOSED", CLOSED)
-      .value("CLOSED_AWAIT_OPEN", CLOSED_AWAIT_OPEN)
-      .value("CLOSED_AWAIT_RECONNECT", CLOSED_AWAIT_RECONNECT)
-      .value("OPEN_MUTED", OPEN_MUTED)
-      .value("OPEN_AWAIT_INTERROGATION", OPEN_AWAIT_INTERROGATION)
-      .value("OPEN_AWAIT_CLOCK_SYNC", OPEN_AWAIT_CLOCK_SYNC)
-      .value("OPEN", OPEN)
-      .value("OPEN_AWAIT_CLOSED", OPEN_AWAIT_CLOSED);
+      .value("CLOSED", CLOSED, "The connection is closed")
+      .value("CLOSED_AWAIT_OPEN", CLOSED_AWAIT_OPEN,
+             "The connection is dialing")
+      .value("CLOSED_AWAIT_RECONNECT", CLOSED_AWAIT_RECONNECT,
+             "The connection will retry dialing soon")
+      .value("OPEN_AWAIT_UNMUTE", OPEN_AWAIT_UNMUTE,
+             "The connection is established and will be activated/unmuted as "
+             "part of the init routine soon")
+      .value("OPEN_AWAIT_INTERROGATION", OPEN_AWAIT_INTERROGATION,
+             "The connection is established and active/unmuted an will send a "
+             "interrogation command as part of the init routine soon")
+      .value("OPEN_AWAIT_CLOCK_SYNC", OPEN_AWAIT_CLOCK_SYNC,
+             "The connection is established and active/unmuted an will send a "
+             "clock synchronization command as part of the init routine soon")
+      .value("OPEN", OPEN,
+             "The connection is established and active/unmuted, with no init "
+             "commands outstanding")
+      .value("OPEN_MUTED", OPEN_MUTED,
+             "The connection is established and inactive/muted, with no init "
+             "commands outstanding")
+      .value("OPEN_AWAIT_CLOSED", OPEN_AWAIT_CLOSED,
+             "The connection is about to close soon");
 
   py::enum_<CommandResponseState>(
       m, "ResponseState",
@@ -302,8 +348,13 @@ PY_MODULE(c104, m) {
       m, "CommandMode",
       "This enum contains all command transmission modes a client"
       "may use to send commands.")
-      .value("DIRECT", DIRECT_COMMAND)
-      .value("SELECT_AND_EXECUTE", SELECT_AND_EXECUTE_COMMAND);
+      .value("DIRECT", DIRECT_COMMAND,
+             "The value can be set without any selection procedure")
+      .value("SELECT_AND_EXECUTE", SELECT_AND_EXECUTE_COMMAND,
+             "The client has to send a select command first to get exclusive "
+             "access to the points value and can then send an updated value "
+             "command. The selection automatically ends by receiving the value "
+             "command.");
 
   py::enum_<CS101_QualifierOfInterrogation>(
       m, "Qoi",
@@ -326,6 +377,14 @@ PY_MODULE(c104, m) {
       .value("GROUP_14", QOI_GROUP_14)
       .value("GROUP_15", QOI_GROUP_15)
       .value("GROUP_16", QOI_GROUP_16);
+
+  py::enum_<CS101_CauseOfInitialization>(
+      m, "CoI",
+      "This enum contains all valid IEC60870 cause of initialization values.")
+      .value("LOCAL_POWER_ON", CS101_CauseOfInitialization::LOCAL_POWER_ON)
+      .value("LOCAL_MANUAL_RESET",
+             CS101_CauseOfInitialization::LOCAL_MANUAL_RESET)
+      .value("REMOTE_RESET", CS101_CauseOfInitialization::REMOTE_RESET);
 
   py::enum_<StepCommandValue>(
       m, "Step",
@@ -434,7 +493,7 @@ PY_MODULE(c104, m) {
                          "This enum contains all quality issue bits to "
                          "interpret and manipulate measurement quality.")
           .value("Overflow", Quality::Overflow)
-          .value("Reserved", Quality::Reserved)
+          //          .value("Reserved", Quality::Reserved)
           .value("ElapsedTimeInvalid", Quality::ElapsedTimeInvalid)
           .value("Blocked", Quality::Blocked)
           .value("Substituted", Quality::Substituted)
@@ -502,6 +561,277 @@ PY_MODULE(c104, m) {
       &Quality_toString, py::name("__str__"), py::is_method(py_quality));
   py_quality.attr("__repr__") = py::cpp_function(
       &Quality_toString, py::name("__repr__"), py::is_method(py_quality));
+
+  auto py_bcrquality =
+      py::enum_<BinaryCounterQuality>(
+          m, "BinaryCounterQuality",
+          "This enum contains all binary counter quality issue bits to "
+          "interpret and manipulate counter quality.")
+          .value("Adjusted", BinaryCounterQuality::Adjusted)
+          .value("Carry", BinaryCounterQuality::Carry)
+          .value("Invalid", BinaryCounterQuality::Invalid)
+          .def(py::init([]() { return BinaryCounterQuality::None; }))
+          .def("__str__", &Quality_toString)
+          .def("__repr__", &Quality_toString)
+          .def(
+              "__and__", [](const Quality &a, Quality b) { return a & b; },
+              py::is_operator())
+          .def(
+              "__rand__", [](const Quality &a, Quality b) { return a & b; },
+              py::is_operator())
+          .def(
+              "__or__", [](const Quality &a, Quality b) { return a | b; },
+              py::is_operator())
+          .def(
+              "__ror__", [](const Quality &a, Quality b) { return a | b; },
+              py::is_operator())
+          .def(
+              "__xor__", [](const Quality &a, Quality b) { return a ^ b; },
+              py::is_operator())
+          .def(
+              "__rxor__", [](const Quality &a, Quality b) { return a ^ b; },
+              py::is_operator())
+          .def(
+              "__invert__", [](const Quality &a) { return ~a; },
+              py::is_operator())
+          .def(
+              "__iand__",
+              [](Quality &a, Quality b) {
+                a &= b;
+                return a;
+              },
+              py::is_operator())
+          .def(
+              "__ior__",
+              [](Quality &a, Quality b) {
+                a |= b;
+                return a;
+              },
+              py::is_operator())
+          .def(
+              "__ixor__",
+              [](Quality &a, Quality b) {
+                a ^= b;
+                return a;
+              },
+              py::is_operator())
+          .def(
+              "__contains__",
+              [](const Quality &mode, const Quality &flag) {
+                return test(mode, flag);
+              },
+              py::is_operator())
+          .def(
+              "is_any", [](const Quality &mode) { return is_any(mode); },
+              "test if there are any limitations in terms of quality")
+          .def(
+              "is_good", [](const Quality &mode) { return is_none(mode); },
+              "test if there are no limitations in terms of quality");
+
+  py_bcrquality.attr("__str__") = py::cpp_function(
+      &Quality_toString, py::name("__str__"), py::is_method(py_bcrquality));
+  py_bcrquality.attr("__repr__") = py::cpp_function(
+      &Quality_toString, py::name("__repr__"), py::is_method(py_bcrquality));
+
+  auto py_start_events =
+      py::enum_<StartEvents>(
+          m, "StartEvents",
+          "This enum contains all StartEvents issue bits to "
+          "interpret and manipulate protection equipment messages.")
+          .value("General", StartEvents::General)
+          .value("PhaseL1", StartEvents::PhaseL1)
+          .value("PhaseL2", StartEvents::PhaseL2)
+          .value("PhaseL3", StartEvents::PhaseL3)
+          .value("InEarthCurrent", StartEvents::InEarthCurrent)
+          .value("ReverseDirection", StartEvents::ReverseDirection)
+          .def(py::init([]() { return StartEvents::None; }))
+          .def("__str__", &StartEvents_toString)
+          .def("__repr__", &StartEvents_toString)
+          .def(
+              "__and__",
+              [](const StartEvents &a, StartEvents b) { return a & b; },
+              py::is_operator())
+          .def(
+              "__rand__",
+              [](const StartEvents &a, StartEvents b) { return a & b; },
+              py::is_operator())
+          .def(
+              "__or__",
+              [](const StartEvents &a, StartEvents b) { return a | b; },
+              py::is_operator())
+          .def(
+              "__ror__",
+              [](const StartEvents &a, StartEvents b) { return a | b; },
+              py::is_operator())
+          .def(
+              "__xor__",
+              [](const StartEvents &a, StartEvents b) { return a ^ b; },
+              py::is_operator())
+          .def(
+              "__rxor__",
+              [](const StartEvents &a, StartEvents b) { return a ^ b; },
+              py::is_operator())
+          .def(
+              "__invert__", [](const StartEvents &a) { return ~a; },
+              py::is_operator())
+          .def(
+              "__iand__",
+              [](StartEvents &a, StartEvents b) {
+                a &= b;
+                return a;
+              },
+              py::is_operator())
+          .def(
+              "__ior__",
+              [](StartEvents &a, StartEvents b) {
+                a |= b;
+                return a;
+              },
+              py::is_operator())
+          .def(
+              "__ixor__",
+              [](StartEvents &a, StartEvents b) {
+                a ^= b;
+                return a;
+              },
+              py::is_operator())
+          .def(
+              "__contains__",
+              [](const StartEvents &mode, const StartEvents &flag) {
+                return test(mode, flag);
+              },
+              py::is_operator())
+          .def(
+              "is_any", [](const StartEvents &mode) { return is_any(mode); },
+              "test if there is at least one start event")
+          .def(
+              "is_none", [](const Quality &mode) { return is_none(mode); },
+              "test if there are no start events");
+
+  py_start_events.attr("__str__") =
+      py::cpp_function(&StartEvents_toString, py::name("__str__"),
+                       py::is_method(py_start_events));
+  py_start_events.attr("__repr__") =
+      py::cpp_function(&StartEvents_toString, py::name("__repr__"),
+                       py::is_method(py_start_events));
+
+  auto py_output_circuit_info =
+      py::enum_<OutputCircuits>(
+          m, "OutputCircuits",
+          "This enum contains all Output Circuit bits to "
+          "interpret and manipulate protection equipment messages.")
+          .value("General", OutputCircuits::General)
+          .value("PhaseL1", OutputCircuits::PhaseL1)
+          .value("PhaseL2", OutputCircuits::PhaseL2)
+          .value("PhaseL3", OutputCircuits::PhaseL3)
+          .def(py::init([]() { return OutputCircuits::None; }))
+          .def("__str__", &OutputCircuits_toString)
+          .def("__repr__", &OutputCircuits_toString)
+          .def(
+              "__and__",
+              [](const OutputCircuits &a, OutputCircuits b) { return a & b; },
+              py::is_operator())
+          .def(
+              "__rand__",
+              [](const OutputCircuits &a, OutputCircuits b) { return a & b; },
+              py::is_operator())
+          .def(
+              "__or__",
+              [](const OutputCircuits &a, OutputCircuits b) { return a | b; },
+              py::is_operator())
+          .def(
+              "__ror__",
+              [](const OutputCircuits &a, OutputCircuits b) { return a | b; },
+              py::is_operator())
+          .def(
+              "__xor__",
+              [](const OutputCircuits &a, OutputCircuits b) { return a ^ b; },
+              py::is_operator())
+          .def(
+              "__rxor__",
+              [](const OutputCircuits &a, OutputCircuits b) { return a ^ b; },
+              py::is_operator())
+          .def(
+              "__invert__", [](const OutputCircuits &a) { return ~a; },
+              py::is_operator())
+          .def(
+              "__iand__",
+              [](OutputCircuits &a, OutputCircuits b) {
+                a &= b;
+                return a;
+              },
+              py::is_operator())
+          .def(
+              "__ior__",
+              [](OutputCircuits &a, OutputCircuits b) {
+                a |= b;
+                return a;
+              },
+              py::is_operator())
+          .def(
+              "__ixor__",
+              [](OutputCircuits &a, OutputCircuits b) {
+                a ^= b;
+                return a;
+              },
+              py::is_operator())
+          .def(
+              "__contains__",
+              [](const OutputCircuits &mode, const OutputCircuits &flag) {
+                return test(mode, flag);
+              },
+              py::is_operator())
+          .def(
+              "is_any", [](const OutputCircuits &mode) { return is_any(mode); },
+              "test if there is at least one output circuit")
+          .def(
+              "is_none", [](const Quality &mode) { return is_none(mode); },
+              "test if there are no output circuit");
+
+  py_output_circuit_info.attr("__str__") =
+      py::cpp_function(&OutputCircuits_toString, py::name("__str__"),
+                       py::is_method(py_output_circuit_info));
+  py_output_circuit_info.attr("__repr__") =
+      py::cpp_function(&OutputCircuits_toString, py::name("__repr__"),
+                       py::is_method(py_output_circuit_info));
+
+  py::enum_<FieldSet16>(m, "FieldSet16")
+      .value("I0", FieldSet16::I0)
+      .value("I1", FieldSet16::I1)
+      .value("I2", FieldSet16::I2)
+      .value("I3", FieldSet16::I3)
+      .value("I4", FieldSet16::I4)
+      .value("I5", FieldSet16::I5)
+      .value("I6", FieldSet16::I6)
+      .value("I7", FieldSet16::I7)
+      .value("I8", FieldSet16::I8)
+      .value("I9", FieldSet16::I9)
+      .value("I10", FieldSet16::I10)
+      .value("I11", FieldSet16::I11)
+      .value("I12", FieldSet16::I12)
+      .value("I13", FieldSet16::I13)
+      .value("I14", FieldSet16::I14)
+      .value("I15", FieldSet16::I15)
+      .export_values();
+
+  bind_BaseNumber<uint8_t, 0, 31, uint32_t>(m, "UInt5");
+  bind_BaseNumber<uint8_t, 0, 127, uint32_t>(m, "UInt7");
+  bind_BaseNumber<uint16_t, 0, 65535, uint32_t>(m, "UInt16");
+  bind_BaseNumber<int8_t, -64, 63, int32_t>(m, "Int7");
+  bind_BaseNumber<int16_t, -32768, 32767, int32_t>(m, "Int16");
+  bind_BaseNumber<float, -1.f, 1.f, double>(m, "NormalizedFloat");
+
+  py::class_<Byte32>(m, "Byte32")
+      .def(py::init<uint32_t>())
+      .def("__bytes__",
+           [](const Byte32 &b) {
+             uint32_t value = b.get();
+             return py::bytes(reinterpret_cast<const char *>(&value),
+                              sizeof(value));
+           })
+      .def("__repr__", [](const Byte32 &b) {
+        return "<Byte32 value=" + std::to_string(b.get()) + ">";
+      });
 
   py::class_<Remote::TransportSecurity,
              std::shared_ptr<Remote::TransportSecurity>>(
@@ -980,7 +1310,7 @@ PY_MODULE(c104, m) {
     Parameters
     ----------
     common_address: int
-        common address (value between 0-65535)
+        common address (value between 1 and 65534)
 
     Returns
     -------
@@ -1024,7 +1354,7 @@ PY_MODULE(c104, m) {
     connection: :ref:`c104.Connection`
         connection reporting station
     common_address: int
-        station common address (value between 0-65535)
+        station common address (value between 1 and 65534)
 
     Returns
     -------
@@ -1058,7 +1388,7 @@ PY_MODULE(c104, m) {
     station: :ref:`c104.Station`
         station reporting point
     io_address: int
-        point information object address (value between 0 and 16777216)
+        point information object address (value between 0 and 16777215)
     point_type: :ref:`c104.Type`
         point information type
 
@@ -1182,7 +1512,7 @@ PY_MODULE(c104, m) {
     Parameters
     ----------
     common_address: int
-        station common address (value between 0 and 65535)
+        station common address (value between 1 and 65534)
 
     Returns
     -------
@@ -1202,7 +1532,7 @@ PY_MODULE(c104, m) {
     Parameters
     ----------
     common_address: int
-        station common address (value between 0 and 65535)
+        station common address (value between 1 and 65534)
 
     Returns
     -------
@@ -1463,14 +1793,14 @@ PY_MODULE(c104, m) {
 )def",
            py::return_value_policy::copy)
       .def("interrogation", &Remote::Connection::interrogation, R"def(
-    interrogation(self: c104.Connection, common_address: int, cause: c104.Cot = c104.Cot.ACTIVATION, qualifier: c104.Qoi = c104.Qoi.Station, wait_for_response: bool = True) -> bool
+    interrogation(self: c104.Connection, common_address: int, cause: c104.Cot = c104.Cot.ACTIVATION, qualifier: c104.Qoi = c104.Qoi.STATION, wait_for_response: bool = True) -> bool
 
     send an interrogation command to the remote terminal unit (server)
 
     Parameters
     ----------
     common_address: int
-        station common address (value between 0 and 65535)
+        station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
     cause: :ref:`c104.Cot`
         cause of transmission
     qualifier: :ref:`c104.Qoi`
@@ -1490,7 +1820,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> if not my_connection.interrogation(common_address=47, cause=c104.Cot.ACTIVATION, qualifier=c104.Qoi.Station):
+    >>> if not my_connection.interrogation(common_address=47, cause=c104.Cot.ACTIVATION, qualifier=c104.Qoi.STATION):
     >>>     raise ValueError("Cannot send interrogation command")
 )def",
            "common_address"_a, "cause"_a = CS101_COT_ACTIVATION,
@@ -1498,14 +1828,14 @@ PY_MODULE(c104, m) {
            py::return_value_policy::copy)
       .def("counter_interrogation", &Remote::Connection::counterInterrogation,
            R"def(
-    counter_interrogation(self: c104.Connection, common_address: int, cause: c104.Cot = c104.Cot.ACTIVATION, qualifier: c104.Qoi = c104.Qoi.Station, wait_for_response: bool = True) -> bool
+    counter_interrogation(self: c104.Connection, common_address: int, cause: c104.Cot = c104.Cot.ACTIVATION, qualifier: c104.Qoi = c104.Qoi.STATION, wait_for_response: bool = True) -> bool
 
     send a counter interrogation command to the remote terminal unit (server)
 
     Parameters
     ----------
     common_address: int
-        station common address (value between 0 and 65535)
+        station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
     cause: :ref:`c104.Cot`
         cause of transmission
     qualifier: :ref:`c104.Qoi`
@@ -1525,7 +1855,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> if not my_connection.counter_interrogation(common_address=47, cause=c104.Cot.ACTIVATION, qualifier=c104.Qoi.Station):
+    >>> if not my_connection.counter_interrogation(common_address=47, cause=c104.Cot.ACTIVATION, qualifier=c104.Qoi.STATION):
     >>>     raise ValueError("Cannot send counter interrogation command")
 )def",
            "common_address"_a, "cause"_a = CS101_COT_ACTIVATION,
@@ -1540,7 +1870,7 @@ PY_MODULE(c104, m) {
     Parameters
     ----------
     common_address: int
-        station common address (value between 0 and 65535)
+        station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
     wait_for_response: bool
         block call until command success or failure reponse received?
 
@@ -1565,7 +1895,7 @@ PY_MODULE(c104, m) {
     Parameters
     ----------
     common_address: int
-        station common address (value between 0 and 65535)
+        station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
     with_time: bool
         send with or without timestamp
     wait_for_response: bool
@@ -1591,7 +1921,7 @@ PY_MODULE(c104, m) {
     Parameters
     ----------
     common_address: int
-        station common address (value between 0 and 65535)
+        station common address (value between 1 and 65534)
 
     Returns
     -------
@@ -1611,7 +1941,7 @@ PY_MODULE(c104, m) {
     Parameters
     ----------
     common_address: int
-        station common address (value between 0 and 65535)
+        station common address (value between 1 and 65534)
 
     Returns
     -------
@@ -1731,7 +2061,7 @@ PY_MODULE(c104, m) {
                              "Connection of non-local station (read-only)")
       .def_property_readonly(
           "common_address", &Object::Station::getCommonAddress,
-          "int: common address of this station (0-65535) (read-only)",
+          "int: common address of this station (1-65534) (read-only)",
           py::return_value_policy::copy)
       .def_property_readonly("is_local", &Object::Station::isLocal,
                              "bool: test if station is local (has sever) or "
@@ -1753,7 +2083,7 @@ PY_MODULE(c104, m) {
     Parameters
     ----------
     io_address: int
-        point information object address (value between 0 and 16777216)
+        point information object address (value between 0 and 16777215)
 
     Returns
     -------
@@ -1766,19 +2096,19 @@ PY_MODULE(c104, m) {
 )def",
            "io_address"_a)
       .def("add_point", &Object::Station::addPoint, R"def(
-    add_point(self: c104.Station, io_address: int, type: c104.Type, report_ms: int = 0, related_io_address: int = 0, related_io_autoreturn: bool = False, command_mode: c104.CommandMode = c104.CommandMode.DIRECT) -> Optional[c104.Point]
+    add_point(self: c104.Station, io_address: int, type: c104.Type, report_ms: int = 0, related_io_address: Optional[int] = None, related_io_autoreturn: bool = False, command_mode: c104.CommandMode = c104.CommandMode.DIRECT) -> Optional[c104.Point]
 
     add a new point to this station and return the new point object
 
     Parameters
     ----------
     io_address: int
-        point information object address (value between 0 and 16777216)
+        point information object address (value between 0 and 16777215)
     type: :ref:`c104.Type`
         point information type
     report_ms: int
         automatic reporting interval in milliseconds (monitoring points server-sided only)
-    related_io_address: int
+    related_io_address: Optional[int]
         related monitoring point identified by information object address, that should be auto transmitted on incoming client command (for control points server-sided only)
     related_io_autoreturn: bool
         automatic reporting interval in milliseconds (for control points server-sided only)
@@ -1808,8 +2138,9 @@ PY_MODULE(c104, m) {
     >>> point_3 = sv_station_1.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=point_2.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
 )def",
            "io_address"_a, "type"_a, "report_ms"_a = 0,
-           "related_io_address"_a = 0, "related_io_autoreturn"_a = false,
-           "command_mode"_a = DIRECT_COMMAND);
+           "related_io_address"_a = std::nullopt,
+           "related_io_autoreturn"_a = false, "command_mode"_a = DIRECT_COMMAND)
+      .def("__repr__", &Object::Station::toString);
 
   py::class_<Object::DataPoint, std::shared_ptr<Object::DataPoint>>(
       m, "Point",
@@ -1820,73 +2151,50 @@ PY_MODULE(c104, m) {
           "Optional[:ref:`c104.Station`]: parent Station object (read-only)")
       .def_property_readonly("io_address",
                              &Object::DataPoint::getInformationObjectAddress,
-                             "int: information object address (read-only)",
-                             py::return_value_policy::copy)
+                             "int: information object address (read-only)")
       .def_property_readonly("type", &Object::DataPoint::getType,
-                             ":ref:`c104.Type`: iec60870 data Type (read-only)",
-                             py::return_value_policy::copy)
-      .def_property("quality", &Object::DataPoint::getQuality,
-                    &Object::DataPoint::setQuality,
-                    ":ref:`c104.Quality`: Quality bitset object",
-                    py::return_value_policy::copy)
-      .def_property("related_io_address",
-                    &Object::DataPoint::getRelatedInformationObjectAddress,
-                    &Object::DataPoint::setRelatedInformationObjectAddress,
-                    "int: io_address of a related monitoring point",
-                    py::return_value_policy::copy)
+                             ":ref:`c104.Type`: iec60870 data Type (read-only)")
+      .def_property(
+          "related_io_address",
+          &Object::DataPoint::getRelatedInformationObjectAddress,
+          &Object::DataPoint::setRelatedInformationObjectAddress,
+          "Optional[int]: io_address of a related monitoring point or None")
       .def_property(
           "related_io_autoreturn",
           &Object::DataPoint::getRelatedInformationObjectAutoReturn,
           &Object::DataPoint::setRelatedInformationObjectAutoReturn,
-          "bool: toggle automatic return info remote response on or off",
-          py::return_value_policy::copy)
+          "bool: toggle automatic return info remote response on or off")
       .def_property("command_mode", &Object::DataPoint::getCommandMode,
                     &Object::DataPoint::setCommandMode,
                     "c104.CommandMode: set direct or select-and-execute "
                     "command transmission mode",
                     py::return_value_policy::copy)
-      .def_property(
+      .def_property_readonly(
           "selected_by", &Object::DataPoint::getSelectedByOriginatorAddress,
-          &Object::DataPoint::setSelectedByOriginatorAddress,
-          "int: originator address (1-255) = SELECTED, 0 = NOT SELECTED",
-          py::return_value_policy::copy)
+          "Optional[int]: originator address (0-255) or None")
       .def_property("report_ms", &Object::DataPoint::getReportInterval_ms,
                     &Object::DataPoint::setReportInterval_ms,
                     "int: interval in milliseconds between periodic "
-                    "transmission, 0 = no periodic transmission",
+                    "transmission, 0 = no periodic transmission")
+      .def_property("info", &Object::DataPoint::getInfo,
+                    &Object::DataPoint::setInfo,
+                    "ref:`c104.Information`: information object",
+                    py::return_value_policy::automatic)
+      .def_property("value", &Object::DataPoint::getValue,
+                    &Object::DataPoint::setValue, "Any: value",
                     py::return_value_policy::copy)
-      .def_property(
-          "value", &Object::DataPoint::getValue,
-          [](Object::DataPoint &d1, const py::object &o) {
-            d1.setValue(py::cast<double>(o));
-          },
-          "float: value", py::return_value_policy::copy)
-      .def_property_readonly(
-          "value_uint32", &Object::DataPoint::getValueAsUInt32,
-          "int: value formatted as unsigned integer (read-only)",
-          py::return_value_policy::copy)
-      .def_property_readonly(
-          "value_int32", &Object::DataPoint::getValueAsInt32,
-          "int: value formatted as signed integer (read-only)",
-          py::return_value_policy::copy)
-      .def_property_readonly("value_float", &Object::DataPoint::getValueAsFloat,
-                             "float: value formatted as float (read-only)",
-                             py::return_value_policy::copy)
+      .def_property("quality", &Object::DataPoint::getQuality,
+                    &Object::DataPoint::setQuality, "Any: Quality info object",
+                    py::return_value_policy::copy)
       .def_property_readonly( // todo convert to datetime.datetime
-          "updated_at_ms", &Object::DataPoint::getUpdatedAt_ms,
-          "int: timestamp in milliseconds of last value update (read-only)",
+          "processed_at_ms", &Object::DataPoint::getProcessedAt_ms,
+          "int: timestamp in milliseconds of last local information processing "
+          "(read-only)",
           py::return_value_policy::copy)
       .def_property_readonly( // todo convert to datetime.datetime
-          "reported_at_ms", &Object::DataPoint::getReportedAt_ms,
-          "int: timestamp in milliseconds of last transmission (read-only)",
-          py::return_value_policy::copy)
-      .def_property_readonly( // todo convert to datetime.datetime
-          "received_at_ms", &Object::DataPoint::getReceivedAt_ms,
-          "int: timestamp in milliseconds of last incoming message (read-only)",
-          py::return_value_policy::copy)
-      .def_property_readonly( // todo convert to datetime.datetime
-          "sent_at_ms", &Object::DataPoint::getSentAt_ms,
-          "int: timestamp in milliseconds of last outgoing message (read-only)",
+          "recorded_at_ms", &Object::DataPoint::getRecordedAt_ms,
+          "Optional[int]: timestamp in milliseconds transported with the value "
+          "itself or None (read-only)",
           py::return_value_policy::copy)
       .def("on_receive", &Object::DataPoint::setOnReceiveCallback, R"def(
     on_receive(self: c104.Point, callable: Callable[[c104.Point, dict, c104.IncomingMessage], c104.ResponseState]) -> None
@@ -1900,9 +2208,9 @@ PY_MODULE(c104, m) {
     ----------
     point: :ref:`c104.Point`
         point instance
-    previous_state: dict
-        dictionary containing the state of the point before the command took effect :code:`{"value": float, "quality": :ref:`c104.Quality`, updatedAt_ms: int}`
-    message: c104.IncomingMessage
+    previous_info: :ref:`c104.Information`
+        Information object containing the state of the point before the command took effect
+    message: :ref:`c104.IncomingMessage`
         new command message
 
     Returns
@@ -1917,8 +2225,8 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> def on_setpoint_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    >>>     print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    >>> def on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    >>>     print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_info, message.cot, point.quality))
     >>>     if point.quality.is_good():
     >>>         if point.related_io_address:
     >>>             print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
@@ -2027,35 +2335,6 @@ PY_MODULE(c104, m) {
     >>>     print("read command successful")
 )def",
            py::return_value_policy::copy)
-      .def(
-          "set",
-          [](Object::DataPoint &d1, const py::object &o, const Quality &q,
-             const std::uint_fast64_t &t) {
-            d1.setValueEx(py::cast<double>(o), q, t);
-          },
-          R"def(
-    set(self: c104.Point, value: typing.Union[float, c104.Step, c104.Double], quality: c104.Quality, timestamp_ms: int) -> None
-
-    set value, quality and timestamp
-
-    Parameters
-    ----------
-    value: float, c104.Step, c104.Double
-        point value
-    quality: :ref:`c104.Quality`
-        quality restrictions if any, default: c104.Quality.None
-    timestamp_ms: int
-        modification timestamp in milliseconds, default: current utc timestamp
-
-    Returns
-    -------
-    None
-
-    Example
-    -------
-    >>> sv_measurement_point.set(value=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=int(time.time() * 1000))
-)def",
-          "value"_a, "quality"_a = Quality::None, "timestamp_ms"_a = 0)
       .def("transmit", &Object::DataPoint::transmit, R"def(
     transmit(self: c104.Point, cause: c104.Cot = c104.Cot.SPONTANEOUS, qualifier: c104.Qoc = c104.Qoc.NONE) -> bool
 
@@ -2094,7 +2373,617 @@ PY_MODULE(c104, m) {
 )def",
            "cause"_a = CS101_COT_UNKNOWN_COT,
            "qualifier"_a = CS101_QualifierOfCommand::NONE,
-           py::return_value_policy::copy);
+           py::return_value_policy::copy)
+      .def("__repr__", &Object::DataPoint::toString);
+
+  py::class_<Object::Information, std::shared_ptr<Object::Information>>(
+      m, "Information",
+      "This class represents all specialized kind of information a specific "
+      "point may have")
+      .def_property_readonly("value", &Object::Information::getValue,
+                             "Any: mixed InfoValue type")
+      .def_property_readonly("quality", &Object::Information::getQuality,
+                             "Any: mixed InfoQuality type")
+      .def_property_readonly(
+          "processed_at_ms", &Object::Information::getProcessedAt_ms,
+          "int: timestamp locally processed in milliseconds (read-only)")
+      .def_property_readonly(
+          "recorded_at_ms", &Object::Information::getRecordedAt_ms,
+          "Optional[int]: timestamp send with the information in milliseconds "
+          "or None if not provided (read-only)");
+
+  py::class_<Object::SingleInfo, Object::Information,
+             std::shared_ptr<Object::SingleInfo>>(
+      m, "SingleInfo",
+      "This class represents all specific single point information")
+      .def(py::init(&Object::SingleInfo::create), R"def(
+    __init__(self: c104.SingleInfo, on: bool, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new single info
+
+    Parameters
+    -------
+    on: bool
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> single_info = c104.SingleInfo(on=True, quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "on"_a, "quality"_a = Quality::None,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("on", &Object::SingleInfo::isOn,
+                             "bool: the value (read-only)")
+      .def("__repr__", &Object::SingleInfo::toString);
+
+  py::class_<Object::SingleCmd, Object::Information,
+             std::shared_ptr<Object::SingleCmd>>(
+      m, "SingleCmd",
+      "This class represents all specific single command information")
+      .def(py::init(&Object::SingleCmd::create), R"def(
+    __init__(self: c104.SingleCmd, on: bool, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new single command
+
+    Parameters
+    -------
+    on: bool
+        t. b. a.
+    qualifier: :ref:`c104.Qoc`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> single_cmd = c104.SingleCmd(on=True, qualifier=c104.Qoc.SHORT_PULSE, recorded_at_ms=round(time.time()*1000))
+)def",
+           "on"_a, "qualifier"_a = CS101_QualifierOfCommand::NONE,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("on", &Object::SingleCmd::isOn,
+                             "bool: the value (read-only)")
+      .def_property_readonly(
+          "qualifier", &Object::SingleCmd::getQualifier,
+          ":ref:`c104.Qoc`: the command qualifier information (read-only)")
+      .def("__repr__", &Object::SingleCmd::toString);
+
+  py::class_<Object::DoubleInfo, Object::Information,
+             std::shared_ptr<Object::DoubleInfo>>(
+      m, "DoubleInfo",
+      "This class represents all specific double point information")
+      .def(py::init(&Object::DoubleInfo::create), R"def(
+    __init__(self: c104.DoubleInfo, state: c104.Double, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new double info
+
+    Parameters
+    -------
+    state: :ref:`c104.Double`
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> double_info = c104.DoubleInfo(state=c104.Double.ON, quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "state"_a, "quality"_a = Quality::None,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("state", &Object::DoubleInfo::getState,
+                             ":ref:`c104.Double`: the value (read-only)")
+      .def("__repr__", &Object::DoubleInfo::toString);
+
+  py::class_<Object::DoubleCmd, Object::Information,
+             std::shared_ptr<Object::DoubleCmd>>(
+      m, "DoubleCmd",
+      "This class represents all specific double command information")
+      .def(py::init(&Object::DoubleCmd::create), R"def(
+    __init__(self: c104.DoubleCmd, state: c104.Double, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new double command
+
+    Parameters
+    -------
+    state: :ref:`c104.Double`
+        t. b. a.
+    qualifier: :ref:`c104.Qoc`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> double_cmd = c104.DoubleCmd(state=c104.Double.ON, qualifier=c104.Qoc.SHORT_PULSE, recorded_at_ms=round(time.time()*1000))
+)def",
+           "state"_a, "qualifier"_a = CS101_QualifierOfCommand::NONE,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("state", &Object::DoubleCmd::getState,
+                             ":ref:`c104.Double`: the value (read-only)")
+      .def_property_readonly(
+          "qualifier", &Object::DoubleCmd::getQualifier,
+          ":ref:`c104.Qoc`: the command qualifier information (read-only)")
+      .def("__repr__", &Object::DoubleCmd::toString);
+
+  py::class_<Object::StepInfo, Object::Information,
+             std::shared_ptr<Object::StepInfo>>(
+      m, "StepInfo",
+      "This class represents all specific step point information")
+      .def(py::init(&Object::StepInfo::create), R"def(
+    __init__(self: c104.StepInfo, position: c104.Int7, transient: bool, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new step info
+
+    Parameters
+    -------
+    position: :ref:`c104.Int7`
+        t. b. a.
+    transient: bool
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> step_info = c104.StepInfo(position=c104.Int7(2), transient=False, quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "state"_a, "transient"_a = false, "quality"_a = Quality::None,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("position", &Object::StepInfo::getPosition,
+                             ":ref:`c104.Int7`: the value (read-only)")
+      .def_property_readonly("transient", &Object::StepInfo::isTransient,
+                             "bool: if the position is transient (read-only)")
+      .def("__repr__", &Object::StepInfo::toString);
+
+  py::class_<Object::StepCmd, Object::Information,
+             std::shared_ptr<Object::StepCmd>>(
+      m, "StepCmd",
+      "This class represents all specific step command information")
+      .def(py::init(&Object::StepCmd::create), R"def(
+    __init__(self: c104.StepCmd, step: c104.Step, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new step command
+
+    Parameters
+    -------
+    step: :ref:`c104.Step`
+        t. b. a.
+    qualifier: :ref:`c104.Qoc`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> step_cmd = c104.StepCmd(step=c104.Step.HIGHER, qualifier=c104.Qoc.SHORT_PULSE, recorded_at_ms=round(time.time()*1000))
+)def",
+           "step"_a, "qualifier"_a = CS101_QualifierOfCommand::NONE,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("direction", &Object::StepCmd::getStep,
+                             ":ref:`c104.Step`: the value (read-only)")
+      .def_property_readonly(
+          "qualifier", &Object::StepCmd::getQualifier,
+          ":ref:`c104.Qoc`: the command qualifier information (read-only)")
+      .def("__repr__", &Object::StepCmd::toString);
+
+  py::class_<Object::BinaryInfo, Object::Information,
+             std::shared_ptr<Object::BinaryInfo>>(
+      m, "BinaryInfo",
+      "This class represents all specific binary point information")
+      .def(py::init(&Object::BinaryInfo::create), R"def(
+    __init__(self: c104.BinaryInfo, blob: c104.Byte32, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new binary info
+
+    Parameters
+    -------
+    blob: :ref:`c104.Byte32`
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> binary_info = c104.BinaryInfo(blob=c104.Byte32(2345), quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "blob"_a, "quality"_a = Quality::None,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("blob", &Object::BinaryInfo::getBlob,
+                             "bytes: the value (read-only)")
+      .def("__repr__", &Object::BinaryInfo::toString);
+
+  py::class_<Object::BinaryCmd, Object::Information,
+             std::shared_ptr<Object::BinaryCmd>>(
+      m, "BinaryCmd",
+      "This class represents all specific binary command information")
+      .def(py::init(&Object::BinaryCmd::create), R"def(
+    __init__(self: c104.BinaryCmd, blob: c104.Byte32, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new binary command
+
+    Parameters
+    -------
+    blob: :ref:`c104.Byte32`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> binary_cmd = c104.BinaryCmd(blob=c104.Byte32(1234), recorded_at_ms=round(time.time()*1000))
+)def",
+           "blob"_a, "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("blob", &Object::BinaryCmd::getBlob,
+                             "bytes: the value (read-only)")
+      .def("__repr__", &Object::BinaryCmd::toString);
+
+  py::class_<Object::NormalizedInfo, Object::Information,
+             std::shared_ptr<Object::NormalizedInfo>>(
+      m, "NormalizedInfo",
+      "This class represents all specific normalized measurement point "
+      "information")
+      .def(py::init(&Object::NormalizedInfo::create), R"def(
+    __init__(self: c104.NormalizedInfo, actual: c104.NormalizedFloat, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new normalized measurement info
+
+    Parameters
+    -------
+    actual: :ref:`c104.NormalizedFloat`
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> normalized_info = c104.NormalizedInfo(actual=c104.NormalizedFloat(23.45), quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "actual"_a, "quality"_a = Quality::None,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly(
+          "actual", &Object::NormalizedInfo::getActual,
+          ":ref:`c104.NormalizedFloat`: the value (read-only)")
+      .def("__repr__", &Object::NormalizedInfo::toString);
+
+  py::class_<Object::NormalizedCmd, Object::Information,
+             std::shared_ptr<Object::NormalizedCmd>>(
+      m, "NormalizedCmd",
+      "This class represents all specific normalized set point command "
+      "information")
+      .def(py::init(&Object::NormalizedCmd::create), R"def(
+    __init__(self: c104.NormalizedCmd, target: c104.NormalizedFloat, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at_ms: Optional[int] = None) -> None
+
+    create a new normalized set point command
+
+    Parameters
+    -------
+    target: :ref:`c104.NormalizedFloat`
+        t. b. a.
+    qualifier: :ref:`c104.UInt7`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> normalized_cmd = c104.NormalizedCmd(target=c104.NormalizedFloat(23.45), qualifier=c104.UInt7(123), recorded_at_ms=round(time.time()*1000))
+)def",
+           "target"_a, "qualifier"_a = LimitedUInt7((uint32_t)0),
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly(
+          "target", &Object::NormalizedCmd::getTarget,
+          ":ref:`c104.NormalizedFloat`: the value (read-only)")
+      .def_property_readonly(
+          "qualifier", &Object::NormalizedCmd::getQualifier,
+          ":ref:`c104.UInt7`: the command qualifier information (read-only)")
+      .def("__repr__", &Object::NormalizedCmd::toString);
+
+  py::class_<Object::ScaledInfo, Object::Information,
+             std::shared_ptr<Object::ScaledInfo>>(
+      m, "ScaledInfo",
+      "This class represents all specific scaled measurement point information")
+      .def(py::init(&Object::ScaledInfo::create), R"def(
+    __init__(self: c104.ScaledInfo, actual: c104.Int16, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new scaled measurement info
+
+    Parameters
+    -------
+    actual: :ref:`c104.Int16`
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> scaled_info = c104.ScaledInfo(actual=c104.Int16(-2345), quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "actual"_a, "quality"_a = Quality::None,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("actual", &Object::ScaledInfo::getActual,
+                             ":ref:`c104.Int16`: the value (read-only)")
+      .def("__repr__", &Object::ScaledInfo::toString);
+
+  py::class_<Object::ScaledCmd, Object::Information,
+             std::shared_ptr<Object::ScaledCmd>>(
+      m, "ScaledCmd",
+      "This class represents all specific scaled set point command information")
+      .def(py::init(&Object::ScaledCmd::create), R"def(
+    __init__(self: c104.ScaledCmd, target: c104.Int16, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at_ms: Optional[int] = None) -> None
+
+    create a new scaled set point command
+
+    Parameters
+    -------
+    target: :ref:`c104.Int16`
+        t. b. a.
+    qualifier: :ref:`c104.UInt7`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> scaled_cmd = c104.ScaledCmd(target=c104.Int16(-2345), qualifier=c104.UInt7(123), recorded_at_ms=round(time.time()*1000))
+)def",
+           "target"_a, "qualifier"_a = LimitedUInt7((uint32_t)0),
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("target", &Object::ScaledCmd::getTarget,
+                             ":ref:`c104.Int16`: the value (read-only)")
+      .def_property_readonly(
+          "qualifier", &Object::ScaledCmd::getQualifier,
+          ":ref:`c104.UInt7`: the command qualifier information (read-only)")
+      .def("__repr__", &Object::ScaledCmd::toString);
+
+  py::class_<Object::ShortInfo, Object::Information,
+             std::shared_ptr<Object::ShortInfo>>(
+      m, "ShortInfo",
+      "This class represents all specific short measurement point information")
+      .def(py::init(&Object::ShortInfo::create), R"def(
+    __init__(self: c104.ShortInfo, actual: float, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new short measurement info
+
+    Parameters
+    -------
+    actual: float
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> short_info = c104.ShortInfo(actual=23.45, quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "actual"_a, "quality"_a = Quality::None,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("actual", &Object::ShortInfo::getActual,
+                             "float: the value (read-only)")
+      .def("__repr__", &Object::ShortInfo::toString);
+
+  py::class_<Object::ShortCmd, Object::Information,
+             std::shared_ptr<Object::ShortCmd>>(
+      m, "ShortCmd",
+      "This class represents all specific short set point command information")
+      .def(py::init(&Object::ShortCmd::create), R"def(
+    __init__(self: c104.ShortCmd, target: float, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at_ms: Optional[int] = None) -> None
+
+    create a new short set point command
+
+    Parameters
+    -------
+    target: float
+        t. b. a.
+    qualifier: :ref:`c104.UInt7`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> short_cmd = c104.ShortCmd(target=-23.45, qualifier=c104.UInt7(123), recorded_at_ms=round(time.time()*1000))
+)def",
+           "target"_a, "qualifier"_a = LimitedUInt7((uint32_t)0),
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("target", &Object::ShortCmd::getTarget,
+                             "float: the value (read-only)")
+      .def_property_readonly(
+          "qualifier", &Object::ShortCmd::getQualifier,
+          ":ref:`c104.UInt7`: the command qualifier information (read-only)")
+      .def("__repr__", &Object::ShortCmd::toString);
+
+  py::class_<Object::BinaryCounterInfo, Object::Information,
+             std::shared_ptr<Object::BinaryCounterInfo>>(
+      m, "BinaryCounterInfo",
+      "This class represents all specific integrated totals of binary counter "
+      "point information")
+      .def(py::init(&Object::BinaryCounterInfo::create), R"def(
+    __init__(self: c104.BinaryCounterInfo, counter: int, sequence: c104.UInt5, quality: c104.BinaryCounterQuality = c104.BinaryCounterQuality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new short measurement info
+
+    Parameters
+    -------
+    counter: int
+        t. b. a.
+    sequence: :ref:`c104.UInt5`
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> counter_info = c104.BinaryCounterInfo(counter=2345, sequence=c104.UInt5(35), quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "counter"_a, "sequence"_a = LimitedUInt5((uint32_t)0),
+           "quality"_a = Quality::None, "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("counter", &Object::BinaryCounterInfo::getCounter,
+                             "int: the value (read-only)")
+      .def_property_readonly(
+          "sequence", &Object::BinaryCounterInfo::getSequence,
+          ":ref:`c104.UInt5`: the counter sequence number (read-only)")
+      .def("__repr__", &Object::BinaryCounterInfo::toString);
+
+  py::class_<Object::ProtectionEquipmentEventInfo, Object::Information,
+             std::shared_ptr<Object::ProtectionEquipmentEventInfo>>(
+      m, "ProtectionEventInfo",
+      "This class represents all specific protection equipment single event "
+      "point information")
+      .def(py::init(&Object::ProtectionEquipmentEventInfo::create), R"def(
+    __init__(self: c104.ProtectionEventInfo, state: c104.EventState, elapsed_ms: c104.UInt16, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new event info raised by protection equipment
+
+    Parameters
+    -------
+    state: :ref:`c104.EventState`
+        t. b. a.
+    elapsed_ms: :ref:`c104.UInt16`
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> single_event = c104.ProtectionEventInfo(state=c104.EventState.ON, elapsed_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "state"_a, "elapsed_ms"_a = LimitedUInt16((uint32_t)0),
+           "quality"_a = Quality::None, "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly("state",
+                             &Object::ProtectionEquipmentEventInfo::getState,
+                             ":ref:`c104.EventState`: the state (read-only)")
+      .def_property_readonly(
+          "elapsed_ms", &Object::ProtectionEquipmentEventInfo::getElapsed_ms,
+          "int: the elapsed time in milliseconds (read-only)")
+      .def("__repr__", &Object::ProtectionEquipmentEventInfo::toString);
+
+  py::class_<Object::ProtectionEquipmentStartEventsInfo, Object::Information,
+             std::shared_ptr<Object::ProtectionEquipmentStartEventsInfo>>(
+      m, "ProtectionStartInfo",
+      "This class represents all specific protection equipment packed start "
+      "events point information")
+      .def(py::init(&Object::ProtectionEquipmentStartEventsInfo::create), R"def(
+    __init__(self: c104.ProtectionStartInfo, events: c104.StartEvents, relay_duration_ms: c104.UInt16, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new packed event start info raised by protection equipment
+
+    Parameters
+    -------
+    events: :ref:`c104.StartEvents`
+        t. b. a.
+    relay_duration_ms: :ref:`c104.UInt16`
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> start_events = c104.ProtectionStartInfo(events=c104.StartEvents.ON, relay_duration_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "events"_a, "relay_duration_ms"_a = LimitedUInt16((uint32_t)0),
+           "quality"_a = Quality::None, "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly(
+          "events", &Object::ProtectionEquipmentStartEventsInfo::getEvents,
+          ":ref:`c104.StartEvents`: the started events (read-only)")
+      .def_property_readonly(
+          "relay_duration_ms",
+          &Object::ProtectionEquipmentStartEventsInfo::getRelayDuration_ms,
+          "int: the relay duration information (read-only)")
+      .def("__repr__", &Object::ProtectionEquipmentStartEventsInfo::toString);
+
+  py::class_<Object::ProtectionEquipmentOutputCircuitInfo, Object::Information,
+             std::shared_ptr<Object::ProtectionEquipmentOutputCircuitInfo>>(
+      m, "ProtectionCircuitInfo",
+      "This class represents all specific protection equipment output circuit "
+      "point information")
+      .def(py::init(&Object::ProtectionEquipmentOutputCircuitInfo::create),
+           R"def(
+    __init__(self: c104.ProtectionCircuitInfo, circuits: c104.OutputCircuits, relay_operating_ms: c104.UInt16, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new output circuits info raised by protection equipment
+
+    Parameters
+    -------
+    circuits: :ref:`c104.OutputCircuits`
+        t. b. a.
+    relay_operating_ms: :ref:`c104.UInt16`
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> output_circuits = c104.ProtectionCircuitInfo(events=c104.OutputCircuits.PhaseL1|c104.OutputCircuits.PhaseL2, relay_operating_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "events"_a, "relay_duration_ms"_a = LimitedUInt16((uint32_t)0),
+           "quality"_a = Quality::None, "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly(
+          "circuits",
+          &Object::ProtectionEquipmentOutputCircuitInfo::getCircuits,
+          ":ref:`c104.OutputCircuits`: the started events (read-only)")
+      .def_property_readonly(
+          "relay_operating_ms",
+          &Object::ProtectionEquipmentOutputCircuitInfo::getRelayOperating_ms,
+          "int: the relay operation duration information (read-only)")
+      .def("__repr__", &Object::ProtectionEquipmentOutputCircuitInfo::toString);
+
+  py::class_<Object::StatusWithChangeDetection, Object::Information,
+             std::shared_ptr<Object::StatusWithChangeDetection>>(
+      m, "StatusAndChanged",
+      "This class represents all specific packed status point information with "
+      "change detection")
+      .def(py::init(&Object::StatusWithChangeDetection::create), R"def(
+    __init__(self: c104.StatusAndChanged, status: c104.FieldSet16, changed: c104.FieldSet16, quality: c104.Quality = c104.Quality.None, recorded_at_ms: Optional[int] = None) -> None
+
+    create a new event info raised by protection equipment
+
+    Parameters
+    -------
+    status: :ref:`c104.FieldSet16`
+        t. b. a.
+    changed: :ref:`c104.FieldSet16`
+        t. b. a.
+    quality: :ref:`c104.Quality`
+        t. b. a.
+    recorded_at_ms: Optional[int]
+        t. b. a.
+
+    Example
+    -------
+    >>> output_circuits = c104.StatusAndChanged(status=c104.FieldSet16(3), changed=c104.FieldSet16(5), quality=c104.Quality.Invalid, recorded_at_ms=round(time.time()*1000))
+)def",
+           "status"_a, "changed"_a = FieldSet16(0), "quality"_a = Quality::None,
+           "recorded_at_ms"_a = std::nullopt)
+      .def_property_readonly(
+          "status", &Object::StatusWithChangeDetection::getStatus,
+          ":ref:`c104.FieldSet16`: the current status (read-only)")
+      .def_property_readonly(
+          "changed", &Object::StatusWithChangeDetection::getChanged,
+          ":ref:`c104.FieldSet16`: the changed information (read-only)")
+      .def("__repr__", &Object::StatusWithChangeDetection::toString);
 
   py::class_<Remote::Message::IncomingMessage,
              std::shared_ptr<Remote::Message::IncomingMessage>>(
@@ -2106,17 +2995,17 @@ PY_MODULE(c104, m) {
                              py::return_value_policy::copy)
       .def_property_readonly(
           "common_address", &Remote::Message::IncomingMessage::getCommonAddress,
-          "int: common address (0-65535) (read-only)",
+          "int: common address (1-65534) (read-only)",
           py::return_value_policy::copy)
       .def_property_readonly(
           "originator_address",
           &Remote::Message::IncomingMessage::getOriginatorAddress,
           "int: originator address (0-255) (read-only)",
           py::return_value_policy::copy)
-      .def_property_readonly("io_address",
-                             &Remote::Message::IncomingMessage::getIOA,
-                             "int: information object address (read-only)",
-                             py::return_value_policy::copy)
+      .def_property_readonly(
+          "io_address", &Remote::Message::IncomingMessage::getIOA,
+          "int: information object address (0-16777215) (read-only)",
+          py::return_value_policy::copy)
       .def_property_readonly(
           "connection_string",
           &Remote::Message::IncomingMessage::getConnectionString,
@@ -2126,28 +3015,20 @@ PY_MODULE(c104, m) {
           "cot", &Remote::Message::IncomingMessage::getCauseOfTransmission,
           ":ref:`c104.Cot`: cause of transmission (read-only)",
           py::return_value_policy::copy)
-      .def_property_readonly(
-          "value", &Remote::Message::IncomingMessage::getValue,
-          "float: value (read-only)", py::return_value_policy::copy)
-      .def_property_readonly(
-          "quality", &Remote::Message::IncomingMessage::getQuality,
-          ":ref:`c104.Quality`: quality restrictions bitset object (read-only)",
-          py::return_value_policy::copy)
+      .def_property_readonly("info", &Remote::Message::IncomingMessage::getInfo,
+                             ":ref:`c104.Information`: value (read-only)")
       .def_property_readonly("is_test",
                              &Remote::Message::IncomingMessage::isTest,
-                             "bool: test if test flag is set (read-only)",
-                             py::return_value_policy::copy)
+                             "bool: test if test flag is set (read-only)")
       .def_property_readonly("is_sequence",
                              &Remote::Message::IncomingMessage::isSequence,
-                             "bool: test if sequence flag is set (read-only)",
-                             py::return_value_policy::copy)
+                             "bool: test if sequence flag is set (read-only)")
       .def_property_readonly("is_negative",
                              &Remote::Message::IncomingMessage::isNegative,
-                             "bool: test if negative flag is set (read-only)",
-                             py::return_value_policy::copy)
+                             "bool: test if negative flag is set (read-only)")
       .def_property_readonly("raw", &IncomingMessage_getRawBytes,
                              "bytes: asdu message bytes (read-only)",
-                             py::return_value_policy::copy)
+                             py::return_value_policy::take_ownership)
       .def_property_readonly(
           "raw_explain", &Remote::Message::IncomingMessage::getRawMessageString,
           "str: asdu message bytes explained (read-only)",
@@ -2162,12 +3043,6 @@ PY_MODULE(c104, m) {
                              "bool: test if message is a point command and has "
                              "select flag set (read-only)",
                              py::return_value_policy::copy)
-      .def_property_readonly(
-          "command_qualifier",
-          &Remote::Message::IncomingMessage::getCommandQualifier,
-          ":ref:`c104.Qoc`: duration parameter, only for single, double "
-          "and regulating step command messages (read-only)",
-          py::return_value_policy::copy)
       .def("first", &Remote::Message::IncomingMessage::first, R"def(
     first(self: c104.IncomingMessage) -> None
 

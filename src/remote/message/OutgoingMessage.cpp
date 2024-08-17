@@ -39,7 +39,8 @@
 
 using namespace Remote::Message;
 
-OutgoingMessage::OutgoingMessage(std::shared_ptr<Object::DataPoint> point)
+OutgoingMessage::OutgoingMessage(
+    const std::shared_ptr<Object::DataPoint> &point)
     : IMessageInterface() {
   if (!point)
     throw std::invalid_argument("Cannot create OutgoingMessage without point");
@@ -47,8 +48,7 @@ OutgoingMessage::OutgoingMessage(std::shared_ptr<Object::DataPoint> point)
   io = nullptr;
 
   type = point->getType();
-  quality = point->getQuality();
-  value = point->getValue();
+  info = point->getInfo();
 
   causeOfTransmission = CS101_COT_UNKNOWN_COT;
 

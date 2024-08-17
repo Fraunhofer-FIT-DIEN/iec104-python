@@ -5,7 +5,8 @@ project(c104)
 # COMPILE FLAGS
 # ##############################################################################
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_VERBOSE_MAKEFILE on)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -78,6 +79,7 @@ include_directories(
   depends/lib60870/lib60870-C/src/common/inc)
 
 set(c104_SOURCES
+    src/numbers.h
     src/enums.h
     src/enums.cpp
     src/types.cpp
@@ -86,6 +88,7 @@ set(c104_SOURCES
     src/module/ScopedGilAcquire.h
     src/module/ScopedGilRelease.h
     src/module/GilAwareMutex.h
+    src/object/Information.h
     src/object/DataPoint.h
     src/object/Station.h
     src/remote/Helper.h
@@ -107,6 +110,7 @@ set(c104_SOURCES
     src/Client.h
     src/Server.cpp
     src/Server.h
+    src/object/Information.cpp
     src/object/DataPoint.cpp
     src/object/Station.cpp
     src/python.cpp)

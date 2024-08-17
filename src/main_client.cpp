@@ -53,7 +53,7 @@ void cl_dump(std::shared_ptr<Client> my_client,
                   << std::to_string(st_iter->getCommonAddress()) << " has "
                   << std::to_string(st_pt_count) << " points" << std::endl;
         std::cout << "             |   TYPE         |    IOA     |        "
-                     "VALUE         |      UPDATED AT      |      REPORTED AT  "
+                     "VALUE         |      UPDATED AT      |      RECORDED AT  "
                      "   |      QUALITY      "
                   << std::endl;
         std::cout
@@ -67,12 +67,12 @@ void cl_dump(std::shared_ptr<Client> my_client,
                     << " | " << std::setw(10)
                     << std::to_string(pt_iter->getInformationObjectAddress())
                     << " | " << std::setw(20)
-                    << std::to_string(pt_iter->getValue()) << " | "
+                    << InfoValue_toString(pt_iter->getValue()) << " | "
                     << std::setw(20)
                     << std::to_string(pt_iter->getUpdatedAt_ms()) << " | "
                     << std::setw(20)
-                    << std::to_string(pt_iter->getReportedAt_ms()) << " | "
-                    << Quality_toString(pt_iter->getQuality()) << std::endl;
+                    << std::to_string(pt_iter->getProcessedAt_ms()) << " | "
+                    << InfoQuality_toString(pt_iter->getQuality()) << std::endl;
         }
         std::cout
             << "             "
@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
   py::scoped_interpreter guard{};
   auto c104 = py::module_::import("c104");
 
-  bool const USE_TLS = true;
+  bool const USE_TLS = false;
   std::string ROOT = argv[0];
 
   bool found = false;
@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
   auto my_client = Client::create(1000, 5000, tlsconf);
   my_client->setOriginatorAddress(123);
 
-  auto cl_connection_1 = my_client->addConnection("127.0.0.1", 19998);
+  auto cl_connection_1 = my_client->addConnection("127.0.0.1", 2404, INIT_NONE);
 
   auto cl_station_1 = cl_connection_1->addStation(47);
   auto cl_step_command = cl_station_1->addPoint(32, C_RC_TA_1);
@@ -131,8 +131,14 @@ int main(int argc, char *argv[]) {
   /*
    * connect loop
    */
-
   my_client->start();
+
+  // while(true) {
+  // my_client->start();
+  // std::this_thread::sleep_for(1s);
+  // cl_connection_1->disconnect();
+  // my_client->stop();
+  //}
 
   while (!cl_connection_1->isOpen()) {
     std::cout << "Waiting for connection" << std::endl;
@@ -163,7 +169,7 @@ int main(int argc, char *argv[]) {
    */
 
   auto cl_single_command = cl_station_2->addPoint(16, C_SC_NA_1);
-  cl_single_command->setValue(0);
+  cl_single_command->setValue(false);
   if (cl_single_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Single command OFF successful" << std::endl;
   } else {
@@ -184,9 +190,9 @@ int main(int argc, char *argv[]) {
    */
 
   auto cl_double_command = cl_station_2->addPoint(22, C_DC_TA_1);
+  cl_double_command->setInfo(Object::DoubleInfo::create(
+      IEC60870_DOUBLE_POINT_ON, Quality::None, 1711111111111));
 
-  cl_double_command->setValueEx(IEC60870_DOUBLE_POINT_ON, Quality::None,
-                                1711111111111);
   if (cl_double_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Double command ON successful" << std::endl;
   } else {
@@ -209,7 +215,7 @@ int main(int argc, char *argv[]) {
   auto cl_setpoint_1 = cl_station_2->addPoint(12, C_SE_NC_1);
   auto cl_setpoint_2 = cl_station_2->addPoint(13, C_SE_NC_1);
 
-  cl_setpoint_1->setValue(13.45);
+  cl_setpoint_1->setInfo(Object::ShortCmd::create(13.45));
   if (cl_setpoint_1->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Setpoint1 command successful" << std::endl;
   } else {
@@ -217,7 +223,7 @@ int main(int argc, char *argv[]) {
   }
   std::this_thread::sleep_for(1s);
 
-  cl_setpoint_2->setValue(13.45);
+  cl_setpoint_2->setInfo(Object::ShortCmd::create(13.45));
   if (cl_setpoint_2->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Setpoint2 command successful" << std::endl;
   } else {

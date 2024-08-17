@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -43,6 +43,7 @@
  * @brief service model for IEC60870-5-104 communication as client
  */
 class Client : public std::enable_shared_from_this<Client> {
+
   // @todo import/export station with DataPoints to string
   // @todo add callback each packet
 public:
@@ -161,12 +162,15 @@ public:
   void onNewPoint(std::shared_ptr<Object::Station> station,
                   std::uint_fast32_t io_address, IEC60870_5_TypeID type);
 
+  void scheduleTask(const std::function<void()> &task, int delay = 0);
+
 private:
   /**
    * @brief Create a new remote connection handler instance that acts as a
    * client
    * @details create a map of possible connections
-   * @param tick_rate_ms intervall in milliseconds between the client checks connection states
+   * @param tick_rate_ms intervall in milliseconds between the client checks
+   * connection states
    * @param timeout_ms timeout in milliseconds before an inactive connection
    * @param transport_security communication encryption instance reference
    * gets closed
@@ -192,14 +196,7 @@ private:
   /// @brief list of all created connections to remote servers
   Remote::ConnectionVector connections;
 
-  /// @brief number of active connections
-  std::atomic_uint_fast8_t activeConnections{0};
-
-  /// @brief number of open connections
-  std::atomic_uint_fast8_t openConnections{0};
-
-  /// @brief minimum interval between to reconnects in milliseconds
-  std::atomic_uint_fast32_t tickRate_ms{1000};
+  std::priority_queue<Task> tasks;
 
   /// @brief client thread to execute reconnects
   std::thread *runThread = nullptr;
@@ -235,6 +232,20 @@ private:
    */
   std::shared_ptr<Remote::Connection>
   getConnectionFromString(const std::string &connectionString);
+
+public:
+  std::string toString() const {
+    size_t len = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(connections_mutex);
+      len = connections.size();
+    }
+    std::ostringstream oss;
+    oss << "<104.Client originator_address=" << originatorAddress
+        << ", #connections=" << len << " at " << std::hex << std::showbase
+        << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 
 #endif // C104_CLIENT_H

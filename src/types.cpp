@@ -75,3 +75,56 @@ void Assert_Port(const int_fast64_t port) {
 }
 
 uint_fast64_t GetTimestamp_ms() { return Hal_getTimeInMs(); }
+
+struct InfoValueToStringVisitor {
+  std::string operator()(std::monostate value) const { return "N.A."; }
+  std::string operator()(bool value) const { return std::to_string(value); }
+  std::string operator()(DoublePointValue value) const {
+    return DoublePointValue_toString(value);
+  }
+  std::string operator()(const LimitedInt7 &obj) {
+    return std::to_string(obj.get());
+  }
+  std::string operator()(StepCommandValue value) const {
+    return StepCommandValue_toString(value);
+  }
+  std::string operator()(const Byte32 &obj) {
+    return std::to_string(obj.get());
+  }
+  std::string operator()(const NormalizedFloat &obj) {
+    return std::to_string(obj.get());
+  }
+  std::string operator()(const LimitedInt16 &obj) {
+    return std::to_string(obj.get());
+  }
+  std::string operator()(float value) const { return std::to_string(value); }
+  std::string operator()(int32_t value) const { return std::to_string(value); }
+  std::string operator()(EventState value) const {
+    return EventState_toString(value);
+  }
+  std::string operator()(const StartEvents &obj) {
+    return StartEvents_toString(obj);
+  }
+  std::string operator()(const OutputCircuits &obj) {
+    return OutputCircuits_toString(obj);
+  }
+  std::string operator()(const FieldSet16 &obj) {
+    return FieldSet16_toString(obj);
+  }
+};
+
+std::string InfoValue_toString(const InfoValue &value) {
+  return std::visit(InfoValueToStringVisitor(), value);
+}
+
+struct QualityValueToStringVisitor {
+  std::string operator()(std::monostate value) const { return "N.A."; }
+  std::string operator()(const Quality &obj) { return Quality_toString(obj); }
+  std::string operator()(const BinaryCounterQuality &obj) {
+    return BinaryCounterQuality_toString(obj);
+  }
+};
+
+std::string InfoQuality_toString(const InfoQuality &value) {
+  return std::visit(QualityValueToStringVisitor(), value);
+}

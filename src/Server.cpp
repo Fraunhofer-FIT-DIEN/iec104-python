@@ -125,7 +125,6 @@ void Server::start() {
   Module::ScopedGilRelease const scoped("Server.start");
 
   CS104_Slave_start(slave);
-  std::this_thread::sleep_for(1s);
 
   if (!CS104_Slave_isRunning(slave)) {
     enabled.store(false);
@@ -137,51 +136,86 @@ void Server::start() {
   if (!runThread) {
     runThread = new std::thread(&Server::thread_run, this);
   }
+
+  // Schedule first execution
+  schedulePeriodicTask(
+      [this]() {
+        if (activeConnections) {
+          sendInterrogationResponse(CS101_COT_PERIODIC);
+          cleanupSelections();
+        }
+      },
+      1000);
+}
+
+void Server::schedulePeriodicTask(const std::function<void()> &task,
+                                  int interval) {
+  {
+    if (interval < 1000) {
+      throw std::out_of_range(
+          "The interval for periodic tasks must be 1000ms at minimum.");
+    }
+    auto periodic = std::make_shared<std::function<void()>>([]() {});
+    *periodic = [this, task, interval, periodic]() {
+      // Schedule next execution
+      scheduleTask(*periodic, interval);
+      task();
+    };
+    // Schedule first execution
+    scheduleTask(*periodic, interval);
+  }
+
+  runThread_wait.notify_one();
+}
+
+void Server::scheduleTask(const std::function<void()> &task, int delay) {
+  {
+    std::lock_guard<std::mutex> lock(runThread_mutex);
+    if (delay < 0) {
+      tasks.push({task, std::chrono::system_clock::time_point::min()});
+    } else {
+      tasks.push({task, std::chrono::system_clock::now() +
+                            std::chrono::milliseconds(delay)});
+    }
+  }
+
+  runThread_wait.notify_one();
 }
 
 void Server::thread_run() {
   running.store(true);
-  std::unique_lock<std::mutex> lock(runThread_mutex);
-  uint_fast16_t count = 0;
-  std::chrono::system_clock::time_point desiredEnd;
-  bool debug = false;
-
   while (enabled.load()) {
-    debug = DEBUG_TEST(Debug::Server);
-    desiredEnd = std::chrono::system_clock::now() + tickRate_ms.load() * 1ms;
+    std::function<void()> task;
 
-    count = CS104_Slave_getOpenConnections(slave);
-    if (count != openConnections) {
-      openConnections = count;
+    {
+      std::unique_lock<std::mutex> lock(runThread_mutex);
+      if (tasks.empty()) {
+        runThread_wait.wait(lock);
+        continue;
+      }
 
-      DEBUG_PRINT_CONDITION(debug, Debug::Server,
-                            "thread_run] Connected clients: " +
-                                std::to_string(count));
+      auto now = std::chrono::system_clock::now();
+      if (now >= tasks.top().schedule_time) {
+        task = tasks.top().function;
+        tasks.pop();
+      } else {
+        runThread_wait.wait_until(lock, tasks.top().schedule_time);
+        continue;
+      }
     }
 
-    // @TODO periodic transmission should be handled on per connection basis or
-    // dropped
-    if (activeConnections) {
-      sendInterrogationResponse(CS101_COT_PERIODIC);
-    }
-
-    runThread_wait.wait_until(lock, desiredEnd);
-
-    if (debug) {
-      auto diff = std::chrono::duration_cast<std::chrono::microseconds>(
-                      std::chrono::system_clock::now() - desiredEnd)
-                      .count();
-      if (diff > 5000) {
-        DEBUG_PRINT_CONDITION(true, Debug::Server,
-                              "thread_run] Cannot keep up the tick rate: " +
-                                  std::to_string(diff) + u8" \xb5s");
-      } /* else {
-           DEBUG_PRINT_CONDITION(true, Debug::Server, "Server.thread_run] Tick |
-       CON " + std::to_string(activeConnections));
-       }*/
+    try {
+      task();
+    } catch (const std::exception &e) {
+      std::cerr << "[c104.Server.loop] Task aborted: " << e.what() << std::endl;
     }
   }
-
+  if (!tasks.empty()) {
+    std::cerr << "[c104.Server.loop] Tasks dropped: " << tasks.size()
+              << std::endl;
+    std::priority_queue<Task> empty;
+    std::swap(tasks, empty);
+  }
   running.store(false);
 }
 
@@ -204,9 +238,7 @@ void Server::stop() {
   }
 
   CS104_Slave_stop(slave);
-  for (auto &it : connectionMap) {
-    IMasterConnection_close(it.first);
-  }
+
   connectionMap.clear();
   activeConnections.store(0);
   openConnections.store(0);
@@ -222,10 +254,19 @@ bool Server::hasStations() const {
   return !stations.empty();
 }
 
-bool Server::hasOpenConnections() const { return openConnections.load() > 0; }
+bool Server::isActiveConnection(IMasterConnection connection) {
+  std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+
+  auto it = connectionMap.find(connection);
+  return it != connectionMap.end() && it->second;
+}
+
+bool Server::hasOpenConnections() const {
+  return CS104_Slave_getOpenConnections(slave) > 0;
+}
 
 std::uint_fast8_t Server::getOpenConnectionCount() const {
-  return openConnections.load();
+  return CS104_Slave_getOpenConnections(slave);
 }
 
 bool Server::hasActiveConnections() const {
@@ -233,7 +274,7 @@ bool Server::hasActiveConnections() const {
 }
 
 std::uint_fast8_t Server::getActiveConnectionCount() const {
-  return openConnections.load();
+  return activeConnections.load();
 }
 
 Object::StationVector Server::getStations() const {
@@ -281,19 +322,170 @@ Server::addStation(std::uint_fast16_t commonAddress) {
   return station;
 }
 
+void Server::cleanupSelections() {
+  auto now = std::chrono::system_clock::now();
+  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
+  selectionVector.erase(
+      std::remove_if(selectionVector.begin(), selectionVector.end(),
+                     [this, now](const Selection &s) {
+                       if ((now - s.created) < selectTimeout_ms) {
+                         return false;
+                       } else {
+                         unselect(s);
+                         return true;
+                       }
+                     }),
+      selectionVector.end());
+}
+
+void Server::cleanupSelections(IMasterConnection connection) {
+  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
+  selectionVector.erase(std::remove_if(selectionVector.begin(),
+                                       selectionVector.end(),
+                                       [this, connection](const Selection &s) {
+                                         if (s.connection == connection) {
+                                           unselect(s);
+                                           return true;
+                                         } else {
+                                           return false;
+                                         }
+                                       }),
+                        selectionVector.end());
+}
+
+void Server::cleanupSelection(uint16_t ca, uint32_t ioa) {
+  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
+  selectionVector.erase(std::remove_if(selectionVector.begin(),
+                                       selectionVector.end(),
+                                       [this, ca, ioa](const Selection &s) {
+                                         if (s.ca == ca && s.ioa == ioa) {
+                                           unselect(s);
+                                           return true;
+                                         } else {
+                                           return false;
+                                         }
+                                       }),
+                        selectionVector.end());
+}
+
+std::optional<uint8_t> Server::getSelector(const uint16_t ca,
+                                           const uint32_t ioa) {
+  auto now = std::chrono::system_clock::now();
+  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
+  auto it = std::find_if(
+      selectionVector.begin(), selectionVector.end(),
+      [ca, ioa](const Selection &s) { return s.ca == ca && s.ioa == ioa; });
+
+  // selection NOT found
+  if (it != selectionVector.end() && (now - it->created) < selectTimeout_ms) {
+    return it->oa;
+  }
+  return std::nullopt;
+}
+
+bool Server::select(IMasterConnection connection,
+                    std::shared_ptr<Remote::Message::IncomingMessage> message) {
+  const auto type = message->getType();
+  if (type < C_SC_NA_1 || C_BO_NA_1 == type || C_SE_TC_1 < type) {
+    throw std::invalid_argument(
+        "Only control points, except for binary commands can be selected");
+  }
+
+  const uint8_t oa = message->getOriginatorAddress();
+  const uint16_t ca = message->getCommonAddress();
+  const uint32_t ioa = message->getIOA();
+  auto now = std::chrono::system_clock::now();
+
+  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
+  auto it = std::find_if(
+      selectionVector.begin(), selectionVector.end(),
+      [ca, ioa](const Selection &s) { return s.ca == ca && s.ioa == ioa; });
+
+  // selection NOT found
+  if (it == selectionVector.end()) {
+    CS101_ASDU cp = CS101_ASDU_clone(message->getAsdu(), nullptr);
+    selectionVector.emplace_back<Selection>({cp, oa, ca, ioa, connection, now});
+  }
+  // selection found
+  else {
+    if ((it->connection != connection) &&
+        (now - it->created) < selectTimeout_ms) {
+      return false;
+    } else {
+      it->created = now;
+    }
+  }
+
+  return true;
+}
+
+void Server::unselect(const Selection &selection) {
+  scheduleTask([this, selection]() {
+    if (isActiveConnection(selection.connection)) {
+      CS101_ASDU_setCOT(selection.asdu, CS101_COT_ACTIVATION_TERMINATION);
+      IMasterConnection_sendASDU(selection.connection, selection.asdu);
+    }
+    CS101_ASDU_destroy(selection.asdu);
+  });
+}
+
+CommandResponseState
+Server::execute(IMasterConnection connection,
+                std::shared_ptr<Remote::Message::IncomingMessage> message,
+                std::shared_ptr<Object::DataPoint> point) {
+  bool selected = false;
+  const uint16_t ca = message->getCommonAddress();
+  const uint32_t ioa = message->getIOA();
+
+  if (SELECT_AND_EXECUTE_COMMAND == point->getCommandMode()) {
+    auto now = std::chrono::system_clock::now();
+
+    std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
+    auto it = std::find_if(
+        selectionVector.begin(), selectionVector.end(),
+        [ca, ioa](const Selection &s) { return s.ca == ca && s.ioa == ioa; });
+
+    // selection NOT found
+    selected = (it != selectionVector.end() && (it->connection == connection) &&
+                (now - it->created) < selectTimeout_ms);
+    if (!selected) {
+      std::cerr << "Cannot execute command on point in SELECT_AND_EXECUTE "
+                   "command mode without selection"
+                << std::endl;
+      return RESPONSE_STATE_FAILURE;
+    }
+  }
+
+  auto res = point->onReceive(std::move(message));
+
+  if (selected) {
+    cleanupSelection(ca, ioa);
+  }
+
+  return res;
+}
+
 void Server::setOnReceiveRawCallback(py::object &callable) {
   py_onReceiveRaw.reset(callable);
 }
 
 void Server::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
   if (py_onReceiveRaw.is_set()) {
-    DEBUG_PRINT(Debug::Server, "CALLBACK on_receive_raw");
-    Module::ScopedGilAcquire const scoped("Server.on_receive_raw");
-    PyObject *pymemview =
-        PyMemoryView_FromMemory((char *)msg, msgSize, PyBUF_READ);
-    PyObject *pybytes = PyBytes_FromObject(pymemview);
+    // create a copy
+    auto *cp = new char[msgSize];
+    memcpy(cp, msg, msgSize);
 
-    py_onReceiveRaw.call(shared_from_this(), py::handle(pybytes));
+    scheduleTask([this, cp, msgSize]() {
+      DEBUG_PRINT(Debug::Server, "CALLBACK on_receive_raw");
+      Module::ScopedGilAcquire const scoped("Server.on_receive_raw");
+      PyObject *pymemview =
+          PyMemoryView_FromMemory((char *)cp, msgSize, PyBUF_READ);
+      PyObject *pybytes = PyBytes_FromObject(pymemview);
+
+      py_onReceiveRaw.call(shared_from_this(), py::handle(pybytes));
+
+      delete[] cp;
+    });
   }
 }
 
@@ -303,13 +495,21 @@ void Server::setOnSendRawCallback(py::object &callable) {
 
 void Server::onSendRaw(unsigned char *msg, unsigned char msgSize) {
   if (py_onSendRaw.is_set()) {
-    DEBUG_PRINT(Debug::Server, "CALLBACK on_send_raw");
-    Module::ScopedGilAcquire const scoped("Server.on_send_raw");
-    PyObject *pymemview =
-        PyMemoryView_FromMemory((char *)msg, msgSize, PyBUF_READ);
-    PyObject *pybytes = PyBytes_FromObject(pymemview);
+    // create a copy
+    auto *cp = new char[msgSize];
+    memcpy(cp, msg, msgSize);
 
-    py_onSendRaw.call(shared_from_this(), py::handle(pybytes));
+    scheduleTask([this, cp, msgSize]() {
+      DEBUG_PRINT(Debug::Server, "CALLBACK on_send_raw");
+      Module::ScopedGilAcquire const scoped("Server.on_send_raw");
+      PyObject *pymemview =
+          PyMemoryView_FromMemory((char *)cp, msgSize, PyBUF_READ);
+      PyObject *pybytes = PyBytes_FromObject(pymemview);
+
+      py_onSendRaw.call(shared_from_this(), py::handle(pybytes));
+
+      delete[] cp;
+    });
   }
 }
 
@@ -398,9 +598,11 @@ void Server::onUnexpectedMessage(
   }
 
   if (py_onUnexpectedMessage.is_set()) {
-    DEBUG_PRINT(Debug::Server, "CALLBACK on_unexpected_message");
-    Module::ScopedGilAcquire const scoped("Server.on_unexpected_message");
-    py_onUnexpectedMessage.call(shared_from_this(), message, cause);
+    scheduleTask([this, message, cause]() {
+      DEBUG_PRINT(Debug::Server, "CALLBACK on_unexpected_message");
+      Module::ScopedGilAcquire const scoped("Server.on_unexpected_message");
+      py_onUnexpectedMessage.call(shared_from_this(), message, cause);
+    });
   }
 }
 
@@ -409,7 +611,14 @@ void Server::setOnConnectCallback(py::object &callable) {
 }
 
 bool Server::connectionRequestHandler(void *parameter, const char *ipAddress) {
-  auto instance = static_cast<Server *>(parameter)->shared_from_this();
+  std::shared_ptr<Server> instance{};
+
+  try {
+    instance = static_cast<Server *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Server, "Reject connection request in shutdown");
+    return false;
+  }
 
   if (instance->py_onConnect.is_set()) {
     DEBUG_PRINT(Debug::Server, "CALLBACK on_connect");
@@ -438,7 +647,16 @@ void Server::connectionEventHandler(void *parameter,
     begin = std::chrono::steady_clock::now();
   }
 
-  auto instance = static_cast<Server *>(parameter)->shared_from_this();
+  std::shared_ptr<Server> instance{};
+
+  try {
+    instance = static_cast<Server *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Server, "Ignore connection event " +
+                                   PeerConnectionEvent_toString(event) +
+                                   " in shutdown");
+    return;
+  }
 
   char ipAddrStr[60];
   IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
@@ -466,7 +684,10 @@ void Server::connectionEventHandler(void *parameter,
         }
         instance->connectionMap.erase(it);
       }
-
+      // remove selections
+      instance->scheduleTask([instance, connection]() {
+        instance->cleanupSelections(connection);
+      });
     } else if (event == CS104_CON_EVENT_ACTIVATED) {
       // set as valid receiver
       auto it = instance->connectionMap.find(connection);
@@ -494,16 +715,11 @@ void Server::connectionEventHandler(void *parameter,
 
   if (debug) {
     end = std::chrono::steady_clock::now();
-    DEBUG_PRINT_CONDITION(
-        true, Debug::Server,
-        "connection_event_handler] Connection " +
-            PeerConnectionEvent_toString(event) + " by " +
-            std::string(ipAddrStr) + " | TOTAL " +
-            std::to_string(
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      begin)
-                    .count()) +
-            u8" \xb5s");
+    DEBUG_PRINT_CONDITION(true, Debug::Server,
+                          "connection_event_handler] Connection " +
+                              PeerConnectionEvent_toString(event) + " by " +
+                              std::string(ipAddrStr) + " | TOTAL " +
+                              TICTOC(begin, end));
   }
 }
 
@@ -568,18 +784,13 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
 
   if (debug) {
     end = std::chrono::steady_clock::now();
-    DEBUG_PRINT_CONDITION(
-        true, Debug::Server,
-        "send] Send " + std::string(TypeID_toString(message->getType())) +
-            " | COT: " +
-            CS101_CauseOfTransmission_toString(
-                message->getCauseOfTransmission()) +
-            " | TOTAL " +
-            std::to_string(
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      begin)
-                    .count()) +
-            u8" \xb5s");
+    DEBUG_PRINT_CONDITION(true, Debug::Server,
+                          "send] Send " +
+                              std::string(TypeID_toString(message->getType())) +
+                              " | COT: " +
+                              CS101_CauseOfTransmission_toString(
+                                  message->getCauseOfTransmission()) +
+                              " | TOTAL " + TICTOC(begin, end));
   }
 
   return true;
@@ -663,7 +874,7 @@ void Server::sendInterrogationResponse(const CS101_CauseOfTransmission cot,
           }
           // is ready for cyclic transmission ?
           const std::uint_fast64_t next =
-              point->getReportedAt_ms() + point->getReportInterval_ms();
+              point->getProcessedAt_ms() + point->getReportInterval_ms();
           if (now < next) {
             continue;
           }
@@ -671,8 +882,9 @@ void Server::sendInterrogationResponse(const CS101_CauseOfTransmission cot,
           // value polling callback
           point->onBeforeAutoTransmit();
 
-          // updated reportedAt timestamp in case of periodic transmission
-          point->setReportedAt_ms(now);
+          // updated locally processed timestamp in case of periodic
+          // transmission
+          point->setProcessedAt_ms(now);
         } else {
           point->onBeforeRead();
         }
@@ -778,24 +990,14 @@ void Server::sendInterrogationResponse(const CS101_CauseOfTransmission cot,
     if (CS101_COT_PERIODIC == cot) {
       if (!empty) {
 
-        DEBUG_PRINT_CONDITION(
-            true, Debug::Server,
-            "send_interrogation_response] Periodic | TOTAL " +
-                std::to_string(
-                    std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          begin)
-                        .count()) +
-                u8" \xb5s");
+        DEBUG_PRINT_CONDITION(true, Debug::Server,
+                              "send_interrogation_response] Periodic | TOTAL " +
+                                  TICTOC(begin, end));
       }
     } else {
-      DEBUG_PRINT_CONDITION(
-          true, Debug::Server,
-          "send_interrogation_response] Request | TOTAL " +
-              std::to_string(
-                  std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                        begin)
-                      .count()) +
-              u8" \xb5s");
+      DEBUG_PRINT_CONDITION(true, Debug::Server,
+                            "send_interrogation_response] Request | TOTAL " +
+                                TICTOC(begin, end));
     }
   }
 }
@@ -835,15 +1037,15 @@ std::shared_ptr<Remote::Message::OutgoingMessage>>> pointGroup;
                 }
 
                 // is ready for cyclic transmission ?
-                const std::uint_fast64_t next = point->getReportedAt_ms() +
+                const std::uint_fast64_t next = point->getRecordedAt_ms() +
 point->getReportInterval_ms(); if (now < next) { continue;
                 }
 
                 // value polling callback
                 point->onBeforeAutoTransmit();
 
-                // updated reportedAt timestamp in case of periodic transmission
-                point->setReportedAt_ms(now);
+                // updated locally processed timestamp in case of periodic
+transmission point->setRecordedAt_ms(now);
 
                 try {
                     // transmit value to client
@@ -907,9 +1109,7 @@ message.second->getInformationObject());
         end = std::chrono::steady_clock::now();
         if (!empty) {
             DEBUG_PRINT_CONDITION(true, Debug::Server, "Server.sendPeriodic]
-TOTAL " +
-std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(end -
-begin).count()) + u8" \xb5s");
+TOTAL " + TICTOC(begin, end));
         }
     }
 }*/
@@ -967,7 +1167,15 @@ void Server::rawMessageHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  auto instance = static_cast<Server *>(parameter)->shared_from_this();
+  std::shared_ptr<Server> instance{};
+
+  try {
+    instance = static_cast<Server *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Server, "Ignore raw message in shutdown");
+    return;
+  }
+
   if (sent) {
     instance->onSendRaw(msg, msgSize);
   } else {
@@ -976,14 +1184,8 @@ void Server::rawMessageHandler(void *parameter, IMasterConnection connection,
 
   if (debug) {
     end = std::chrono::steady_clock::now();
-    DEBUG_PRINT_CONDITION(
-        true, Debug::Server,
-        "raw_message_handler] TOTAL " +
-            std::to_string(
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      begin)
-                    .count()) +
-            u8" \xb5s");
+    DEBUG_PRINT_CONDITION(true, Debug::Server,
+                          "raw_message_handler] TOTAL " + TICTOC(begin, end));
   }
 }
 
@@ -995,7 +1197,14 @@ CS101_ASDU asdu, CP56Time2a newtime) { bool debug = DEBUG_TEST(Debug::Server);
         begin = std::chrono::steady_clock::now();
     }
 
-    auto instance = static_cast<Server *>(parameter)->shared_from_this();
+    std::shared_ptr<Server> instance{};
+
+    try {
+        instance = static_cast<Server *>(parameter)->shared_from_this();
+    } catch (const std::bad_weak_ptr &e) {
+        DEBUG_PRINT(Debug::Server, "Reject clock sync command in shutdown");
+        return false;
+    }
 
     char ipAddrStr[60];
     IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
@@ -1012,9 +1221,7 @@ CS101_ASDU asdu, CP56Time2a newtime) { bool debug = DEBUG_TEST(Debug::Server);
                               "Server.clockSyncHandler] TIME " +
 CP56Time2a_toString(newtime) + " | IP " + std::string(ipAddrStr) + " | OA " +
 std::to_string(CS101_ASDU_getOA(asdu)) + " | CA " +
-std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " +
-std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(end -
-begin).count()) + u8" \xb5s");
+std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " + TICTOC(begin, end));
     }
     return true;
 }*/
@@ -1028,7 +1235,14 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  auto instance = static_cast<Server *>(parameter)->shared_from_this();
+  std::shared_ptr<Server> instance{};
+
+  try {
+    instance = static_cast<Server *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Server, "Reject interrogation command in shutdown");
+    return false;
+  }
 
   if (auto message = instance->getValidMessage(connection, asdu)) {
 
@@ -1058,18 +1272,14 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
     char ipAddrStr[60];
     IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
-    DEBUG_PRINT_CONDITION(
-        true, Debug::Server,
-        "interrogation_handler]"
-        " | IP " +
-            std::string(ipAddrStr) + " | OA " +
-            std::to_string(CS101_ASDU_getOA(asdu)) + " | CA " +
-            std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " +
-            std::to_string(
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      begin)
-                    .count()) +
-            u8" \xb5s");
+    DEBUG_PRINT_CONDITION(true, Debug::Server,
+                          "interrogation_handler]"
+                          " | IP " +
+                              std::string(ipAddrStr) + " | OA " +
+                              std::to_string(CS101_ASDU_getOA(asdu)) +
+                              " | CA " +
+                              std::to_string(CS101_ASDU_getCA(asdu)) +
+                              " | TOTAL " + TICTOC(begin, end));
   }
   return true;
 }
@@ -1083,7 +1293,15 @@ bool Server::counterInterrogationHandler(void *parameter,
     begin = std::chrono::steady_clock::now();
   }
 
-  auto instance = static_cast<Server *>(parameter)->shared_from_this();
+  std::shared_ptr<Server> instance{};
+
+  try {
+    instance = static_cast<Server *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Server,
+                "Reject counter interrogation command in shutdown");
+    return false;
+  }
 
   if (auto message = instance->getValidMessage(connection, asdu)) {
 
@@ -1112,18 +1330,14 @@ bool Server::counterInterrogationHandler(void *parameter,
     char ipAddrStr[60];
     IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
-    DEBUG_PRINT_CONDITION(
-        true, Debug::Server,
-        "counter_interrogation_handler]"
-        " | IP " +
-            std::string(ipAddrStr) + " | OA " +
-            std::to_string(CS101_ASDU_getOA(asdu)) + " | CA " +
-            std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " +
-            std::to_string(
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      begin)
-                    .count()) +
-            u8" \xb5s");
+    DEBUG_PRINT_CONDITION(true, Debug::Server,
+                          "counter_interrogation_handler]"
+                          " | IP " +
+                              std::string(ipAddrStr) + " | OA " +
+                              std::to_string(CS101_ASDU_getOA(asdu)) +
+                              " | CA " +
+                              std::to_string(CS101_ASDU_getCA(asdu)) +
+                              " | TOTAL " + TICTOC(begin, end));
   }
   return true;
 }
@@ -1136,7 +1350,14 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  auto instance = static_cast<Server *>(parameter)->shared_from_this();
+  std::shared_ptr<Server> instance{};
+
+  try {
+    instance = static_cast<Server *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Server, "Reject read command in shutdown");
+    return false;
+  }
 
   if (auto message = instance->getValidMessage(connection, asdu)) {
 
@@ -1186,17 +1407,13 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
     char ipAddrStr[60];
     IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
-    DEBUG_PRINT_CONDITION(
-        true, Debug::Server,
-        "read_handler] IOA " + std::to_string(ioAddress) + " | IP " +
-            std::string(ipAddrStr) + " | OA " +
-            std::to_string(CS101_ASDU_getOA(asdu)) + " | CA " +
-            std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " +
-            std::to_string(
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      begin)
-                    .count()) +
-            u8" \xb5s");
+    DEBUG_PRINT_CONDITION(true, Debug::Server,
+                          "read_handler] IOA " + std::to_string(ioAddress) +
+                              " | IP " + std::string(ipAddrStr) + " | OA " +
+                              std::to_string(CS101_ASDU_getOA(asdu)) +
+                              " | CA " +
+                              std::to_string(CS101_ASDU_getCA(asdu)) +
+                              " | TOTAL " + TICTOC(begin, end));
   }
   return true;
 }
@@ -1209,15 +1426,20 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  auto instance = static_cast<Server *>(parameter)->shared_from_this();
+  std::shared_ptr<Server> instance{};
+
+  try {
+    instance = static_cast<Server *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Server, "Reject asdu in shutdown");
+    return false;
+  }
 
   // message with more than one object is not allowed for command type ids
   if (auto message = instance->getValidMessage(connection, asdu)) {
 
     CommandResponseState responseState = RESPONSE_STATE_FAILURE;
     UnexpectedMessageCause cause = NO_ERROR_CAUSE;
-    std::shared_ptr<Object::DataPoint> related_point{nullptr};
-    bool requireTermination = false;
 
     // new clockSyncHandler
     if (message->getType() == C_CS_NA_1) {
@@ -1239,20 +1461,45 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
           if (auto point = station->getPoint(message->getIOA())) {
             if (point->getType() == message->getType()) {
 
-              responseState = point->onReceive(message);
+              if (message->isSelectCommand()) {
+                if (SELECT_AND_EXECUTE_COMMAND == point->getCommandMode()) {
+                  responseState = instance->select(connection, message)
+                                      ? RESPONSE_STATE_SUCCESS
+                                      : RESPONSE_STATE_FAILURE;
+                } else {
+                  std::cerr
+                      << "Point] Failed to select point in DIRECT command mode"
+                      << std::endl;
+                  responseState = RESPONSE_STATE_FAILURE;
+                }
+              } else {
+                responseState = instance->execute(connection, message, point);
 
-              if ((responseState == RESPONSE_STATE_SUCCESS) &&
-                  !message->isSelectCommand()) {
-                // only in case of select-and-execute
-                if (point->getCommandMode() == SELECT_AND_EXECUTE_COMMAND) {
-                  requireTermination = true;
+                if (responseState == RESPONSE_STATE_SUCCESS &&
+                    point->getRelatedInformationObjectAutoReturn()) {
+                  const auto related_ioa =
+                      point->getRelatedInformationObjectAddress();
+                  // send related point info in case of auto return
+                  if (related_ioa.has_value()) {
+                    auto related_point = station->getPoint(related_ioa.value());
+                    instance->scheduleTask([instance, related_point]() {
+                      try {
+                        instance->transmit(related_point,
+                                           CS101_COT_RETURN_INFO_REMOTE);
+                      } catch (const std::exception &e) {
+                        std::cerr
+                            << "[c104.Server.asdu] Auto transmit related point "
+                               "failed for "
+                            << TypeID_toString(related_point->getType())
+                            << " at IOA "
+                            << related_point->getInformationObjectAddress()
+                            << ": " << e.what() << std::endl;
+                      }
+                    });
+                  }
                 }
-                // only in case of auto return
-                if (point->getRelatedInformationObjectAutoReturn()) {
-                  related_point = station->getPoint(
-                      point->getRelatedInformationObjectAddress());
-                }
-              }
+
+              } // else: message->isSelectCommand()
 
             } else {
               cause = MISMATCHED_TYPE_ID;
@@ -1270,32 +1517,15 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
 
     // confirm activation
     if ((responseState != RESPONSE_STATE_NONE) &&
-        message->requireConfirmation()) {
+        (message->getCauseOfTransmission() == CS101_COT_ACTIVATION ||
+         message->getCauseOfTransmission() == CS101_COT_DEACTIVATION)) {
       instance->sendActivationConfirmation(
           connection, asdu, (responseState == RESPONSE_STATE_FAILURE));
-    }
-
-    // activation termination
-    if (requireTermination) {
-      instance->sendActivationTermination(connection, asdu);
     }
 
     // report error cause
     if (cause != NO_ERROR_CAUSE) {
       instance->onUnexpectedMessage(connection, message, cause);
-    }
-
-    // send related point info
-    if (related_point) {
-      try {
-        instance->transmit(related_point, CS101_COT_RETURN_INFO_REMOTE);
-      } catch (const std::exception &e) {
-        std::cerr
-            << "[c104.Server.asdu] Auto transmit related point failed for "
-            << TypeID_toString(related_point->getType()) << " at IOA "
-            << related_point->getInformationObjectAddress() << ": " << e.what()
-            << std::endl;
-      }
     }
   }
 
@@ -1311,11 +1541,7 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
             " | IP " + std::string(ipAddrStr) + " | OA " +
             std::to_string(CS101_ASDU_getOA(asdu)) + " | CA " +
             std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " +
-            std::to_string(
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      begin)
-                    .count()) +
-            u8" \xb5s");
+            TICTOC(begin, end));
   }
   return true;
 }

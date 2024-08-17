@@ -44,7 +44,7 @@ TEST_CASE("Create point", "[object::point]") {
   REQUIRE(point->getValueAsUInt32() == 0);
   REQUIRE(point->getValueAsFloat() == 0);
   REQUIRE(point->getUpdatedAt_ms() == 0);
-  REQUIRE(point->getReportedAt_ms() == 0);
+  REQUIRE(point->getProcessedAt_ms() == 0);
   REQUIRE(point->getReceivedAt_ms() == 0);
   REQUIRE(point->getSentAt_ms() == 0);
 }

@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
   py::scoped_interpreter guard{};
   auto c104 = py::module_::import("c104");
 
-  bool const USE_TLS = true;
+  bool const USE_TLS = false;
   std::string ROOT = argv[0];
 
   bool found = false;
@@ -67,12 +67,12 @@ int main(int argc, char *argv[]) {
     tlsconf->addAllowedRemoteCertificate(ROOT + "certs/client1.crt");
   }
 
-  auto my_server = Server::create("127.0.0.1", 19998, 1000, 0, tlsconf);
+  auto my_server = Server::create("127.0.0.1", 2404, 1000, 0, tlsconf);
 
   auto sv_station_2 = my_server->addStation(47);
 
   auto sv_measurement_point = sv_station_2->addPoint(11, M_ME_TF_1, 1000);
-  sv_measurement_point->setValue(12.34);
+  sv_measurement_point->setValue((float)12.34);
 
   auto sv_control_setpoint = sv_station_2->addPoint(
       12, C_SE_NC_1, 0, sv_measurement_point->getInformationObjectAddress(),
@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
       22, C_DC_TA_1, 0, sv_double_point->getInformationObjectAddress(), true);
 
   auto sv_step_point = sv_station_2->addPoint(31, M_ST_TB_1, 2000);
-  sv_step_point->setValue(1);
+  sv_step_point->setValue(LimitedInt7(1));
 
   auto sv_step_command = sv_station_2->addPoint(
       32, C_RC_TA_1, 0, sv_step_point->getInformationObjectAddress(), true);
@@ -111,9 +111,9 @@ int main(int argc, char *argv[]) {
     py::exec(R"(
 import c104
 
-def sv_pt_on_setpoint_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+def sv_pt_on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
-    print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_info, message.cot, point.quality))
 
     if point.quality.is_good():
         if point.related_io_address:
@@ -128,9 +128,9 @@ def sv_pt_on_setpoint_command(point: c104.Point, previous_state: dict, message: 
 
     return c104.ResponseState.FAILURE
 
-def sv_pt_on_single_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+def sv_pt_on_single_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
-    print("SV] {0} SINGLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} SINGLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_info, message.cot, point.quality, message.command_qualifier))
 
     if point.quality.is_good():
         if message.is_select_command:
@@ -143,9 +143,9 @@ def sv_pt_on_single_command(point: c104.Point, previous_state: dict, message: c1
 
 sv_global_step_point_value = 0
 
-def sv_pt_on_double_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+def sv_pt_on_double_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
-    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, timestamp: {3}, prev: {4}, cot: {5}, quality: {6}, command_qualifier: {7}".format(point.type, point.io_address, point.value, point.updated_at_ms, previous_state, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, timestamp: {3}, prev: {4}, cot: {5}, quality: {6}, command_qualifier: {7}".format(point.type, point.io_address, point.value, point.updated_at_ms, previous_info, message.cot, point.quality, message.command_qualifier))
 
     if point.quality.is_good():
         if point.related_io_address:
@@ -160,10 +160,10 @@ def sv_pt_on_double_command(point: c104.Point, previous_state: dict, message: c1
 
     return c104.ResponseState.FAILURE
 
-def sv_pt_on_step_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+def sv_pt_on_step_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
     global sv_global_step_point_value
-    print("SV] {0} STEP COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} STEP COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_info, message.cot, point.quality, message.command_qualifier))
 
     if point.value == c104.Step.LOWER:
         sv_global_step_point_value -= 1
@@ -213,6 +213,10 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
    */
 
   my_server->start();
+  //  while(true) {
+  //    my_server->start();
+  //    my_server->stop();
+  //  }
 
   while (!my_server->hasActiveConnections()) {
     std::cout << "Waiting for connection" << std::endl;
@@ -225,7 +229,8 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 
   std::this_thread::sleep_for(10s);
 
-  sv_measurement_point->setValueEx(1234, Quality::None, 1711111111111);
+  sv_measurement_point->setInfo(
+      Object::ShortInfo::create(1234, Quality::None, 1711111111111));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {
@@ -234,7 +239,8 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 
   std::this_thread::sleep_for(10s);
 
-  sv_measurement_point->setValueEx(-1234.56, Quality::Invalid, 1711111111111);
+  sv_measurement_point->setInfo(
+      Object::ShortInfo::create(-1234.56, Quality::Invalid, 1711111111111));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {

@@ -41,6 +41,15 @@
 #include "remote/TransportSecurity.h"
 #include "remote/message/IncomingMessage.h"
 
+struct Selection {
+  CS101_ASDU asdu;
+  uint8_t oa;
+  uint16_t ca;
+  uint32_t ioa;
+  IMasterConnection connection;
+  std::chrono::system_clock::time_point created;
+};
+
 /**
  * @brief service model for IEC60870-5-104 communication as server
  */
@@ -111,6 +120,8 @@ public:
    * @return information on availability of child Station objects
    */
   bool hasStations() const;
+
+  bool isActiveConnection(IMasterConnection connection);
 
   /**
    * @brief Test if Server has open connections to clients
@@ -253,6 +264,9 @@ public:
      IEC60870_GLOBAL_COMMON_ADDRESS, IMasterConnection connection = nullptr);
   */
 
+  void schedulePeriodicTask(const std::function<void()> &task, int interval);
+  void scheduleTask(const std::function<void()> &task, int delay = 0);
+
 private:
   /**
    * @brief Create a new remote connection handler instance that acts as a
@@ -269,6 +283,25 @@ private:
          std::uint_fast32_t tick_rate_ms,
          std::uint_fast8_t max_open_connections,
          std::shared_ptr<Remote::TransportSecurity> transport_security);
+
+  /// @brief selection init timestamp, to test against timeout
+  const std::chrono::milliseconds selectTimeout_ms{1000};
+
+  void cleanupSelections();
+
+  void cleanupSelections(IMasterConnection connection);
+
+  void cleanupSelection(uint16_t ca, uint32_t ioa);
+
+  bool select(IMasterConnection connection,
+              std::shared_ptr<Remote::Message::IncomingMessage> message);
+
+  void unselect(const Selection &selection);
+
+  CommandResponseState
+  execute(IMasterConnection connection,
+          std::shared_ptr<Remote::Message::IncomingMessage> message,
+          std::shared_ptr<Object::DataPoint> point);
 
   /// @brief IP address of remote server
   std::string ip{};
@@ -297,11 +330,17 @@ private:
   /// @brief parameters of current server intance
   CS101_AppLayerParameters appLayerParameters;
 
-  /// @brief MUTEX Lock to access connection_mutex
+  /// @brief MUTEX Lock to access connectionMap
   mutable Module::GilAwareMutex connection_mutex{"Server::connection_mutex"};
 
   /// @brief map of all connections to store connection state
   std::map<IMasterConnection, bool> connectionMap{};
+
+  /// @brief MUTEX Lock to access selectionVEcotr
+  mutable Module::GilAwareMutex selection_mutex{"Server::selection_mutex"};
+
+  /// @brief vector of all selections
+  std::vector<Selection> selectionVector{};
 
   /// @brief number of active connections
   std::atomic_uint_fast8_t activeConnections{0};
@@ -314,6 +353,8 @@ private:
 
   /// @brief server thread state
   std::atomic_bool running{false};
+
+  std::priority_queue<Task> tasks;
 
   /// @brief server thread to execute periodic transmission
   std::thread *runThread = nullptr;
@@ -356,6 +397,8 @@ private:
   // void thread_callback();
 
 public:
+  std::optional<uint8_t> getSelector(uint16_t ca, uint32_t ioa);
+
   /**
    * @brief Callback to accept or decline incoming client connections
    * @param parameter reference to custom bound connection data
@@ -462,6 +505,25 @@ public:
    */
   static bool asduHandler(void *parameter, IMasterConnection connection,
                           CS101_ASDU asdu);
+
+  std::string toString() const {
+    size_t lencon = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(connection_mutex);
+      lencon = connectionMap.size();
+    }
+    size_t lenst = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(station_mutex);
+      lenst = stations.size();
+    }
+    std::ostringstream oss;
+    oss << "<104.Server ip=" << ip << ", port=" << port
+        << ", #clients=" << lencon << ", #stations=" << lenst << " at "
+        << std::hex << std::showbase << reinterpret_cast<std::uintptr_t>(this)
+        << ">";
+    return oss.str();
+  };
 };
 
 #endif // C104_SERVER_H

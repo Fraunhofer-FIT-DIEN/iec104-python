@@ -32,7 +32,7 @@
 #ifndef C104_ENUMS_H
 #define C104_ENUMS_H
 
-#include <iostream>
+#include <string>
 #include <type_traits>
 
 #include <cs104_connection.h>
@@ -203,7 +203,17 @@ enum class CS101_QualifierOfCommand {
   NONE = IEC60870_QOC_NO_ADDITIONAL_DEFINITION,
   SHORT_PULSE = IEC60870_QOC_SHORT_PULSE_DURATION,
   LONG_PULSE = IEC60870_QOC_LONG_PULSE_DURATION,
-  CONTINUOUS = IEC60870_QOC_PERSISTANT_OUTPUT
+  PERSISTENT = IEC60870_QOC_PERSISTANT_OUTPUT
+};
+
+std::string QualifierOfCommand_toString(CS101_QualifierOfCommand qualifier);
+
+enum class CS101_CauseOfInitialization {
+  LOCAL_POWER_ON = IEC60870_COI_LOCAL_SWITCH_ON,
+  LOCAL_MANUAL_RESET = IEC60870_COI_LOCAL_MANUAL_RESET,
+  REMOTE_RESET = IEC60870_COI_REMOTE_RESET
+  // <3..31> := Reserved for future norm definitions
+  // <32..127> := Reserved for user definitions (private range)
 };
 
 enum UnexpectedMessageCause {
@@ -236,9 +246,9 @@ std::string Debug_toFlagString(Debug mode);
 
 enum class Quality {
   None = 0,
-  Overflow = IEC60870_QUALITY_OVERFLOW,
-  Reserved = IEC60870_QUALITY_RESERVED,
-  ElapsedTimeInvalid = IEC60870_QUALITY_ELAPSED_TIME_INVALID,
+  Overflow = IEC60870_QUALITY_OVERFLOW, // only in sp, dp
+  ElapsedTimeInvalid =
+      IEC60870_QUALITY_ELAPSED_TIME_INVALID, // only equipment protection
   Blocked = IEC60870_QUALITY_BLOCKED,
   Substituted = IEC60870_QUALITY_SUBSTITUTED,
   NonTopical = IEC60870_QUALITY_NON_TOPICAL,
@@ -247,19 +257,57 @@ enum class Quality {
 constexpr bool enum_bitmask(Quality &&);
 std::string Quality_toString(Quality quality);
 
-enum InformationType {
-  SINGLE,
-  DOUBLE,
-  STEP,
-  BITS,
-  NORMALIZED,
-  SCALED,
-  SHORT,
-  INTEGRATED,
-  NORMALIZED_PARAMETER,
-  SCALED_PARAMETER,
-  SHORT_PARAMETER
+enum class BinaryCounterQuality {
+  None = 0,
+  Adjusted = 0x20,
+  Carry = 0x40,
+  Invalid = 0x80
 };
+constexpr bool enum_bitmask(BinaryCounterQuality &&);
+std::string BinaryCounterQuality_toString(BinaryCounterQuality quality);
+
+enum class StartEvents {
+  None = 0,
+  General = IEC60870_START_EVENT_GS,
+  PhaseL1 = IEC60870_START_EVENT_SL1,
+  PhaseL2 = IEC60870_START_EVENT_SL2,
+  PhaseL3 = IEC60870_START_EVENT_SL3,
+  InEarthCurrent = IEC60870_START_EVENT_SIE,
+  ReverseDirection = IEC60870_START_EVENT_SRD,
+};
+constexpr bool enum_bitmask(StartEvents &&);
+std::string StartEvents_toString(StartEvents events);
+
+enum class OutputCircuits {
+  None = 0,
+  General = IEC60870_OUTPUT_CI_GC,
+  PhaseL1 = IEC60870_OUTPUT_CI_CL1,
+  PhaseL2 = IEC60870_OUTPUT_CI_CL2,
+  PhaseL3 = IEC60870_OUTPUT_CI_CL3
+};
+constexpr bool enum_bitmask(OutputCircuits &&);
+std::string OutputCircuits_toString(OutputCircuits infos);
+
+enum class FieldSet16 {
+  I0 = 1,
+  I1,
+  I2,
+  I3,
+  I4,
+  I5,
+  I6,
+  I7,
+  I8,
+  I9,
+  I10,
+  I11,
+  I12,
+  I13,
+  I14,
+  I15
+};
+constexpr bool enum_bitmask(FieldSet16 &&);
+std::string FieldSet16_toString(FieldSet16 infos);
 
 /**
  * @brief link states for connection state machine behaviour
@@ -268,9 +316,10 @@ enum ConnectionState {
   CLOSED,
   CLOSED_AWAIT_OPEN,
   CLOSED_AWAIT_RECONNECT,
-  OPEN_MUTED,
+  OPEN_AWAIT_UNMUTE,
   OPEN_AWAIT_INTERROGATION,
   OPEN_AWAIT_CLOCK_SYNC,
+  OPEN_MUTED,
   OPEN,
   OPEN_AWAIT_CLOSED
 };
@@ -281,6 +330,12 @@ std::string ConnectionEvent_toString(CS104_ConnectionEvent event);
 
 std::string PeerConnectionEvent_toString(CS104_PeerConnectionEvent event);
 
+std::string DoublePointValue_toString(DoublePointValue value);
+
+std::string StepCommandValue_toString(StepCommandValue value);
+
+std::string EventState_toString(EventState state);
+
 /**
  * @brief initial commands send to a connection that starts data transmission
  */
@@ -288,6 +343,7 @@ enum ConnectionInit {
   INIT_ALL,
   INIT_INTERROGATION,
   INIT_CLOCK_SYNC,
+  INIT_MUTED,
   INIT_NONE
 };
 
@@ -321,5 +377,7 @@ enum CommandTransmissionMode {
   DIRECT_COMMAND,
   SELECT_AND_EXECUTE_COMMAND,
 };
+
+std::string CommandTransmissionMode_toString(CommandTransmissionMode mode);
 
 #endif // C104_ENUMS_H

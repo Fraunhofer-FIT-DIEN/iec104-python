@@ -124,7 +124,7 @@ public:
   /**
    * @brief Open a created connection to remote server
    */
-  void connect();
+  void connect(bool autoConnect);
 
   /**
    * @brief Close a created connection to remote server
@@ -320,15 +320,12 @@ public:
    * @brief transmit a command to a remote server
    * @param point control point
    * @param cause reason for transmission
-   * @param qualifier parameter for command duration
    * @returns if operation was successful
    * @throws std::invalid_argument if point type is not supported for this
    * operation
    */
-  bool
-  transmit(std::shared_ptr<Object::DataPoint> point,
-           CS101_CauseOfTransmission cause,
-           CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE);
+  bool transmit(std::shared_ptr<Object::DataPoint> point,
+                CS101_CauseOfTransmission cause);
 
   /**
    * @brief add command id to awaiting command result map
@@ -488,6 +485,21 @@ private:
    * @return connection state enum
    */
   void setState(ConnectionState connectionState);
+
+public:
+  std::string toString() const {
+    size_t len = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(stations_mutex);
+      len = stations.size();
+    }
+    std::ostringstream oss;
+    oss << "<104.Connection ip=" << ip << ", port=" << port
+        << ", state=" << ConnectionState_toString(state)
+        << ", #stations=" << len << " at " << std::hex << std::showbase
+        << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 
 /**

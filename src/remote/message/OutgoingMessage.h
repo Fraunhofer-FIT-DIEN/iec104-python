@@ -71,7 +71,7 @@ protected:
    * @param point point that defines the receiver and related information of the
    * outgoing message
    */
-  explicit OutgoingMessage(std::shared_ptr<Object::DataPoint> point);
+  explicit OutgoingMessage(const std::shared_ptr<Object::DataPoint> &point);
 };
 
 } // namespace Message

@@ -49,7 +49,7 @@ namespace Module {
  * automatically.
  *
  * The GilAwareMutex class provides a mutex that automatically releases and
- * re-acquires the GIL when locking and unlocking. This is useful in
+ * re-acquires the GIL when locking. This is useful in
  * multi-threaded applications that interact with the Python interpreter, as it
  * allows other Python threads to continue executing while the lock is held.
  */
@@ -81,19 +81,12 @@ public:
   /**
    * @brief Unlocks the GilAwareMutex.
    *
-   * This function unlocks the GilAwareMutex by releasing the lock. It ensures
-   * that the GIL (Global Interpreter Lock) is re-acquired after unlocking. This
-   * is useful in multi-threaded applications that interact with the Python
-   * interpreter, as it allows other Python threads to continue executing while
-   * the lock is released.
+   * This function unlocks the GilAwareMutex by releasing the lock.
    *
    * @note This function should only be called after acquiring the lock using
    * the `lock()` function.
    */
-  inline void unlock() {
-    ScopedGilRelease const scoped_gil(name + "::unlock_gil_aware");
-    this->wrapped_mutex.unlock();
-  }
+  inline void unlock() { this->wrapped_mutex.unlock(); }
 
   /**
    * @brief Tries to lock the GilAwareMutex.

@@ -11,8 +11,10 @@ c104 python module
    server
    station
    point
+   information/index
    transportsecurity
    incomingmessage
    enumset/index
    enum/index
+   number/index
    functions

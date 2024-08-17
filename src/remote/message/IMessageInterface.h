@@ -100,9 +100,9 @@ public:
 
   /**
    * @brief Get the value from an information object inside the remote message
-   * @return value as double
+   * @return value as Information object
    */
-  virtual double getValue() const { return value.load(); }
+  virtual std::shared_ptr<Object::Information> getInfo() const { return info; }
 
   /**
    * @brief test if message test flag is set
@@ -161,12 +161,6 @@ public:
     return causeOfTransmission.load();
   }
 
-  /**
-   * @brief Getter for quality of message information
-   * @return quality as bitset object
-   */
-  virtual Quality getQuality() const { return quality.load(); }
-
 protected:
   IMessageInterface() = default;
 
@@ -192,14 +186,11 @@ protected:
   std::atomic<CS101_CauseOfTransmission> causeOfTransmission{
       CS101_COT_UNKNOWN_COT};
 
-  /// @brief IEC60870-5-104 describes the quality of the information
-  std::atomic<Quality> quality{Quality::None};
-
   /// @brief ip:port connectionString of the used connection
   std::string connectionString{};
 
-  /// @brief value of the informationObject
-  std::atomic<double> value{-1};
+  /// @brief abstract representation of information
+  std::shared_ptr<Object::Information> info{nullptr};
 
   /// @brief state that defines if informationObject has a value
   std::atomic_bool test{false};

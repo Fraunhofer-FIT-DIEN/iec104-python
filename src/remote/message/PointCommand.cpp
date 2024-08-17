@@ -31,120 +31,134 @@
 
 #include "PointCommand.h"
 #include "object/DataPoint.h"
+#include "object/Information.h"
 
 using namespace Remote::Message;
 
 PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
-                           const bool select,
-                           const CS101_QualifierOfCommand qualifier)
-    : OutgoingMessage(point), updated_at(0), duration({0}), time({0}) {
+                           const bool select)
+    : OutgoingMessage(point) {
   causeOfTransmission = CS101_COT_ACTIVATION;
-  updated_at = point->getUpdatedAt_ms();
-
-  CP56Time2a_createFromMsTimestamp(&time, updated_at);
 
   switch (type) {
-  // bool Single Point Command
+
   case C_SC_NA_1: {
+    auto i = std::dynamic_pointer_cast<Object::SingleCmd>(info);
     io = (InformationObject)SingleCommand_create(
-        nullptr, informationObjectAddress, (bool)value.load(), select,
-        static_cast<uint8_t>(qualifier));
+        nullptr, informationObjectAddress, i->isOn(), select,
+        static_cast<uint8_t>(i->getQualifier()));
   } break;
 
-    // bool Single Point Command + Extended Time
   case C_SC_TA_1: {
+    auto i = std::dynamic_pointer_cast<Object::SingleCmd>(info);
+    sCP56Time2a time{};
+    CP56Time2a_createFromMsTimestamp(
+        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
     io = (InformationObject)SingleCommandWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (bool)value.load(), select,
-        static_cast<uint8_t>(qualifier), &time);
+        nullptr, informationObjectAddress, i->isOn(), select,
+        static_cast<uint8_t>(i->getQualifier()), &time);
   } break;
 
-    // enum Double Point Command [INVALID|OFF|ON|INVALID]
   case C_DC_NA_1: {
-    auto state = (DoublePointValue)value.load();
+    auto i = std::dynamic_pointer_cast<Object::DoubleCmd>(info);
     io = (InformationObject)DoubleCommand_create(
-        nullptr, informationObjectAddress, state, select,
-        static_cast<uint8_t>(qualifier));
+        nullptr, informationObjectAddress, i->getState(), select,
+        static_cast<uint8_t>(i->getQualifier()));
   } break;
 
-    // enum Double Point Command [INVALID|OFF|ON|INVALID] + Extended Time
   case C_DC_TA_1: {
-    auto state = (DoublePointValue)value.load();
+    auto i = std::dynamic_pointer_cast<Object::DoubleCmd>(info);
+    sCP56Time2a time{};
+    CP56Time2a_createFromMsTimestamp(
+        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
     io = (InformationObject)DoubleCommandWithCP56Time2a_create(
-        nullptr, informationObjectAddress, state, select,
-        static_cast<uint8_t>(qualifier), &time);
+        nullptr, informationObjectAddress, i->getState(), select,
+        static_cast<uint8_t>(i->getQualifier()), &time);
   } break;
 
-    // int [INVALID,LOWER,HIGHER,INVALID] Regulating StepPosition Command
-    // (Trafo)
   case C_RC_NA_1: {
-    auto state = (StepCommandValue)value.load();
+    auto i = std::dynamic_pointer_cast<Object::StepCmd>(info);
     io = (InformationObject)StepCommand_create(
-        nullptr, informationObjectAddress, state, select,
-        static_cast<uint8_t>(qualifier));
+        nullptr, informationObjectAddress, i->getStep(), select,
+        static_cast<uint8_t>(i->getQualifier()));
   } break;
 
-    // int [INVALID,LOWER,HIGHER,INVALID] Regulating StepPosition Command
-    // (Trafo) + Extended Time
   case C_RC_TA_1: {
-    auto state = (StepCommandValue)value.load();
+    auto i = std::dynamic_pointer_cast<Object::StepCmd>(info);
+    sCP56Time2a time{};
+    CP56Time2a_createFromMsTimestamp(
+        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
     io = (InformationObject)StepCommandWithCP56Time2a_create(
-        nullptr, informationObjectAddress, state, select,
-        static_cast<uint8_t>(qualifier), &time);
+        nullptr, informationObjectAddress, i->getStep(), select,
+        static_cast<uint8_t>(i->getQualifier()), &time);
   } break;
 
-    //[0,2^32] BitString Command 32bits
   case C_BO_NA_1: {
+    auto i = std::dynamic_pointer_cast<Object::BinaryCmd>(info);
     io = (InformationObject)Bitstring32Command_create(
-        nullptr, informationObjectAddress, (uint32_t)value.load());
+        nullptr, informationObjectAddress, i->getBlob().get());
   } break;
 
-    //[0,2^32] BitString 32bits Command + Extended Time
   case C_BO_TA_1: {
+    auto i = std::dynamic_pointer_cast<Object::BinaryCmd>(info);
+    sCP56Time2a time{};
+    CP56Time2a_createFromMsTimestamp(
+        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
     io = (InformationObject)Bitstring32CommandWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (uint32_t)value.load(), &time);
+        nullptr, informationObjectAddress, i->getBlob().get(), &time);
   } break;
 
-    // float Setpoint Command (NORMALIZED)
   case C_SE_NA_1: {
+    auto i = std::dynamic_pointer_cast<Object::NormalizedCmd>(info);
     io = (InformationObject)SetpointCommandNormalized_create(
-        nullptr, informationObjectAddress, (float)value.load(), select,
-        static_cast<uint8_t>(quality.load()));
+        nullptr, informationObjectAddress, i->getTarget().get(), select,
+        i->getQualifier().get());
   } break;
 
-    // float Setpoint Command (NORMALIZED) + Extended Time
   case C_SE_TA_1: {
+    auto i = std::dynamic_pointer_cast<Object::NormalizedCmd>(info);
+    sCP56Time2a time{};
+    CP56Time2a_createFromMsTimestamp(
+        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
     io = (InformationObject)SetpointCommandNormalizedWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (float)value.load(), select,
-        static_cast<uint8_t>(quality.load()), &time);
+        nullptr, informationObjectAddress, i->getTarget().get(), select,
+        i->getQualifier().get(), &time);
   } break;
 
-    // int Setpoint Command (SCALED)
   case C_SE_NB_1: {
+    auto i = std::dynamic_pointer_cast<Object::ScaledCmd>(info);
     io = (InformationObject)SetpointCommandScaled_create(
-        nullptr, informationObjectAddress, (int)value.load(), select,
-        static_cast<uint8_t>(quality.load()));
+        nullptr, informationObjectAddress, i->getTarget().get(), select,
+        i->getQualifier().get());
   } break;
 
-    // int Setpoint Command (SCALED) + Extended Time
-    // Valid cause of transmission: 1,2,3,5,20-36
   case C_SE_TB_1: {
+    auto i = std::dynamic_pointer_cast<Object::ScaledCmd>(info);
+    sCP56Time2a time{};
+    CP56Time2a_createFromMsTimestamp(
+        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
     io = (InformationObject)SetpointCommandScaledWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (int)value.load(), select,
-        static_cast<uint8_t>(quality.load()), &time);
+        nullptr, informationObjectAddress, i->getTarget().get(), select,
+        i->getQualifier().get(), &time);
   } break;
 
     // float Setpoint Command (SHORT)
   case C_SE_NC_1: {
+    auto i = std::dynamic_pointer_cast<Object::ShortCmd>(info);
     io = (InformationObject)SetpointCommandShort_create(
-        nullptr, informationObjectAddress, (float)value.load(), select,
-        static_cast<uint8_t>(quality.load()));
+        nullptr, informationObjectAddress, i->getTarget(), select,
+        i->getQualifier().get());
   } break;
 
     // float Setpoint Command (SHORT) + Extended Time
   case C_SE_TC_1: {
+    auto i = std::dynamic_pointer_cast<Object::ShortCmd>(info);
+    sCP56Time2a time{};
+    CP56Time2a_createFromMsTimestamp(
+        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
     io = (InformationObject)SetpointCommandShortWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (float)value.load(), select,
-        static_cast<uint8_t>(quality.load()), &time);
+        nullptr, informationObjectAddress, i->getTarget(), select,
+        i->getQualifier().get(), &time);
   } break;
 
   default:
