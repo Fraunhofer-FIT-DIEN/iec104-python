@@ -48,6 +48,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
                      const CommandTransmissionMode dp_cmd_mode)
     : informationObjectAddress(dp_ioa), type(dp_type), station(dp_station),
       reportInterval_ms(dp_report_ms),
+      timerNext(std::chrono::steady_clock::now()),
       relatedInformationObjectAutoReturn(dp_related_auto_return),
       commandMode(dp_cmd_mode) {
   if (type >= M_EI_NA_1) {
@@ -1049,10 +1050,6 @@ void DataPoint::setQuality(const InfoQuality new_Quality) {
   }
 }
 
-uint64_t DataPoint::getUpdatedAt_ms() const {
-  return info->getProcessedAt_ms();
-}
-
 std::optional<uint64_t> DataPoint::getRecordedAt_ms() const {
   return info->getRecordedAt_ms();
 }
@@ -1080,6 +1077,10 @@ void DataPoint::setReportInterval_ms(const std::uint_fast32_t interval_ms) {
         "Report interval option is only allowed for server-sided points");
   }
   reportInterval_ms.store(interval_ms);
+}
+
+std::uint_fast32_t DataPoint::getTimerInterval_ms() const {
+  return timerInterval_ms.load();
 }
 
 void DataPoint::setOnReceiveCallback(py::object &callable) {
@@ -1139,6 +1140,33 @@ void DataPoint::onBeforeAutoTransmit() {
                                   std::to_string(informationObjectAddress));
     Module::ScopedGilAcquire scoped("Point.on_before_auto_transmit");
     py_onBeforeAutoTransmit.call(shared_from_this());
+  }
+}
+
+std::optional<std::chrono::steady_clock::time_point>
+DataPoint::getNextTimer() const {
+  if (timerInterval_ms > 0 && py_onTimer.is_set()) {
+    return timerNext;
+  }
+  return std::nullopt;
+}
+
+void DataPoint::setOnTimerCallback(py::object &callable,
+                                   const std::uint_fast32_t interval_ms) {
+  if (interval_ms < 50 && interval_ms > 0)
+    throw std::range_error("interval_ms must be 50 or greater");
+  timerInterval_ms.store(callable.is_none() ? 0 : interval_ms);
+  py_onTimer.reset(callable);
+}
+
+void DataPoint::onTimer() {
+  if (py_onTimer.is_set()) {
+    timerNext = std::chrono::steady_clock::now() +
+                std::chrono::milliseconds(timerInterval_ms);
+    DEBUG_PRINT(Debug::Point, "CALLBACK on_timer at IOA " +
+                                  std::to_string(informationObjectAddress));
+    Module::ScopedGilAcquire scoped("Point.on_timer");
+    py_onTimer.call(shared_from_this());
   }
 }
 

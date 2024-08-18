@@ -2107,7 +2107,7 @@ PY_MODULE(c104, m) {
     type: :ref:`c104.Type`
         point information type
     report_ms: int
-        automatic reporting interval in milliseconds (monitoring points server-sided only)
+        automatic reporting interval in milliseconds (monitoring points server-sided only), 0 = disabled
     related_io_address: Optional[int]
         related monitoring point identified by information object address, that should be auto transmitted on incoming client command (for control points server-sided only)
     related_io_autoreturn: bool
@@ -2176,6 +2176,10 @@ PY_MODULE(c104, m) {
                     &Object::DataPoint::setReportInterval_ms,
                     "int: interval in milliseconds between periodic "
                     "transmission, 0 = no periodic transmission")
+      .def_property_readonly("timer_ms",
+                             &Object::DataPoint::getTimerInterval_ms,
+                             "int: interval in milliseconds between timer "
+                             "callbacks, 0 = no periodic transmission")
       .def_property("info", &Object::DataPoint::getInfo,
                     &Object::DataPoint::setInfo,
                     "ref:`c104.Information`: information object",
@@ -2314,6 +2318,39 @@ PY_MODULE(c104, m) {
     >>> step_point.on_before_auto_transmit(callable=on_before_read_steppoint)
 )def",
            "callable"_a)
+      .def("on_timer", &Object::DataPoint::setOnTimerCallback, R"def(
+    on_timer(self: c104.Point, callable: Callable[[c104.Point], None], int) -> None
+
+    set python callback that will be called in a fixed delay (timer_ms)
+
+    **Callable signature**
+
+    Parameters
+    ----------
+    point: :ref:`c104.Point`
+        point instance
+    interval_ms: int
+        fixed delay between timer callback execution, default: 0, min: 50
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ValueError
+        If callable signature does not match exactly
+
+    Example
+    -------
+    >>> def on_timer(point: c104.Point) -> None:
+    >>>     print("SV] {0} TIMER on IOA: {1}".format(point.type, point.io_address))
+    >>>     point.value = random.randint(-64,63)  # import random
+    >>>
+    >>> nv_point = sv_station_2.add_point(io_address=31, type=c104.Type.M_ME_TD_1)
+    >>> nv_point.on_timer(callable=on_timer, interval_ms=1000)
+)def",
+           "callable"_a, "interval_ms"_a = 0)
       .def("read", &Object::DataPoint::read, R"def(
     read(self: c104.Point) -> bool
 

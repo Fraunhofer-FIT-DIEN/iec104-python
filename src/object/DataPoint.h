@@ -51,7 +51,7 @@ public:
    * @param dp_type iec60870-5-104 information type
    * @param dp_station station object reference
    * @param dp_report_ms auto reporting interval
-   * @param dp_related_ioa related information object address
+   * @param dp_related_ioa related information object address, if any
    * @param dp_related_auto_return auto transmit related point on command
    * @param dp_cmd_mode command transmission mode (direct or select-and-execute)
    * @throws std::invalid_argument if type is invalid
@@ -60,7 +60,7 @@ public:
   create(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
          std::shared_ptr<Station> dp_station,
          std::uint_fast32_t dp_report_ms = 0,
-         std::uint_fast32_t dp_related_ioa = 0,
+         std::optional<std::uint_fast32_t> dp_related_ioa = std::nullopt,
          bool dp_related_auto_return = false,
          CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND) {
     Module::ScopedGilAcquire scoped("DataPoint.create");
@@ -125,6 +125,11 @@ private:
   /// periodic transmission
   std::atomic_uint_fast32_t reportInterval_ms{0};
 
+  /// @brief interval (in milliseconds) between timer execution, 0 => no timer
+  std::atomic_uint_fast32_t timerInterval_ms{0};
+
+  std::atomic<std::chrono::steady_clock::time_point> timerNext;
+
   /// @brief python callback function pointer
   Module::Callback<CommandResponseState> py_onReceive{
       "Point.on_receive",
@@ -138,6 +143,10 @@ private:
   /// @brief python callback function pointer
   Module::Callback<void> py_onBeforeAutoTransmit{
       "Point.on_before_auto_transmit", "(point: c104.Point) -> None"};
+
+  /// @brief python callback function pointer
+  Module::Callback<void> py_onTimer{"Point.on_timer",
+                                    "(point: c104.Point) -> None"};
 
 public:
   /**
@@ -214,6 +223,12 @@ public:
    */
   void setReportInterval_ms(std::uint_fast32_t interval_ms);
 
+  /**
+   * @brief Get automatic timer interval of this point
+   * @return interval in milliseconds, 0 if disabled
+   */
+  std::uint_fast32_t getTimerInterval_ms() const;
+
   std::shared_ptr<Information> getInfo() const;
 
   /**
@@ -236,27 +251,27 @@ public:
   void setQuality(InfoQuality new_value);
 
   /**
-   * @brief get timestamp of last value update
-   * @return seconds since unix-epoch
-   */
-  std::uint64_t getUpdatedAt_ms() const;
-
-  /**
-   * @brief get timestamp of last cyclic report (server-only)
-   * @return seconds since unix-epoch
+   * @brief get timestamp bundled with value
+   * @return milliseconds since unix-epoch
    */
   std::optional<uint64_t> getRecordedAt_ms() const;
 
   /**
-   * @brief get timestamp of last cyclic report (server-only)
-   * @return seconds since unix-epoch
+   * @brief get timestamp of last local processing operation (receiving/sending)
+   * @return milliseconds since unix-epoch
    */
   std::uint64_t getProcessedAt_ms() const;
 
   /**
-   * @brief set timestamp of last outgoing transmission from server to client
+   * @brief set timestamp of last local processing operation (receiving/sending)
    */
-  void setProcessedAt_ms(const std::uint_fast64_t timestamp_ms);
+  void setProcessedAt_ms(std::uint_fast64_t timestamp_ms);
+
+  /**
+   * @brief get next timer event point
+   * @return seconds since unix-epoch
+   */
+  std::optional<std::chrono::steady_clock::time_point> getNextTimer() const;
 
   /**
    * @brief handle remote point update, execute python callback
@@ -299,6 +314,18 @@ public:
    * station reference is invalid or function is called from client context
    */
   void setOnBeforeAutoTransmitCallback(py::object &callable);
+
+  /**
+   * @brief handle timer event, execute python callback
+   */
+  void onTimer();
+
+  /**
+   * @brief set python callback that will be called at a fixed interval
+   * @throws std::invalid_argument if callable signature does not match
+   */
+  void setOnTimerCallback(py::object &callable,
+                          std::uint_fast32_t interval_ms = 0);
 
   /**
    * @brief send read command to update the points value

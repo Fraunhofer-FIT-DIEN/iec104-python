@@ -43,7 +43,8 @@ using namespace std::chrono_literals;
 Client::Client(const std::uint_fast32_t tick_rate_ms,
                const std::uint_fast32_t timeout_ms,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
-    : commandTimeout_ms(timeout_ms), security(std::move(transport_security)) {
+    : tickRate_ms(tick_rate_ms), commandTimeout_ms(timeout_ms),
+      security(std::move(transport_security)) {
   DEBUG_PRINT(Debug::Client, "Created");
 }
 
@@ -70,6 +71,8 @@ void Client::start() {
   if (!runThread) {
     runThread = new std::thread(&Client::thread_run, this);
   }
+
+  schedulePeriodicTask([this]() { scheduleDataPointTimer(); }, tickRate_ms);
 
   {
     std::lock_guard<Module::GilAwareMutex> const con_lock(connections_mutex);
@@ -258,13 +261,51 @@ void Client::onNewPoint(std::shared_ptr<Object::Station> station,
   }
 }
 
+void Client::scheduleDataPointTimer() {
+  uint16_t counter = 0;
+  auto now = std::chrono::steady_clock::now();
+
+  for (const auto &c : getConnections()) {
+    if (c->isOpen() && !c->isMuted()) {
+      for (const auto &station : c->getStations()) {
+        for (const auto &point : station->getPoints()) {
+          auto next = point->getNextTimer();
+          if (next.has_value() && next.value() < now) {
+            scheduleTask([point]() { point->onTimer(); }, counter++);
+          }
+        }
+      }
+    }
+  }
+}
+
+void Client::schedulePeriodicTask(const std::function<void()> &task,
+                                  int interval) {
+  {
+    if (interval < 50) {
+      throw std::out_of_range(
+          "The interval for periodic tasks must be 1000ms at minimum.");
+    }
+    auto periodic = std::make_shared<std::function<void()>>([]() {});
+    *periodic = [this, task, interval, periodic]() {
+      // Schedule next execution
+      scheduleTask(*periodic, interval);
+      task();
+    };
+    // Schedule first execution
+    scheduleTask(*periodic, interval);
+  }
+
+  runThread_wait.notify_one();
+}
+
 void Client::scheduleTask(const std::function<void()> &task, int delay) {
   {
     std::lock_guard<std::mutex> lock(runThread_mutex);
     if (delay < 0) {
-      tasks.push({task, std::chrono::system_clock::time_point::min()});
+      tasks.push({task, std::chrono::steady_clock::time_point::min()});
     } else {
-      tasks.push({task, std::chrono::system_clock::now() +
+      tasks.push({task, std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(delay)});
     }
   }
@@ -273,6 +314,7 @@ void Client::scheduleTask(const std::function<void()> &task, int delay) {
 }
 
 void Client::thread_run() {
+  bool const debug = DEBUG_TEST(Debug::Client);
   running.store(true);
   while (enabled.load()) {
     std::function<void()> task;
@@ -284,8 +326,19 @@ void Client::thread_run() {
         continue;
       }
 
-      auto now = std::chrono::system_clock::now();
+      auto now = std::chrono::steady_clock::now();
       if (now >= tasks.top().schedule_time) {
+        auto delay = now - tasks.top().schedule_time;
+        if (delay > TASK_DELAY_THRESHOLD) {
+          DEBUG_PRINT_CONDITION(
+              debug, Debug::Server,
+              "Warning: Task started delayed by " +
+                  std::to_string(
+                      std::chrono::duration_cast<std::chrono::milliseconds>(
+                          delay)
+                          .count()) +
+                  " ms");
+        }
         task = tasks.top().function;
         tasks.pop();
       } else {

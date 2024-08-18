@@ -47,7 +47,7 @@ struct Selection {
   uint16_t ca;
   uint32_t ioa;
   IMasterConnection connection;
-  std::chrono::system_clock::time_point created;
+  std::chrono::steady_clock::time_point created;
 };
 
 /**
@@ -268,6 +268,8 @@ public:
   void scheduleTask(const std::function<void()> &task, int delay = 0);
 
 private:
+  void scheduleDataPointTimer();
+
   /**
    * @brief Create a new remote connection handler instance that acts as a
    * server

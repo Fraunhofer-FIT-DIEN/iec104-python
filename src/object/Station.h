@@ -117,7 +117,8 @@ public:
    * @param informationObjectAddress information object address
    * @param type iec60870-5-104 information type
    * @param reportInterval_ms auto reporting interval
-   * @param relatedInformationObjectAddress related information object address
+   * @param relatedInformationObjectAddress related information object address,
+   * if any
    * @param relatedInformationObjectAutoReturn auto transmit related point on
    * command
    * @param commandMode command transmission mode (direct or select-and-execute)
@@ -126,7 +127,8 @@ public:
   std::shared_ptr<DataPoint>
   addPoint(std::uint_fast32_t informationObjectAddress, IEC60870_5_TypeID type,
            std::uint_fast32_t reportInterval_ms = 0,
-           std::uint_fast32_t relatedInformationObjectAddress = 0,
+           std::optional<std::uint_fast32_t> relatedInformationObjectAddress =
+               std::nullopt,
            bool relatedInformationObjectAutoReturn = false,
            CommandTransmissionMode commandMode = DIRECT_COMMAND);
 

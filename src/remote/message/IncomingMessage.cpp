@@ -213,7 +213,7 @@ void IncomingMessage::first() {
 
     positionReset = true;
     position = 0;
-    positionValid = (numberOfObject > 0);
+    positionValid = (numberOfObject > 0) && type < M_EI_NA_1;
   }
 
   if (positionValid)

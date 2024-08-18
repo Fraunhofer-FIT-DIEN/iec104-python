@@ -162,9 +162,11 @@ public:
   void onNewPoint(std::shared_ptr<Object::Station> station,
                   std::uint_fast32_t io_address, IEC60870_5_TypeID type);
 
+  void schedulePeriodicTask(const std::function<void()> &task, int interval);
   void scheduleTask(const std::function<void()> &task, int delay = 0);
 
 private:
+  void scheduleDataPointTimer();
   /**
    * @brief Create a new remote connection handler instance that acts as a
    * client
@@ -186,6 +188,9 @@ private:
 
   /// @brief state that describes if the client component is enabled or not
   std::atomic_bool enabled{false};
+
+  /// @brief minimum interval between to periodic broadcasts in milliseconds
+  std::atomic_uint_fast32_t tickRate_ms{1000};
 
   /// @brief timeout in milliseconds before an inactive connection gets closed
   std::atomic_uint_fast32_t commandTimeout_ms{1000};

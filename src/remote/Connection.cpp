@@ -358,7 +358,7 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
   auto const it = expectedResponseMap.find(cmdId);
   if (it != expectedResponseMap.end()) {
 
-    auto const end = std::chrono::system_clock::now() + commandTimeout_ms * 1ms;
+    auto const end = std::chrono::steady_clock::now() + commandTimeout_ms * 1ms;
 
     DEBUG_PRINT(Debug::Connection, "await_command_success] Await " + cmdId);
 

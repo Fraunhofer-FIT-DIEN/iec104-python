@@ -69,7 +69,7 @@
 #define TICTOC(begin, end)                                                     \
   (std::to_string(DIFF_MS(begin, end)) +                                       \
    std::string(reinterpret_cast<const char *>(MICRO_SEC_STR)))
-#define TICTOCNOW(begin) TICTOC(begin, std::chrono::system_clock::now())
+#define TICTOCNOW(begin) TICTOC(begin, std::chrono::steady_clock::now())
 #define MAX_INFORMATION_OBJECT_ADDRESS 16777215
 #define UNDEFINED_INFORMATION_OBJECT_ADDRESS 16777216
 
@@ -107,11 +107,12 @@ uint_fast64_t GetTimestamp_ms();
 
 struct Task {
   std::function<void()> function;
-  std::chrono::system_clock::time_point schedule_time;
+  std::chrono::steady_clock::time_point schedule_time;
   bool operator<(const Task &rhs) const {
     return schedule_time > rhs.schedule_time;
   }
 };
+constexpr auto TASK_DELAY_THRESHOLD = std::chrono::milliseconds(100);
 
 typedef std::variant<std::monostate, bool, DoublePointValue, LimitedInt7,
                      StepCommandValue, Byte32, NormalizedFloat, LimitedInt16,

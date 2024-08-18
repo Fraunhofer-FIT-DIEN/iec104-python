@@ -124,7 +124,7 @@ public:
   /**
    * @brief Open a created connection to remote server
    */
-  void connect(bool autoConnect);
+  void connect(bool autoConnect = false);
 
   /**
    * @brief Close a created connection to remote server

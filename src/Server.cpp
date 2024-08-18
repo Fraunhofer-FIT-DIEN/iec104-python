@@ -137,21 +137,37 @@ void Server::start() {
     runThread = new std::thread(&Server::thread_run, this);
   }
 
-  // Schedule first execution
+  // Schedule periodics based on tickRate
+  schedulePeriodicTask(
+      [this]() { sendInterrogationResponse(CS101_COT_PERIODIC); }, tickRate_ms);
   schedulePeriodicTask(
       [this]() {
-        if (activeConnections) {
-          sendInterrogationResponse(CS101_COT_PERIODIC);
-          cleanupSelections();
-        }
+        cleanupSelections();
+        scheduleDataPointTimer();
       },
-      1000);
+      tickRate_ms);
+}
+
+void Server::scheduleDataPointTimer() {
+  if (!hasActiveConnections())
+    return;
+
+  uint16_t counter = 0;
+  auto now = std::chrono::steady_clock::now();
+  for (const auto &station : getStations()) {
+    for (const auto &point : station->getPoints()) {
+      auto next = point->getNextTimer();
+      if (next.has_value() && next.value() < now) {
+        scheduleTask([point]() { point->onTimer(); }, counter++);
+      }
+    }
+  }
 }
 
 void Server::schedulePeriodicTask(const std::function<void()> &task,
                                   int interval) {
   {
-    if (interval < 1000) {
+    if (interval < 50) {
       throw std::out_of_range(
           "The interval for periodic tasks must be 1000ms at minimum.");
     }
@@ -172,9 +188,9 @@ void Server::scheduleTask(const std::function<void()> &task, int delay) {
   {
     std::lock_guard<std::mutex> lock(runThread_mutex);
     if (delay < 0) {
-      tasks.push({task, std::chrono::system_clock::time_point::min()});
+      tasks.push({task, std::chrono::steady_clock::time_point::min()});
     } else {
-      tasks.push({task, std::chrono::system_clock::now() +
+      tasks.push({task, std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(delay)});
     }
   }
@@ -183,6 +199,7 @@ void Server::scheduleTask(const std::function<void()> &task, int delay) {
 }
 
 void Server::thread_run() {
+  bool const debug = DEBUG_TEST(Debug::Server);
   running.store(true);
   while (enabled.load()) {
     std::function<void()> task;
@@ -194,8 +211,19 @@ void Server::thread_run() {
         continue;
       }
 
-      auto now = std::chrono::system_clock::now();
+      auto now = std::chrono::steady_clock::now();
       if (now >= tasks.top().schedule_time) {
+        auto delay = now - tasks.top().schedule_time;
+        if (delay > TASK_DELAY_THRESHOLD) {
+          DEBUG_PRINT_CONDITION(
+              debug, Debug::Server,
+              "Warning: Task started delayed by " +
+                  std::to_string(
+                      std::chrono::duration_cast<std::chrono::milliseconds>(
+                          delay)
+                          .count()) +
+                  " ms");
+        }
         task = tasks.top().function;
         tasks.pop();
       } else {
@@ -323,7 +351,7 @@ Server::addStation(std::uint_fast16_t commonAddress) {
 }
 
 void Server::cleanupSelections() {
-  auto now = std::chrono::system_clock::now();
+  auto now = std::chrono::steady_clock::now();
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
   selectionVector.erase(
       std::remove_if(selectionVector.begin(), selectionVector.end(),
@@ -370,7 +398,7 @@ void Server::cleanupSelection(uint16_t ca, uint32_t ioa) {
 
 std::optional<uint8_t> Server::getSelector(const uint16_t ca,
                                            const uint32_t ioa) {
-  auto now = std::chrono::system_clock::now();
+  auto now = std::chrono::steady_clock::now();
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
   auto it = std::find_if(
       selectionVector.begin(), selectionVector.end(),
@@ -394,7 +422,7 @@ bool Server::select(IMasterConnection connection,
   const uint8_t oa = message->getOriginatorAddress();
   const uint16_t ca = message->getCommonAddress();
   const uint32_t ioa = message->getIOA();
-  auto now = std::chrono::system_clock::now();
+  auto now = std::chrono::steady_clock::now();
 
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
   auto it = std::find_if(
@@ -438,7 +466,7 @@ Server::execute(IMasterConnection connection,
   const uint32_t ioa = message->getIOA();
 
   if (SELECT_AND_EXECUTE_COMMAND == point->getCommandMode()) {
-    auto now = std::chrono::system_clock::now();
+    auto now = std::chrono::steady_clock::now();
 
     std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
     auto it = std::find_if(
@@ -525,7 +553,7 @@ CommandResponseState Server::onClockSync(std::string _ip, CP56Time2a time) {
 
     uint_fast64_t const hrsUtc =
         std::chrono::duration_cast<std::chrono::hours>(
-            std::chrono::system_clock::now().time_since_epoch())
+            std::chrono::steady_clock::now().time_since_epoch())
             .count();
     uint_fast64_t const century = (1970 + (hrsUtc / (24 * 365))) / 100 * 100;
 
@@ -847,7 +875,7 @@ void Server::sendInterrogationResponse(const CS101_CauseOfTransmission cot,
   const std::uint_fast64_t now = GetTimestamp_ms();
   IEC60870_5_TypeID type = C_TS_TA_1;
 
-  for (const auto &station : stations) {
+  for (const auto &station : getStations()) {
     if (isGlobalCommonAddress(commonAddress) ||
         station->getCommonAddress() == commonAddress) {
 
