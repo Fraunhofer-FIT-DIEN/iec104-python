@@ -2185,10 +2185,13 @@ PY_MODULE(c104, m) {
                     "ref:`c104.Information`: information object",
                     py::return_value_policy::automatic)
       .def_property("value", &Object::DataPoint::getValue,
-                    &Object::DataPoint::setValue, "Any: value",
+                    &Object::DataPoint::setValue,
+                    "Any: value (this is just a shortcut to point.info.value)",
                     py::return_value_policy::copy)
       .def_property("quality", &Object::DataPoint::getQuality,
-                    &Object::DataPoint::setQuality, "Any: Quality info object",
+                    &Object::DataPoint::setQuality,
+                    "Any: Quality info object (this is just a shortcut to "
+                    "point.info.quality)",
                     py::return_value_policy::copy)
       .def_property_readonly( // todo convert to datetime.datetime
           "processed_at_ms", &Object::DataPoint::getProcessedAt_ms,

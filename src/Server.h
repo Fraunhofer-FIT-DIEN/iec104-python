@@ -251,9 +251,9 @@ public:
    * @param connection send to a single client identified via internal
    * connection object
    */
-  void sendInterrogationResponse(
-      CS101_CauseOfTransmission cot,
-      uint_fast16_t commonAddress = IEC60870_GLOBAL_COMMON_ADDRESS,
+  void sendInventory(
+      const CS101_CauseOfTransmission cot,
+      const uint_fast16_t commonAddress = IEC60870_GLOBAL_COMMON_ADDRESS,
       IMasterConnection connection = nullptr);
   /*
       void sendCounterInterrogationResponse(CS101_CauseOfTransmission cot,

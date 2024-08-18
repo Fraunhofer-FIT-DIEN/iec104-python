@@ -118,7 +118,7 @@ std::string InfoValue_toString(const InfoValue &value) {
 }
 
 struct QualityValueToStringVisitor {
-  std::string operator()(std::monostate value) const { return "N.A."; }
+  std::string operator()(std::monostate value) const { return "N. A."; }
   std::string operator()(const Quality &obj) { return Quality_toString(obj); }
   std::string operator()(const BinaryCounterQuality &obj) {
     return BinaryCounterQuality_toString(obj);

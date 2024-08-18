@@ -1,5 +1,15 @@
 # Change log
 
+## v2.0
+- InfoValue style
+- on_receive signature change previous_state: dict -> previous_info: c104.Information
+- station.add_point signature change related_io_address: int -> related_io_address: Optional[int], 0 valid IOA
+- point.io_address signature change related_io: int -> related_io: Optional[int], 0 valid IOA
+- 'c104.IncomingMessage' object has no attribute 'command_qualifier'
+  message.command_qualifier -> message.info.qualifier OR point.info.qualifier
+- point.value is a shortcut to point.info.value
+- calling point.quality.is_good() on commands result in an error, because point.quality is just a shortcut to point.info.quality and this can be None, because command points do not have a quality information
+
 ## v1.18
 - Add support for Qualifier of Command for single, double and regulating step commands
 - Fix transmit updated_at timestamp for time aware point

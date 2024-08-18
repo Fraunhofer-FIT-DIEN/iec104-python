@@ -907,14 +907,11 @@ void Connection::connectionHandler(void *parameter, CS104_Connection connection,
   }
 
   switch (event) {
-  case CS104_CONNECTION_FAILED: {
-    instance->setClosed();
-    break;
-  }
   case CS104_CONNECTION_OPENED: {
     instance->setOpen();
     break;
   }
+  case CS104_CONNECTION_FAILED:
   case CS104_CONNECTION_CLOSED: {
     instance->setClosed();
     break;

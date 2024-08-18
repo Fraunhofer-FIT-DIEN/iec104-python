@@ -213,7 +213,7 @@ void IncomingMessage::first() {
 
     positionReset = true;
     position = 0;
-    positionValid = (numberOfObject > 0) && type < M_EI_NA_1;
+    positionValid = (numberOfObject > 0);
   }
 
   if (positionValid)
@@ -629,6 +629,15 @@ void IncomingMessage::extractInformation() {
                   (Bitstring32CommandWithCP56Time2a)io)),
           true);
     } break;
+
+    case C_IC_NA_1:
+    case C_CI_NA_1:
+    case C_RD_NA_1:
+    case C_CS_NA_1:
+    case C_TS_NA_1:
+      // allow get valid message to pass and extract informationObjectAddress
+      // even though no further info is extracted
+      break;
 
       /**
        * Unhandled message

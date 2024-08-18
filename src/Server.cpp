@@ -138,8 +138,8 @@ void Server::start() {
   }
 
   // Schedule periodics based on tickRate
-  schedulePeriodicTask(
-      [this]() { sendInterrogationResponse(CS101_COT_PERIODIC); }, tickRate_ms);
+  schedulePeriodicTask([this]() { sendInventory(CS101_COT_PERIODIC); },
+                       tickRate_ms);
   schedulePeriodicTask(
       [this]() {
         cleanupSelections();
@@ -239,7 +239,7 @@ void Server::thread_run() {
     }
   }
   if (!tasks.empty()) {
-    std::cerr << "[c104.Server.loop] Tasks dropped: " << tasks.size()
+    std::cerr << "[c104.Server.stop] Tasks dropped: " << tasks.size()
               << std::endl;
     std::priority_queue<Task> empty;
     std::swap(tasks, empty);
@@ -477,7 +477,8 @@ Server::execute(IMasterConnection connection,
     selected = (it != selectionVector.end() && (it->connection == connection) &&
                 (now - it->created) < selectTimeout_ms);
     if (!selected) {
-      std::cerr << "Cannot execute command on point in SELECT_AND_EXECUTE "
+      std::cerr << "[c104.Server] Cannot execute command on point in "
+                   "SELECT_AND_EXECUTE "
                    "command mode without selection"
                 << std::endl;
       return RESPONSE_STATE_FAILURE;
@@ -859,9 +860,9 @@ void Server::sendActivationTermination(IMasterConnection connection,
   }
 }
 
-void Server::sendInterrogationResponse(const CS101_CauseOfTransmission cot,
-                                       const uint_fast16_t commonAddress,
-                                       IMasterConnection connection) {
+void Server::sendInventory(const CS101_CauseOfTransmission cot,
+                           const uint_fast16_t commonAddress,
+                           IMasterConnection connection) {
   if (!enabled.load() || !hasActiveConnections())
     return;
 
@@ -934,9 +935,8 @@ void Server::sendInterrogationResponse(const CS101_CauseOfTransmission cot,
             g->second[point->getInformationObjectAddress()] = message;
           }
         } catch (const std::exception &e) {
-          DEBUG_PRINT(Debug::Server,
-                      "send_interrogation_response] Invalid point message: " +
-                          std::string(e.what()));
+          DEBUG_PRINT(Debug::Server, "Invalid point message for inventory: " +
+                                         std::string(e.what()));
         }
       }
 
@@ -982,7 +982,7 @@ void Server::sendInterrogationResponse(const CS101_CauseOfTransmission cot,
                 asdu, message.second->getInformationObject());
             if (!added) {
               DEBUG_PRINT(Debug::Server,
-                          "send_interrogation_response] Dropped message, "
+                          "Dropped message for inventory, "
                           "cannot be added to new asdu: " +
                               std::to_string(message.second->getIOA()));
             }
@@ -1019,12 +1019,11 @@ void Server::sendInterrogationResponse(const CS101_CauseOfTransmission cot,
       if (!empty) {
 
         DEBUG_PRINT_CONDITION(true, Debug::Server,
-                              "send_interrogation_response] Periodic | TOTAL " +
-                                  TICTOC(begin, end));
+                              "auto_transmit] TOTAL " + TICTOC(begin, end));
       }
     } else {
       DEBUG_PRINT_CONDITION(true, Debug::Server,
-                            "send_interrogation_response] Request | TOTAL " +
+                            "interrogation_response] TOTAL " +
                                 TICTOC(begin, end));
     }
   }
@@ -1281,9 +1280,8 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
       instance->sendActivationConfirmation(connection, asdu, false);
 
       // send all available information
-      instance->sendInterrogationResponse((CS101_CauseOfTransmission)qoi,
-                                          message->getCommonAddress(),
-                                          connection);
+      instance->sendInventory((CS101_CauseOfTransmission)qoi,
+                              message->getCommonAddress(), connection);
 
       // Notify Master of command finalization
       instance->sendActivationTermination(connection, asdu);
@@ -1390,6 +1388,7 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
   if (auto message = instance->getValidMessage(connection, asdu)) {
 
     UnexpectedMessageCause cause = NO_ERROR_CAUSE;
+    bool success = false;
 
     if (auto station = instance->getStation(message->getCommonAddress())) {
       if (auto point = station->getPoint(message->getIOA())) {
@@ -1404,6 +1403,7 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
 
           // value polling callback
           point->onBeforeRead();
+          success = true;
 
           try {
             instance->transmit(point, CS101_COT_REQUEST);
@@ -1423,6 +1423,8 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
     } else {
       cause = UNKNOWN_CA;
     }
+
+    instance->sendActivationConfirmation(connection, asdu, !success);
 
     // report error cause
     if (cause != NO_ERROR_CAUSE) {
@@ -1495,9 +1497,9 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                                       ? RESPONSE_STATE_SUCCESS
                                       : RESPONSE_STATE_FAILURE;
                 } else {
-                  std::cerr
-                      << "Point] Failed to select point in DIRECT command mode"
-                      << std::endl;
+                  std::cerr << "[c104.Point] Failed to select point in DIRECT "
+                               "command mode"
+                            << std::endl;
                   responseState = RESPONSE_STATE_FAILURE;
                 }
               } else {
@@ -1516,7 +1518,8 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                                            CS101_COT_RETURN_INFO_REMOTE);
                       } catch (const std::exception &e) {
                         std::cerr
-                            << "[c104.Server.asdu] Auto transmit related point "
+                            << "[c104.Server.asdu_handler] Auto transmit "
+                               "related point "
                                "failed for "
                             << TypeID_toString(related_point->getType())
                             << " at IOA "

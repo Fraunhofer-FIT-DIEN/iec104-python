@@ -52,33 +52,30 @@ void cl_dump(std::shared_ptr<Client> my_client,
         std::cout << "          |--+ STATION "
                   << std::to_string(st_iter->getCommonAddress()) << " has "
                   << std::to_string(st_pt_count) << " points" << std::endl;
-        std::cout << "             |   TYPE         |    IOA     |        "
-                     "VALUE         |      UPDATED AT      |      RECORDED AT  "
-                     "   |      QUALITY      "
+        std::cout << "             |   TYPE    |   IOA   |     VALUE     | "
+                     "PROCESSED  AT |  RECORDED AT  |      QUALITY      "
                   << std::endl;
-        std::cout
-            << "             "
-               "|----------------|------------|----------------------|---------"
-               "-------------|----------------------|-------------------"
-            << std::endl;
+        std::cout << "             "
+                     "|-----------|---------|---------------|---------------|--"
+                     "-------------|-------------------"
+                  << std::endl;
 
         for (auto &pt_iter : st_iter->getPoints()) {
           std::cout << "             | " << TypeID_toString(pt_iter->getType())
-                    << " | " << std::setw(10)
+                    << " | " << std::setw(7)
                     << std::to_string(pt_iter->getInformationObjectAddress())
-                    << " | " << std::setw(20)
+                    << " | " << std::setw(13)
                     << InfoValue_toString(pt_iter->getValue()) << " | "
-                    << std::setw(20)
-                    << std::to_string(pt_iter->getUpdatedAt_ms()) << " | "
-                    << std::setw(20)
+                    << std::setw(13)
+                    << std::to_string(pt_iter->getRecordedAt_ms().value_or(0))
+                    << " | " << std::setw(13)
                     << std::to_string(pt_iter->getProcessedAt_ms()) << " | "
                     << InfoQuality_toString(pt_iter->getQuality()) << std::endl;
         }
-        std::cout
-            << "             "
-               "|----------------|------------|----------------------|---------"
-               "-------------|----------------------|-------------------"
-            << std::endl;
+        std::cout << "             "
+                     "|-----------|---------|---------------|---------------|--"
+                     "-------------|-------------------"
+                  << std::endl;
       }
     }
   }
@@ -103,7 +100,7 @@ int main(int argc, char *argv[]) {
   }
   ROOT = ROOT + "/tests/";
 
-  setDebug(Debug::Client | Debug::Connection);
+  setDebug(Debug::Client | Debug::Connection | Debug::Point | Debug::Callback);
   std::cout << "CL] DEBUG MODE: " << Debug_toString(getDebug()) << std::endl;
 
   std::shared_ptr<Remote::TransportSecurity> tlsconf{nullptr};
@@ -190,8 +187,8 @@ int main(int argc, char *argv[]) {
    */
 
   auto cl_double_command = cl_station_2->addPoint(22, C_DC_TA_1);
-  cl_double_command->setInfo(Object::DoubleInfo::create(
-      IEC60870_DOUBLE_POINT_ON, Quality::None, 1711111111111));
+  cl_double_command->setInfo(Object::DoubleCmd::create(
+      IEC60870_DOUBLE_POINT_ON, CS101_QualifierOfCommand::NONE, 1711111111111));
 
   if (cl_double_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Double command ON successful" << std::endl;

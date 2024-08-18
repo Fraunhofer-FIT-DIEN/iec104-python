@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
   }
   ROOT = ROOT + "/tests/";
 
-  setDebug(Debug::Server | Debug::Callback);
+  setDebug(Debug::Server | Debug::Point | Debug::Callback);
   std::cout << "SV] DEBUG MODE: " << Debug_toString(getDebug()) << std::endl;
 
   std::shared_ptr<Remote::TransportSecurity> tlsconf{nullptr};
@@ -100,70 +100,71 @@ int main(int argc, char *argv[]) {
   auto sv_step_command = sv_station_2->addPoint(
       32, C_RC_TA_1, 0, sv_step_point->getInformationObjectAddress(), true);
 
-  auto locals = py::dict("sv_control_setpoint"_a = sv_control_setpoint,
-                         "sv_control_setpoint_2"_a = sv_control_setpoint_2,
-                         "sv_single_command"_a = sv_single_command,
-                         "sv_double_command"_a = sv_double_command,
-                         "sv_step_point"_a = sv_step_point,
-                         "sv_step_command"_a = sv_step_command);
+  auto locals = py::dict(
+      "my_server"_a = my_server, "sv_control_setpoint"_a = sv_control_setpoint,
+      "sv_control_setpoint_2"_a = sv_control_setpoint_2,
+      "sv_single_command"_a = sv_single_command,
+      "sv_double_command"_a = sv_double_command,
+      "sv_step_point"_a = sv_step_point, "sv_step_command"_a = sv_step_command);
 
   try {
     py::exec(R"(
 import c104
 
+def sv_on_receive_raw(server: c104.Server, data: bytes) -> None:
+    import c104
+    print("SV] -->| {1} [{0}] | SERVER {2}:{3}".format(data.hex(), c104.explain_bytes_dict(apdu=data), server.ip, server.port))
+
+def sv_on_send_raw(server: c104.Server, data: bytes) -> None:
+    import c104
+    print("SV] <--| {1} [{0}] | SERVER {2}:{3}".format(data.hex(), c104.explain_bytes_dict(apdu=data), server.ip, server.port))
+
 def sv_pt_on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
-    print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_info, message.cot, point.quality))
+    print("SV] {0} SETPOINT COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
 
-    if point.quality.is_good():
-        if point.related_io_address:
-            print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
-            related_point = point.station.get_point(point.related_io_address)
-            if related_point:
-                print("SV] -> RELATED POINT VALUE UPDATE")
-                related_point.value = point.value
-            else:
-                print("SV] -> RELATED POINT NOT FOUND!")
-        return c104.ResponseState.SUCCESS
+    if point.related_io_address:
+        print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
+        related_point = point.station.get_point(point.related_io_address)
+        if related_point:
+            print("SV] -> RELATED POINT VALUE UPDATE")
+            related_point.value = point.value
+        else:
+            print("SV] -> RELATED POINT NOT FOUND!")
+    return c104.ResponseState.SUCCESS
 
-    return c104.ResponseState.FAILURE
 
 def sv_pt_on_single_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
-    print("SV] {0} SINGLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_info, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} SINGLE COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
 
-    if point.quality.is_good():
-        if message.is_select_command:
-            print("SV] -> SELECTED BY: {}".format(point.selected_by))
-        else:
-            print("SV] -> EXECUTED BY {}, NEW SELECTED BY={}".format(message.originator_address, point.selected_by))
-        return c104.ResponseState.SUCCESS
+    if message.is_select_command:
+        print("SV] -> SELECTED BY: {}".format(point.selected_by))
+    else:
+        print("SV] -> EXECUTED BY {}, NEW SELECTED BY={}".format(message.originator_address, point.selected_by))
+    return c104.ResponseState.SUCCESS
 
-    return c104.ResponseState.FAILURE
 
-sv_global_step_point_value = 0
+sv_global_step_point_value = c104.Int7(0)
 
 def sv_pt_on_double_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
-    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, timestamp: {3}, prev: {4}, cot: {5}, quality: {6}, command_qualifier: {7}".format(point.type, point.io_address, point.value, point.updated_at_ms, previous_info, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} DOUBLE COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
 
-    if point.quality.is_good():
-        if point.related_io_address:
-            print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
-            related_point = point.station.get_point(point.related_io_address)
-            if related_point:
-                print("SV] -> RELATED POINT VALUE UPDATE")
-                related_point.value = point.value
-            else:
-                print("SV] -> RELATED POINT NOT FOUND!")
-        return c104.ResponseState.SUCCESS
-
-    return c104.ResponseState.FAILURE
+    if point.related_io_address:
+        print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
+        related_point = point.station.get_point(point.related_io_address)
+        if related_point:
+            print("SV] -> RELATED POINT VALUE UPDATE")
+            related_point.value = point.value
+        else:
+            print("SV] -> RELATED POINT NOT FOUND!")
+    return c104.ResponseState.SUCCESS
 
 def sv_pt_on_step_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
     global sv_global_step_point_value
-    print("SV] {0} STEP COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_info, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} STEP COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
 
     if point.value == c104.Step.LOWER:
         sv_global_step_point_value -= 1
@@ -183,6 +184,8 @@ def sv_pt_on_before_transmit_step_point(point: c104.Point) -> None:
     point.value = sv_global_step_point_value
 
 
+my_server.on_receive_raw(callable=sv_on_receive_raw)
+my_server.on_send_raw(callable=sv_on_send_raw)
 sv_control_setpoint.on_receive(callable=sv_pt_on_setpoint_command)
 sv_control_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
 sv_single_command.on_receive(callable=sv_pt_on_single_command)

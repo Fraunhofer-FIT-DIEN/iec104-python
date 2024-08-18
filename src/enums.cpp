@@ -248,12 +248,14 @@ std::string ConnectionState_toString(const ConnectionState state) {
     return "CLOSED_AWAIT_OPEN";
   case CLOSED_AWAIT_RECONNECT:
     return "CLOSED_AWAIT_RECONNECT";
-  case OPEN_MUTED:
-    return "OPEN_MUTED";
+  case OPEN_AWAIT_UNMUTE:
+    return "OPEN_AWAIT_UNMUTE";
   case OPEN_AWAIT_INTERROGATION:
     return "OPEN_AWAIT_INTERROGATION";
   case OPEN_AWAIT_CLOCK_SYNC:
     return "OPEN_AWAIT_CLOCK_SYNC";
+  case OPEN_MUTED:
+    return "OPEN_MUTED";
   case OPEN:
     return "OPEN";
   case OPEN_AWAIT_CLOSED:
@@ -273,6 +275,8 @@ std::string ConnectionEvent_toString(const CS104_ConnectionEvent event) {
     return "ACTIVATED";
   case CS104_CONNECTION_STOPDT_CON_RECEIVED:
     return "DEACTIVATED";
+  case CS104_CONNECTION_FAILED:
+    return "FAILED";
   default:
     return "UNKNOWN";
   }

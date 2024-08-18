@@ -31,8 +31,14 @@ void Information::setValue(const InfoValue val) {
     throw std::logic_error("Information is read-only!");
   }
 
-  std::lock_guard<std::mutex> lock(mtx);
-  setValueImpl(val);
+  try {
+    std::lock_guard<std::mutex> lock(mtx);
+    setValueImpl(val);
+  } catch (const std::bad_variant_access &e) {
+    throw std::invalid_argument(
+        "Invalid value, please provide an instance of the matching information "
+        "value class (value.__class__)");
+  }
 };
 
 InfoQuality Information::getQuality() {
@@ -45,8 +51,14 @@ void Information::setQuality(const InfoQuality val) {
     throw std::logic_error("Information is read-only!");
   }
 
-  std::lock_guard<std::mutex> lock(mtx);
-  setQualityImpl(val);
+  try {
+    std::lock_guard<std::mutex> lock(mtx);
+    setQualityImpl(val);
+  } catch (const std::bad_variant_access &e) {
+    throw std::invalid_argument(
+        "Invalid quality, please provide an instance of the matching "
+        "information value class (quality.__class__)");
+  }
 };
 
 void Information::setReadonly() {

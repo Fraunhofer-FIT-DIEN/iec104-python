@@ -1089,7 +1089,7 @@ void DataPoint::setOnReceiveCallback(py::object &callable) {
 
 CommandResponseState DataPoint::onReceive(
     std::shared_ptr<Remote::Message::IncomingMessage> message) {
-  auto prev = info;
+  auto prev = std::move(info);
   info = message->getInfo();
 
   if (py_onReceive.is_set()) {
