@@ -39,9 +39,9 @@ if USE_TLS:
     tlsconf.set_ca_certificate(cert=str(ROOT / "certs/ca.crt"))
     tlsconf.set_version(min=c104.TlsVersion.TLS_1_2, max=c104.TlsVersion.TLS_1_2)
     tlsconf.add_allowed_remote_certificate(cert=str(ROOT / "certs/server1.crt"))
-    my_client = c104.Client(tick_rate_ms=1000, command_timeout_ms=5000, transport_security=tlsconf)
+    my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=100, transport_security=tlsconf)
 else:
-    my_client = c104.Client(tick_rate_ms=1000, command_timeout_ms=5000)
+    my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=100)
 
 my_client.originator_address = 123
 
@@ -63,8 +63,8 @@ cl_connection_1.on_state_change(callable=cl_ct_on_state_change)
 # NEW DATA HANDLER
 ##################################
 
-def cl_pt_on_receive_point(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("CL] {0} REPORT on IOA: {1} , new: {2}, timestamp: {3}, prev: {5}, cot: {6}, quality: {6}".format(point.type, point.io_address, point.value, point.updated_at_ms, previous_state, message.cot, point.quality))
+def cl_pt_on_receive_point(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    print("CL] {0} REPORT on IOA: {1} , cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
     # print("{0}".format(message.is_negative))
     # print("-->| POINT: 0x{0} | EXPLAIN: {1}".format(message.raw.hex(), c104.explain_bytes(apdu=message.raw)))
     return c104.ResponseState.SUCCESS
@@ -128,13 +128,13 @@ def cl_dump():
                 st = ct.stations[st_iter]
                 st_pt_count = len(st.points)
                 print("          |--+ STATION {0} has {1} points".format(st.common_address, st_pt_count))
-                print("             |   TYPE         |    IOA     |        VALUE         |      UPDATED AT      |      REPORTED AT     |      QUALITY      ")
-                print("             |----------------|------------|----------------------|----------------------|----------------------|-------------------")
+                print("             |   TYPE    |   IOA   |     VALUE     | PROCESSED  AT |  RECORDED AT  |      QUALITY      ")
+                print("             |-----------|---------|---------------|---------------|---------------|-------------------")
                 for pt_iter in range(st_pt_count):
                     pt = st.points[pt_iter]
-                    print("             | {0} | {1:10} | {2:20} | {3:20} | {4:20} | {5}".format(pt.type, pt.io_address, pt.value, pt.updated_at_ms,
-                                                                                                pt.reported_at_ms, pt.quality))
-                    print("             |----------------|------------|----------------------|----------------------|----------------------|-------------------")
+                    print("             | {0} | {1:7} | {2:13} | {3:13} | {4:13} | {5}".format(pt.type, pt.io_address, pt.value, pt.recorded_at_ms,
+                                                                                                pt.processed_at_ms, pt.quality))
+                    print("             |-----------|---------|---------------|---------------|---------------|-------------------")
 
 
 ##################################
