@@ -382,8 +382,8 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
   auto const it = expectedResponseMap.find(cmdId);
   if (it != expectedResponseMap.end()) {
 
-    auto const end =
-        std::chrono::steady_clock::now() + commandTimeout_ms.load() * 1ms;
+    auto const end = std::chrono::steady_clock::now() +
+                     std::chrono::milliseconds(commandTimeout_ms.load());
 
     DEBUG_PRINT(Debug::Connection, "await_command_success] Await " + cmdId);
 
@@ -439,18 +439,24 @@ void Connection::setCommandSuccess(
   ConnectionState const current = state.load();
   bool found = false;
 
-  std::string const cmdId = std::to_string(message->getCommonAddress()) + "-" +
-                            TypeID_toString(type) + "-" +
-                            std::to_string(message->getIOA());
-
-  // print
-  DEBUG_PRINT(Debug::Connection, "set_command_success] Result " + cmdId + ": " +
-                                     std::to_string(!message->isNegative()));
+  std::string cmdId = std::to_string(message->getCommonAddress()) + "-" +
+                      TypeID_toString(type) + "-" +
+                      std::to_string(message->getIOA());
+  std::string const cmdIdAlt = std::to_string(IEC60870_GLOBAL_COMMON_ADDRESS) +
+                               "-" + TypeID_toString(type) + "-" +
+                               std::to_string(message->getIOA());
 
   {
     std::lock_guard<Module::GilAwareMutex> const map_lock(
         expectedResponseMap_mutex);
     auto it = expectedResponseMap.find(cmdId);
+    if (it == expectedResponseMap.end()) {
+      // try global common address
+      it = expectedResponseMap.find(cmdIdAlt);
+      if (it != expectedResponseMap.end()) {
+        cmdId = cmdIdAlt;
+      }
+    }
     if (it != expectedResponseMap.end()) {
       found = true;
       if (message->isNegative()) {
@@ -494,6 +500,10 @@ void Connection::setCommandSuccess(
     }
   }
 
+  // print
+  DEBUG_PRINT(Debug::Connection, "set_command_success] Result " + cmdId + ": " +
+                                     std::to_string(!message->isNegative()) +
+                                     " | found: " + std::to_string(found));
   // notify about update
   if (found) {
     response_wait.notify_all();

@@ -2358,7 +2358,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> single_info = c104.SingleInfo(on=True, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> single_info = c104.SingleInfo(on=True, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "on"_a, "quality"_a = Quality::None, "recorded_at"_a = py::none())
       .def_property_readonly("on", &Object::SingleInfo::isOn,
@@ -2385,7 +2385,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> single_cmd = c104.SingleCmd(on=True, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.now())
+    >>> single_cmd = c104.SingleCmd(on=True, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.utcnow())
 )def",
            "on"_a, "qualifier"_a = CS101_QualifierOfCommand::NONE,
            "recorded_at"_a = py::none())
@@ -2416,7 +2416,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> double_info = c104.DoubleInfo(state=c104.Double.ON, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> double_info = c104.DoubleInfo(state=c104.Double.ON, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "state"_a, "quality"_a = Quality::None, "recorded_at"_a = py::none())
       .def_property_readonly("state", &Object::DoubleInfo::getState,
@@ -2443,7 +2443,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> double_cmd = c104.DoubleCmd(state=c104.Double.ON, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.now())
+    >>> double_cmd = c104.DoubleCmd(state=c104.Double.ON, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.utcnow())
 )def",
            "state"_a, "qualifier"_a = CS101_QualifierOfCommand::NONE,
            "recorded_at"_a = py::none())
@@ -2476,7 +2476,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> step_info = c104.StepInfo(position=c104.Int7(2), transient=False, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> step_info = c104.StepInfo(position=c104.Int7(2), transient=False, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "state"_a, "transient"_a = false, "quality"_a = Quality::None,
            "recorded_at"_a = py::none())
@@ -2506,7 +2506,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> step_cmd = c104.StepCmd(step=c104.Step.HIGHER, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.now())
+    >>> step_cmd = c104.StepCmd(step=c104.Step.HIGHER, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.utcnow())
 )def",
            "step"_a, "qualifier"_a = CS101_QualifierOfCommand::NONE,
            "recorded_at"_a = py::none())
@@ -2537,7 +2537,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> binary_info = c104.BinaryInfo(blob=c104.Byte32(2345), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> binary_info = c104.BinaryInfo(blob=c104.Byte32(2345), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "blob"_a, "quality"_a = Quality::None, "recorded_at"_a = py::none())
       .def_property_readonly("blob", &Object::BinaryInfo::getBlob,
@@ -2562,7 +2562,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> binary_cmd = c104.BinaryCmd(blob=c104.Byte32(1234), recorded_at=datetime.datetime.now())
+    >>> binary_cmd = c104.BinaryCmd(blob=c104.Byte32(1234), recorded_at=datetime.datetime.utcnow())
 )def",
            "blob"_a, "recorded_at"_a = py::none())
       .def_property_readonly("blob", &Object::BinaryCmd::getBlob,
@@ -2590,7 +2590,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> normalized_info = c104.NormalizedInfo(actual=c104.NormalizedFloat(23.45), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> normalized_info = c104.NormalizedInfo(actual=c104.NormalizedFloat(23.45), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "actual"_a, "quality"_a = Quality::None,
            "recorded_at"_a = py::none())
@@ -2620,7 +2620,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> normalized_cmd = c104.NormalizedCmd(target=c104.NormalizedFloat(23.45), qualifier=c104.UInt7(123), recorded_at=datetime.datetime.now())
+    >>> normalized_cmd = c104.NormalizedCmd(target=c104.NormalizedFloat(23.45), qualifier=c104.UInt7(123), recorded_at=datetime.datetime.utcnow())
 )def",
            "target"_a, "qualifier"_a = LimitedUInt7((uint32_t)0),
            "recorded_at"_a = py::none())
@@ -2652,7 +2652,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> scaled_info = c104.ScaledInfo(actual=c104.Int16(-2345), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> scaled_info = c104.ScaledInfo(actual=c104.Int16(-2345), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "actual"_a, "quality"_a = Quality::None,
            "recorded_at"_a = py::none())
@@ -2680,7 +2680,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> scaled_cmd = c104.ScaledCmd(target=c104.Int16(-2345), qualifier=c104.UInt7(123), recorded_at=datetime.datetime.now())
+    >>> scaled_cmd = c104.ScaledCmd(target=c104.Int16(-2345), qualifier=c104.UInt7(123), recorded_at=datetime.datetime.utcnow())
 )def",
            "target"_a, "qualifier"_a = LimitedUInt7((uint32_t)0),
            "recorded_at"_a = py::none())
@@ -2711,7 +2711,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> short_info = c104.ShortInfo(actual=23.45, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> short_info = c104.ShortInfo(actual=23.45, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "actual"_a, "quality"_a = Quality::None,
            "recorded_at"_a = py::none())
@@ -2739,7 +2739,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> short_cmd = c104.ShortCmd(target=-23.45, qualifier=c104.UInt7(123), recorded_at=datetime.datetime.now())
+    >>> short_cmd = c104.ShortCmd(target=-23.45, qualifier=c104.UInt7(123), recorded_at=datetime.datetime.utcnow())
 )def",
            "target"_a, "qualifier"_a = LimitedUInt7((uint32_t)0),
            "recorded_at"_a = py::none())
@@ -2773,7 +2773,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> counter_info = c104.BinaryCounterInfo(counter=2345, sequence=c104.UInt5(35), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> counter_info = c104.BinaryCounterInfo(counter=2345, sequence=c104.UInt5(35), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "counter"_a, "sequence"_a = LimitedUInt5((uint32_t)0),
            "quality"_a = Quality::None, "recorded_at"_a = py::none())
@@ -2807,7 +2807,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> single_event = c104.ProtectionEventInfo(state=c104.EventState.ON, elapsed_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> single_event = c104.ProtectionEventInfo(state=c104.EventState.ON, elapsed_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "state"_a, "elapsed_ms"_a = LimitedUInt16((uint32_t)0),
            "quality"_a = Quality::None, "recorded_at"_a = py::none())
@@ -2843,7 +2843,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> start_events = c104.ProtectionStartInfo(events=c104.StartEvents.ON, relay_duration_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> start_events = c104.ProtectionStartInfo(events=c104.StartEvents.ON, relay_duration_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "events"_a, "relay_duration_ms"_a = LimitedUInt16((uint32_t)0),
            "quality"_a = Quality::None, "recorded_at"_a = py::none())
@@ -2880,7 +2880,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> output_circuits = c104.ProtectionCircuitInfo(events=c104.OutputCircuits.PhaseL1|c104.OutputCircuits.PhaseL2, relay_operating_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> output_circuits = c104.ProtectionCircuitInfo(events=c104.OutputCircuits.PhaseL1|c104.OutputCircuits.PhaseL2, relay_operating_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "events"_a, "relay_duration_ms"_a = LimitedUInt16((uint32_t)0),
            "quality"_a = Quality::None, "recorded_at"_a = py::none())
@@ -2917,7 +2917,7 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> output_circuits = c104.StatusAndChanged(status=c104.FieldSet16(3), changed=c104.FieldSet16(5), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now())
+    >>> output_circuits = c104.StatusAndChanged(status=c104.FieldSet16(3), changed=c104.FieldSet16(5), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "status"_a, "changed"_a = FieldSet16(0), "quality"_a = Quality::None,
            "recorded_at"_a = py::none())
