@@ -48,6 +48,20 @@
 
 using namespace pybind11::literals;
 
+// set UNBUFFERED mode for correct order of stdout flush between python and c++
+struct EnvironmentInitializer {
+  EnvironmentInitializer() {
+#if defined(_WIN32) || defined(_WIN64)
+    _putenv("PYTHONUNBUFFERED=1");
+#else
+    // Use setenv on Linux
+    setenv("PYTHONUNBUFFERED", "1", 1);
+#endif
+  }
+};
+// Initialize the environment variable before main() is called
+static EnvironmentInitializer initializer;
+
 // @todo Ubuntu 18 x64, Ubuntu 20 x64, arm7v32, later: arm aarch64
 
 // Bind Number with Template
@@ -96,7 +110,7 @@ IncomingMessage_getRawBytes(Remote::Message::IncomingMessage *message) {
   unsigned char *msg = message->getRawBytes();
   unsigned char msgSize = 2 + msg[1];
 
-  return py::bytes(reinterpret_cast<const char *>(msg), msgSize);
+  return {reinterpret_cast<const char *>(msg), msgSize};
 }
 
 std::string explain_bytes(const py::bytes &obj) {
@@ -317,15 +331,6 @@ PY_MODULE(c104, m) {
              "The connection is dialing")
       .value("CLOSED_AWAIT_RECONNECT", CLOSED_AWAIT_RECONNECT,
              "The connection will retry dialing soon")
-      .value("OPEN_AWAIT_UNMUTE", OPEN_AWAIT_UNMUTE,
-             "The connection is established and will be activated/unmuted as "
-             "part of the init routine soon")
-      .value("OPEN_AWAIT_INTERROGATION", OPEN_AWAIT_INTERROGATION,
-             "The connection is established and active/unmuted an will send a "
-             "interrogation command as part of the init routine soon")
-      .value("OPEN_AWAIT_CLOCK_SYNC", OPEN_AWAIT_CLOCK_SYNC,
-             "The connection is established and active/unmuted an will send a "
-             "clock synchronization command as part of the init routine soon")
       .value("OPEN", OPEN,
              "The connection is established and active/unmuted, with no init "
              "commands outstanding")
@@ -960,127 +965,6 @@ PY_MODULE(c104, m) {
            "min"_a = TLS_VERSION_NOT_SELECTED,
            "max"_a = TLS_VERSION_NOT_SELECTED);
 
-  // todo remove deprecated in 2.x
-  m.def(
-      "add_client",
-      [](const std::uint_fast32_t tick_rate_ms,
-         const std::uint_fast32_t timeout_ms,
-         std::shared_ptr<Remote::TransportSecurity> transport_security)
-          -> std::shared_ptr<Client> {
-        std::cerr << "[c104.add_client] deprecated: simple create a new "
-                     "c104.Client() object with relevant arguments"
-                  << std::endl;
-        return Client::create(tick_rate_ms, timeout_ms,
-                              std::move(transport_security));
-      },
-      R"def(
-    add_client(tick_rate_ms: int = 1000, command_timeout_ms: int = 1000, transport_security: Optional[c104.TransportSecurity] = None) -> None
-
-    create a new 104er client
-
-    Parameters
-    ----------
-    tick_rate_ms: int
-        client thread update interval
-    command_timeout_ms: int
-        time to wait for a command response
-    transport_security: :ref:`c104.TransportSecurity`
-        TLS configuration object
-
-    Warning
-    -------
-    Deprecated: Use the default constructor c104.Client(...) instead. Will be removed in 2.x
-)def",
-      "tick_rate_ms"_a = 1000, "command_timeout_ms"_a = 1000,
-      "transport_security"_a = nullptr);
-  // todo remove deprecated in 2.x
-  m.def(
-      "remove_client",
-      [](std::shared_ptr<Client> instance) {
-        std::cerr
-            << "[c104.remove_client] deprecated: simple discard the variable"
-            << std::endl;
-      },
-      R"def(
-    remove_client(instance: c104.Client) -> None
-
-    destroy and free a 104er client
-
-    Parameters
-    ----------
-    instance: :ref:`c104.Client`
-        client instance
-
-    Warning
-    -------
-    Deprecated: Simple remove all references to the instance instead. Will be removed in 2.x
-)def",
-      "instance"_a);
-
-  // todo remove deprecated in 2.x
-  m.def(
-      "add_server",
-      [](const std::string &bind_ip, const std::uint_fast16_t tcp_port,
-         const std::uint_fast32_t tick_rate_ms,
-         const uint_fast8_t max_open_connections,
-         std::shared_ptr<Remote::TransportSecurity> transport_security)
-          -> std::shared_ptr<Server> {
-        std::cerr << "[c104.add_server] deprecated: simple create a new "
-                     "c104.Server() object with relevant arguments"
-                  << std::endl;
-        return Server::create(bind_ip, tcp_port, tick_rate_ms,
-                              max_open_connections,
-                              std::move(transport_security));
-      },
-      R"def(
-    add_server(self: c104.Server, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 1000, max_connections: int = 0, transport_security: Optional[c104.TransportSecurity] = None) -> None
-
-    create a new 104er server
-
-    Parameters
-    -------
-    ip: str
-        listening server ip address
-    port:int
-        listening server port
-    tick_rate_ms: int
-        server thread update interval
-    max_connections: int
-        maximum number of clients allowed to connect
-    transport_security: :ref:`c104.TransportSecurity`
-        TLS configuration object
-
-    Warning
-    -------
-    Deprecated: Use the default constructor c104.Server(...) instead. Will be removed in 2.x
-)def",
-      "ip"_a = "0.0.0.0", "port"_a = IEC_60870_5_104_DEFAULT_PORT,
-      "tick_rate_ms"_a = 1000, "max_connections"_a = 0,
-      "transport_security"_a = nullptr);
-  // todo remove deprecated in 2.x
-  m.def(
-      "remove_server",
-      [](std::shared_ptr<Server> instance) -> void {
-        std::cerr
-            << "[c104.remove_server] deprecated: simple discard the variable"
-            << std::endl;
-      },
-      R"def(
-    remove_server(instance: c104.Server) -> None
-
-    destroy and free a 104er server
-
-    Parameters
-    ----------
-    instance: :ref:`c104.Server`
-        server instance
-
-    Warning
-    -------
-    Deprecated: Simple remove all references to the instance instead. Will be removed in 2.x
-)def",
-      "instance"_a);
-
   m.def("explain_bytes", &explain_bytes, R"def(
     explain_bytes(apdu: bytes) -> str
 
@@ -1198,7 +1082,7 @@ PY_MODULE(c104, m) {
       "This class represents a local client and provides access to meta "
       "information and connected remote servers")
       .def(py::init(&Client::create), R"def(
-    __init__(self: c104.Client, tick_rate_ms: int = 1000, command_timeout_ms: int = 1000, transport_security: Optional[c104.TransportSecurity] = None) -> None
+    __init__(self: c104.Client, tick_rate_ms: int = 100, command_timeout_ms: int = 100, transport_security: Optional[c104.TransportSecurity] = None) -> None
 
     create a new 104er client
 
@@ -1213,9 +1097,9 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> my_client = c104.Client(tick_rate_ms=1000, command_timeout_ms=1000)
+    >>> my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=100)
 )def",
-           "tick_rate_ms"_a = 1000, "command_timeout_ms"_a = 1000,
+           "tick_rate_ms"_a = 100, "command_timeout_ms"_a = 100,
            "transport_security"_a = nullptr)
       .def_property_readonly("is_running", &Client::isRunning,
                              "bool: test if client is running (read-only)",
@@ -1416,7 +1300,7 @@ PY_MODULE(c104, m) {
       "This class represents a local server and provides access to meta "
       "information and containing stations")
       .def(py::init(&Server::create), R"def(
-    __init__(self: c104.Server, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 1000, max_connections: int = 0, transport_security: Optional[c104.TransportSecurity] = None) -> None
+    __init__(self: c104.Server, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 100, select_timeout_ms = 100, max_connections: int = 0, transport_security: Optional[c104.TransportSecurity] = None) -> None
 
     create a new 104er server
 
@@ -1428,6 +1312,8 @@ PY_MODULE(c104, m) {
         listening server port
     tick_rate_ms: int
         server thread update interval
+    select_timeout_ms: int
+        execution for points in SELECT_AND_EXECUTE mode must arrive within this interval to succeed
     max_connections: int
         maximum number of clients allowed to connect
     transport_security: :ref:`c104.TransportSecurity`
@@ -1435,11 +1321,11 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=1000, max_connections=0)
+    >>> my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=100, select_timeout_ms=100, max_connections=0)
 )def",
            "ip"_a = "0.0.0.0", "port"_a = IEC_60870_5_104_DEFAULT_PORT,
-           "tick_rate_ms"_a = 1000, "max_connections"_a = 0,
-           "transport_security"_a = nullptr)
+           "tick_rate_ms"_a = 100, "select_timeout_ms"_a = 100,
+           "max_connections"_a = 0, "transport_security"_a = nullptr)
       .def_property_readonly("ip", &Server::getIP,
                              "str: ip address the server will accept "
                              "connections on, \"0.0.0.0\" = any (read-only)",

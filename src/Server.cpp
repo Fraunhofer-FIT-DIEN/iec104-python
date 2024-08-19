@@ -41,10 +41,12 @@ using namespace Remote;
 using namespace std::chrono_literals;
 
 Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
-               const std::uint_fast32_t tick_rate_ms,
+               const std::uint_fast16_t tick_rate_ms,
+               const std::uint_fast16_t select_timeout_ms,
                const std::uint_fast8_t max_open_connections,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : ip(bind_ip), port(tcp_port), tickRate_ms(tick_rate_ms),
+      selectTimeout_ms(select_timeout_ms),
       maxOpenConnections(max_open_connections) {
 
   // create a new slave/server instance with default connection parameters and
@@ -282,11 +284,11 @@ bool Server::hasStations() const {
   return !stations.empty();
 }
 
-bool Server::isActiveConnection(IMasterConnection connection) {
+bool Server::isExistingConnection(IMasterConnection connection) {
   std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
 
   auto it = connectionMap.find(connection);
-  return it != connectionMap.end() && it->second;
+  return it != connectionMap.end();
 }
 
 bool Server::hasOpenConnections() const {
@@ -449,10 +451,7 @@ bool Server::select(IMasterConnection connection,
 
 void Server::unselect(const Selection &selection) {
   scheduleTask([this, selection]() {
-    if (isActiveConnection(selection.connection)) {
-      CS101_ASDU_setCOT(selection.asdu, CS101_COT_ACTIVATION_TERMINATION);
-      IMasterConnection_sendASDU(selection.connection, selection.asdu);
-    }
+    sendActivationTermination(selection.connection, selection.asdu);
     CS101_ASDU_destroy(selection.asdu);
   });
 }
@@ -827,6 +826,9 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
 
 void Server::sendActivationConfirmation(IMasterConnection connection,
                                         CS101_ASDU asdu, bool negative) {
+  if (!isExistingConnection(connection))
+    return;
+
   CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
   CS101_ASDU_setNegative(asdu, negative);
 
@@ -846,6 +848,9 @@ void Server::sendActivationConfirmation(IMasterConnection connection,
 
 void Server::sendActivationTermination(IMasterConnection connection,
                                        CS101_ASDU asdu) {
+  if (!isExistingConnection(connection))
+    return;
+
   CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_TERMINATION);
 
   if (isGlobalCommonAddress(CS101_ASDU_getCA(asdu))) {
@@ -1519,8 +1524,7 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                       } catch (const std::exception &e) {
                         std::cerr
                             << "[c104.Server.asdu_handler] Auto transmit "
-                               "related point "
-                               "failed for "
+                               "related point failed for "
                             << TypeID_toString(related_point->getType())
                             << " at IOA "
                             << related_point->getInformationObjectAddress()

@@ -52,8 +52,8 @@ public:
   Client &operator=(const Client &) = delete;
 
   [[nodiscard]] static std::shared_ptr<Client> create(
-      std::uint_fast32_t tick_rate_ms = 1000,
-      std::uint_fast32_t timeout_ms = 1000,
+      std::uint_fast16_t tick_rate_ms = 100,
+      std::uint_fast16_t timeout_ms = 100,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr) {
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<Client>(
@@ -177,7 +177,7 @@ private:
    * @param transport_security communication encryption instance reference
    * gets closed
    */
-  Client(std::uint_fast32_t tick_rate_ms, std::uint_fast32_t timeout_ms,
+  Client(std::uint_fast16_t tick_rate_ms, std::uint_fast16_t timeout_ms,
          std::shared_ptr<Remote::TransportSecurity> transport_security);
 
   /// @brief tls handler
@@ -190,10 +190,10 @@ private:
   std::atomic_bool enabled{false};
 
   /// @brief minimum interval between to periodic broadcasts in milliseconds
-  std::atomic_uint_fast32_t tickRate_ms{1000};
+  std::atomic_uint_fast16_t tickRate_ms{1000};
 
   /// @brief timeout in milliseconds before an inactive connection gets closed
-  std::atomic_uint_fast32_t commandTimeout_ms{1000};
+  std::atomic_uint_fast16_t commandTimeout_ms{100};
 
   /// @brief MUTEX Lock to access connectionMap
   mutable Module::GilAwareMutex connections_mutex{"Client::connections_mutex"};

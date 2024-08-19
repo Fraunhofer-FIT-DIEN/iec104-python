@@ -5,7 +5,7 @@ import time
 
 def main():
     # client, connection and station preparation
-    client = c104.Client(tick_rate_ms=1000, command_timeout_ms=1000)
+    client = c104.Client()
     connection = client.add_connection(ip="127.0.0.1", port=2404, init=c104.Init.INTERROGATION)
     station = connection.add_station(common_address=47)
 
@@ -50,6 +50,6 @@ def main():
 
 
 if __name__ == "__main__":
-    c104.set_debug_mode(c104.Debug.Client|c104.Debug.Connection)
+    c104.set_debug_mode(c104.Debug.Client|c104.Debug.Connection|c104.Debug.Point|c104.Debug.Callback)
     main()
     time.sleep(1)

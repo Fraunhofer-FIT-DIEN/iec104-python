@@ -40,8 +40,8 @@
 using namespace Remote;
 using namespace std::chrono_literals;
 
-Client::Client(const std::uint_fast32_t tick_rate_ms,
-               const std::uint_fast32_t timeout_ms,
+Client::Client(const std::uint_fast16_t tick_rate_ms,
+               const std::uint_fast16_t timeout_ms,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : tickRate_ms(tick_rate_ms), commandTimeout_ms(timeout_ms),
       security(std::move(transport_security)) {

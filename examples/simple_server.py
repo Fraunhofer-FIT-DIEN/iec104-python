@@ -28,7 +28,7 @@ def before_transmit(point: c104.Point) -> None:
 
 def main():
     # server and station preparation
-    server = c104.Server(ip="0.0.0.0", port=2404)
+    server = c104.Server()
     station = server.add_station(common_address=47)
 
     # monitoring point preparation
@@ -57,6 +57,6 @@ def main():
 
 
 if __name__ == "__main__":
-    c104.set_debug_mode(c104.Debug.Server)
+    c104.set_debug_mode(c104.Debug.Server|c104.Debug.Point|c104.Debug.Callback)
     main()
     time.sleep(1)

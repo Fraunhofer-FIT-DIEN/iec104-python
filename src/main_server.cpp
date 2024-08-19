@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
     tlsconf->addAllowedRemoteCertificate(ROOT + "certs/client1.crt");
   }
 
-  auto my_server = Server::create("127.0.0.1", 2404, 1000, 0, tlsconf);
+  auto my_server = Server::create("127.0.0.1", 2404, 100, 100, 0, tlsconf);
 
   auto sv_station_2 = my_server->addStation(47);
 

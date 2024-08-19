@@ -9,6 +9,11 @@
   message.command_qualifier -> message.info.qualifier OR point.info.qualifier
 - point.value is a shortcut to point.info.value
 - calling point.quality.is_good() on commands result in an error, because point.quality is just a shortcut to point.info.quality and this can be None, because command points do not have a quality information
+- default tick_rate_ms and command_timeout_ms decreased to 100
+- add select_timeout_ms to Server() constructor
+- remove add_server, remove_server, add_client, remove_client
+- remove states:   OPEN_AWAIT_UNMUTE, OPEN_AWAIT_INTERROGATION, OPEN_AWAIT_CLOCK_SYNC,
+- auto set PYTHONUNBUFFERED
 
 ## v1.18
 - Add support for Qualifier of Command for single, double and regulating step commands

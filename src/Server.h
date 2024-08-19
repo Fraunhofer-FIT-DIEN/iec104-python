@@ -64,13 +64,13 @@ public:
   [[nodiscard]] static std::shared_ptr<Server> create(
       std::string bind_ip = "0.0.0.0",
       uint_fast16_t tcp_port = IEC_60870_5_104_DEFAULT_PORT,
-      uint_fast32_t tick_rate_ms = 1000,
+      uint_fast16_t tick_rate_ms = 100, uint_fast16_t select_timeout_ms = 100,
       std::uint_fast8_t max_open_connections = 0,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr) {
     // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<Server>(new Server(bind_ip, tcp_port, tick_rate_ms,
-                                              max_open_connections,
-                                              std::move(transport_security)));
+    return std::shared_ptr<Server>(
+        new Server(bind_ip, tcp_port, tick_rate_ms, select_timeout_ms,
+                   max_open_connections, std::move(transport_security)));
   }
 
   // DESTRUCTOR
@@ -121,7 +121,7 @@ public:
    */
   bool hasStations() const;
 
-  bool isActiveConnection(IMasterConnection connection);
+  bool isExistingConnection(IMasterConnection connection);
 
   /**
    * @brief Test if Server has open connections to clients
@@ -282,12 +282,9 @@ private:
    * @param transport_security communication encryption instance reference
    */
   Server(const std::string &bind_ip, std::uint_fast16_t tcp_port,
-         std::uint_fast32_t tick_rate_ms,
+         std::uint_fast16_t tick_rate_ms, std::uint_fast16_t select_timeout_ms,
          std::uint_fast8_t max_open_connections,
          std::shared_ptr<Remote::TransportSecurity> transport_security);
-
-  /// @brief selection init timestamp, to test against timeout
-  const std::chrono::milliseconds selectTimeout_ms{1000};
 
   void cleanupSelections();
 
@@ -327,7 +324,10 @@ private:
   std::atomic_bool enabled{false};
 
   /// @brief minimum interval between to periodic broadcasts in milliseconds
-  std::atomic_uint_fast32_t tickRate_ms{1000};
+  const std::uint_fast16_t tickRate_ms{100};
+
+  /// @brief selection init timestamp, to test against timeout
+  const std::chrono::milliseconds selectTimeout_ms{100};
 
   /// @brief parameters of current server intance
   CS101_AppLayerParameters appLayerParameters;

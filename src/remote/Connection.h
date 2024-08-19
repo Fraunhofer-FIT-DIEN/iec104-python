@@ -64,7 +64,7 @@ public:
   [[nodiscard]] static std::shared_ptr<Connection> create(
       std::shared_ptr<Client> client, const std::string &ip,
       const uint_fast16_t port = IEC_60870_5_104_DEFAULT_PORT,
-      const uint_fast32_t command_timeout_ms = 4000,
+      const uint_fast16_t command_timeout_ms = 100,
       const ConnectionInit init = INIT_ALL,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr,
       const uint_fast8_t originator_address = 0) {
@@ -124,7 +124,7 @@ public:
   /**
    * @brief Open a created connection to remote server
    */
-  void connect(bool autoConnect = false);
+  void connect();
 
   /**
    * @brief Close a created connection to remote server
@@ -395,7 +395,7 @@ private:
    * @throws std::invalid_argument if ip or port invalid
    */
   Connection(std::shared_ptr<Client> _client, const std::string &_ip,
-             uint_fast16_t _port, uint_fast32_t command_timeout_ms,
+             uint_fast16_t _port, uint_fast16_t command_timeout_ms,
              ConnectionInit init,
              std::shared_ptr<Remote::TransportSecurity> transport_security,
              uint_fast8_t originator_address);
@@ -408,7 +408,7 @@ private:
       "Connection::connection_mutex"};
 
   /// @brief timeout in milliseconds before an inactive connection gets closed
-  std::uint_fast32_t commandTimeout_ms{1000};
+  std::atomic_uint_fast16_t commandTimeout_ms{100};
 
   /// @brief IP address of remote server
   std::string ip = "";

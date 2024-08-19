@@ -43,7 +43,7 @@ using namespace std::chrono_literals;
 
 Connection::Connection(
     std::shared_ptr<Client> _client, const std::string &_ip,
-    const uint_fast16_t _port, const uint_fast32_t command_timeout_ms,
+    const uint_fast16_t _port, const uint_fast16_t command_timeout_ms,
     const ConnectionInit _init,
     std::shared_ptr<Remote::TransportSecurity> transport_security,
     const uint_fast8_t originator_address)
@@ -68,7 +68,7 @@ Connection::Connection(
   // timeout elapsed without confirmation the connection will
   // be closed. This is used by the sender to determine if
   // the receiver has failed to confirm a message.
-  param->t1 = std::max(1, (int)round(command_timeout_ms / 1000));
+  param->t1 = 1;
   // Timeout to confirm messages (in s). This timeout is used by
   // the receiver to determine the time when the message
   // confirmation has to be sent.
@@ -150,11 +150,19 @@ std::shared_ptr<Client> Connection::getClient() const {
   return client.lock();
 }
 
-void Connection::connect(const bool autoConnect) {
+void Connection::connect() {
   ConnectionState const current = state.load();
-  if ((autoConnect && CLOSED_AWAIT_RECONNECT != current) ||
-      (!autoConnect && CLOSED != current))
+  if (current == OPEN || current == OPEN_MUTED || CLOSED_AWAIT_OPEN == current)
     return;
+
+  if (current == OPEN_AWAIT_CLOSED) {
+    DEBUG_PRINT(Debug::Connection,
+                "connect] Wait for closing before reconnecting to " +
+                    getConnectionString());
+    while (state.load() == OPEN_AWAIT_CLOSED) {
+      std::this_thread::sleep_for(10ms);
+    }
+  }
 
   DEBUG_PRINT(Debug::Connection,
               "connect] Asynchronous connect to " + getConnectionString());
@@ -173,8 +181,17 @@ void Connection::connect(const bool autoConnect) {
 
 void Connection::disconnect() {
   ConnectionState const current = state.load();
-  if (CLOSED == current) {
+  if (CLOSED == current || OPEN_AWAIT_CLOSED == current) {
     return;
+  }
+
+  if (current == CLOSED_AWAIT_OPEN) {
+    DEBUG_PRINT(Debug::Connection,
+                "connect] Wait for opening before closing to " +
+                    getConnectionString());
+    while (state.load() == CLOSED_AWAIT_OPEN) {
+      std::this_thread::sleep_for(10ms);
+    }
   }
 
   if (CLOSED_AWAIT_RECONNECT == current) {
@@ -195,13 +212,10 @@ void Connection::disconnect() {
 
 bool Connection::isOpen() const {
   ConnectionState const current = state.load();
-  return current != CLOSED && current != CLOSED_AWAIT_OPEN &&
-         current != CLOSED_AWAIT_RECONNECT && current != OPEN_AWAIT_CLOSED;
+  return current == OPEN || current == OPEN_MUTED;
 }
 
-bool Connection::isMuted() const {
-  return state == OPEN_MUTED || state == OPEN_AWAIT_UNMUTE;
-}
+bool Connection::isMuted() const { return state == OPEN_MUTED; }
 
 bool Connection::mute() {
   Module::ScopedGilRelease const scoped("Connection.mute");
@@ -247,26 +261,50 @@ bool Connection::setMuted(bool value) {
     } else {
       switch (init) {
       case INIT_ALL:
-      case INIT_INTERROGATION:
         if (auto c = getClient()) {
-          setState(OPEN_AWAIT_INTERROGATION);
           c->scheduleTask(
               [this]() {
+                // reduce the command timeout temporarily
+                auto helper = commandTimeout_ms.load();
+                commandTimeout_ms = 25;
                 this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
-                                    CS101_COT_ACTIVATION, QOI_STATION, false);
+                                    CS101_COT_ACTIVATION, QOI_STATION, true);
+                this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+                commandTimeout_ms.store(helper);
+                setState(OPEN);
               },
-              -1);
+              0);
+        }
+        break;
+      case INIT_INTERROGATION:
+        if (auto c = getClient()) {
+          c->scheduleTask(
+              [this]() {
+                // reduce the command timeout temporarily
+                auto helper = commandTimeout_ms.load();
+                commandTimeout_ms = 25;
+                this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
+                                    CS101_COT_ACTIVATION, QOI_STATION, true);
+                commandTimeout_ms.store(helper);
+                setState(OPEN);
+              },
+              0);
         }
         break;
       case INIT_CLOCK_SYNC:
-        setState(OPEN_AWAIT_CLOCK_SYNC);
         if (auto c = getClient()) {
           c->scheduleTask(
               [this]() {
-                this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, false);
+                // reduce the command timeout temporarily
+                auto helper = commandTimeout_ms.load();
+                commandTimeout_ms = 25;
+                this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+                commandTimeout_ms.store(helper);
+                setState(OPEN);
               },
-              -1);
+              0);
         }
+        break;
       default:
         setState(OPEN);
       }
@@ -286,10 +324,8 @@ bool Connection::setOpen() {
     return false;
   }
 
-  if (INIT_MUTED == init) {
-    setState(OPEN_MUTED);
-  } else {
-    setState(OPEN_AWAIT_UNMUTE);
+  setState(OPEN_MUTED);
+  if (INIT_MUTED != init) {
     if (auto c = getClient()) {
       c->scheduleTask([this]() { this->unmute(); }, -1);
     }
@@ -326,7 +362,7 @@ bool Connection::setClosed() {
   } else {
     setState(CLOSED_AWAIT_RECONNECT);
     if (auto c = getClient()) {
-      c->scheduleTask([this]() { this->connect(true); }, 1000);
+      c->scheduleTask([this]() { this->connect(); }, 1000);
     }
   }
 
@@ -358,7 +394,8 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
   auto const it = expectedResponseMap.find(cmdId);
   if (it != expectedResponseMap.end()) {
 
-    auto const end = std::chrono::steady_clock::now() + commandTimeout_ms * 1ms;
+    auto const end =
+        std::chrono::steady_clock::now() + commandTimeout_ms.load() * 1ms;
 
     DEBUG_PRINT(Debug::Connection, "await_command_success] Await " + cmdId);
 
@@ -413,26 +450,6 @@ void Connection::setCommandSuccess(
                           : message->getType();
   ConnectionState const current = state.load();
   bool found = false;
-
-  // continue init procedure event though the response might be negative
-  if (type == C_CS_NA_1 && current == OPEN_AWAIT_CLOCK_SYNC) {
-    setState(OPEN);
-  }
-
-  if (type == C_IC_NA_1 && current == OPEN_AWAIT_INTERROGATION) {
-    if (init == INIT_INTERROGATION) {
-      setState(OPEN);
-    } else {
-      setState(OPEN_AWAIT_CLOCK_SYNC);
-      if (auto c = getClient()) {
-        c->scheduleTask(
-            [this]() {
-              this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, false);
-            },
-            -1);
-      }
-    }
-  }
 
   std::string const cmdId = std::to_string(message->getCommonAddress()) + "-" +
                             TypeID_toString(type) + "-" +
