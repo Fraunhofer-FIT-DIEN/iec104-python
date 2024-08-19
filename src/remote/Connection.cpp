@@ -264,13 +264,9 @@ bool Connection::setMuted(bool value) {
         if (auto c = getClient()) {
           c->scheduleTask(
               [this]() {
-                // reduce the command timeout temporarily
-                auto helper = commandTimeout_ms.load();
-                commandTimeout_ms = 25;
                 this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
                                     CS101_COT_ACTIVATION, QOI_STATION, true);
                 this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
-                commandTimeout_ms.store(helper);
                 setState(OPEN);
               },
               -1);
@@ -280,12 +276,8 @@ bool Connection::setMuted(bool value) {
         if (auto c = getClient()) {
           c->scheduleTask(
               [this]() {
-                // reduce the command timeout temporarily
-                auto helper = commandTimeout_ms.load();
-                commandTimeout_ms = 25;
                 this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
                                     CS101_COT_ACTIVATION, QOI_STATION, true);
-                commandTimeout_ms.store(helper);
                 setState(OPEN);
               },
               -1);
@@ -295,11 +287,7 @@ bool Connection::setMuted(bool value) {
         if (auto c = getClient()) {
           c->scheduleTask(
               [this]() {
-                // reduce the command timeout temporarily
-                auto helper = commandTimeout_ms.load();
-                commandTimeout_ms = 25;
                 this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
-                commandTimeout_ms.store(helper);
                 setState(OPEN);
               },
               -1);
@@ -489,7 +477,8 @@ void Connection::setCommandSuccess(
           break;
         case COMMAND_AWAIT_REQUEST:
           expectedResponseMap[cmdId] =
-              (message->getCauseOfTransmission() == CS101_COT_REQUEST)
+              (message->getCauseOfTransmission() == CS101_COT_ACTIVATION_CON ||
+               message->getCauseOfTransmission() == CS101_COT_REQUEST)
                   ? COMMAND_SUCCESS
                   : COMMAND_FAILURE;
           break;
@@ -1003,38 +992,31 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
         instance->setCommandSuccess(message);
       }
 
-      client->scheduleTask(
-          [debug, client, instance, message]() {
-            while (message->next()) {
-              auto station = instance->getStation(message->getCommonAddress());
-              if (!station) {
-                client->onNewStation(instance, message->getCommonAddress());
-                station = instance->getStation(message->getCommonAddress());
-              }
-              if (station) {
-                auto point = station->getPoint(message->getIOA());
-                if (!point) {
-                  // accept point via callback?
-                  client->onNewPoint(station, message->getIOA(),
-                                     message->getType());
-                  point = station->getPoint(message->getIOA());
-                }
-                if (point) {
-                  point->onReceive(message);
-                } else {
-                  DEBUG_PRINT_CONDITION(
-                      debug, Debug::Connection,
-                      "asdu_handler] Message ignored: Unknown IOA");
-                }
-              } else {
-                // @todo add error callback?
-                DEBUG_PRINT_CONDITION(
-                    debug, Debug::Connection,
-                    "asdu_handler] Message ignored: Unknown CA");
-              }
-            }
-          },
-          -1);
+      while (message->next()) {
+        auto station = instance->getStation(message->getCommonAddress());
+        if (!station) {
+          client->onNewStation(instance, message->getCommonAddress());
+          station = instance->getStation(message->getCommonAddress());
+        }
+        if (station) {
+          auto point = station->getPoint(message->getIOA());
+          if (!point) {
+            // accept point via callback?
+            client->onNewPoint(station, message->getIOA(), message->getType());
+            point = station->getPoint(message->getIOA());
+          }
+          if (point) {
+            point->onReceive(message);
+          } else {
+            DEBUG_PRINT_CONDITION(debug, Debug::Connection,
+                                  "asdu_handler] Message ignored: Unknown IOA");
+          }
+        } else {
+          // @todo add error callback?
+          DEBUG_PRINT_CONDITION(debug, Debug::Connection,
+                                "asdu_handler] Message ignored: Unknown CA");
+        }
+      }
 
       if (debug) {
         end = std::chrono::steady_clock::now();
