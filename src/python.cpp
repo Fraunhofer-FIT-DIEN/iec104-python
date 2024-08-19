@@ -1126,17 +1126,14 @@ PY_MODULE(c104, m) {
            "tick_rate_ms"_a = 100, "command_timeout_ms"_a = 100,
            "transport_security"_a = nullptr)
       .def_property_readonly("is_running", &Client::isRunning,
-                             "bool: test if client is running (read-only)",
-                             py::return_value_policy::copy)
+                             "bool: test if client is running (read-only)")
       .def_property_readonly("has_connections", &Client::hasConnections,
                              "bool: test if client has at least one remote "
-                             "server connection (read-only)",
-                             py::return_value_policy::copy)
+                             "server connection (read-only)")
       .def_property_readonly(
           "connections", &Client::getConnections,
           "List[:ref:`c104.Connection`]: list of all remote terminal unit "
-          "(server) Connection objects (read-only)",
-          py::return_value_policy::copy)
+          "(server) Connection objects (read-only)")
       .def_property("originator_address", &Client::getOriginatorAddress,
                     &Client::setOriginatorAddress,
                     "int: primary originator address of this client (0-255)",
@@ -1352,41 +1349,32 @@ PY_MODULE(c104, m) {
            "max_connections"_a = 0, "transport_security"_a = nullptr)
       .def_property_readonly("ip", &Server::getIP,
                              "str: ip address the server will accept "
-                             "connections on, \"0.0.0.0\" = any (read-only)",
-                             py::return_value_policy::copy)
+                             "connections on, \"0.0.0.0\" = any (read-only)")
       .def_property_readonly(
           "port", &Server::getPort,
-          "int: port number the server will accept connections on (read-only)",
-          py::return_value_policy::copy)
+          "int: port number the server will accept connections on (read-only)")
       .def_property_readonly("is_running", &Server::isRunning,
-                             "bool: test if server is running (read-only)",
-                             py::return_value_policy::copy)
+                             "bool: test if server is running (read-only)")
       .def_property_readonly(
           "has_open_connections", &Server::hasOpenConnections,
-          "bool: test if Server has open connections to clients (read-only)",
-          py::return_value_policy::copy)
+          "bool: test if Server has open connections to clients (read-only)")
       .def_property_readonly(
           "open_connection_count", &Server::getOpenConnectionCount,
-          "int: get number of open connections to clients (read-only)",
-          py::return_value_policy::copy)
+          "int: get number of open connections to clients (read-only)")
       .def_property_readonly("has_active_connections",
                              &Server::hasActiveConnections,
                              "bool: test if Server has active (open and not "
-                             "muted) connections to clients (read-only)",
-                             py::return_value_policy::copy)
+                             "muted) connections to clients (read-only)")
       .def_property_readonly("active_connection_count",
                              &Server::getActiveConnectionCount,
                              "int: get number of active (open and not muted) "
-                             "connections to clients (read-only)",
-                             py::return_value_policy::copy)
+                             "connections to clients (read-only)")
       .def_property_readonly(
           "has_stations", &Server::hasStations,
-          "bool: test if local server has at least one station (read-only)",
-          py::return_value_policy::copy)
+          "bool: test if local server has at least one station (read-only)")
       .def_property_readonly("stations", &Server::getStations,
                              "List[:ref:`c104.Station`]: list of all local "
-                             "Station objects (read-only)",
-                             py::return_value_policy::copy)
+                             "Station objects (read-only)")
       .def_property("max_connections", &Server::getMaxOpenConnections,
                     &Server::setMaxOpenConnections,
                     "int: maximum number of open connections, 0 = no limit",
@@ -1627,26 +1615,23 @@ PY_MODULE(c104, m) {
       "provides access to meta information and containing stations")
       .def_property_readonly(
           "ip", &Remote::Connection::getIP,
-          "str: remote terminal units (server) ip (read-only)",
-          py::return_value_policy::copy)
+          "str: remote terminal units (server) ip (read-only)")
       .def_property_readonly(
           "port", &Remote::Connection::getPort,
-          "int: remote terminal units (server) port (read-only)",
-          py::return_value_policy::copy)
+          "int: remote terminal units (server) port (read-only)")
+      .def_property_readonly(
+          "state", &Remote::Connection::getState,
+          ":ref:`c104.ConnectionState`: current connection state (read-only)")
       .def_property_readonly(
           "has_stations", &Remote::Connection::hasStations,
-          "bool: test if remote server has at least one station (read-only)",
-          py::return_value_policy::copy)
+          "bool: test if remote server has at least one station (read-only)")
       .def_property_readonly(
           "stations", &Remote::Connection::getStations,
-          "List[:ref:`c104.Station`] list of all Station objects (read-only)",
-          py::return_value_policy::copy)
+          "List[:ref:`c104.Station`] list of all Station objects (read-only)")
       .def_property_readonly("is_connected", &Remote::Connection::isOpen,
-                             "bool: test if connection is opened (read-only)",
-                             py::return_value_policy::copy)
+                             "bool: test if connection is opened (read-only)")
       .def_property_readonly("is_muted", &Remote::Connection::isMuted,
-                             "bool: test if connection is muted (read-only)",
-                             py::return_value_policy::copy)
+                             "bool: test if connection is muted (read-only)")
       .def_property(
           "originator_address", &Remote::Connection::getOriginatorAddress,
           &Remote::Connection::setOriginatorAddress,
@@ -1975,16 +1960,13 @@ PY_MODULE(c104, m) {
           py::return_value_policy::copy)
       .def_property_readonly("is_local", &Object::Station::isLocal,
                              "bool: test if station is local (has sever) or "
-                             "remote (has connection) one (read-only)",
-                             py::return_value_policy::copy)
+                             "remote (has connection) one (read-only)")
       .def_property_readonly(
           "has_points", &Object::Station::hasPoints,
-          "bool: test if station has at least one point (read-only)",
-          py::return_value_policy::copy)
+          "bool: test if station has at least one point (read-only)")
       .def_property_readonly(
           "points", &Object::Station::getPoints,
-          "List[:ref:`c104.Point`] list of all Point objects (read-only)",
-          py::return_value_policy::copy)
+          "List[:ref:`c104.Point`] list of all Point objects (read-only)")
       .def("get_point", &Object::Station::getPoint, R"def(
     get_point(self: c104.Station, io_address: int) -> Optional[c104.Point]
 

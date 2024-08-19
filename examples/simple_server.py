@@ -3,6 +3,14 @@ import random
 import time
 
 
+def sv_on_receive_raw(server: c104.Server, data: bytes) -> None:
+    print("SV] -->| {1} [{0}] | SERVER {2}:{3}".format(data.hex(), c104.explain_bytes_dict(apdu=data), server.ip, server.port))
+
+
+def sv_on_send_raw(server: c104.Server, data: bytes) -> None:
+    print("SV] <--| {1} [{0}] | SERVER {2}:{3}".format(data.hex(), c104.explain_bytes_dict(apdu=data), server.ip, server.port))
+
+
 def on_step_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     """ handle incoming regulating step command
     """
@@ -29,6 +37,8 @@ def before_transmit(point: c104.Point) -> None:
 def main():
     # server and station preparation
     server = c104.Server()
+    server.on_send_raw(sv_on_send_raw)
+    server.on_receive_raw(sv_on_receive_raw)
     station = server.add_station(common_address=47)
 
     # monitoring point preparation

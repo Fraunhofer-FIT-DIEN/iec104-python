@@ -270,7 +270,7 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 my_client.start()
 my_server.start()
 
-while not cl_connection_1.is_connected:
+while not cl_connection_1.is_connected or cl_connection_1.is_muted:
     print("CL] Try to connect to {0}:{1}".format(cl_connection_1.ip, cl_connection_1.port))
     cl_connection_1.connect()
     time.sleep(3)

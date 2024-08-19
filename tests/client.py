@@ -144,7 +144,7 @@ def cl_dump():
 input("Press Enter to start client...")
 my_client.start()
 
-while not cl_connection_1.is_connected:
+while not cl_connection_1.is_connected or cl_connection_1.is_muted:
     print("CL] Waiting for connection to {0}:{1}".format(cl_connection_1.ip, cl_connection_1.port))
     time.sleep(3)
 

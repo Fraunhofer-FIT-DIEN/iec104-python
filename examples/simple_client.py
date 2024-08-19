@@ -5,7 +5,7 @@ import time
 
 def main():
     # client, connection and station preparation
-    client = c104.Client()
+    client = c104.Client(command_timeout_ms=2000)
     connection = client.add_connection(ip="127.0.0.1", port=2404, init=c104.Init.INTERROGATION)
     station = connection.add_station(common_address=47)
 
@@ -19,11 +19,9 @@ def main():
     # start
     client.start()
 
-    while not connection.is_connected:
+    while not connection.is_connected or connection.is_muted:
         print("Waiting for connection to {0}:{1}".format(connection.ip, connection.port))
         time.sleep(1)
-
-    #time.sleep(3)
 
     print("read")
     print("read")
