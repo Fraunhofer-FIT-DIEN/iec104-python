@@ -51,7 +51,6 @@ public:
    * @param point point who's value should be reported to remote client
    * @param select flag for select and execute command mode (lock control
    * access)
-   * @param qualifier parameter for command duration
    * @throws std::invalid_argument if point reference, connection or server
    * reference is invalid
    */

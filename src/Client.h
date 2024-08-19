@@ -180,8 +180,14 @@ private:
   Client(std::uint_fast16_t tick_rate_ms, std::uint_fast16_t timeout_ms,
          std::shared_ptr<Remote::TransportSecurity> transport_security);
 
+  /// @brief minimum interval between to periodic broadcasts in milliseconds
+  const std::uint_fast16_t tickRate_ms{1000};
+
+  /// @brief timeout in milliseconds before an inactive connection gets closed
+  const std::uint_fast16_t commandTimeout_ms{100};
+
   /// @brief tls handler
-  std::shared_ptr<Remote::TransportSecurity> security{nullptr};
+  const std::shared_ptr<Remote::TransportSecurity> security{nullptr};
 
   /// @brief originator address of outgoing messages
   std::atomic_uint_fast8_t originatorAddress{0};
@@ -189,11 +195,8 @@ private:
   /// @brief state that describes if the client component is enabled or not
   std::atomic_bool enabled{false};
 
-  /// @brief minimum interval between to periodic broadcasts in milliseconds
-  std::atomic_uint_fast16_t tickRate_ms{1000};
-
-  /// @brief timeout in milliseconds before an inactive connection gets closed
-  std::atomic_uint_fast16_t commandTimeout_ms{100};
+  /// @brief client thread state
+  std::atomic_bool running{false};
 
   /// @brief MUTEX Lock to access connectionMap
   mutable Module::GilAwareMutex connections_mutex{"Client::connections_mutex"};
@@ -205,9 +208,6 @@ private:
 
   /// @brief client thread to execute reconnects
   std::thread *runThread = nullptr;
-
-  /// @brief client thread state
-  std::atomic_bool running{false};
 
   /// @brief client thread mutex to not lock thread execution
   mutable std::mutex runThread_mutex{};

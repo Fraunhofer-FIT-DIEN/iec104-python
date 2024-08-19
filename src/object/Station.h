@@ -66,13 +66,13 @@ private:
                    std::shared_ptr<Remote::Connection> st_connection);
 
   /// @brief unique common address of this station
-  std::uint_fast16_t commonAddress{0};
+  const std::uint_fast16_t commonAddress{0};
 
   /// @brief server object reference (only local station)
-  std::weak_ptr<Server> server;
+  const std::weak_ptr<Server> server;
 
   /// @brief remote connection object reference (only remote station)
-  std::weak_ptr<Remote::Connection> connection;
+  const std::weak_ptr<Remote::Connection> connection;
 
   /// @brief child DataPoint objects (owned by this Station)
   DataPointVector points{};

@@ -273,7 +273,7 @@ bool Connection::setMuted(bool value) {
                 commandTimeout_ms.store(helper);
                 setState(OPEN);
               },
-              0);
+              -1);
         }
         break;
       case INIT_INTERROGATION:
@@ -288,7 +288,7 @@ bool Connection::setMuted(bool value) {
                 commandTimeout_ms.store(helper);
                 setState(OPEN);
               },
-              0);
+              -1);
         }
         break;
       case INIT_CLOCK_SYNC:
@@ -302,7 +302,7 @@ bool Connection::setMuted(bool value) {
                 commandTimeout_ms.store(helper);
                 setState(OPEN);
               },
-              0);
+              -1);
         }
         break;
       default:

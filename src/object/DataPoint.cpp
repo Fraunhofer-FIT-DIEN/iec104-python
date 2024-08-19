@@ -1067,7 +1067,7 @@ std::uint_fast32_t DataPoint::getReportInterval_ms() const {
 }
 
 void DataPoint::setReportInterval_ms(const std::uint_fast32_t interval_ms) {
-  if (type > M_EP_TF_1) {
+  if (type > M_IT_TB_1) {
     throw std::invalid_argument("Report interval option is only allowed for "
                                 "monitoring types, but not for " +
                                 std::string(TypeID_toString(type)));
@@ -1190,8 +1190,7 @@ bool DataPoint::read() {
   return _connection->read(shared_from_this());
 }
 
-bool DataPoint::transmit(const CS101_CauseOfTransmission cause,
-                         const CS101_QualifierOfCommand qualifier) {
+bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
   DEBUG_PRINT(Debug::Point,
               "transmit_ex] " + std::string(TypeID_toString(type)) +
                   " at IOA " + std::to_string(informationObjectAddress));
@@ -1203,15 +1202,10 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause,
 
   // as server
   if (_station->isLocal()) {
-    if (qualifier != CS101_QualifierOfCommand::NONE) {
-      throw std::invalid_argument(
-          "The qualifier argument must not be used in monitoring direction");
-    }
     auto server = _station->getServer();
     if (!server) {
       throw std::invalid_argument("Server reference deleted");
     }
-    info->setProcessedAt_ms(GetTimestamp_ms());
     return server->transmit(shared_from_this(), cause);
   }
 
@@ -1220,6 +1214,5 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause,
   if (!connection) {
     throw std::invalid_argument("Client connection reference deleted");
   }
-  info->setProcessedAt_ms(GetTimestamp_ms());
   return connection->transmit(shared_from_this(), cause);
 }

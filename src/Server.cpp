@@ -47,13 +47,13 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : ip(bind_ip), port(tcp_port), tickRate_ms(tick_rate_ms),
       selectTimeout_ms(select_timeout_ms),
-      maxOpenConnections(max_open_connections) {
+      maxOpenConnections(max_open_connections),
+      security(std::move(transport_security)) {
 
   // create a new slave/server instance with default connection parameters and
   // default message queue size
   if (transport_security.get() != nullptr) {
     slave = CS104_Slave_createSecure(100, 100, transport_security->get());
-    security = std::move(transport_security);
   } else {
     slave = CS104_Slave_create(100, 100);
   }
@@ -915,10 +915,6 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
 
           // value polling callback
           point->onBeforeAutoTransmit();
-
-          // updated locally processed timestamp in case of periodic
-          // transmission
-          point->setProcessedAt_ms(now);
         } else {
           point->onBeforeRead();
         }

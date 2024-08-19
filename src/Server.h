@@ -303,13 +303,19 @@ private:
           std::shared_ptr<Object::DataPoint> point);
 
   /// @brief IP address of remote server
-  std::string ip{};
+  const std::string ip{};
 
   ///< @brief Port of remote server
-  std::uint_fast16_t port = 0;
+  const std::uint_fast16_t port = 0;
+
+  /// @brief minimum interval between to periodic broadcasts in milliseconds
+  const std::uint_fast16_t tickRate_ms{100};
+
+  /// @brief selection init timestamp, to test against timeout
+  const std::chrono::milliseconds selectTimeout_ms{100};
 
   /// @brief tls handler
-  std::shared_ptr<Remote::TransportSecurity> security{nullptr};
+  const std::shared_ptr<Remote::TransportSecurity> security{nullptr};
 
   /// @brief vector of stations accessible via this connection
   Object::StationVector stations{};
@@ -323,11 +329,8 @@ private:
   /// @brief state that defines if server thread should be running
   std::atomic_bool enabled{false};
 
-  /// @brief minimum interval between to periodic broadcasts in milliseconds
-  const std::uint_fast16_t tickRate_ms{100};
-
-  /// @brief selection init timestamp, to test against timeout
-  const std::chrono::milliseconds selectTimeout_ms{100};
+  /// @brief server thread state
+  std::atomic_bool running{false};
 
   /// @brief parameters of current server intance
   CS101_AppLayerParameters appLayerParameters;
@@ -352,9 +355,6 @@ private:
 
   /// @brief maximum number of connections (0-255), 0 = no limit
   std::atomic_uint_fast8_t maxOpenConnections{0};
-
-  /// @brief server thread state
-  std::atomic_bool running{false};
 
   std::priority_queue<Task> tasks;
 

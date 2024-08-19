@@ -115,9 +115,6 @@ private:
   /// @brief command transmission mode (direct or select-and-execute)
   std::atomic<CommandTransmissionMode> commandMode{DIRECT_COMMAND};
 
-  /// @brief current client execution lock holder
-  uint_fast8_t selectedByOriginatorAddress{0};
-
   /// @brief abstract representation of information
   std::shared_ptr<Information> info{nullptr};
 
@@ -342,9 +339,7 @@ public:
    * @throws std::invalid_argument if parent station or connection reference is
    * invalid
    */
-  bool
-  transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT,
-           CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE);
+  bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT);
 
   std::string toString() const {
     std::ostringstream oss;

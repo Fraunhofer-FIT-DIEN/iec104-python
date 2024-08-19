@@ -2933,11 +2933,6 @@ PY_MODULE(c104, m) {
           "int: information object address (0-16777215) (read-only)",
           py::return_value_policy::copy)
       .def_property_readonly(
-          "connection_string",
-          &Remote::Message::IncomingMessage::getConnectionString,
-          "str: connection string in format :code:`ip:port` (read-only)",
-          py::return_value_policy::copy)
-      .def_property_readonly(
           "cot", &Remote::Message::IncomingMessage::getCauseOfTransmission,
           ":ref:`c104.Cot`: cause of transmission (read-only)",
           py::return_value_policy::copy)

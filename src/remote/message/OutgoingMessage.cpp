@@ -59,6 +59,9 @@ OutgoingMessage::OutgoingMessage(
 
   commonAddress = _station->getCommonAddress();
 
+  // updated locally processed timestamp before transmission
+  point->setProcessedAt_ms(GetTimestamp_ms());
+
   informationObjectAddress = point->getInformationObjectAddress();
   DEBUG_PRINT(Debug::Message, "Created (outgoing)");
 }

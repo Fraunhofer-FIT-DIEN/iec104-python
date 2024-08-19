@@ -167,12 +167,6 @@ public:
   bool setMuted(bool value);
 
   /**
-   * @brief Getter for internal connection object
-   * @return CS104_Connection refrence
-   */
-  CS104_Connection getCS104();
-
-  /**
    * @brief Setter for open state: Mark connection as open
    */
   bool setOpen();
