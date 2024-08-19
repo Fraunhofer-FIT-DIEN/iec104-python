@@ -82,6 +82,37 @@ void Information::setProcessedAt_ms(uint64_t timestamp_ms) {
   processed_at_ms = timestamp_ms;
 }
 
+std::optional<std::uint_fast64_t>
+Information::toTimestamp_ms(const py::object &datetime) {
+  if (datetime.is_none())
+    return std::nullopt;
+
+  // Extract year, month, day, hour, minute, second, and microsecond
+  int year = datetime.attr("year").cast<int>();
+  int month = datetime.attr("month").cast<int>();
+  int day = datetime.attr("day").cast<int>();
+  int hour = datetime.attr("hour").cast<int>();
+  int minute = datetime.attr("minute").cast<int>();
+  int second = datetime.attr("second").cast<int>();
+  int microsecond = datetime.attr("microsecond").cast<int>();
+
+  // Create a tm structure from the datetime components
+  std::tm time_info = {};
+  time_info.tm_year = year - 1900;
+  time_info.tm_mon = month - 1;
+  time_info.tm_mday = day;
+  time_info.tm_hour = hour;
+  time_info.tm_min = minute;
+  time_info.tm_sec = second;
+
+  // Convert tm structure to time_t (seconds since epoch)
+  std::time_t seconds_since_epoch = std::mktime(&time_info);
+
+  // Calculate the total milliseconds including the microseconds part
+  return static_cast<uint32_t>(seconds_since_epoch * 1000) +
+         (microsecond / 1000);
+}
+
 std::string Information::base_toString() const {
   std::ostringstream oss;
   oss << "recorded_at_ms=";

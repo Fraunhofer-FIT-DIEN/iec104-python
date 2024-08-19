@@ -32,6 +32,9 @@ protected:
 
   std::string base_toString() const;
 
+  static std::optional<std::uint_fast64_t>
+  toTimestamp_ms(const py::object &datetime);
+
 public:
   explicit Information(std::optional<uint64_t> recorded_at_ms = std::nullopt,
                        bool readonly = false);
@@ -89,6 +92,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<SingleInfo>(on, quality, recorded_at_ms, false);
   }
+  [[nodiscard]] static std::shared_ptr<SingleInfo>
+  createPy(const bool on, const Quality quality,
+           const py::object &recorded_at) {
+    return std::make_shared<SingleInfo>(on, quality,
+                                        toTimestamp_ms(recorded_at), false);
+  }
 
   SingleInfo(const bool on, const Quality quality,
              const std::optional<uint64_t> recorded_at_ms, bool readonly)
@@ -117,6 +126,12 @@ public:
       const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<SingleCmd>(on, false, qualifier, recorded_at_ms,
                                        false);
+  }
+  [[nodiscard]] static std::shared_ptr<SingleCmd>
+  createPy(const bool on, const CS101_QualifierOfCommand qualifier,
+           const py::object &recorded_at) {
+    return std::make_shared<SingleCmd>(on, false, qualifier,
+                                       toTimestamp_ms(recorded_at), false);
   }
 
   SingleCmd(const bool on, const bool select,
@@ -157,6 +172,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<DoubleInfo>(state, quality, recorded_at_ms, false);
   }
+  [[nodiscard]] static std::shared_ptr<DoubleInfo>
+  createPy(const DoublePointValue state, const Quality quality,
+           const py::object &recorded_at) {
+    return std::make_shared<DoubleInfo>(state, quality,
+                                        toTimestamp_ms(recorded_at), false);
+  }
 
   DoubleInfo(const DoublePointValue state, const Quality quality,
              const std::optional<uint64_t> recorded_at_ms, bool readonly)
@@ -185,6 +206,13 @@ public:
       const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<DoubleCmd>(state, false, qualifier, recorded_at_ms,
                                        false);
+  }
+  [[nodiscard]] static std::shared_ptr<DoubleCmd>
+  createPy(const DoublePointValue state,
+           const CS101_QualifierOfCommand qualifier,
+           const py::object &recorded_at) {
+    return std::make_shared<DoubleCmd>(state, false, qualifier,
+                                       toTimestamp_ms(recorded_at), false);
   }
 
   DoubleCmd(const DoublePointValue state, const bool select,
@@ -228,6 +256,12 @@ public:
     return std::make_shared<StepInfo>(position, transient, quality,
                                       recorded_at_ms, false);
   }
+  [[nodiscard]] static std::shared_ptr<StepInfo>
+  createPy(const LimitedInt7 position, const bool transient,
+           const Quality quality, const py::object &recorded_at) {
+    return std::make_shared<StepInfo>(position, transient, quality,
+                                      toTimestamp_ms(recorded_at), false);
+  }
 
   StepInfo(const LimitedInt7 position, const bool transient,
            const Quality quality, const std::optional<uint64_t> recorded_at_ms,
@@ -260,6 +294,13 @@ public:
       const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<StepCmd>(step, false, qualifier, recorded_at_ms,
                                      false);
+  }
+  [[nodiscard]] static std::shared_ptr<StepCmd>
+  createPy(const StepCommandValue step,
+           const CS101_QualifierOfCommand qualifier,
+           const py::object &recorded_at) {
+    return std::make_shared<StepCmd>(step, false, qualifier,
+                                     toTimestamp_ms(recorded_at), false);
   }
 
   StepCmd(const StepCommandValue direction, const bool select,
@@ -300,6 +341,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<BinaryInfo>(blob, quality, recorded_at_ms, false);
   }
+  [[nodiscard]] static std::shared_ptr<BinaryInfo>
+  createPy(const Byte32 blob, const Quality quality,
+           const py::object &recorded_at) {
+    return std::make_shared<BinaryInfo>(blob, quality,
+                                        toTimestamp_ms(recorded_at), false);
+  }
 
   BinaryInfo(const Byte32 blob, const Quality quality,
              const std::optional<uint64_t> recorded_at_ms, bool readonly)
@@ -324,6 +371,11 @@ public:
   create(const Byte32 blob,
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<BinaryCmd>(blob, recorded_at_ms, false);
+  }
+  [[nodiscard]] static std::shared_ptr<BinaryCmd>
+  createPy(const Byte32 blob, const py::object &recorded_at) {
+    return std::make_shared<BinaryCmd>(blob, toTimestamp_ms(recorded_at),
+                                       false);
   }
 
   BinaryCmd(const Byte32 blob, const std::optional<uint64_t> recorded_at_ms,
@@ -355,6 +407,12 @@ public:
     return std::make_shared<NormalizedInfo>(actual, quality, recorded_at_ms,
                                             false);
   }
+  [[nodiscard]] static std::shared_ptr<NormalizedInfo>
+  createPy(const NormalizedFloat actual, const Quality quality,
+           const py::object &recorded_at) {
+    return std::make_shared<NormalizedInfo>(actual, quality,
+                                            toTimestamp_ms(recorded_at), false);
+  }
 
   NormalizedInfo(const NormalizedFloat actual, const Quality quality,
                  const std::optional<uint64_t> recorded_at_ms, bool readonly)
@@ -384,6 +442,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<NormalizedCmd>(target, false, qualifier,
                                            recorded_at_ms, false);
+  }
+  [[nodiscard]] static std::shared_ptr<NormalizedCmd>
+  createPy(const NormalizedFloat target, const LimitedUInt7 qualifier,
+           const py::object &recorded_at) {
+    return std::make_shared<NormalizedCmd>(target, false, qualifier,
+                                           toTimestamp_ms(recorded_at), false);
   }
 
   NormalizedCmd(const NormalizedFloat target, const bool select,
@@ -422,6 +486,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<ScaledInfo>(actual, quality, recorded_at_ms, false);
   }
+  [[nodiscard]] static std::shared_ptr<ScaledInfo>
+  createPy(const LimitedInt16 actual, const Quality quality,
+           const py::object &recorded_at) {
+    return std::make_shared<ScaledInfo>(actual, quality,
+                                        toTimestamp_ms(recorded_at), false);
+  }
 
   ScaledInfo(const LimitedInt16 actual, const Quality quality,
              const std::optional<uint64_t> recorded_at_ms, bool readonly)
@@ -451,6 +521,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<ScaledCmd>(target, false, qualifier, recorded_at_ms,
                                        false);
+  }
+  [[nodiscard]] static std::shared_ptr<ScaledCmd>
+  createPy(const LimitedInt16 target, const LimitedUInt7 qualifier,
+           const py::object &recorded_at) {
+    return std::make_shared<ScaledCmd>(target, false, qualifier,
+                                       toTimestamp_ms(recorded_at), false);
   }
 
   ScaledCmd(const LimitedInt16 target, const bool select,
@@ -489,6 +565,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<ShortInfo>(actual, quality, recorded_at_ms, false);
   }
+  [[nodiscard]] static std::shared_ptr<ShortInfo>
+  createPy(const float actual, const Quality quality,
+           const py::object &recorded_at) {
+    return std::make_shared<ShortInfo>(actual, quality,
+                                       toTimestamp_ms(recorded_at), false);
+  }
 
   ShortInfo(const float actual, const Quality quality,
             const std::optional<uint64_t> recorded_at_ms, bool readonly)
@@ -518,6 +600,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<ShortCmd>(target, false, qualifier, recorded_at_ms,
                                       false);
+  }
+  [[nodiscard]] static std::shared_ptr<ShortCmd>
+  createPy(const float target, const LimitedUInt7 qualifier,
+           const py::object &recorded_at) {
+    return std::make_shared<ShortCmd>(target, false, qualifier,
+                                      toTimestamp_ms(recorded_at), false);
   }
 
   ShortCmd(const float target, const bool select, const LimitedUInt7 qualifier,
@@ -559,6 +647,12 @@ public:
     return std::make_shared<BinaryCounterInfo>(counter, sequence, quality,
                                                recorded_at_ms, false);
   }
+  [[nodiscard]] static std::shared_ptr<BinaryCounterInfo>
+  createPy(const int32_t counter, const LimitedUInt5 sequence,
+           const BinaryCounterQuality quality, const py::object &recorded_at) {
+    return std::make_shared<BinaryCounterInfo>(
+        counter, sequence, quality, toTimestamp_ms(recorded_at), false);
+  }
 
   BinaryCounterInfo(const int32_t counter, const LimitedUInt5 sequence,
                     const BinaryCounterQuality quality,
@@ -597,6 +691,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<ProtectionEquipmentEventInfo>(
         state, elapsed_ms, quality, recorded_at_ms, false);
+  }
+  [[nodiscard]] static std::shared_ptr<ProtectionEquipmentEventInfo>
+  createPy(const EventState state, const LimitedUInt16 elapsed_ms,
+           const Quality quality, const py::object &recorded_at) {
+    return std::make_shared<ProtectionEquipmentEventInfo>(
+        state, elapsed_ms, quality, toTimestamp_ms(recorded_at), false);
   }
 
   ProtectionEquipmentEventInfo(const EventState state,
@@ -638,6 +738,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<ProtectionEquipmentStartEventsInfo>(
         events, relay_duration_ms, quality, recorded_at_ms, false);
+  }
+  [[nodiscard]] static std::shared_ptr<ProtectionEquipmentStartEventsInfo>
+  createPy(const StartEvents events, const LimitedUInt16 relay_duration_ms,
+           const Quality quality, const py::object &recorded_at) {
+    return std::make_shared<ProtectionEquipmentStartEventsInfo>(
+        events, relay_duration_ms, quality, toTimestamp_ms(recorded_at), false);
   }
 
   ProtectionEquipmentStartEventsInfo(
@@ -681,6 +787,14 @@ public:
     return std::make_shared<ProtectionEquipmentOutputCircuitInfo>(
         circuits, relay_operating_ms, quality, recorded_at_ms, false);
   }
+  [[nodiscard]] static std::shared_ptr<ProtectionEquipmentOutputCircuitInfo>
+  createPy(const OutputCircuits circuits,
+           const LimitedUInt16 relay_operating_ms, const Quality quality,
+           const py::object &recorded_at) {
+    return std::make_shared<ProtectionEquipmentOutputCircuitInfo>(
+        circuits, relay_operating_ms, quality, toTimestamp_ms(recorded_at),
+        false);
+  }
 
   ProtectionEquipmentOutputCircuitInfo(
       const OutputCircuits circuits, const LimitedUInt16 relay_operating_ms,
@@ -721,6 +835,12 @@ public:
          const std::optional<uint64_t> recorded_at_ms = std::nullopt) {
     return std::make_shared<StatusWithChangeDetection>(status, changed, quality,
                                                        recorded_at_ms, false);
+  }
+  [[nodiscard]] static std::shared_ptr<StatusWithChangeDetection>
+  createPy(const FieldSet16 status, const FieldSet16 changed,
+           const Quality quality, const py::object &recorded_at) {
+    return std::make_shared<StatusWithChangeDetection>(
+        status, changed, quality, toTimestamp_ms(recorded_at), false);
   }
 
   StatusWithChangeDetection(const FieldSet16 status, const FieldSet16 changed,

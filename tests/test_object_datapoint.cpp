@@ -24,48 +24,47 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "Server.h"
 #include "object/DataPoint.h"
 #include "object/Station.h"
 #include "remote/message/IncomingMessage.h"
 #include "types.h"
 
 TEST_CASE("Create point", "[object::point]") {
-  auto point = Object::DataPoint::create(11, IEC60870_5_TypeID::M_SP_NA_1,
-                                         nullptr, 0, 0, false);
-  REQUIRE(point->getStation().get() == nullptr);
+  auto server = Server::create();
+  auto station = server->addStation(10);
+  auto point = station->addPoint(11, IEC60870_5_TypeID::M_SP_NA_1);
+  REQUIRE(point->getStation().get() == station.get());
   REQUIRE(point->getInformationObjectAddress() == 11);
   REQUIRE(point->getRelatedInformationObjectAddress() == 0);
   REQUIRE(point->getRelatedInformationObjectAutoReturn() == false);
   REQUIRE(point->getType() == IEC60870_5_TypeID::M_SP_NA_1);
   REQUIRE(point->getReportInterval_ms() == 0);
-  REQUIRE(point->getQuality() == Quality::None);
-  REQUIRE(point->getValue() == 0);
-  REQUIRE(point->getValueAsInt32() == 0);
-  REQUIRE(point->getValueAsUInt32() == 0);
-  REQUIRE(point->getValueAsFloat() == 0);
-  REQUIRE(point->getUpdatedAt_ms() == 0);
-  REQUIRE(point->getProcessedAt_ms() == 0);
-  REQUIRE(point->getReceivedAt_ms() == 0);
-  REQUIRE(point->getSentAt_ms() == 0);
+  REQUIRE(std::get<Quality>(point->getInfo()->getQuality()) == Quality::None);
+  REQUIRE(std::get<Quality>(point->getQuality()) == Quality::None);
+  REQUIRE(std::get<bool>(point->getInfo()->getValue()) == false);
+  REQUIRE(std::get<bool>(point->getValue()) == false);
+  REQUIRE(point->getProcessedAt_ms() > 0);
+  REQUIRE(point->getRecordedAt_ms().has_value() == false);
 }
 
 TEST_CASE("Set point value", "[object::point]") {
-  auto point = Object::DataPoint::create(11, IEC60870_5_TypeID::M_SP_NA_1,
-                                         nullptr, 0, 0, false);
+  auto server = Server::create();
+  auto station = server->addStation(10);
+  auto point = station->addPoint(11, IEC60870_5_TypeID::M_ME_TE_1);
 
-  point->setValueEx(56.78, Quality::None, 1234567890);
-  REQUIRE(point->getValue() == 56.78);
-  REQUIRE(point->getValueAsInt32() == 56);
-  REQUIRE(point->getValueAsUInt32() == 56);
-  REQUIRE(point->getValueAsFloat() == (float)56.78);
-  REQUIRE(point->getUpdatedAt_ms() == 1234567890);
-  // SinglePoint value must be of [0, 1]
-  REQUIRE(point->getQuality() == Quality::Invalid);
+  point->setInfo(Object::ScaledInfo::create(LimitedInt16(334), Quality::Invalid,
+                                            1234567890));
+  REQUIRE(std::get<LimitedInt16>(point->getValue()).get() ==
+          LimitedInt16(334).get());
+  REQUIRE(point->getRecordedAt_ms().value() == 1234567890);
+  REQUIRE(std::get<Quality>(point->getQuality()) == Quality::Invalid);
 }
 
 TEST_CASE("Set point value via message", "[object::point]") {
-  auto point = Object::DataPoint::create(11, IEC60870_5_TypeID::C_DC_TA_1,
-                                         nullptr, 0, 0, false);
+  auto server = Server::create();
+  auto station = server->addStation(10);
+  auto point = station->addPoint(11, IEC60870_5_TypeID::C_DC_TA_1);
 
   sCS101_AppLayerParameters appLayerParameters{.sizeOfTypeId = 1,
                                                .sizeOfVSQ = 0,
@@ -85,10 +84,11 @@ TEST_CASE("Set point value via message", "[object::point]") {
       Remote::Message::IncomingMessage::create(asdu, &appLayerParameters);
 
   point->onReceive(message);
-  REQUIRE(point->getValue() == 1);
-  REQUIRE(point->getUpdatedAt_ms() == 1680517666000);
+  REQUIRE(std::get<DoublePointValue>(point->getValue()) ==
+          IEC60870_DOUBLE_POINT_OFF);
+  REQUIRE(point->getRecordedAt_ms() == 1680517666000);
   // SinglePoint value must be of [0, 1]
-  REQUIRE(point->getQuality() == Quality::None);
+  REQUIRE(std::get<std::monostate>(point->getQuality()) == std::monostate{});
 
   InformationObject_destroy(io);
   CS101_ASDU_destroy(asdu);

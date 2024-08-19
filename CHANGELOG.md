@@ -2,9 +2,10 @@
 
 ## v2.0
 - InfoValue style
+- removed c104.Point.set method, used the info object instead
 - on_receive signature change previous_state: dict -> previous_info: c104.Information
-- station.add_point signature change related_io_address: int -> related_io_address: Optional[int], 0 valid IOA
-- point.io_address signature change related_io: int -> related_io: Optional[int], 0 valid IOA
+- station.add_point signature change related_io_address: int -> related_io_address: Optional\[int\], 0 valid IOA
+- point.io_address signature change related_io: int -> related_io: Optional\[int\], 0 valid IOA
 - 'c104.IncomingMessage' object has no attribute 'command_qualifier'
   message.command_qualifier -> message.info.qualifier OR point.info.qualifier
 - point.value is a shortcut to point.info.value
@@ -14,6 +15,9 @@
 - remove add_server, remove_server, add_client, remove_client
 - remove states:   OPEN_AWAIT_UNMUTE, OPEN_AWAIT_INTERROGATION, OPEN_AWAIT_CLOCK_SYNC,
 - auto set PYTHONUNBUFFERED
+- point.updated_at_ms: int -> point.recorded_at: Optional\[datetime.datetime\]
+- point.sent_at_ms: int & point.received_at_ms: int -> point.processed_at: datetime.datetime
+- point.transmit(cause: c104.Cot = c104.Cot.UNKNOWN_COT, qualifier: c104.Qoc = c104.Qoc.NONE) -> point.transmit(cause: c104.Cot)
 
 ## v1.18
 - Add support for Qualifier of Command for single, double and regulating step commands
