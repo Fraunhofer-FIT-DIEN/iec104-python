@@ -1,17 +1,49 @@
+/**
+ * Copyright 2024-2024 Fraunhofer Institute for Applied Information Technology
+ * FIT
+ *
+ * This file is part of iec104-python.
+ * iec104-python is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * iec104-python is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with iec104-python. If not, see <https://www.gnu.org/licenses/>.
+ *
+ *  See LICENSE file for the complete license text.
+ *
+ *
+ * @file Information.cpp
+ * @brief abstract protocol information
+ *
+ * @package iec104-python
+ * @namespace object
+ *
+ * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
+ *
+ */
+
 #include "object/Information.h"
-#include "types.h" // GetTimestamp_ms
 
 using namespace Object;
 
-Information::Information(const std::optional<uint64_t> recorded_at_ms,
-                         const bool readonly)
-    : recorded_at_ms(recorded_at_ms), readonly(readonly) {
-  processed_at_ms = GetTimestamp_ms();
+Information::Information(
+    const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+    const bool readonly)
+    : recorded_at(recorded_at), readonly(readonly) {
+  processed_at = std::chrono::utc_clock::now();
 };
 
-Command::Command(const std::optional<uint64_t> recorded_at_ms,
-                 const bool readonly)
-    : Information(recorded_at_ms, readonly){};
+Command::Command(
+    const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+    const bool readonly)
+    : Information(recorded_at, readonly){};
 
 InfoValue Information::getValueImpl() const { return std::monostate{}; }
 
@@ -69,59 +101,29 @@ void Information::setReadonly() {
   readonly = true;
 };
 
-void Information::setRecordedAt_ms(std::optional<uint64_t> val) {
+void Information::setRecordedAt(
+    std::optional<std::chrono::utc_clock::time_point> val) {
   if (readonly) {
     return;
   }
   std::lock_guard<std::mutex> lock(mtx);
-  recorded_at_ms = val;
+  recorded_at = val;
 }
 
-void Information::setProcessedAt_ms(uint64_t timestamp_ms) {
+void Information::setProcessedAt(std::chrono::utc_clock::time_point val) {
   std::lock_guard<std::mutex> lock(mtx);
-  processed_at_ms = timestamp_ms;
-}
-
-std::optional<std::uint_fast64_t>
-Information::toTimestamp_ms(const py::object &datetime) {
-  if (datetime.is_none())
-    return std::nullopt;
-
-  // Extract year, month, day, hour, minute, second, and microsecond
-  int year = datetime.attr("year").cast<int>();
-  int month = datetime.attr("month").cast<int>();
-  int day = datetime.attr("day").cast<int>();
-  int hour = datetime.attr("hour").cast<int>();
-  int minute = datetime.attr("minute").cast<int>();
-  int second = datetime.attr("second").cast<int>();
-  int microsecond = datetime.attr("microsecond").cast<int>();
-
-  // Create a tm structure from the datetime components
-  std::tm time_info = {};
-  time_info.tm_year = year - 1900;
-  time_info.tm_mon = month - 1;
-  time_info.tm_mday = day;
-  time_info.tm_hour = hour;
-  time_info.tm_min = minute;
-  time_info.tm_sec = second;
-
-  // Convert tm structure to time_t (seconds since epoch)
-  std::time_t seconds_since_epoch = std::mktime(&time_info);
-
-  // Calculate the total milliseconds including the microseconds part
-  return static_cast<uint32_t>(seconds_since_epoch * 1000) +
-         (microsecond / 1000);
+  processed_at = val;
 }
 
 std::string Information::base_toString() const {
   std::ostringstream oss;
-  oss << "recorded_at_ms=";
-  if (recorded_at_ms)
-    oss << *recorded_at_ms;
+  oss << "recorded_at=";
+  if (recorded_at.has_value())
+    oss << TIMEPOINT_ISOFORMAT(recorded_at.value());
   else
     oss << "None";
-  oss << ", processed_at_ms=" << processed_at_ms << ", readonly=" << readonly
-      << " at " << std::hex << std::showbase
+  oss << ", processed_at=" << TIMEPOINT_ISOFORMAT(processed_at)
+      << ", readonly=" << readonly << " at " << std::hex << std::showbase
       << reinterpret_cast<std::uintptr_t>(this);
   return oss.str();
 }

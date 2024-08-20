@@ -196,7 +196,8 @@ public:
    */
   void setOnClockSyncCallback(py::object &callable);
 
-  CommandResponseState onClockSync(std::string _ip, CP56Time2a time);
+  CommandResponseState onClockSync(std::string _ip,
+                                   std::chrono::utc_clock::time_point time);
 
   /**
    * @brief set python callback that will be executed on unexpected incoming
@@ -216,6 +217,8 @@ public:
    * @throws std::invalid_argument if callable signature does not match
    */
   void setOnConnectCallback(py::object &callable);
+
+  std::uint_fast16_t getTickRate_ms() const;
 
   /**
    * @brief transmit a datapoint related message to a remote client

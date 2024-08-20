@@ -38,6 +38,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -72,6 +73,7 @@
 #define TICTOCNOW(begin) TICTOC(begin, std::chrono::steady_clock::now())
 #define MAX_INFORMATION_OBJECT_ADDRESS 16777215
 #define UNDEFINED_INFORMATION_OBJECT_ADDRESS 16777216
+#define TIMEPOINT_ISOFORMAT(point) std::format("{0:%F}T{0:%T%z}", (point))
 
 extern std::atomic<Debug> GLOBAL_DEBUG_MODE;
 
@@ -99,11 +101,9 @@ void Assert_IPv4(const std::string &s);
  */
 void Assert_Port(int_fast64_t port);
 
-/**
- * @brief Get the time since epoch in milliseconds
- * @return number of milliseconds since 2000-01-01 00:00:00
- */
-uint_fast64_t GetTimestamp_ms();
+std::chrono::utc_clock::time_point to_time_point(const CP56Time2a time);
+void from_time_point(CP56Time2a time,
+                     const std::chrono::utc_clock::time_point time_point);
 
 struct Task {
   std::function<void()> function;

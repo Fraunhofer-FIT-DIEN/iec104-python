@@ -262,6 +262,10 @@ public:
    */
   void setOnStateChangeCallback(py::object &callable);
 
+  std::optional<std::chrono::utc_clock::time_point> getConnectedAt() const;
+
+  std::optional<std::chrono::utc_clock::time_point> getDisconnectedAt() const;
+
   /**
    * @brief send interrogation command
    * @param commonAddress
@@ -429,10 +433,10 @@ private:
   std::atomic<ConnectionState> state{CLOSED};
 
   /// @brief timestamp of last successfully connection opening
-  std::atomic_uint_fast64_t connectedAt_ms{0};
+  std::atomic<std::chrono::utc_clock::time_point> connectedAt{};
 
   /// @brief timestamp of last disconnect
-  std::atomic_uint_fast64_t disconnectedAt_ms{0};
+  std::atomic<std::chrono::utc_clock::time_point> disconnectedAt{};
 
   /// @brief MUTEX Lock to wait for command response
   mutable Module::GilAwareMutex expectedResponseMap_mutex{

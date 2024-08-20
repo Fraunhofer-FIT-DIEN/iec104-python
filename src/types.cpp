@@ -30,7 +30,6 @@
  */
 
 #include "types.h"
-#include <hal_time.h>
 #include <sstream>
 
 std::atomic<Debug> GLOBAL_DEBUG_MODE{Debug::None};
@@ -74,7 +73,19 @@ void Assert_Port(const int_fast64_t port) {
                                 " is invalid!");
 }
 
-uint_fast64_t GetTimestamp_ms() { return Hal_getTimeInMs(); }
+std::chrono::utc_clock::time_point to_time_point(const CP56Time2a time) {
+  return std::chrono::utc_clock::time_point(
+      std::chrono::milliseconds(CP56Time2a_toMsTimestamp(time)));
+}
+
+void from_time_point(CP56Time2a time,
+                     const std::chrono::utc_clock::time_point time_point) {
+  auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    time_point.time_since_epoch())
+                    .count();
+
+  CP56Time2a_createFromMsTimestamp(time, static_cast<uint64_t>(millis));
+}
 
 struct InfoValueToStringVisitor {
   std::string operator()(std::monostate value) const { return "N.A."; }

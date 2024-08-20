@@ -45,6 +45,8 @@ Client::Client(const std::uint_fast16_t tick_rate_ms,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : tickRate_ms(tick_rate_ms), commandTimeout_ms(timeout_ms),
       security(std::move(transport_security)) {
+  if (tickRate_ms < 50)
+    throw std::range_error("tickRate_ms must be 50 or greater");
   DEBUG_PRINT(Debug::Client, "Created");
 }
 
@@ -261,6 +263,8 @@ void Client::onNewPoint(std::shared_ptr<Object::Station> station,
   }
 }
 
+std::uint_fast16_t Client::getTickRate_ms() const { return tickRate_ms; }
+
 void Client::scheduleDataPointTimer() {
   uint16_t counter = 0;
   auto now = std::chrono::steady_clock::now();
@@ -269,7 +273,7 @@ void Client::scheduleDataPointTimer() {
     if (c->isOpen() && !c->isMuted()) {
       for (const auto &station : c->getStations()) {
         for (const auto &point : station->getPoints()) {
-          auto next = point->getNextTimer();
+          auto next = point->nextTimerAt();
           if (next.has_value() && next.value() < now) {
             scheduleTask([point]() { point->onTimer(); }, counter++);
           }

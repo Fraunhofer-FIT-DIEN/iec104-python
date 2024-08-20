@@ -54,21 +54,23 @@ public:
    * @param dp_related_ioa related information object address, if any
    * @param dp_related_auto_return auto transmit related point on command
    * @param dp_cmd_mode command transmission mode (direct or select-and-execute)
+   * @param tick_rate_ms outer tick rate
    * @throws std::invalid_argument if type is invalid
    */
   [[nodiscard]] static std::shared_ptr<DataPoint>
   create(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
          std::shared_ptr<Station> dp_station,
-         std::uint_fast32_t dp_report_ms = 0,
+         std::uint_fast16_t dp_report_ms = 0,
          std::optional<std::uint_fast32_t> dp_related_ioa = std::nullopt,
          bool dp_related_auto_return = false,
-         CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND) {
+         CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND,
+         std::uint_fast16_t tick_rate_ms = 0) {
     Module::ScopedGilAcquire scoped("DataPoint.create");
 
     // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<DataPoint>(
-        new DataPoint(dp_ioa, dp_type, std::move(dp_station), dp_report_ms,
-                      dp_related_ioa, dp_related_auto_return, dp_cmd_mode));
+    return std::shared_ptr<DataPoint>(new DataPoint(
+        dp_ioa, dp_type, std::move(dp_station), dp_report_ms, dp_related_ioa,
+        dp_related_auto_return, dp_cmd_mode, tick_rate_ms));
   }
 
   /**
@@ -86,13 +88,15 @@ private:
    * @param dp_related_ioa related information object address
    * @param dp_related_auto_return auto transmit related point on command
    * @param dp_cmd_mode command transmission mode (direct or select-and-execute)
+   * @param tick_rate_ms outer tick rate
    * @throws std::invalid_argument if arguments provided are not compatible
    */
   DataPoint(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
             std::shared_ptr<Station> dp_station,
-            std::uint_fast32_t dp_report_ms,
+            std::uint_fast16_t dp_report_ms,
             std::optional<std::uint_fast32_t> dp_related_ioa,
-            bool dp_related_auto_return, CommandTransmissionMode dp_cmd_mode);
+            bool dp_related_auto_return, CommandTransmissionMode dp_cmd_mode,
+            std::uint_fast16_t tick_rate_ms);
 
   bool is_server{false};
 
@@ -118,14 +122,16 @@ private:
   /// @brief abstract representation of information
   std::shared_ptr<Information> info{nullptr};
 
+  const std::uint_fast16_t tickRate_ms;
+
   /// @brief interval (in milliseconds) between periodic transmissions, 0 => no
   /// periodic transmission
-  std::atomic_uint_fast32_t reportInterval_ms{0};
+  std::atomic<std::uint_fast16_t> reportInterval_ms;
 
   /// @brief interval (in milliseconds) between timer execution, 0 => no timer
-  std::atomic_uint_fast32_t timerInterval_ms{0};
+  std::atomic<std::uint_fast16_t> timerInterval_ms;
 
-  std::atomic<std::chrono::steady_clock::time_point> timerNext;
+  std::atomic<std::chrono::steady_clock::time_point> timerNext{};
 
   /// @brief python callback function pointer
   Module::Callback<CommandResponseState> py_onReceive{
@@ -211,20 +217,20 @@ public:
    * @brief Get automatic report transmission interval of this point
    * @return interval in milliseconds, 0 if disabled
    */
-  std::uint_fast32_t getReportInterval_ms() const;
+  std::uint_fast16_t getReportInterval_ms() const;
 
   /**
    * @brief Configure automatic report transmission interval of this monitoring
    * point
    * @throws std::invalid_argument if not a server-sided monitoring point
    */
-  void setReportInterval_ms(std::uint_fast32_t interval_ms);
+  void setReportInterval_ms(std::uint_fast16_t interval_ms);
 
   /**
    * @brief Get automatic timer interval of this point
    * @return interval in milliseconds, 0 if disabled
    */
-  std::uint_fast32_t getTimerInterval_ms() const;
+  std::uint_fast16_t getTimerInterval_ms() const;
 
   std::shared_ptr<Information> getInfo() const;
 
@@ -251,24 +257,30 @@ public:
    * @brief get timestamp bundled with value
    * @return milliseconds since unix-epoch
    */
-  std::optional<uint64_t> getRecordedAt_ms() const;
+  std::optional<std::chrono::utc_clock::time_point> getRecordedAt() const;
 
   /**
    * @brief get timestamp of last local processing operation (receiving/sending)
    * @return milliseconds since unix-epoch
    */
-  std::uint64_t getProcessedAt_ms() const;
+  std::chrono::utc_clock::time_point getProcessedAt() const;
 
   /**
    * @brief set timestamp of last local processing operation (receiving/sending)
    */
-  void setProcessedAt_ms(std::uint_fast64_t timestamp_ms);
+  void setProcessedAt(std::chrono::utc_clock::time_point val);
 
   /**
    * @brief get next timer event point
    * @return seconds since unix-epoch
    */
-  std::optional<std::chrono::steady_clock::time_point> getNextTimer() const;
+  std::optional<std::chrono::steady_clock::time_point> nextReportAt() const;
+
+  /**
+   * @brief get next timer event point
+   * @return seconds since unix-epoch
+   */
+  std::optional<std::chrono::steady_clock::time_point> nextTimerAt() const;
 
   /**
    * @brief handle remote point update, execute python callback
@@ -322,7 +334,7 @@ public:
    * @throws std::invalid_argument if callable signature does not match
    */
   void setOnTimerCallback(py::object &callable,
-                          std::uint_fast32_t interval_ms = 0);
+                          std::uint_fast16_t interval_ms = 0);
 
   /**
    * @brief send read command to update the points value

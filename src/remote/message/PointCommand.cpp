@@ -52,8 +52,7 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
   case C_SC_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::SingleCmd>(info);
     sCP56Time2a time{};
-    CP56Time2a_createFromMsTimestamp(
-        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)SingleCommandWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->isOn(), select,
         static_cast<uint8_t>(i->getQualifier()), &time);
@@ -69,8 +68,7 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
   case C_DC_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::DoubleCmd>(info);
     sCP56Time2a time{};
-    CP56Time2a_createFromMsTimestamp(
-        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)DoubleCommandWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getState(), select,
         static_cast<uint8_t>(i->getQualifier()), &time);
@@ -86,8 +84,7 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
   case C_RC_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::StepCmd>(info);
     sCP56Time2a time{};
-    CP56Time2a_createFromMsTimestamp(
-        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)StepCommandWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getStep(), select,
         static_cast<uint8_t>(i->getQualifier()), &time);
@@ -102,8 +99,7 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
   case C_BO_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::BinaryCmd>(info);
     sCP56Time2a time{};
-    CP56Time2a_createFromMsTimestamp(
-        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)Bitstring32CommandWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getBlob().get(), &time);
   } break;
@@ -118,8 +114,7 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
   case C_SE_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::NormalizedCmd>(info);
     sCP56Time2a time{};
-    CP56Time2a_createFromMsTimestamp(
-        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)SetpointCommandNormalizedWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getTarget().get(), select,
         i->getQualifier().get(), &time);
@@ -135,8 +130,7 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
   case C_SE_TB_1: {
     auto i = std::dynamic_pointer_cast<Object::ScaledCmd>(info);
     sCP56Time2a time{};
-    CP56Time2a_createFromMsTimestamp(
-        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)SetpointCommandScaledWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getTarget().get(), select,
         i->getQualifier().get(), &time);
@@ -154,8 +148,7 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
   case C_SE_TC_1: {
     auto i = std::dynamic_pointer_cast<Object::ShortCmd>(info);
     sCP56Time2a time{};
-    CP56Time2a_createFromMsTimestamp(
-        &time, i->getRecordedAt_ms().value_or(i->getProcessedAt_ms()));
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)SetpointCommandShortWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getTarget(), select,
         i->getQualifier().get(), &time);

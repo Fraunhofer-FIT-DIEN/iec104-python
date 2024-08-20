@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.15)
 project(c104)
 
 # ##############################################################################
@@ -7,14 +7,14 @@ project(c104)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_VERBOSE_MAKEFILE on)
+set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 message(STATUS "Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS "ModulePath: ${CMAKE_MODULE_PATH}")
 
 if(DEFINED ENV{TOOLCHAIN})
-  message(ERROR "TOOLCHAIN: $ENV{TOOLCHAIN}")
+  message(STATUS "TOOLCHAIN: $ENV{TOOLCHAIN}")
 endif()
 
 # ##############################################################################
@@ -22,6 +22,7 @@ endif()
 # ##############################################################################
 
 message(STATUS "Add Pybind11")
+set(PYBIND11_FINDPYTHON ON)
 add_subdirectory(depends/pybind11)
 list(APPEND c104_PRIVATE_LIBRARIES pybind11::module pybind11::windows_extras)
 list(APPEND c104_tests_PRIVATE_LIBRARIES pybind11::embed
@@ -52,6 +53,25 @@ if(NOT ATOMIC_INT64_IS_BUILTIN)
 endif()
 
 # ##############################################################################
+# format
+# ##############################################################################
+
+set(TIME_FORMAT_TEST_SOURCE
+    "
+        #include <chrono>
+        #include <format>
+        #include <iostream>
+        int main() { std::cout << std::format(\"{0:%F}T{0:%T%z}\", std::chrono::system_clock::now()) << std::endl; }
+    ")
+check_cxx_source_compiles("${TIME_FORMAT_TEST_SOURCE}" TIME_FORMAT_IS_SUPPORTED)
+if(NOT TIME_FORMAT_IS_SUPPORTED)
+  message(
+    FATAL_ERROR
+      "The compiler does not support std::chrono in std::format, please use a newer compiler with C++20 and std::format support."
+  )
+endif()
+
+# ##############################################################################
 # lib60870-C 2.3.2
 # ##############################################################################
 
@@ -68,6 +88,8 @@ file(
 add_subdirectory(depends/lib60870/lib60870-C)
 list(APPEND c104_PRIVATE_LIBRARIES lib60870)
 list(APPEND c104_tests_PRIVATE_LIBRARIES lib60870)
+
+message(STATUS "libs: ${c104_PRIVATE_LIBRARIES}")
 
 # ##############################################################################
 # c104

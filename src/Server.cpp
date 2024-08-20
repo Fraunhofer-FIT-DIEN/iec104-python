@@ -35,7 +35,6 @@
 #include "remote/TransportSecurity.h"
 #include "remote/message/PointCommand.h"
 #include "remote/message/PointMessage.h"
-#include <datetime.h>
 
 using namespace Remote;
 using namespace std::chrono_literals;
@@ -49,6 +48,8 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
       selectTimeout_ms(select_timeout_ms),
       maxOpenConnections(max_open_connections),
       security(std::move(transport_security)) {
+  if (tickRate_ms < 50)
+    throw std::range_error("tickRate_ms must be 50 or greater");
 
   // create a new slave/server instance with default connection parameters and
   // default message queue size
@@ -158,7 +159,7 @@ void Server::scheduleDataPointTimer() {
   auto now = std::chrono::steady_clock::now();
   for (const auto &station : getStations()) {
     for (const auto &point : station->getPoints()) {
-      auto next = point->getNextTimer();
+      auto next = point->nextTimerAt();
       if (next.has_value() && next.value() < now) {
         scheduleTask([point]() { point->onTimer(); }, counter++);
       }
@@ -545,25 +546,14 @@ void Server::setOnClockSyncCallback(py::object &callable) {
   py_onClockSync.reset(callable);
 }
 
-CommandResponseState Server::onClockSync(std::string _ip, CP56Time2a time) {
+CommandResponseState
+Server::onClockSync(const std::string _ip,
+                    const std::chrono::utc_clock::time_point time) {
   if (py_onClockSync.is_set()) {
     DEBUG_PRINT(Debug::Server, "CALLBACK on_clock_sync");
     Module::ScopedGilAcquire const scoped("Server.on_clock_sync");
-    PyDateTime_IMPORT;
 
-    uint_fast64_t const hrsUtc =
-        std::chrono::duration_cast<std::chrono::hours>(
-            std::chrono::steady_clock::now().time_since_epoch())
-            .count();
-    uint_fast64_t const century = (1970 + (hrsUtc / (24 * 365))) / 100 * 100;
-
-    PyObject *pydate = PyDateTime_FromDateAndTime(
-        century + CP56Time2a_getYear(time), CP56Time2a_getMonth(time),
-        CP56Time2a_getDayOfMonth(time), CP56Time2a_getHour(time),
-        CP56Time2a_getMinute(time), CP56Time2a_getSecond(time),
-        CP56Time2a_getMillisecond(time) * 1000);
-
-    if (py_onClockSync.call(shared_from_this(), _ip, py::handle(pydate))) {
+    if (py_onClockSync.call(shared_from_this(), _ip, time)) {
       try {
         return py_onClockSync.getResult();
       } catch (const std::exception &e) {
@@ -637,6 +627,8 @@ void Server::onUnexpectedMessage(
 void Server::setOnConnectCallback(py::object &callable) {
   py_onConnect.reset(callable);
 }
+
+std::uint_fast16_t Server::getTickRate_ms() const { return tickRate_ms; }
 
 bool Server::connectionRequestHandler(void *parameter, const char *ipAddress) {
   std::shared_ptr<Server> instance{};
@@ -878,7 +870,6 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
   }
 
   bool empty = true;
-  const std::uint_fast64_t now = GetTimestamp_ms();
   IEC60870_5_TypeID type = C_TS_TA_1;
 
   for (const auto &station : getStations()) {
@@ -901,15 +892,10 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
         // full interrogation contain all monitoring data
         // Update all (!) data points before transmitting them
         if (CS101_COT_PERIODIC == cot) {
-
-          // disabled cyclic report
-          if (point->getReportInterval_ms() == 0) {
-            continue;
-          }
           // is ready for cyclic transmission ?
-          const std::uint_fast64_t next =
-              point->getProcessedAt_ms() + point->getReportInterval_ms();
-          if (now < next) {
+          const auto next = point->nextReportAt();
+          // disabled cyclic report
+          if (!next.has_value() || begin < next.value()) {
             continue;
           }
 
@@ -1029,118 +1015,6 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
     }
   }
 }
-
-/*
-void Server::sendPeriodic(const uint_fast16_t commonAddress, IMasterConnection
-connection) { if (!enabled.load() || !hasActiveConnections()) return;
-
-    bool debug = DEBUG_TEST(Debug::Server);
-    std::chrono::steady_clock::time_point begin, end;
-    if (debug) {
-        begin = std::chrono::steady_clock::now();
-    }
-
-    bool empty = true;
-    const std::uint_fast64_t now = GetTimestamp_ms();
-    IEC60870_5_TypeID type = C_TS_TA_1;
-
-    for (auto station: stations) {
-        if (isGlobalCommonAddress(commonAddress) || station->getCommonAddress()
-== commonAddress) {
-
-            // group messages per station by type
-            std::map<IEC60870_5_TypeID, std::map<uint_fast16_t,
-std::shared_ptr<Remote::Message::OutgoingMessage>>> pointGroup;
-
-            for (auto point: station->getPoints()) {
-                type = point->getType();
-
-                // only monitoring points
-                if (type > 41)
-                    continue;
-
-                // disabled cyclic report
-                if (point->getReportInterval_ms() == 0) {
-                    continue;
-                }
-
-                // is ready for cyclic transmission ?
-                const std::uint_fast64_t next = point->getRecordedAt_ms() +
-point->getReportInterval_ms(); if (now < next) { continue;
-                }
-
-                // value polling callback
-                point->onBeforeAutoTransmit();
-
-                // updated locally processed timestamp in case of periodic
-transmission point->setRecordedAt_ms(now);
-
-                try {
-                    // transmit value to client
-                    auto message = Remote::Message::PointMessage::create(point);
-                    message->setCauseOfTransmission(CS101_COT_PERIODIC);
-                    //message->send(connection);
-
-                    // add message to group
-                    auto g = pointGroup.find(type);
-                    if (g == pointGroup.end()) {
-                        pointGroup[type] = std::map<uint_fast16_t,
-std::shared_ptr<Remote::Message::OutgoingMessage>>{{point->getInformationObjectAddress(),
-message}}; } else { g->second[point->getInformationObjectAddress()] = message;
-                    }
-                } catch (const std::exception &e) {
-                    DEBUG_PRINT(Debug::Server,
-"Server.sendInterrogationResponse] Invalid point message: " +
-std::string(e.what()));
-                }
-            }
-
-            // send grouped messages of current station
-            for (auto &group: pointGroup) {
-                empty = false;
-                bool isSequence = false;
-                bool isTest = false;
-                bool isNegative = false;
-
-                CS101_ASDU asdu = CS101_ASDU_create(appLayerParameters,
-isSequence, cot, 0, station->getCommonAddress(), isTest, isNegative);
-                //std::stringstream c;
-                //c << "GRP-" << TypeID_toString(group.first) << ": ";
-                for (auto &message: group.second) {
-                    //c <<
-std::to_string(message.second->getInformationObjectAddress()) << ",";
-                    CS101_ASDU_addInformationObject(asdu,
-message.second->getInformationObject());
-                }
-                //std::cout << c.str() << std::endl;
-
-                if (connection) {
-                    IMasterConnection_sendASDU(connection, asdu);
-                } else {
-                    CS104_Slave_enqueueASDU(slave, asdu);
-                }
-
-                // @todo what about ASDU destruction ?!
-                // high priority, ASDU gets destroyed automatically
-                // low priority, destroy ASDU manually
-                CS101_ASDU_destroy(asdu);
-
-                // free messages
-                for (auto &message: group.second) {
-                    message.second.reset();
-                }
-            }
-        }
-    }
-
-    if (debug) {
-        end = std::chrono::steady_clock::now();
-        if (!empty) {
-            DEBUG_PRINT_CONDITION(true, Debug::Server, "Server.sendPeriodic]
-TOTAL " + TICTOC(begin, end));
-        }
-    }
-}*/
 
 std::shared_ptr<Remote::Message::IncomingMessage>
 Server::getValidMessage(IMasterConnection connection, CS101_ASDU asdu) {
@@ -1474,18 +1348,18 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
 
     // new clockSyncHandler
     if (message->getType() == C_CS_NA_1) {
-      auto csc = (ClockSynchronizationCommand)CS101_ASDU_getElement(asdu, 0);
-      CP56Time2a newTime = ClockSynchronizationCommand_getTime(csc);
+      auto info = message->getInfo();
+      auto time_point = info->getRecordedAt().value_or(info->getProcessedAt());
 
       char ipAddrStr[60];
       IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
       // execute python callback
-      responseState = instance->onClockSync(std::string(ipAddrStr), newTime);
+      responseState = instance->onClockSync(std::string(ipAddrStr), time_point);
 
       DEBUG_PRINT_CONDITION(debug, Debug::Server,
                             "clock_sync_handler] TIME " +
-                                CP56Time2a_toString(newTime));
+                                TIMEPOINT_ISOFORMAT(time_point));
     } else {
       if (message->getType() >= C_SC_NA_1) {
         if (auto station = instance->getStation(message->getCommonAddress())) {

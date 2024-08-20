@@ -162,6 +162,8 @@ public:
   void onNewPoint(std::shared_ptr<Object::Station> station,
                   std::uint_fast32_t io_address, IEC60870_5_TypeID type);
 
+  std::uint_fast16_t getTickRate_ms() const;
+
   void schedulePeriodicTask(const std::function<void()> &task, int interval);
   void scheduleTask(const std::function<void()> &task, int delay = 0);
 

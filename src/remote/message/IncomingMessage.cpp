@@ -270,7 +270,7 @@ void IncomingMessage::extractInformation() {
           SinglePointInformation_getValue((SinglePointInformation)io),
           static_cast<Quality>(
               SinglePointInformation_getQuality((SinglePointInformation)io)),
-          CP56Time2a_toMsTimestamp(SinglePointWithCP56Time2a_getTimestamp(
+          to_time_point(SinglePointWithCP56Time2a_getTimestamp(
               (SinglePointWithCP56Time2a)io)),
           true);
     } break;
@@ -288,7 +288,7 @@ void IncomingMessage::extractInformation() {
           DoublePointInformation_getValue((DoublePointInformation)io),
           static_cast<Quality>(
               DoublePointInformation_getQuality((DoublePointInformation)io)),
-          CP56Time2a_toMsTimestamp(DoublePointWithCP56Time2a_getTimestamp(
+          to_time_point(DoublePointWithCP56Time2a_getTimestamp(
               (DoublePointWithCP56Time2a)io)),
           true);
     } break;
@@ -310,7 +310,7 @@ void IncomingMessage::extractInformation() {
           StepPositionInformation_isTransient((StepPositionInformation)io),
           static_cast<Quality>(
               StepPositionInformation_getQuality((StepPositionInformation)io)),
-          CP56Time2a_toMsTimestamp(StepPositionWithCP56Time2a_getTimestamp(
+          to_time_point(StepPositionWithCP56Time2a_getTimestamp(
               (StepPositionWithCP56Time2a)io)),
           true);
     } break;
@@ -326,7 +326,7 @@ void IncomingMessage::extractInformation() {
       info = std::make_shared<Object::BinaryInfo>(
           Byte32(BitString32_getValue((BitString32)io)),
           static_cast<Quality>(BitString32_getQuality((BitString32)io)),
-          CP56Time2a_toMsTimestamp(Bitstring32WithCP56Time2a_getTimestamp(
+          to_time_point(Bitstring32WithCP56Time2a_getTimestamp(
               (Bitstring32WithCP56Time2a)io)),
           true);
     } break;
@@ -346,9 +346,8 @@ void IncomingMessage::extractInformation() {
               MeasuredValueNormalized_getValue((MeasuredValueNormalized)io)),
           static_cast<Quality>(
               MeasuredValueNormalized_getQuality((MeasuredValueNormalized)io)),
-          CP56Time2a_toMsTimestamp(
-              MeasuredValueNormalizedWithCP56Time2a_getTimestamp(
-                  (MeasuredValueNormalizedWithCP56Time2a)io)),
+          to_time_point(MeasuredValueNormalizedWithCP56Time2a_getTimestamp(
+              (MeasuredValueNormalizedWithCP56Time2a)io)),
           true);
     } break;
 
@@ -365,9 +364,8 @@ void IncomingMessage::extractInformation() {
           LimitedInt16(MeasuredValueScaled_getValue((MeasuredValueScaled)io)),
           static_cast<Quality>(
               MeasuredValueScaled_getQuality((MeasuredValueScaled)io)),
-          CP56Time2a_toMsTimestamp(
-              MeasuredValueScaledWithCP56Time2a_getTimestamp(
-                  (MeasuredValueScaledWithCP56Time2a)io)),
+          to_time_point(MeasuredValueScaledWithCP56Time2a_getTimestamp(
+              (MeasuredValueScaledWithCP56Time2a)io)),
           true);
     } break;
 
@@ -384,9 +382,8 @@ void IncomingMessage::extractInformation() {
           MeasuredValueShort_getValue((MeasuredValueShort)io),
           static_cast<Quality>(
               MeasuredValueShort_getQuality((MeasuredValueShort)io)),
-          CP56Time2a_toMsTimestamp(
-              MeasuredValueShortWithCP56Time2a_getTimestamp(
-                  (MeasuredValueShortWithCP56Time2a)io)),
+          to_time_point(MeasuredValueShortWithCP56Time2a_getTimestamp(
+              (MeasuredValueShortWithCP56Time2a)io)),
           true);
     } break;
 
@@ -407,7 +404,7 @@ void IncomingMessage::extractInformation() {
           LimitedUInt5(static_cast<uint32_t>(
               BinaryCounterReading_getSequenceNumber(bcr1))),
           BinaryCounterQuality(bcr1->encodedValue[4] & 0b11100000),
-          CP56Time2a_toMsTimestamp(IntegratedTotalsWithCP56Time2a_getTimestamp(
+          to_time_point(IntegratedTotalsWithCP56Time2a_getTimestamp(
               (IntegratedTotalsWithCP56Time2a)io)),
           true);
     } break;
@@ -422,9 +419,8 @@ void IncomingMessage::extractInformation() {
               EventOfProtectionEquipmentWithCP56Time2a_getElapsedTime(
                   (EventOfProtectionEquipmentWithCP56Time2a)io))),
           static_cast<Quality>(*single_event & 0b11111000),
-          CP56Time2a_toMsTimestamp(
-              EventOfProtectionEquipmentWithCP56Time2a_getTimestamp(
-                  (EventOfProtectionEquipmentWithCP56Time2a)io)),
+          to_time_point(EventOfProtectionEquipmentWithCP56Time2a_getTimestamp(
+              (EventOfProtectionEquipmentWithCP56Time2a)io)),
           true);
     } break;
 
@@ -440,7 +436,7 @@ void IncomingMessage::extractInformation() {
           static_cast<Quality>(
               PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getQuality(
                   (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io)),
-          CP56Time2a_toMsTimestamp(
+          to_time_point(
               PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getTimestamp(
                   (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io)),
           true);
@@ -456,9 +452,8 @@ void IncomingMessage::extractInformation() {
                   (PackedOutputCircuitInfoWithCP56Time2a)io))),
           static_cast<Quality>(PackedOutputCircuitInfoWithCP56Time2a_getQuality(
               (PackedOutputCircuitInfoWithCP56Time2a)io)),
-          CP56Time2a_toMsTimestamp(
-              PackedOutputCircuitInfoWithCP56Time2a_getTimestamp(
-                  (PackedOutputCircuitInfoWithCP56Time2a)io)),
+          to_time_point(PackedOutputCircuitInfoWithCP56Time2a_getTimestamp(
+              (PackedOutputCircuitInfoWithCP56Time2a)io)),
           true);
     } break;
 
@@ -501,7 +496,7 @@ void IncomingMessage::extractInformation() {
           SingleCommand_isSelect((SingleCommand)io),
           static_cast<CS101_QualifierOfCommand>(
               SingleCommand_getQU((SingleCommand)io)),
-          CP56Time2a_toMsTimestamp(SingleCommandWithCP56Time2a_getTimestamp(
+          to_time_point(SingleCommandWithCP56Time2a_getTimestamp(
               (SingleCommandWithCP56Time2a)io)),
           true);
     } break;
@@ -523,7 +518,7 @@ void IncomingMessage::extractInformation() {
           DoubleCommand_isSelect((DoubleCommand)io),
           static_cast<CS101_QualifierOfCommand>(
               DoubleCommand_getQU((DoubleCommand)io)),
-          CP56Time2a_toMsTimestamp(DoubleCommandWithCP56Time2a_getTimestamp(
+          to_time_point(DoubleCommandWithCP56Time2a_getTimestamp(
               (DoubleCommandWithCP56Time2a)io)),
           true);
     } break;
@@ -543,7 +538,7 @@ void IncomingMessage::extractInformation() {
           StepCommand_isSelect((StepCommand)io),
           static_cast<CS101_QualifierOfCommand>(
               StepCommand_getQU((StepCommand)io)),
-          CP56Time2a_toMsTimestamp(StepCommandWithCP56Time2a_getTimestamp(
+          to_time_point(StepCommandWithCP56Time2a_getTimestamp(
               (StepCommandWithCP56Time2a)io)),
           true);
     } break;
@@ -565,9 +560,8 @@ void IncomingMessage::extractInformation() {
           SetpointCommandNormalized_isSelect((SetpointCommandNormalized)io),
           LimitedUInt7(static_cast<uint32_t>(
               SetpointCommandNormalized_getQL((SetpointCommandNormalized)io))),
-          CP56Time2a_toMsTimestamp(
-              SetpointCommandNormalizedWithCP56Time2a_getTimestamp(
-                  (SetpointCommandNormalizedWithCP56Time2a)io)),
+          to_time_point(SetpointCommandNormalizedWithCP56Time2a_getTimestamp(
+              (SetpointCommandNormalizedWithCP56Time2a)io)),
           true);
     } break;
 
@@ -588,9 +582,8 @@ void IncomingMessage::extractInformation() {
           SetpointCommandScaled_isSelect((SetpointCommandScaled)io),
           LimitedUInt7(static_cast<uint32_t>(
               SetpointCommandScaled_getQL((SetpointCommandScaled)io))),
-          CP56Time2a_toMsTimestamp(
-              SetpointCommandScaledWithCP56Time2a_getTimestamp(
-                  (SetpointCommandScaledWithCP56Time2a)io)),
+          to_time_point(SetpointCommandScaledWithCP56Time2a_getTimestamp(
+              (SetpointCommandScaledWithCP56Time2a)io)),
           true);
     } break;
 
@@ -609,9 +602,8 @@ void IncomingMessage::extractInformation() {
           SetpointCommandShort_isSelect((SetpointCommandShort)io),
           LimitedUInt7(static_cast<uint32_t>(
               SetpointCommandShort_getQL((SetpointCommandShort)io))),
-          CP56Time2a_toMsTimestamp(
-              SetpointCommandShortWithCP56Time2a_getTimestamp(
-                  (SetpointCommandShortWithCP56Time2a)io)),
+          to_time_point(SetpointCommandShortWithCP56Time2a_getTimestamp(
+              (SetpointCommandShortWithCP56Time2a)io)),
           true);
     } break;
 
@@ -624,16 +616,20 @@ void IncomingMessage::extractInformation() {
     case C_BO_TA_1: {
       info = std::make_shared<Object::BinaryCmd>(
           Byte32(Bitstring32Command_getValue((Bitstring32Command)io)),
-          CP56Time2a_toMsTimestamp(
-              Bitstring32CommandWithCP56Time2a_getTimestamp(
-                  (Bitstring32CommandWithCP56Time2a)io)),
+          to_time_point(Bitstring32CommandWithCP56Time2a_getTimestamp(
+              (Bitstring32CommandWithCP56Time2a)io)),
+          true);
+    } break;
+    case C_CS_NA_1: {
+      info = std::make_shared<Object::Command>(
+          to_time_point(ClockSynchronizationCommand_getTime(
+              (ClockSynchronizationCommand)io)),
           true);
     } break;
 
     case C_IC_NA_1:
     case C_CI_NA_1:
     case C_RD_NA_1:
-    case C_CS_NA_1:
     case C_TS_NA_1:
       // allow get valid message to pass and extract informationObjectAddress
       // even though no further info is extracted

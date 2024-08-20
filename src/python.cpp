@@ -2086,22 +2086,13 @@ PY_MODULE(c104, m) {
                     "point.info.quality)",
                     py::return_value_policy::copy)
       .def_property_readonly(
-          "processed_at",
-          [](const Object::DataPoint &obj) {
-            return convert_timestamp_to_datetime(obj.getProcessedAt_ms());
-          },
+          "processed_at", &Object::DataPoint::getProcessedAt,
           "datetime.datetime: timestamp with milliseconds of last local "
           "information processing "
           "(read-only)",
           py::return_value_policy::copy)
       .def_property_readonly(
-          "recorded_at",
-          [](const Object::DataPoint &obj) {
-            return obj.getRecordedAt_ms().has_value()
-                       ? convert_timestamp_to_datetime(
-                             obj.getRecordedAt_ms().value())
-                       : py::none();
-          },
+          "recorded_at", &Object::DataPoint::getRecordedAt,
           "Optional[int]: timestamp with milliseconds transported with the "
           "value "
           "itself or None (read-only)",
@@ -2319,21 +2310,12 @@ PY_MODULE(c104, m) {
       .def_property_readonly("quality", &Object::Information::getQuality,
                              "Any: mixed InfoQuality type")
       .def_property_readonly(
-          "processed_at",
-          [](const Object::Information &obj) {
-            return convert_timestamp_to_datetime(obj.getProcessedAt_ms());
-          },
+          "processed_at", &Object::Information::getProcessedAt,
           "datetime.datetime: timestamp with milliseconds of last local "
           "information processing "
           "(read-only)")
       .def_property_readonly(
-          "recorded_at",
-          [](const Object::Information &obj) {
-            return obj.getRecordedAt_ms().has_value()
-                       ? convert_timestamp_to_datetime(
-                             obj.getRecordedAt_ms().value())
-                       : py::none();
-          },
+          "recorded_at", &Object::Information::getRecordedAt,
           "Optional[int]: timestamp with milliseconds transported with the "
           "value "
           "itself or None (read-only)");
@@ -2342,7 +2324,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::SingleInfo>>(
       m, "SingleInfo",
       "This class represents all specific single point information")
-      .def(py::init(&Object::SingleInfo::createPy), R"def(
+      .def(py::init(&Object::SingleInfo::create), R"def(
     __init__(self: c104.SingleInfo, on: bool, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new single info
@@ -2369,7 +2351,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::SingleCmd>>(
       m, "SingleCmd",
       "This class represents all specific single command information")
-      .def(py::init(&Object::SingleCmd::createPy), R"def(
+      .def(py::init(&Object::SingleCmd::create), R"def(
     __init__(self: c104.SingleCmd, on: bool, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new single command
@@ -2400,7 +2382,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::DoubleInfo>>(
       m, "DoubleInfo",
       "This class represents all specific double point information")
-      .def(py::init(&Object::DoubleInfo::createPy), R"def(
+      .def(py::init(&Object::DoubleInfo::create), R"def(
     __init__(self: c104.DoubleInfo, state: c104.Double, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new double info
@@ -2427,7 +2409,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::DoubleCmd>>(
       m, "DoubleCmd",
       "This class represents all specific double command information")
-      .def(py::init(&Object::DoubleCmd::createPy), R"def(
+      .def(py::init(&Object::DoubleCmd::create), R"def(
     __init__(self: c104.DoubleCmd, state: c104.Double, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new double command
@@ -2458,7 +2440,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::StepInfo>>(
       m, "StepInfo",
       "This class represents all specific step point information")
-      .def(py::init(&Object::StepInfo::createPy), R"def(
+      .def(py::init(&Object::StepInfo::create), R"def(
     __init__(self: c104.StepInfo, position: c104.Int7, transient: bool, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new step info
@@ -2490,7 +2472,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::StepCmd>>(
       m, "StepCmd",
       "This class represents all specific step command information")
-      .def(py::init(&Object::StepCmd::createPy), R"def(
+      .def(py::init(&Object::StepCmd::create), R"def(
     __init__(self: c104.StepCmd, step: c104.Step, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new step command
@@ -2521,7 +2503,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::BinaryInfo>>(
       m, "BinaryInfo",
       "This class represents all specific binary point information")
-      .def(py::init(&Object::BinaryInfo::createPy), R"def(
+      .def(py::init(&Object::BinaryInfo::create), R"def(
     __init__(self: c104.BinaryInfo, blob: c104.Byte32, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new binary info
@@ -2548,7 +2530,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::BinaryCmd>>(
       m, "BinaryCmd",
       "This class represents all specific binary command information")
-      .def(py::init(&Object::BinaryCmd::createPy), R"def(
+      .def(py::init(&Object::BinaryCmd::create), R"def(
     __init__(self: c104.BinaryCmd, blob: c104.Byte32, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new binary command
@@ -2574,7 +2556,7 @@ PY_MODULE(c104, m) {
       m, "NormalizedInfo",
       "This class represents all specific normalized measurement point "
       "information")
-      .def(py::init(&Object::NormalizedInfo::createPy), R"def(
+      .def(py::init(&Object::NormalizedInfo::create), R"def(
     __init__(self: c104.NormalizedInfo, actual: c104.NormalizedFloat, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new normalized measurement info
@@ -2604,7 +2586,7 @@ PY_MODULE(c104, m) {
       m, "NormalizedCmd",
       "This class represents all specific normalized set point command "
       "information")
-      .def(py::init(&Object::NormalizedCmd::createPy), R"def(
+      .def(py::init(&Object::NormalizedCmd::create), R"def(
     __init__(self: c104.NormalizedCmd, target: c104.NormalizedFloat, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new normalized set point command
@@ -2636,7 +2618,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::ScaledInfo>>(
       m, "ScaledInfo",
       "This class represents all specific scaled measurement point information")
-      .def(py::init(&Object::ScaledInfo::createPy), R"def(
+      .def(py::init(&Object::ScaledInfo::create), R"def(
     __init__(self: c104.ScaledInfo, actual: c104.Int16, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new scaled measurement info
@@ -2664,7 +2646,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::ScaledCmd>>(
       m, "ScaledCmd",
       "This class represents all specific scaled set point command information")
-      .def(py::init(&Object::ScaledCmd::createPy), R"def(
+      .def(py::init(&Object::ScaledCmd::create), R"def(
     __init__(self: c104.ScaledCmd, target: c104.Int16, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new scaled set point command
@@ -2695,7 +2677,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::ShortInfo>>(
       m, "ShortInfo",
       "This class represents all specific short measurement point information")
-      .def(py::init(&Object::ShortInfo::createPy), R"def(
+      .def(py::init(&Object::ShortInfo::create), R"def(
     __init__(self: c104.ShortInfo, actual: float, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new short measurement info
@@ -2723,7 +2705,7 @@ PY_MODULE(c104, m) {
              std::shared_ptr<Object::ShortCmd>>(
       m, "ShortCmd",
       "This class represents all specific short set point command information")
-      .def(py::init(&Object::ShortCmd::createPy), R"def(
+      .def(py::init(&Object::ShortCmd::create), R"def(
     __init__(self: c104.ShortCmd, target: float, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new short set point command
@@ -2755,7 +2737,7 @@ PY_MODULE(c104, m) {
       m, "BinaryCounterInfo",
       "This class represents all specific integrated totals of binary counter "
       "point information")
-      .def(py::init(&Object::BinaryCounterInfo::createPy), R"def(
+      .def(py::init(&Object::BinaryCounterInfo::create), R"def(
     __init__(self: c104.BinaryCounterInfo, counter: int, sequence: c104.UInt5, quality: c104.BinaryCounterQuality = c104.BinaryCounterQuality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new short measurement info
@@ -2789,7 +2771,7 @@ PY_MODULE(c104, m) {
       m, "ProtectionEventInfo",
       "This class represents all specific protection equipment single event "
       "point information")
-      .def(py::init(&Object::ProtectionEquipmentEventInfo::createPy), R"def(
+      .def(py::init(&Object::ProtectionEquipmentEventInfo::create), R"def(
     __init__(self: c104.ProtectionEventInfo, state: c104.EventState, elapsed_ms: c104.UInt16, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new event info raised by protection equipment
@@ -2824,7 +2806,7 @@ PY_MODULE(c104, m) {
       m, "ProtectionStartInfo",
       "This class represents all specific protection equipment packed start "
       "events point information")
-      .def(py::init(&Object::ProtectionEquipmentStartEventsInfo::createPy),
+      .def(py::init(&Object::ProtectionEquipmentStartEventsInfo::create),
            R"def(
     __init__(self: c104.ProtectionStartInfo, events: c104.StartEvents, relay_duration_ms: c104.UInt16, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
@@ -2861,7 +2843,7 @@ PY_MODULE(c104, m) {
       m, "ProtectionCircuitInfo",
       "This class represents all specific protection equipment output circuit "
       "point information")
-      .def(py::init(&Object::ProtectionEquipmentOutputCircuitInfo::createPy),
+      .def(py::init(&Object::ProtectionEquipmentOutputCircuitInfo::create),
            R"def(
     __init__(self: c104.ProtectionCircuitInfo, circuits: c104.OutputCircuits, relay_operating_ms: c104.UInt16, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
@@ -2899,7 +2881,7 @@ PY_MODULE(c104, m) {
       m, "StatusAndChanged",
       "This class represents all specific packed status point information with "
       "change detection")
-      .def(py::init(&Object::StatusWithChangeDetection::createPy), R"def(
+      .def(py::init(&Object::StatusWithChangeDetection::create), R"def(
     __init__(self: c104.StatusAndChanged, status: c104.FieldSet16, changed: c104.FieldSet16, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new event info raised by protection equipment

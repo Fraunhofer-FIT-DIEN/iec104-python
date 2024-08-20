@@ -312,14 +312,14 @@ bool Connection::setOpen() {
     return false;
   }
 
-  setState(OPEN_MUTED);
   if (INIT_MUTED != init) {
     if (auto c = getClient()) {
       c->scheduleTask([this]() { this->unmute(); }, -1);
     }
   }
   connectionCount++;
-  connectedAt_ms.store(GetTimestamp_ms());
+  connectedAt.store(std::chrono::utc_clock::now());
+  setState(OPEN_MUTED);
 
   DEBUG_PRINT(Debug::Connection,
               "set_open] Opened connection to " + getConnectionString());
@@ -341,7 +341,7 @@ bool Connection::setClosed() {
 
   if (CLOSED_AWAIT_OPEN != current && CLOSED_AWAIT_RECONNECT != current) {
     // set disconnected if connected previously
-    disconnectedAt_ms.store(GetTimestamp_ms());
+    disconnectedAt.store(std::chrono::utc_clock::now());
   }
 
   // controlled close or connection lost?
@@ -625,6 +625,22 @@ void Connection::setOnStateChangeCallback(py::object &callable) {
   py_onStateChange.reset(callable);
 }
 
+std::optional<std::chrono::utc_clock::time_point>
+Connection::getConnectedAt() const {
+  if (isOpen()) {
+    return connectedAt.load();
+  }
+  return std::nullopt;
+}
+
+std::optional<std::chrono::utc_clock::time_point>
+Connection::getDisconnectedAt() const {
+  if (!isOpen()) {
+    return disconnectedAt.load();
+  }
+  return std::nullopt;
+}
+
 bool Connection::interrogation(std::uint_fast16_t commonAddress,
                                CS101_CauseOfTransmission cause,
                                CS101_QualifierOfInterrogation qualifier,
@@ -706,7 +722,7 @@ bool Connection::clockSync(std::uint_fast16_t commonAddress,
   }
 
   sCP56Time2a time{};
-  CP56Time2a_createFromMsTimestamp(&time, GetTimestamp_ms());
+  from_time_point(&time, std::chrono::utc_clock::now());
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
   bool const result =
@@ -737,7 +753,7 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
 
   if (with_time) {
     sCP56Time2a time{};
-    CP56Time2a_createFromMsTimestamp(&time, GetTimestamp_ms());
+    from_time_point(&time, std::chrono::utc_clock::now());
 
     std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
     bool const result = CS104_Connection_sendTestCommandWithTimestamp(
