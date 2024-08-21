@@ -5,8 +5,8 @@ import time
 
 def main():
     # client, connection and station preparation
-    client = c104.Client(command_timeout_ms=2000)
-    connection = client.add_connection(ip="127.0.0.1", port=2404, init=c104.Init.INTERROGATION)
+    client = c104.Client()
+    connection = client.add_connection(ip="127.0.0.1", port=2404, init=c104.Init.ALL)
     station = connection.add_station(common_address=47)
 
     # monitoring point preparation
@@ -19,7 +19,7 @@ def main():
     # start
     client.start()
 
-    while not connection.is_connected or connection.is_muted:
+    while connection.state != c104.ConnectionState.OPEN:
         print("Waiting for connection to {0}:{1}".format(connection.ip, connection.port))
         time.sleep(1)
 
@@ -40,7 +40,8 @@ def main():
         print("-> SUCCESS")
     else:
         print("-> FAILURE")
-    #time.sleep(3)
+
+    time.sleep(1)
 
     print("exit")
     print("exit")
@@ -48,6 +49,5 @@ def main():
 
 
 if __name__ == "__main__":
-    c104.set_debug_mode(c104.Debug.Client|c104.Debug.Connection|c104.Debug.Point|c104.Debug.Callback)
+    # c104.set_debug_mode(c104.Debug.Client|c104.Debug.Connection|c104.Debug.Point|c104.Debug.Callback)
     main()
-    time.sleep(1)

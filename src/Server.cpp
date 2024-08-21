@@ -53,8 +53,8 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
 
   // create a new slave/server instance with default connection parameters and
   // default message queue size
-  if (transport_security.get() != nullptr) {
-    slave = CS104_Slave_createSecure(100, 100, transport_security->get());
+  if (security) {
+    slave = CS104_Slave_createSecure(100, 100, security->get());
   } else {
     slave = CS104_Slave_create(100, 100);
   }

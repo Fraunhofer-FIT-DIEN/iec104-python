@@ -1637,8 +1637,15 @@ PY_MODULE(c104, m) {
       .def_property(
           "originator_address", &Remote::Connection::getOriginatorAddress,
           &Remote::Connection::setOriginatorAddress,
-          "int: primary originator address of this connection (0-255)",
-          py::return_value_policy::copy)
+          "int: primary originator address of this connection (0-255)")
+      .def_property_readonly("connected_at",
+                             &Remote::Connection::getConnectedAt,
+                             "Optional[datetime.datetime]: datetime of "
+                             "disconnect, if connection is closed (read-only)")
+      .def_property_readonly("disconnected_at",
+                             &Remote::Connection::getDisconnectedAt,
+                             "Optional[datetime.datetime]: test if connection "
+                             "is muted (read-only)")
       .def("connect", &Remote::Connection::connect, R"def(
     connect(self: c104.Connection) -> None
 

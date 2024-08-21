@@ -65,11 +65,16 @@ void cl_dump(std::shared_ptr<Client> my_client,
                     << " | " << std::setw(7)
                     << std::to_string(pt_iter->getInformationObjectAddress())
                     << " | " << std::setw(13)
-                    << InfoValue_toString(pt_iter->getValue()) << " | "
-                    << std::setw(13)
-                    << std::to_string(pt_iter->getRecordedAt_ms().value_or(0))
-                    << " | " << std::setw(13)
-                    << std::to_string(pt_iter->getProcessedAt_ms()) << " | "
+                    << InfoValue_toString(pt_iter->getValue()) << " | ";
+
+          if (pt_iter->getRecordedAt().has_value())
+            std::cout << std::setw(13)
+                      << TIMEPOINT_ISOFORMAT(pt_iter->getRecordedAt().value());
+          else
+            std::cout << std::setw(13) << "N. A.";
+
+          std::cout << " | " << std::setw(13)
+                    << TIMEPOINT_ISOFORMAT(pt_iter->getProcessedAt()) << " | "
                     << InfoQuality_toString(pt_iter->getQuality()) << std::endl;
         }
         std::cout << "             "
@@ -85,7 +90,7 @@ int main(int argc, char *argv[]) {
   py::scoped_interpreter guard{};
   auto c104 = py::module_::import("c104");
 
-  bool const USE_TLS = false;
+  bool const USE_TLS = true;
   std::string ROOT = argv[0];
 
   bool found = false;
@@ -117,7 +122,8 @@ int main(int argc, char *argv[]) {
   auto my_client = Client::create(100, 100, tlsconf);
   my_client->setOriginatorAddress(123);
 
-  auto cl_connection_1 = my_client->addConnection("127.0.0.1", 2404, INIT_NONE);
+  auto cl_connection_1 =
+      my_client->addConnection("127.0.0.1", 19998, INIT_NONE);
 
   auto cl_station_1 = cl_connection_1->addStation(47);
   auto cl_step_command = cl_station_1->addPoint(32, C_RC_TA_1);
@@ -128,7 +134,6 @@ int main(int argc, char *argv[]) {
   /*
    * connect loop
    */
-  my_client->start();
 
   // while(true) {
   // my_client->start();
@@ -136,6 +141,7 @@ int main(int argc, char *argv[]) {
   // cl_connection_1->disconnect();
   // my_client->stop();
   //}
+  my_client->start();
 
   while (!cl_connection_1->isOpen()) {
     std::cout << "Waiting for connection" << std::endl;
@@ -188,7 +194,9 @@ int main(int argc, char *argv[]) {
 
   auto cl_double_command = cl_station_2->addPoint(22, C_DC_TA_1);
   cl_double_command->setInfo(Object::DoubleCmd::create(
-      IEC60870_DOUBLE_POINT_ON, CS101_QualifierOfCommand::NONE, 1711111111111));
+      IEC60870_DOUBLE_POINT_ON, CS101_QualifierOfCommand::NONE,
+      std::chrono::system_clock::time_point(
+          std::chrono::milliseconds(1711111111111))));
 
   if (cl_double_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Double command ON successful" << std::endl;

@@ -160,7 +160,7 @@ sv_double_command.on_receive(callable=sv_pt_on_double_command)
 # STEP POINT WITH COMMAND
 ##################################
 
-sv_global_step_point_value = 0
+sv_global_step_point_value = c104.Int7(0)
 
 
 def sv_pt_on_step_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
@@ -212,17 +212,17 @@ class ServerPointMethodCallbackTestClass:
         self.x = x
 
     def pt_on_before_auto_transmit_measurement_point(self, point: c104.Point) -> None:
-        print(self.x, "--> {0} AUTO TRANSMIT on IOA: {1} recorded at: {2}".format(point.type, point.io_address, point.recorded_at_ms))
+        print(self.x, "--> {0} AUTO TRANSMIT on IOA: {1} recorded at: {2}".format(point.type, point.io_address, point.recorded_at))
 
 sv_pmct = ServerPointMethodCallbackTestClass("SV] CALLBACK METHOD")
 
 time.sleep(5)
-sv_measurement_point.info = c104.ShortInfo(actual=1234, timestamp_ms=1711111111111)
+sv_measurement_point.info = c104.ShortInfo(actual=1234, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 sv_measurement_point.on_before_auto_transmit(callable=sv_pmct.pt_on_before_auto_transmit_measurement_point)
 
 time.sleep(5)
-sv_measurement_point.info = c104.ShortInfo(actual=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=1711111111111)
+sv_measurement_point.info = c104.ShortInfo(actual=-1234.56, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 
 ##################################

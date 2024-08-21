@@ -52,7 +52,7 @@ Connection::Connection(
   Assert_IPv4(_ip);
   Assert_Port(_port);
 
-  if (transport_security.get() != nullptr) {
+  if (transport_security) {
     connection = CS104_Connection_createSecure(ip.c_str(), _port,
                                                transport_security->get());
   } else {

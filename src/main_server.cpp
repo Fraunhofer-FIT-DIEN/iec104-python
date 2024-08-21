@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
   py::scoped_interpreter guard{};
   auto c104 = py::module_::import("c104");
 
-  bool const USE_TLS = false;
+  bool const USE_TLS = true;
   std::string ROOT = argv[0];
 
   bool found = false;
@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
     tlsconf->addAllowedRemoteCertificate(ROOT + "certs/client1.crt");
   }
 
-  auto my_server = Server::create("127.0.0.1", 2404, 100, 100, 0, tlsconf);
+  auto my_server = Server::create("127.0.0.1", 19998, 100, 100, 0, tlsconf);
 
   auto sv_station_2 = my_server->addStation(47);
 
@@ -215,11 +215,11 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
    * connect loop
    */
 
-  my_server->start();
   //  while(true) {
   //    my_server->start();
   //    my_server->stop();
   //  }
+  my_server->start();
 
   while (!my_server->hasActiveConnections()) {
     std::cout << "Waiting for connection" << std::endl;
@@ -233,7 +233,9 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
   std::this_thread::sleep_for(10s);
 
   sv_measurement_point->setInfo(
-      Object::ShortInfo::create(1234, Quality::None, 1711111111111));
+      Object::ShortInfo::create(1234, Quality::None,
+                                std::chrono::system_clock::time_point(
+                                    std::chrono::milliseconds(1711111111111))));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {
@@ -243,7 +245,9 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
   std::this_thread::sleep_for(10s);
 
   sv_measurement_point->setInfo(
-      Object::ShortInfo::create(-1234.56, Quality::Invalid, 1711111111111));
+      Object::ShortInfo::create(-1234.56, Quality::Invalid,
+                                std::chrono::system_clock::time_point(
+                                    std::chrono::milliseconds(1711111111111))));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {
