@@ -34,14 +34,14 @@
 using namespace Object;
 
 Information::Information(
-    const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+    const std::optional<std::chrono::system_clock::time_point> recorded_at,
     const bool readonly)
     : recorded_at(recorded_at), readonly(readonly) {
-  processed_at = std::chrono::utc_clock::now();
+  processed_at = std::chrono::system_clock::now();
 };
 
 Command::Command(
-    const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+    const std::optional<std::chrono::system_clock::time_point> recorded_at,
     const bool readonly)
     : Information(recorded_at, readonly){};
 
@@ -102,7 +102,7 @@ void Information::setReadonly() {
 };
 
 void Information::setRecordedAt(
-    std::optional<std::chrono::utc_clock::time_point> val) {
+    std::optional<std::chrono::system_clock::time_point> val) {
   if (readonly) {
     return;
   }
@@ -110,7 +110,7 @@ void Information::setRecordedAt(
   recorded_at = val;
 }
 
-void Information::setProcessedAt(std::chrono::utc_clock::time_point val) {
+void Information::setProcessedAt(std::chrono::system_clock::time_point val) {
   std::lock_guard<std::mutex> lock(mtx);
   processed_at = val;
 }

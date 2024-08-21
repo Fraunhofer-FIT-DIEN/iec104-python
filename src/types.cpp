@@ -73,13 +73,13 @@ void Assert_Port(const int_fast64_t port) {
                                 " is invalid!");
 }
 
-std::chrono::utc_clock::time_point to_time_point(const CP56Time2a time) {
-  return std::chrono::utc_clock::time_point(
+std::chrono::system_clock::time_point to_time_point(const CP56Time2a time) {
+  return std::chrono::system_clock::time_point(
       std::chrono::milliseconds(CP56Time2a_toMsTimestamp(time)));
 }
 
 void from_time_point(CP56Time2a time,
-                     const std::chrono::utc_clock::time_point time_point) {
+                     const std::chrono::system_clock::time_point time_point) {
   auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
                     time_point.time_since_epoch())
                     .count();

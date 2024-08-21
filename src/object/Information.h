@@ -47,8 +47,8 @@ private:
   std::mutex mtx;
 
 protected:
-  std::optional<std::chrono::utc_clock::time_point> recorded_at;
-  std::chrono::utc_clock::time_point processed_at;
+  std::optional<std::chrono::system_clock::time_point> recorded_at;
+  std::chrono::system_clock::time_point processed_at;
   bool readonly;
 
   [[nodiscard]] virtual InfoValue getValueImpl() const;
@@ -60,7 +60,7 @@ protected:
   std::string base_toString() const;
 
 public:
-  explicit Information(std::optional<std::chrono::utc_clock::time_point>
+  explicit Information(std::optional<std::chrono::system_clock::time_point>
                            recorded_at = std::nullopt,
                        bool readonly = false);
 
@@ -70,18 +70,18 @@ public:
   [[nodiscard]] virtual InfoQuality getQuality();
   virtual void setQuality(InfoQuality val);
 
-  [[nodiscard]] const std::optional<std::chrono::utc_clock::time_point> &
+  [[nodiscard]] const std::optional<std::chrono::system_clock::time_point> &
   getRecordedAt() const {
     return recorded_at;
   }
   virtual void
-  setRecordedAt(std::optional<std::chrono::utc_clock::time_point> val);
+  setRecordedAt(std::optional<std::chrono::system_clock::time_point> val);
 
-  [[nodiscard]] std::chrono::utc_clock::time_point getProcessedAt() const {
+  [[nodiscard]] std::chrono::system_clock::time_point getProcessedAt() const {
     return processed_at;
   }
 
-  void setProcessedAt(std::chrono::utc_clock::time_point val);
+  void setProcessedAt(std::chrono::system_clock::time_point val);
 
   virtual void setReadonly();
   [[nodiscard]] bool isReadonly() const { return readonly; }
@@ -93,7 +93,7 @@ public:
 
 class Command : public Information {
 public:
-  explicit Command(std::optional<std::chrono::utc_clock::time_point>
+  explicit Command(std::optional<std::chrono::system_clock::time_point>
                        recorded_at = std::nullopt,
                    bool readonly = false);
 
@@ -117,16 +117,16 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<SingleInfo>
-  create(const bool on, const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<SingleInfo> create(
+      const bool on, const Quality quality = Quality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<SingleInfo>(on, quality, recorded_at, false);
   };
 
   SingleInfo(
       const bool on, const Quality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), on(on), quality(quality){};
 
@@ -150,16 +150,17 @@ public:
   [[nodiscard]] static std::shared_ptr<SingleCmd> create(
       const bool on,
       const CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at =
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
           std::nullopt) {
     return std::make_shared<SingleCmd>(on, false, qualifier, recorded_at,
                                        false);
   };
 
-  SingleCmd(const bool on, const bool select,
-            const CS101_QualifierOfCommand qualifier,
-            const std::optional<std::chrono::utc_clock::time_point> recorded_at,
-            bool readonly)
+  SingleCmd(
+      const bool on, const bool select,
+      const CS101_QualifierOfCommand qualifier,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
+      bool readonly)
       : Command(recorded_at, readonly), on(on), select(select),
         qualifier(qualifier){};
 
@@ -190,16 +191,16 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<DoubleInfo>
-  create(const DoublePointValue state, const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<DoubleInfo> create(
+      const DoublePointValue state, const Quality quality = Quality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<DoubleInfo>(state, quality, recorded_at, false);
   };
 
   DoubleInfo(
       const DoublePointValue state, const Quality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), state(state), quality(quality){};
 
@@ -223,16 +224,17 @@ public:
   [[nodiscard]] static std::shared_ptr<DoubleCmd> create(
       const DoublePointValue state,
       const CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at =
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
           std::nullopt) {
     return std::make_shared<DoubleCmd>(state, false, qualifier, recorded_at,
                                        false);
   };
 
-  DoubleCmd(const DoublePointValue state, const bool select,
-            const CS101_QualifierOfCommand qualifier,
-            const std::optional<std::chrono::utc_clock::time_point> recorded_at,
-            bool readonly)
+  DoubleCmd(
+      const DoublePointValue state, const bool select,
+      const CS101_QualifierOfCommand qualifier,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
+      bool readonly)
       : Command(recorded_at, readonly), state(state), select(select),
         qualifier(qualifier){};
 
@@ -264,19 +266,19 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<StepInfo>
-  create(const LimitedInt7 position, const bool transient = false,
-         const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<StepInfo> create(
+      const LimitedInt7 position, const bool transient = false,
+      const Quality quality = Quality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<StepInfo>(position, transient, quality, recorded_at,
                                       false);
   };
 
-  StepInfo(const LimitedInt7 position, const bool transient,
-           const Quality quality,
-           const std::optional<std::chrono::utc_clock::time_point> recorded_at,
-           bool readonly)
+  StepInfo(
+      const LimitedInt7 position, const bool transient, const Quality quality,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
+      bool readonly)
       : Information(recorded_at, readonly), position(position),
         transient(transient), quality(quality){};
 
@@ -302,16 +304,17 @@ public:
   [[nodiscard]] static std::shared_ptr<StepCmd> create(
       const StepCommandValue step,
       const CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at =
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
           std::nullopt) {
     return std::make_shared<StepCmd>(step, false, qualifier, recorded_at,
                                      false);
   };
 
-  StepCmd(const StepCommandValue direction, const bool select,
-          const CS101_QualifierOfCommand qualifier,
-          const std::optional<std::chrono::utc_clock::time_point> recorded_at,
-          bool readonly)
+  StepCmd(
+      const StepCommandValue direction, const bool select,
+      const CS101_QualifierOfCommand qualifier,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
+      bool readonly)
       : Command(recorded_at, readonly), step(direction), select(select),
         qualifier(qualifier){};
 
@@ -342,16 +345,16 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<BinaryInfo>
-  create(const Byte32 blob, const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<BinaryInfo> create(
+      const Byte32 blob, const Quality quality = Quality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<BinaryInfo>(blob, quality, recorded_at, false);
   }
 
   BinaryInfo(
       const Byte32 blob, const Quality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), blob(blob), quality(quality){};
 
@@ -370,16 +373,17 @@ protected:
   void setValueImpl(InfoValue val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<BinaryCmd>
-  create(const Byte32 blob,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<BinaryCmd> create(
+      const Byte32 blob,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<BinaryCmd>(blob, recorded_at, false);
   };
 
-  BinaryCmd(const Byte32 blob,
-            const std::optional<std::chrono::utc_clock::time_point> recorded_at,
-            bool readonly)
+  BinaryCmd(
+      const Byte32 blob,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
+      bool readonly)
       : Command(recorded_at, readonly), blob(blob){};
 
   [[nodiscard]] const Byte32 &getBlob() const { return blob; }
@@ -401,17 +405,17 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<NormalizedInfo>
-  create(const NormalizedFloat actual, const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<NormalizedInfo> create(
+      const NormalizedFloat actual, const Quality quality = Quality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<NormalizedInfo>(actual, quality, recorded_at,
                                             false);
   }
 
   NormalizedInfo(
       const NormalizedFloat actual, const Quality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), actual(actual), quality(quality){};
 
@@ -432,11 +436,11 @@ protected:
   void setValueImpl(InfoValue val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<NormalizedCmd>
-  create(const NormalizedFloat target,
-         const LimitedUInt7 qualifier = LimitedUInt7{(uint32_t)0},
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<NormalizedCmd> create(
+      const NormalizedFloat target,
+      const LimitedUInt7 qualifier = LimitedUInt7{(uint32_t)0},
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<NormalizedCmd>(target, false, qualifier,
                                            recorded_at, false);
   };
@@ -444,7 +448,7 @@ public:
   NormalizedCmd(
       const NormalizedFloat target, const bool select,
       const LimitedUInt7 qualifier,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Command(recorded_at, readonly), target(target), select(select),
         qualifier(qualifier){};
@@ -474,16 +478,16 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<ScaledInfo>
-  create(const LimitedInt16 actual, const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<ScaledInfo> create(
+      const LimitedInt16 actual, const Quality quality = Quality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<ScaledInfo>(actual, quality, recorded_at, false);
   };
 
   ScaledInfo(
       const LimitedInt16 actual, const Quality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), actual(actual), quality(quality){};
 
@@ -504,19 +508,20 @@ protected:
   void setValueImpl(InfoValue val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<ScaledCmd>
-  create(const LimitedInt16 target,
-         const LimitedUInt7 qualifier = LimitedUInt7{(uint32_t)0},
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<ScaledCmd> create(
+      const LimitedInt16 target,
+      const LimitedUInt7 qualifier = LimitedUInt7{(uint32_t)0},
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<ScaledCmd>(target, false, qualifier, recorded_at,
                                        false);
   };
 
-  ScaledCmd(const LimitedInt16 target, const bool select,
-            const LimitedUInt7 qualifier,
-            const std::optional<std::chrono::utc_clock::time_point> recorded_at,
-            bool readonly)
+  ScaledCmd(
+      const LimitedInt16 target, const bool select,
+      const LimitedUInt7 qualifier,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
+      bool readonly)
       : Command(recorded_at, readonly), target(target), select(select),
         qualifier(qualifier){};
 
@@ -545,16 +550,17 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<ShortInfo>
-  create(const float actual, const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<ShortInfo> create(
+      const float actual, const Quality quality = Quality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<ShortInfo>(actual, quality, recorded_at, false);
   };
 
-  ShortInfo(const float actual, const Quality quality,
-            const std::optional<std::chrono::utc_clock::time_point> recorded_at,
-            bool readonly)
+  ShortInfo(
+      const float actual, const Quality quality,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
+      bool readonly)
       : Information(recorded_at, readonly), actual(actual), quality(quality){};
 
   [[nodiscard]] float getActual() const { return actual; }
@@ -574,18 +580,19 @@ protected:
   void setValueImpl(InfoValue val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<ShortCmd>
-  create(const float target,
-         const LimitedUInt7 qualifier = LimitedUInt7{(uint32_t)0},
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<ShortCmd> create(
+      const float target,
+      const LimitedUInt7 qualifier = LimitedUInt7{(uint32_t)0},
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<ShortCmd>(target, false, qualifier, recorded_at,
                                       false);
   };
 
-  ShortCmd(const float target, const bool select, const LimitedUInt7 qualifier,
-           const std::optional<std::chrono::utc_clock::time_point> recorded_at,
-           bool readonly)
+  ShortCmd(
+      const float target, const bool select, const LimitedUInt7 qualifier,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
+      bool readonly)
       : Command(recorded_at, readonly), target(target), select(select),
         qualifier(qualifier){};
 
@@ -615,12 +622,12 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<BinaryCounterInfo>
-  create(const int32_t counter,
-         const LimitedUInt5 sequence = LimitedUInt5{(uint32_t)0},
-         const BinaryCounterQuality quality = BinaryCounterQuality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<BinaryCounterInfo> create(
+      const int32_t counter,
+      const LimitedUInt5 sequence = LimitedUInt5{(uint32_t)0},
+      const BinaryCounterQuality quality = BinaryCounterQuality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<BinaryCounterInfo>(counter, sequence, quality,
                                                recorded_at, false);
   };
@@ -628,7 +635,7 @@ public:
   BinaryCounterInfo(
       const int32_t counter, const LimitedUInt5 sequence,
       const BinaryCounterQuality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), counter(counter),
         sequence(sequence), quality(quality){};
@@ -655,12 +662,11 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<ProtectionEquipmentEventInfo>
-  create(const EventState state,
-         const LimitedUInt16 elapsed_ms = LimitedUInt16{0},
-         const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<ProtectionEquipmentEventInfo> create(
+      const EventState state, const LimitedUInt16 elapsed_ms = LimitedUInt16{0},
+      const Quality quality = Quality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<ProtectionEquipmentEventInfo>(
         state, elapsed_ms, quality, recorded_at, false);
   };
@@ -668,7 +674,7 @@ public:
   ProtectionEquipmentEventInfo(
       const EventState state, const LimitedUInt16 elapsed_ms,
       const Quality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), state(state),
         elapsed_ms(elapsed_ms), quality(quality){};
@@ -699,8 +705,8 @@ public:
   create(const StartEvents events,
          const LimitedUInt16 relay_duration_ms = LimitedUInt16{0},
          const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+         const std::optional<std::chrono::system_clock::time_point>
+             recorded_at = std::nullopt) {
     return std::make_shared<ProtectionEquipmentStartEventsInfo>(
         events, relay_duration_ms, quality, recorded_at, false);
   };
@@ -708,7 +714,7 @@ public:
   ProtectionEquipmentStartEventsInfo(
       const StartEvents events, const LimitedUInt16 relay_duration_ms,
       const Quality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), events(events),
         relay_duration_ms(relay_duration_ms), quality(quality){};
@@ -741,8 +747,8 @@ public:
   create(const OutputCircuits circuits,
          const LimitedUInt16 relay_operating_ms = LimitedUInt16{0},
          const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+         const std::optional<std::chrono::system_clock::time_point>
+             recorded_at = std::nullopt) {
     return std::make_shared<ProtectionEquipmentOutputCircuitInfo>(
         circuits, relay_operating_ms, quality, recorded_at, false);
   };
@@ -750,7 +756,7 @@ public:
   ProtectionEquipmentOutputCircuitInfo(
       const OutputCircuits circuits, const LimitedUInt16 relay_operating_ms,
       const Quality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), circuits(circuits),
         relay_operating_ms(relay_operating_ms), quality(quality){};
@@ -779,18 +785,18 @@ protected:
   void setQualityImpl(InfoQuality val) override;
 
 public:
-  [[nodiscard]] static std::shared_ptr<StatusWithChangeDetection>
-  create(const FieldSet16 status, const FieldSet16 changed = FieldSet16{},
-         const Quality quality = Quality::None,
-         const std::optional<std::chrono::utc_clock::time_point> recorded_at =
-             std::nullopt) {
+  [[nodiscard]] static std::shared_ptr<StatusWithChangeDetection> create(
+      const FieldSet16 status, const FieldSet16 changed = FieldSet16{},
+      const Quality quality = Quality::None,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at =
+          std::nullopt) {
     return std::make_shared<StatusWithChangeDetection>(status, changed, quality,
                                                        recorded_at, false);
   };
 
   StatusWithChangeDetection(
       const FieldSet16 status, const FieldSet16 changed, const Quality quality,
-      const std::optional<std::chrono::utc_clock::time_point> recorded_at,
+      const std::optional<std::chrono::system_clock::time_point> recorded_at,
       bool readonly)
       : Information(recorded_at, readonly), status(status), changed(changed),
         quality(quality){};

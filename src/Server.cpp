@@ -548,7 +548,7 @@ void Server::setOnClockSyncCallback(py::object &callable) {
 
 CommandResponseState
 Server::onClockSync(const std::string _ip,
-                    const std::chrono::utc_clock::time_point time) {
+                    const std::chrono::system_clock::time_point time) {
   if (py_onClockSync.is_set()) {
     DEBUG_PRINT(Debug::Server, "CALLBACK on_clock_sync");
     Module::ScopedGilAcquire const scoped("Server.on_clock_sync");
@@ -1063,12 +1063,6 @@ Server::getValidMessage(IMasterConnection connection, CS101_ASDU asdu) {
 
 void Server::rawMessageHandler(void *parameter, IMasterConnection connection,
                                uint_fast8_t *msg, int msgSize, bool sent) {
-  bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
-  if (debug) {
-    begin = std::chrono::steady_clock::now();
-  }
-
   std::shared_ptr<Server> instance{};
 
   try {
@@ -1082,12 +1076,6 @@ void Server::rawMessageHandler(void *parameter, IMasterConnection connection,
     instance->onSendRaw(msg, msgSize);
   } else {
     instance->onReceiveRaw(msg, msgSize);
-  }
-
-  if (debug) {
-    end = std::chrono::steady_clock::now();
-    DEBUG_PRINT_CONDITION(true, Debug::Server,
-                          "raw_message_handler] TOTAL " + TICTOC(begin, end));
   }
 }
 

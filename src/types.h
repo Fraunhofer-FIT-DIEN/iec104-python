@@ -101,9 +101,9 @@ void Assert_IPv4(const std::string &s);
  */
 void Assert_Port(int_fast64_t port);
 
-std::chrono::utc_clock::time_point to_time_point(const CP56Time2a time);
+std::chrono::system_clock::time_point to_time_point(const CP56Time2a time);
 void from_time_point(CP56Time2a time,
-                     const std::chrono::utc_clock::time_point time_point);
+                     const std::chrono::system_clock::time_point time_point);
 
 struct Task {
   std::function<void()> function;

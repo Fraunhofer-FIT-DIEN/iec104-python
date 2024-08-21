@@ -318,7 +318,7 @@ bool Connection::setOpen() {
     }
   }
   connectionCount++;
-  connectedAt.store(std::chrono::utc_clock::now());
+  connectedAt.store(std::chrono::system_clock::now());
   setState(OPEN_MUTED);
 
   DEBUG_PRINT(Debug::Connection,
@@ -341,7 +341,7 @@ bool Connection::setClosed() {
 
   if (CLOSED_AWAIT_OPEN != current && CLOSED_AWAIT_RECONNECT != current) {
     // set disconnected if connected previously
-    disconnectedAt.store(std::chrono::utc_clock::now());
+    disconnectedAt.store(std::chrono::system_clock::now());
   }
 
   // controlled close or connection lost?
@@ -625,7 +625,7 @@ void Connection::setOnStateChangeCallback(py::object &callable) {
   py_onStateChange.reset(callable);
 }
 
-std::optional<std::chrono::utc_clock::time_point>
+std::optional<std::chrono::system_clock::time_point>
 Connection::getConnectedAt() const {
   if (isOpen()) {
     return connectedAt.load();
@@ -633,7 +633,7 @@ Connection::getConnectedAt() const {
   return std::nullopt;
 }
 
-std::optional<std::chrono::utc_clock::time_point>
+std::optional<std::chrono::system_clock::time_point>
 Connection::getDisconnectedAt() const {
   if (!isOpen()) {
     return disconnectedAt.load();
@@ -722,7 +722,7 @@ bool Connection::clockSync(std::uint_fast16_t commonAddress,
   }
 
   sCP56Time2a time{};
-  from_time_point(&time, std::chrono::utc_clock::now());
+  from_time_point(&time, std::chrono::system_clock::now());
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
   bool const result =
@@ -753,7 +753,7 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
 
   if (with_time) {
     sCP56Time2a time{};
-    from_time_point(&time, std::chrono::utc_clock::now());
+    from_time_point(&time, std::chrono::system_clock::now());
 
     std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
     bool const result = CS104_Connection_sendTestCommandWithTimestamp(

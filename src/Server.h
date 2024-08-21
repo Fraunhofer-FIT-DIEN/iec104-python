@@ -197,7 +197,7 @@ public:
   void setOnClockSyncCallback(py::object &callable);
 
   CommandResponseState onClockSync(std::string _ip,
-                                   std::chrono::utc_clock::time_point time);
+                                   std::chrono::system_clock::time_point time);
 
   /**
    * @brief set python callback that will be executed on unexpected incoming

@@ -35,7 +35,9 @@
 #include "Client.h"
 #include "Server.h"
 
+#include <pybind11/chrono.h>
 #include <pybind11/stl.h>
+
 #ifdef VERSION_INFO
 #define PY_MODULE(name, var) PYBIND11_MODULE(name, var)
 #else
