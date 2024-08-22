@@ -102,9 +102,69 @@ void bind_BaseNumber(py::module &m, const std::string &name) {
              self /= other;
              return self;
            })
+      .def("__str__",
+           [name](const BaseNumber<T, Min, Max, W> &a) {
+             return std::to_string(a.get());
+           })
       .def("__repr__", [name](const BaseNumber<T, Min, Max, W> &a) {
         return "<c104." + name + " value=" + std::to_string(a.get()) + ">";
       });
+}
+
+template <typename T>
+void bind_BitFlags_ops(py::class_<T> &py_bit_enum,
+                       std::string (*fn)(const T &)) {
+  py_bit_enum
+      .def(
+          "__and__", [](const T &a, T b) { return a & b; }, py::is_operator())
+      .def(
+          "__rand__", [](const T &a, T b) { return a & b; }, py::is_operator())
+      .def(
+          "__or__", [](const T &a, T b) { return a | b; }, py::is_operator())
+      .def(
+          "__ror__", [](const T &a, T b) { return a | b; }, py::is_operator())
+      .def(
+          "__xor__", [](const T &a, T b) { return a ^ b; }, py::is_operator())
+      .def(
+          "__rxor__", [](const T &a, T b) { return a ^ b; }, py::is_operator())
+      .def(
+          "__invert__", [](const T &a) { return ~a; }, py::is_operator())
+      .def(
+          "__iand__",
+          [](T &a, T b) {
+            a &= b;
+            return a;
+          },
+          py::is_operator())
+      .def(
+          "__ior__",
+          [](T &a, T b) {
+            a |= b;
+            return a;
+          },
+          py::is_operator())
+      .def(
+          "__ixor__",
+          [](T &a, T b) {
+            a ^= b;
+            return a;
+          },
+          py::is_operator())
+      .def(
+          "__contains__",
+          [](const T &mode, const T &flag) { return test(mode, flag); },
+          py::is_operator())
+      .def(
+          "is_any", [](const T &mode) { return is_any(mode); },
+          "test if there are any flags set")
+      .def(
+          "is_good", [](const T &mode) { return is_none(mode); },
+          "test if there are no flags set");
+
+  py_bit_enum.attr("__str__") =
+      py::cpp_function(fn, py::name("__str__"), py::is_method(py_bit_enum));
+  py_bit_enum.attr("__repr__") =
+      py::cpp_function(fn, py::name("__repr__"), py::is_method(py_bit_enum));
 }
 
 py::bytes
@@ -465,59 +525,8 @@ PY_MODULE(c104, m) {
           .value("Callback", Debug::Callback)
           .value("Gil", Debug::Gil)
           .value("All", Debug::All)
-          .def(py::init([]() { return Debug::None; }))
-          .def("__str__", &Debug_toString, "convert to human readable string")
-          .def("__repr__", &Debug_toString, "convert to human readable string")
-          .def(
-              "__and__", [](const Debug &a, Debug b) { return a & b; },
-              py::is_operator())
-          .def(
-              "__or__", [](const Debug &a, Debug b) { return a | b; },
-              py::is_operator())
-          .def(
-              "__xor__", [](const Debug &a, Debug b) { return a ^ b; },
-              py::is_operator())
-          .def(
-              "__invert__", [](const Debug &a) { return ~a; },
-              py::is_operator())
-          .def(
-              "__iand__",
-              [](Debug &a, Debug b) {
-                a &= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ior__",
-              [](Debug &a, Debug b) {
-                a |= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ixor__",
-              [](Debug &a, Debug b) {
-                a ^= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__contains__",
-              [](const Debug &mode, const Debug &flag) {
-                return test(mode, flag);
-              },
-              py::is_operator())
-          .def(
-              "is_any", [](const Debug &mode) { return is_any(mode); },
-              "test if any debug mode is enabled")
-          .def(
-              "is_none", [](const Debug &mode) { return is_none(mode); },
-              "test if no debug mode is enabled");
-
-  py_debug.attr("__str__") = py::cpp_function(
-      &Debug_toString, py::name("__str__"), py::is_method(py_debug));
-  py_debug.attr("__repr__") = py::cpp_function(
-      &Debug_toString, py::name("__repr__"), py::is_method(py_debug));
+          .def(py::init([]() { return Debug::None; }));
+  bind_BitFlags_ops(py_debug, &Debug_toString);
 
   auto py_quality =
       py::enum_<Quality>(m, "Quality",
@@ -530,68 +539,8 @@ PY_MODULE(c104, m) {
           .value("Substituted", Quality::Substituted)
           .value("NonTopical", Quality::NonTopical)
           .value("Invalid", Quality::Invalid)
-          .def(py::init([]() { return Quality::None; }))
-          .def("__str__", &Quality_toString)
-          .def("__repr__", &Quality_toString)
-          .def(
-              "__and__", [](const Quality &a, Quality b) { return a & b; },
-              py::is_operator())
-          .def(
-              "__rand__", [](const Quality &a, Quality b) { return a & b; },
-              py::is_operator())
-          .def(
-              "__or__", [](const Quality &a, Quality b) { return a | b; },
-              py::is_operator())
-          .def(
-              "__ror__", [](const Quality &a, Quality b) { return a | b; },
-              py::is_operator())
-          .def(
-              "__xor__", [](const Quality &a, Quality b) { return a ^ b; },
-              py::is_operator())
-          .def(
-              "__rxor__", [](const Quality &a, Quality b) { return a ^ b; },
-              py::is_operator())
-          .def(
-              "__invert__", [](const Quality &a) { return ~a; },
-              py::is_operator())
-          .def(
-              "__iand__",
-              [](Quality &a, Quality b) {
-                a &= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ior__",
-              [](Quality &a, Quality b) {
-                a |= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ixor__",
-              [](Quality &a, Quality b) {
-                a ^= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__contains__",
-              [](const Quality &mode, const Quality &flag) {
-                return test(mode, flag);
-              },
-              py::is_operator())
-          .def(
-              "is_any", [](const Quality &mode) { return is_any(mode); },
-              "test if there are any limitations in terms of quality")
-          .def(
-              "is_good", [](const Quality &mode) { return is_none(mode); },
-              "test if there are no limitations in terms of quality");
-
-  py_quality.attr("__str__") = py::cpp_function(
-      &Quality_toString, py::name("__str__"), py::is_method(py_quality));
-  py_quality.attr("__repr__") = py::cpp_function(
-      &Quality_toString, py::name("__repr__"), py::is_method(py_quality));
+          .def(py::init([]() { return Quality::None; }));
+  bind_BitFlags_ops(py_quality, &Quality_toString);
 
   auto py_bcrquality =
       py::enum_<BinaryCounterQuality>(
@@ -601,68 +550,8 @@ PY_MODULE(c104, m) {
           .value("Adjusted", BinaryCounterQuality::Adjusted)
           .value("Carry", BinaryCounterQuality::Carry)
           .value("Invalid", BinaryCounterQuality::Invalid)
-          .def(py::init([]() { return BinaryCounterQuality::None; }))
-          .def("__str__", &Quality_toString)
-          .def("__repr__", &Quality_toString)
-          .def(
-              "__and__", [](const Quality &a, Quality b) { return a & b; },
-              py::is_operator())
-          .def(
-              "__rand__", [](const Quality &a, Quality b) { return a & b; },
-              py::is_operator())
-          .def(
-              "__or__", [](const Quality &a, Quality b) { return a | b; },
-              py::is_operator())
-          .def(
-              "__ror__", [](const Quality &a, Quality b) { return a | b; },
-              py::is_operator())
-          .def(
-              "__xor__", [](const Quality &a, Quality b) { return a ^ b; },
-              py::is_operator())
-          .def(
-              "__rxor__", [](const Quality &a, Quality b) { return a ^ b; },
-              py::is_operator())
-          .def(
-              "__invert__", [](const Quality &a) { return ~a; },
-              py::is_operator())
-          .def(
-              "__iand__",
-              [](Quality &a, Quality b) {
-                a &= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ior__",
-              [](Quality &a, Quality b) {
-                a |= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ixor__",
-              [](Quality &a, Quality b) {
-                a ^= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__contains__",
-              [](const Quality &mode, const Quality &flag) {
-                return test(mode, flag);
-              },
-              py::is_operator())
-          .def(
-              "is_any", [](const Quality &mode) { return is_any(mode); },
-              "test if there are any limitations in terms of quality")
-          .def(
-              "is_good", [](const Quality &mode) { return is_none(mode); },
-              "test if there are no limitations in terms of quality");
-
-  py_bcrquality.attr("__str__") = py::cpp_function(
-      &Quality_toString, py::name("__str__"), py::is_method(py_bcrquality));
-  py_bcrquality.attr("__repr__") = py::cpp_function(
-      &Quality_toString, py::name("__repr__"), py::is_method(py_bcrquality));
+          .def(py::init([]() { return BinaryCounterQuality::None; }));
+  bind_BitFlags_ops(py_bcrquality, &BinaryCounterQuality_toString);
 
   auto py_start_events =
       py::enum_<StartEvents>(
@@ -675,76 +564,8 @@ PY_MODULE(c104, m) {
           .value("PhaseL3", StartEvents::PhaseL3)
           .value("InEarthCurrent", StartEvents::InEarthCurrent)
           .value("ReverseDirection", StartEvents::ReverseDirection)
-          .def(py::init([]() { return StartEvents::None; }))
-          .def("__str__", &StartEvents_toString)
-          .def("__repr__", &StartEvents_toString)
-          .def(
-              "__and__",
-              [](const StartEvents &a, StartEvents b) { return a & b; },
-              py::is_operator())
-          .def(
-              "__rand__",
-              [](const StartEvents &a, StartEvents b) { return a & b; },
-              py::is_operator())
-          .def(
-              "__or__",
-              [](const StartEvents &a, StartEvents b) { return a | b; },
-              py::is_operator())
-          .def(
-              "__ror__",
-              [](const StartEvents &a, StartEvents b) { return a | b; },
-              py::is_operator())
-          .def(
-              "__xor__",
-              [](const StartEvents &a, StartEvents b) { return a ^ b; },
-              py::is_operator())
-          .def(
-              "__rxor__",
-              [](const StartEvents &a, StartEvents b) { return a ^ b; },
-              py::is_operator())
-          .def(
-              "__invert__", [](const StartEvents &a) { return ~a; },
-              py::is_operator())
-          .def(
-              "__iand__",
-              [](StartEvents &a, StartEvents b) {
-                a &= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ior__",
-              [](StartEvents &a, StartEvents b) {
-                a |= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ixor__",
-              [](StartEvents &a, StartEvents b) {
-                a ^= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__contains__",
-              [](const StartEvents &mode, const StartEvents &flag) {
-                return test(mode, flag);
-              },
-              py::is_operator())
-          .def(
-              "is_any", [](const StartEvents &mode) { return is_any(mode); },
-              "test if there is at least one start event")
-          .def(
-              "is_none", [](const Quality &mode) { return is_none(mode); },
-              "test if there are no start events");
-
-  py_start_events.attr("__str__") =
-      py::cpp_function(&StartEvents_toString, py::name("__str__"),
-                       py::is_method(py_start_events));
-  py_start_events.attr("__repr__") =
-      py::cpp_function(&StartEvents_toString, py::name("__repr__"),
-                       py::is_method(py_start_events));
+          .def(py::init([]() { return StartEvents::None; }));
+  bind_BitFlags_ops(py_start_events, &StartEvents_toString);
 
   auto py_output_circuit_info =
       py::enum_<OutputCircuits>(
@@ -755,95 +576,32 @@ PY_MODULE(c104, m) {
           .value("PhaseL1", OutputCircuits::PhaseL1)
           .value("PhaseL2", OutputCircuits::PhaseL2)
           .value("PhaseL3", OutputCircuits::PhaseL3)
-          .def(py::init([]() { return OutputCircuits::None; }))
-          .def("__str__", &OutputCircuits_toString)
-          .def("__repr__", &OutputCircuits_toString)
-          .def(
-              "__and__",
-              [](const OutputCircuits &a, OutputCircuits b) { return a & b; },
-              py::is_operator())
-          .def(
-              "__rand__",
-              [](const OutputCircuits &a, OutputCircuits b) { return a & b; },
-              py::is_operator())
-          .def(
-              "__or__",
-              [](const OutputCircuits &a, OutputCircuits b) { return a | b; },
-              py::is_operator())
-          .def(
-              "__ror__",
-              [](const OutputCircuits &a, OutputCircuits b) { return a | b; },
-              py::is_operator())
-          .def(
-              "__xor__",
-              [](const OutputCircuits &a, OutputCircuits b) { return a ^ b; },
-              py::is_operator())
-          .def(
-              "__rxor__",
-              [](const OutputCircuits &a, OutputCircuits b) { return a ^ b; },
-              py::is_operator())
-          .def(
-              "__invert__", [](const OutputCircuits &a) { return ~a; },
-              py::is_operator())
-          .def(
-              "__iand__",
-              [](OutputCircuits &a, OutputCircuits b) {
-                a &= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ior__",
-              [](OutputCircuits &a, OutputCircuits b) {
-                a |= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__ixor__",
-              [](OutputCircuits &a, OutputCircuits b) {
-                a ^= b;
-                return a;
-              },
-              py::is_operator())
-          .def(
-              "__contains__",
-              [](const OutputCircuits &mode, const OutputCircuits &flag) {
-                return test(mode, flag);
-              },
-              py::is_operator())
-          .def(
-              "is_any", [](const OutputCircuits &mode) { return is_any(mode); },
-              "test if there is at least one output circuit")
-          .def(
-              "is_none", [](const Quality &mode) { return is_none(mode); },
-              "test if there are no output circuit");
+          .def(py::init([]() { return OutputCircuits::None; }));
+  bind_BitFlags_ops(py_output_circuit_info, &OutputCircuits_toString);
 
-  py_output_circuit_info.attr("__str__") =
-      py::cpp_function(&OutputCircuits_toString, py::name("__str__"),
-                       py::is_method(py_output_circuit_info));
-  py_output_circuit_info.attr("__repr__") =
-      py::cpp_function(&OutputCircuits_toString, py::name("__repr__"),
-                       py::is_method(py_output_circuit_info));
-
-  py::enum_<FieldSet16>(m, "FieldSet16")
-      .value("I0", FieldSet16::I0)
-      .value("I1", FieldSet16::I1)
-      .value("I2", FieldSet16::I2)
-      .value("I3", FieldSet16::I3)
-      .value("I4", FieldSet16::I4)
-      .value("I5", FieldSet16::I5)
-      .value("I6", FieldSet16::I6)
-      .value("I7", FieldSet16::I7)
-      .value("I8", FieldSet16::I8)
-      .value("I9", FieldSet16::I9)
-      .value("I10", FieldSet16::I10)
-      .value("I11", FieldSet16::I11)
-      .value("I12", FieldSet16::I12)
-      .value("I13", FieldSet16::I13)
-      .value("I14", FieldSet16::I14)
-      .value("I15", FieldSet16::I15)
-      .export_values();
+  auto py_field_set =
+      py::enum_<FieldSet16>(
+          m, "FieldSet16"
+             "This enum contains all State bits to "
+             "interpret and manipulate status with change detection messages.")
+          .value("I0", FieldSet16::I0)
+          .value("I1", FieldSet16::I1)
+          .value("I2", FieldSet16::I2)
+          .value("I3", FieldSet16::I3)
+          .value("I4", FieldSet16::I4)
+          .value("I5", FieldSet16::I5)
+          .value("I6", FieldSet16::I6)
+          .value("I7", FieldSet16::I7)
+          .value("I8", FieldSet16::I8)
+          .value("I9", FieldSet16::I9)
+          .value("I10", FieldSet16::I10)
+          .value("I11", FieldSet16::I11)
+          .value("I12", FieldSet16::I12)
+          .value("I13", FieldSet16::I13)
+          .value("I14", FieldSet16::I14)
+          .value("I15", FieldSet16::I15)
+          .def(py::init([]() { return FieldSet16(0); }));
+  bind_BitFlags_ops(py_field_set, &FieldSet16_toString);
 
   bind_BaseNumber<uint8_t, 0, 31, uint32_t>(m, "UInt5");
   bind_BaseNumber<uint8_t, 0, 127, uint32_t>(m, "UInt7");
@@ -860,8 +618,14 @@ PY_MODULE(c104, m) {
              return py::bytes(reinterpret_cast<const char *>(&value),
                               sizeof(value));
            })
+      .def("__str__",
+           [](const Byte32 &b) {
+             std::bitset<32> bits(b.get());
+             return "0b" + bits.to_string();
+           })
       .def("__repr__", [](const Byte32 &b) {
-        return "<Byte32 value=" + std::to_string(b.get()) + ">";
+        std::bitset<32> bits(b.get());
+        return "<Byte32 value=0b" + bits.to_string() + ">";
       });
 
   py::class_<Remote::TransportSecurity,

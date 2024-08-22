@@ -23,6 +23,8 @@ def main():
         print("Waiting for connection to {0}:{1}".format(connection.ip, connection.port))
         time.sleep(1)
 
+    print(f"-> AFTER INIT {point.value}")
+
     print("read")
     print("read")
     print("read")
@@ -41,7 +43,7 @@ def main():
     else:
         print("-> FAILURE")
 
-    time.sleep(1)
+    time.sleep(3)
 
     print("exit")
     print("exit")

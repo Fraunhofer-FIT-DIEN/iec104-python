@@ -206,7 +206,8 @@ enum class CS101_QualifierOfCommand {
   PERSISTENT = IEC60870_QOC_PERSISTANT_OUTPUT
 };
 
-std::string QualifierOfCommand_toString(CS101_QualifierOfCommand qualifier);
+std::string
+QualifierOfCommand_toString(const CS101_QualifierOfCommand &qualifier);
 
 enum class CS101_CauseOfInitialization {
   LOCAL_POWER_ON = IEC60870_COI_LOCAL_SWITCH_ON,
@@ -215,6 +216,8 @@ enum class CS101_CauseOfInitialization {
   // <3..31> := Reserved for future norm definitions
   // <32..127> := Reserved for user definitions (private range)
 };
+std::string
+CauseOfInitialization_toString(const CS101_CauseOfInitialization &cause);
 
 enum UnexpectedMessageCause {
   NO_ERROR_CAUSE,
@@ -227,6 +230,7 @@ enum UnexpectedMessageCause {
   MISMATCHED_TYPE_ID,
   UNIMPLEMENTED_GROUP
 };
+std::string UnexpectedMessageCause_toString(const UnexpectedMessageCause &mode);
 
 enum class Debug : uint8_t {
   None = 0,
@@ -241,8 +245,8 @@ enum class Debug : uint8_t {
   All = 0xFF
 };
 constexpr bool enum_bitmask(Debug &&);
-std::string Debug_toString(Debug mode);
-std::string Debug_toFlagString(Debug mode);
+std::string Debug_toString(const Debug &mode);
+std::string Debug_toFlagString(const Debug &mode);
 
 enum class Quality {
   None = 0,
@@ -255,7 +259,7 @@ enum class Quality {
   Invalid = IEC60870_QUALITY_INVALID
 };
 constexpr bool enum_bitmask(Quality &&);
-std::string Quality_toString(Quality quality);
+std::string Quality_toString(const Quality &quality);
 
 enum class BinaryCounterQuality {
   None = 0,
@@ -264,7 +268,7 @@ enum class BinaryCounterQuality {
   Invalid = 0x80
 };
 constexpr bool enum_bitmask(BinaryCounterQuality &&);
-std::string BinaryCounterQuality_toString(BinaryCounterQuality quality);
+std::string BinaryCounterQuality_toString(const BinaryCounterQuality &quality);
 
 enum class StartEvents {
   None = 0,
@@ -276,7 +280,7 @@ enum class StartEvents {
   ReverseDirection = IEC60870_START_EVENT_SRD,
 };
 constexpr bool enum_bitmask(StartEvents &&);
-std::string StartEvents_toString(StartEvents events);
+std::string StartEvents_toString(const StartEvents &events);
 
 enum class OutputCircuits {
   None = 0,
@@ -286,7 +290,7 @@ enum class OutputCircuits {
   PhaseL3 = IEC60870_OUTPUT_CI_CL3
 };
 constexpr bool enum_bitmask(OutputCircuits &&);
-std::string OutputCircuits_toString(OutputCircuits infos);
+std::string OutputCircuits_toString(const OutputCircuits &infos);
 
 enum class FieldSet16 {
   I0 = 1,
@@ -307,7 +311,7 @@ enum class FieldSet16 {
   I15
 };
 constexpr bool enum_bitmask(FieldSet16 &&);
-std::string FieldSet16_toString(FieldSet16 infos);
+std::string FieldSet16_toString(const FieldSet16 &infos);
 
 /**
  * @brief link states for connection state machine behaviour
@@ -320,18 +324,18 @@ enum ConnectionState {
   OPEN,
   OPEN_AWAIT_CLOSED
 };
+std::string ConnectionState_toString(const ConnectionState &state);
 
-std::string ConnectionState_toString(ConnectionState state);
+std::string ConnectionEvent_toString(const CS104_ConnectionEvent &event);
 
-std::string ConnectionEvent_toString(CS104_ConnectionEvent event);
+std::string
+PeerConnectionEvent_toString(const CS104_PeerConnectionEvent &event);
 
-std::string PeerConnectionEvent_toString(CS104_PeerConnectionEvent event);
+std::string DoublePointValue_toString(const DoublePointValue &value);
 
-std::string DoublePointValue_toString(DoublePointValue value);
+std::string StepCommandValue_toString(const StepCommandValue &value);
 
-std::string StepCommandValue_toString(StepCommandValue value);
-
-std::string EventState_toString(EventState state);
+std::string EventState_toString(const EventState &state);
 
 /**
  * @brief initial commands send to a connection that starts data transmission
@@ -343,6 +347,7 @@ enum ConnectionInit {
   INIT_MUTED,
   INIT_NONE
 };
+std::string ConnectionInit_toString(const ConnectionInit &init);
 
 /**
  * @brief command response states, control servers response behaviour with
@@ -353,6 +358,7 @@ enum CommandResponseState {
   RESPONSE_STATE_SUCCESS,
   RESPONSE_STATE_NONE
 };
+std::string CommandResponseState_toString(const CommandResponseState &state);
 
 /**
  * @brief command processing progress states
@@ -365,6 +371,7 @@ enum CommandProcessState {
   COMMAND_AWAIT_CON_TERM,
   COMMAND_AWAIT_REQUEST
 };
+std::string CommandProcessState_toString(const CommandProcessState &state);
 
 /**
  * @brief command transmission modes (execute directly or select before execute
@@ -374,7 +381,7 @@ enum CommandTransmissionMode {
   DIRECT_COMMAND,
   SELECT_AND_EXECUTE_COMMAND,
 };
-
-std::string CommandTransmissionMode_toString(CommandTransmissionMode mode);
+std::string
+CommandTransmissionMode_toString(const CommandTransmissionMode &mode);
 
 #endif // C104_ENUMS_H

@@ -35,6 +35,7 @@
 #include "remote/TransportSecurity.h"
 #include "remote/message/PointCommand.h"
 #include "remote/message/PointMessage.h"
+#include <pybind11/chrono.h>
 
 using namespace Remote;
 using namespace std::chrono_literals;
@@ -552,8 +553,35 @@ Server::onClockSync(const std::string _ip,
   if (py_onClockSync.is_set()) {
     DEBUG_PRINT(Debug::Server, "CALLBACK on_clock_sync");
     Module::ScopedGilAcquire const scoped("Server.on_clock_sync");
+    PyDateTime_IMPORT;
 
-    if (py_onClockSync.call(shared_from_this(), _ip, time)) {
+    // pybind11/chrono.h caster code copy
+    if (!PyDateTimeAPI) {
+      PyDateTime_IMPORT;
+    }
+
+    using us_t = std::chrono::duration<int, std::micro>;
+    auto us =
+        duration_cast<us_t>(time.time_since_epoch() % std::chrono::seconds(1));
+    if (us.count() < 0) {
+      us += std::chrono::seconds(1);
+    }
+
+    std::time_t tt = std::chrono::system_clock::to_time_t(
+        time_point_cast<std::chrono::system_clock::duration>(time - us));
+
+    std::tm localtime;
+    std::tm *localtime_ptr =
+        pybind11::detail::localtime_thread_safe(&tt, &localtime);
+    if (!localtime_ptr) {
+      throw py::cast_error("Unable to represent system_clock in local time");
+    }
+
+    PyObject *pydate = PyDateTime_FromDateAndTime(
+        localtime.tm_year + 1900, localtime.tm_mon + 1, localtime.tm_mday,
+        localtime.tm_hour, localtime.tm_min, localtime.tm_sec, us.count());
+
+    if (py_onClockSync.call(shared_from_this(), _ip, py::handle(pydate))) {
       try {
         return py_onClockSync.getResult();
       } catch (const std::exception &e) {

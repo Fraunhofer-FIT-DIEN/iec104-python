@@ -22,10 +22,10 @@
 
 import functools
 import time
-import sys
+import datetime
+from pathlib import Path
 
 import c104
-from pathlib import Path
 
 USE_TLS = True
 ROOT = Path(__file__).absolute().parent
@@ -64,7 +64,7 @@ cl_connection_1.on_state_change(callable=cl_ct_on_state_change)
 ##################################
 
 def cl_pt_on_receive_point(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("CL] {0} REPORT on IOA: {1} , cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
+    print("CL] {0} REPORT on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
     # print("{0}".format(message.is_negative))
     # print("-->| POINT: 0x{0} | EXPLAIN: {1}".format(message.raw.hex(), c104.explain_bytes(apdu=message.raw)))
     return c104.ResponseState.SUCCESS
@@ -128,13 +128,13 @@ def cl_dump():
                 st = ct.stations[st_iter]
                 st_pt_count = len(st.points)
                 print("          |--+ STATION {0} has {1} points".format(st.common_address, st_pt_count))
-                print("             |   TYPE    |   IOA   |     VALUE     | PROCESSED  AT |  RECORDED AT  |      QUALITY      ")
-                print("             |-----------|---------|---------------|---------------|---------------|-------------------")
+                print("             |      TYPE      |   IOA   |       VALUE       | PROCESSED  AT |  RECORDED AT  |      QUALITY      ")
+                print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
                 for pt_iter in range(st_pt_count):
                     pt = st.points[pt_iter]
-                    print("             | {0} | {1:7} | {2:13} | {3:13} | {4:13} | {5}".format(pt.type, pt.io_address, pt.value, pt.recorded_at_ms,
-                                                                                                pt.processed_at_ms, pt.quality))
-                    print("             |-----------|---------|---------------|---------------|---------------|-------------------")
+                    print("             | {0} | {1:7} | {2:17} | {3:13} | {4:13} | {5}".format(pt.type, pt.io_address, str(pt.value), pt.recorded_at or 'N. A.',
+                                                                                               pt.processed_at, pt.quality))
+                    print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
 
 
 ##################################
@@ -209,7 +209,7 @@ time.sleep(1)
 
 cl_double_command = cl_station_2.add_point(io_address=22, type=c104.Type.C_DC_TA_1)
 
-cl_double_command.set(value=c104.Double.ON, timestamp_ms=1711111111111)
+cl_double_command.info = c104.DoubleCmd(state=c104.Double.ON, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
 if cl_double_command.transmit(cause=c104.Cot.ACTIVATION, qualifier=c104.Qoc.LONG_PULSE):
     print("CL] transmit: Double command ON successful")
 else:
@@ -217,7 +217,7 @@ else:
 
 time.sleep(1)
 
-cl_double_command.set(value=c104.Double.OFF, timestamp_ms=1711111111111)
+cl_double_command = c104.DoubleCmd(state=c104.Double.OFF, qualifier=c104.Qoc.PERSISTENT, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
 if cl_double_command.transmit(cause=c104.Cot.ACTIVATION):
     print("CL] transmit: Double command OFF successful")
 else:

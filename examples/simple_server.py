@@ -19,11 +19,18 @@ def on_step_command(point: c104.Point, previous_info: c104.Information, message:
     return c104.ResponseState.FAILURE
 
 
-def before_transmit(point: c104.Point) -> None:
+def before_auto_transmit(point: c104.Point) -> None:
     """ update point value before transmission
     """
     point.value = random.random() * 100
-    print("{0} BEFORE TRANSMIT on IOA: {1}".format(point.type, point.io_address))
+    print("{0} BEFORE AUTOMATIC REPORT on IOA: {1} VALUE: {2}".format(point.type, point.io_address, point.value))
+
+
+def before_read(point: c104.Point) -> None:
+    """ update point value before transmission
+    """
+    point.value = random.random() * 100
+    print("{0} BEFORE READ or INTERROGATION on IOA: {1} VALUE: {2}".format(point.type, point.io_address, point.value))
 
 
 def main():
@@ -32,9 +39,9 @@ def main():
     station = server.add_station(common_address=47)
 
     # monitoring point preparation
-    point = station.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=15000)
-    point.on_before_auto_transmit(callable=before_transmit)
-    point.on_before_read(callable=before_transmit)
+    point = station.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
+    point.on_before_auto_transmit(callable=before_auto_transmit)
+    point.on_before_read(callable=before_read)
 
     # command point preparation
     command = station.add_point(io_address=12, type=c104.Type.C_RC_TA_1)

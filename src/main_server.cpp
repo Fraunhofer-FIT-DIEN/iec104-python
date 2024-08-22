@@ -110,6 +110,11 @@ int main(int argc, char *argv[]) {
   try {
     py::exec(R"(
 import c104
+import datetime
+
+def sv_on_clock_sync(server: c104.Server, ip: str, date_time: datetime.datetime) -> c104.ResponseState:
+    print("SV] ->@| Time {0} from {1} | SERVER {2}:{3}".format(date_time, ip, server.ip, server.port))
+    return c104.ResponseState.SUCCESS
 
 def sv_on_receive_raw(server: c104.Server, data: bytes) -> None:
     import c104
@@ -186,6 +191,7 @@ def sv_pt_on_before_transmit_step_point(point: c104.Point) -> None:
 
 my_server.on_receive_raw(callable=sv_on_receive_raw)
 my_server.on_send_raw(callable=sv_on_send_raw)
+my_server.on_clock_sync(callable=sv_on_clock_sync)
 sv_control_setpoint.on_receive(callable=sv_pt_on_setpoint_command)
 sv_control_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
 sv_single_command.on_receive(callable=sv_pt_on_single_command)

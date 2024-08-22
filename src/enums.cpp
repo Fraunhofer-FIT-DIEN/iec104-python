@@ -34,7 +34,7 @@
 
 #include "enums.h"
 
-std::string Debug_toString(Debug mode) {
+std::string Debug_toString(const Debug &mode) {
   if (is_none(mode)) {
     return "Debug set: {}, is_none: True";
   }
@@ -63,7 +63,7 @@ std::string Debug_toString(Debug mode) {
          " }, is_none: False";
 }
 
-std::string Debug_toFlagString(Debug mode) {
+std::string Debug_toFlagString(const Debug &mode) {
   if (is_none(mode)) {
     return "None";
   }
@@ -89,7 +89,7 @@ std::string Debug_toFlagString(Debug mode) {
       [](const std::string &a, const std::string &b) { return a + " | " + b; });
 }
 
-std::string Quality_toString(Quality quality) {
+std::string Quality_toString(const Quality &quality) {
   if (is_none(quality)) {
     return "Quality set: {}, is_good: True";
   }
@@ -116,17 +116,16 @@ std::string Quality_toString(Quality quality) {
          " }, is_good: False";
 }
 
-std::string
-BinaryCounterQuality_toString(BinaryCounterQuality BinaryCounterQuality) {
-  if (is_none(BinaryCounterQuality)) {
+std::string BinaryCounterQuality_toString(const BinaryCounterQuality &quality) {
+  if (is_none(quality)) {
     return "BinaryCounterQuality set: {}, is_good: True";
   }
   std::vector<std::string> sv{};
-  if (test(BinaryCounterQuality, BinaryCounterQuality::Adjusted))
+  if (test(quality, BinaryCounterQuality::Adjusted))
     sv.emplace_back("Adjusted");
-  if (test(BinaryCounterQuality, BinaryCounterQuality::Carry))
+  if (test(quality, BinaryCounterQuality::Carry))
     sv.emplace_back("Carry");
-  if (test(BinaryCounterQuality, BinaryCounterQuality::Invalid))
+  if (test(quality, BinaryCounterQuality::Invalid))
     sv.emplace_back("Invalid");
   return "BinaryCounterQuality set: { " +
          std::accumulate(std::next(sv.begin()), sv.end(), sv[0],
@@ -136,7 +135,7 @@ BinaryCounterQuality_toString(BinaryCounterQuality BinaryCounterQuality) {
          " }, is_good: False";
 }
 
-std::string StartEvents_toString(StartEvents events) {
+std::string StartEvents_toString(const StartEvents &events) {
   if (is_none(events)) {
     return "StartEvent set: {}";
   }
@@ -161,7 +160,7 @@ std::string StartEvents_toString(StartEvents events) {
          " }";
 }
 
-std::string OutputCircuits_toString(OutputCircuits infos) {
+std::string OutputCircuits_toString(const OutputCircuits &infos) {
   if (is_none(infos)) {
     return "OutputCircuit set: {}";
   }
@@ -182,7 +181,7 @@ std::string OutputCircuits_toString(OutputCircuits infos) {
          " }";
 }
 
-std::string FieldSet16_toString(FieldSet16 infos) {
+std::string FieldSet16_toString(const FieldSet16 &infos) {
   if (is_none(infos)) {
     return "Field set: {}";
   }
@@ -225,7 +224,8 @@ std::string FieldSet16_toString(FieldSet16 infos) {
          " }";
 }
 
-std::string QualifierOfCommand_toString(CS101_QualifierOfCommand qualifier) {
+std::string
+QualifierOfCommand_toString(const CS101_QualifierOfCommand &qualifier) {
   switch (qualifier) {
   case CS101_QualifierOfCommand::NONE:
     return "NONE";
@@ -240,7 +240,7 @@ std::string QualifierOfCommand_toString(CS101_QualifierOfCommand qualifier) {
   }
 }
 
-std::string ConnectionState_toString(const ConnectionState state) {
+std::string ConnectionState_toString(const ConnectionState &state) {
   switch (state) {
   case CLOSED:
     return "CLOSED";
@@ -259,7 +259,7 @@ std::string ConnectionState_toString(const ConnectionState state) {
   }
 }
 
-std::string ConnectionEvent_toString(const CS104_ConnectionEvent event) {
+std::string ConnectionEvent_toString(const CS104_ConnectionEvent &event) {
   switch (event) {
   case CS104_CONNECTION_OPENED:
     return "OPENED";
@@ -277,7 +277,7 @@ std::string ConnectionEvent_toString(const CS104_ConnectionEvent event) {
 }
 
 std::string
-PeerConnectionEvent_toString(const CS104_PeerConnectionEvent event) {
+PeerConnectionEvent_toString(const CS104_PeerConnectionEvent &event) {
   switch (event) {
   case CS104_CON_EVENT_CONNECTION_OPENED:
     return "OPENED";
@@ -292,7 +292,7 @@ PeerConnectionEvent_toString(const CS104_PeerConnectionEvent event) {
   }
 }
 
-std::string DoublePointValue_toString(const DoublePointValue value) {
+std::string DoublePointValue_toString(const DoublePointValue &value) {
   switch (value) {
   case IEC60870_DOUBLE_POINT_INDETERMINATE:
     return "INDETERMINATE";
@@ -307,7 +307,7 @@ std::string DoublePointValue_toString(const DoublePointValue value) {
   }
 }
 
-std::string StepCommandValue_toString(const StepCommandValue value) {
+std::string StepCommandValue_toString(const StepCommandValue &value) {
   switch (value) {
   case IEC60870_STEP_INVALID_0:
     return "INVALID_0";
@@ -322,7 +322,7 @@ std::string StepCommandValue_toString(const StepCommandValue value) {
   }
 }
 
-std::string EventState_toString(const EventState state) {
+std::string EventState_toString(const EventState &state) {
   switch (state) {
   case IEC60870_EVENTSTATE_INDETERMINATE_0:
     return "INDETERMINATE_0";
@@ -337,12 +337,102 @@ std::string EventState_toString(const EventState state) {
   }
 }
 
-std::string CommandTransmissionMode_toString(CommandTransmissionMode mode) {
+std::string
+CommandTransmissionMode_toString(const CommandTransmissionMode &mode) {
   switch (mode) {
   case DIRECT_COMMAND:
     return "DIRECT";
   case SELECT_AND_EXECUTE_COMMAND:
     return "SELECT_AND_EXECUTE";
+  default:
+    return "UNKNOWN";
+  }
+}
+
+std::string
+UnexpectedMessageCause_toString(const UnexpectedMessageCause &cause) {
+  switch (cause) {
+  case NO_ERROR_CAUSE:
+    return "NO_ERROR_CAUSE";
+  case UNKNOWN_TYPE_ID:
+    return "UNKNOWN_TYPE_ID";
+  case UNKNOWN_COT:
+    return "UNKNOWN_COT";
+  case UNKNOWN_CA:
+    return "UNKNOWN_CA";
+  case UNKNOWN_IOA:
+    return "UNKNOWN_IOA";
+  case INVALID_COT:
+    return "INVALID_COT";
+  case INVALID_TYPE_ID:
+    return "INVALID_TYPE_ID";
+  case MISMATCHED_TYPE_ID:
+    return "MISMATCHED_TYPE_ID";
+  case UNIMPLEMENTED_GROUP:
+    return "UNIMPLEMENTED_GROUP";
+  default:
+    return "UNKNOWN";
+  }
+}
+
+std::string
+CauseOfInitialization_toString(const CS101_CauseOfInitialization &cause) {
+  switch (cause) {
+  case CS101_CauseOfInitialization::LOCAL_POWER_ON:
+    return "LOCAL_POWER_ON";
+  case CS101_CauseOfInitialization::LOCAL_MANUAL_RESET:
+    return "LOCAL_MANUAL_RESET";
+  case CS101_CauseOfInitialization::REMOTE_RESET:
+    return "REMOTE_RESET";
+  default:
+    return "UNKNOWN";
+  }
+}
+
+std::string ConnectionInit_toString(const ConnectionInit &init) {
+  switch (init) {
+  case ConnectionInit::INIT_ALL:
+    return "INIT_ALL";
+  case ConnectionInit::INIT_INTERROGATION:
+    return "INIT_INTERROGATION";
+  case ConnectionInit::INIT_CLOCK_SYNC:
+    return "INIT_CLOCK_SYNC";
+  case ConnectionInit::INIT_MUTED:
+    return "INIT_MUTED";
+  case ConnectionInit::INIT_NONE:
+    return "INIT_NONE";
+  default:
+    return "UNKNOWN";
+  }
+}
+
+std::string CommandResponseState_toString(const CommandResponseState &state) {
+  switch (state) {
+  case CommandResponseState::RESPONSE_STATE_FAILURE:
+    return "RESPONSE_STATE_FAILURE";
+  case CommandResponseState::RESPONSE_STATE_SUCCESS:
+    return "RESPONSE_STATE_SUCCESS";
+  case CommandResponseState::RESPONSE_STATE_NONE:
+    return "RESPONSE_STATE_NONE";
+  default:
+    return "UNKNOWN";
+  }
+}
+
+std::string CommandProcessState_toString(const CommandProcessState &state) {
+  switch (state) {
+  case CommandProcessState::COMMAND_FAILURE:
+    return "COMMAND_FAILURE";
+  case CommandProcessState::COMMAND_SUCCESS:
+    return "COMMAND_SUCCESS";
+  case CommandProcessState::COMMAND_AWAIT_CON:
+    return "COMMAND_AWAIT_CON";
+  case CommandProcessState::COMMAND_AWAIT_TERM:
+    return "COMMAND_AWAIT_TERM";
+  case CommandProcessState::COMMAND_AWAIT_CON_TERM:
+    return "COMMAND_AWAIT_CON_TERM";
+  case CommandProcessState::COMMAND_AWAIT_REQUEST:
+    return "COMMAND_AWAIT_REQUEST";
   default:
     return "UNKNOWN";
   }

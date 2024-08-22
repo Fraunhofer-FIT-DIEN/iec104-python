@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bitset>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>

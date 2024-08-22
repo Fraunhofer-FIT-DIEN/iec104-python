@@ -28,7 +28,7 @@ print("-"*60)
 print("- RUN: TEST")
 print("-"*60)
 
-c104.set_debug_mode(mode=c104.Debug())
+c104.set_debug_mode(c104.Debug.Server|c104.Debug.Client|c104.Debug.Connection|c104.Debug.Point|c104.Debug.Callback)
 print("DEBUG MODE: {0}".format(c104.get_debug_mode()))
 
 ##################################
@@ -38,7 +38,7 @@ print("DEBUG MODE: {0}".format(c104.get_debug_mode()))
 my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=100)
 my_client.originator_address = 123
 
-cl_connection_1 = my_client.add_connection(ip="127.0.0.1", port=2404)
+cl_connection_1 = my_client.add_connection(ip="127.0.0.1", port=2404, init=c104.Init.ALL)
 
 
 def cl_pt_on_receive_point(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
@@ -93,7 +93,7 @@ cl_step_command.value = c104.Step.HIGHER
 
 
 def cl_dump():
-    global my_client,cl_connection_1
+    global my_client, cl_connection_1
     if cl_connection_1.is_connected:
         print("")
         cl_ct_count = len(my_client.connections)
@@ -106,13 +106,13 @@ def cl_dump():
                 st = ct.stations[st_iter]
                 st_pt_count = len(st.points)
                 print("          |--+ STATION {0} has {1} points".format(st.common_address, st_pt_count))
-                print("             |   TYPE    |   IOA   |     VALUE     | PROCESSED  AT |  RECORDED AT  |      QUALITY      ")
-                print("             |-----------|---------|---------------|---------------|---------------|-------------------")
+                print("             |      TYPE      |   IOA   |       VALUE       | PROCESSED  AT |  RECORDED AT  |      QUALITY      ")
+                print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
                 for pt_iter in range(st_pt_count):
                     pt = st.points[pt_iter]
-                    print("             | {0} | {1:7} | {2:13} | {3:13} | {4:13} | {5}".format(pt.type, pt.io_address, pt.value, pt.updated_at_ms,
-                                                                                                pt.reported_at_ms, pt.quality))
-                    print("             |-----------|---------|---------------|---------------|---------------|-------------------")
+                    print("             | {0} | {1:7} | {2:13} | {3:17} | {4:13} | {5}".format(pt.type, pt.io_address, str(pt.value), pt.recorded_at or 'N. A.',
+                                                                                               pt.processed_at, pt.quality))
+                    print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
 
 
 ##################################
@@ -163,7 +163,7 @@ my_server.on_unexpected_message(callable=sv_on_unexpected_message)
 ##################################
 
 def sv_pt_on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("SV] {0} SETPOINT COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
 
     if point.related_io_address:
         print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
@@ -181,7 +181,7 @@ sv_nan_point = sv_station_2.add_point(io_address=87, type=c104.Type.C_SE_NC_1)
 sv_nan_point.value = float("NaN")
 
 sv_measurement_point = sv_station_2.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
-sv_measurement_point.value = 12.34
+sv_measurement_point.value = float(12.34)
 
 sv_measurement_setpoint = sv_station_2.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=sv_measurement_point.io_address, related_io_autoreturn=True)
 sv_measurement_setpoint.on_receive(callable=sv_pt_on_setpoint_command)
@@ -197,7 +197,7 @@ sv_measurement_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
 ##################################
 
 def sv_pt_on_double_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("SV] {0} DOUBLE COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
 
     if point.related_io_address:
         print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
@@ -221,12 +221,12 @@ sv_double_command.on_receive(callable=sv_pt_on_double_command)
 # SERVER: STEP POINT WITH COMMAND
 ##################################
 
-sv_global_step_point_value = 0
+sv_global_step_point_value = c104.Int7(0)
 
 
 def sv_pt_on_step_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     global sv_global_step_point_value
-    print("SV] {0} STEP COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("SV] {0} STEP COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
 
     if point.value == c104.Step.LOWER:
         sv_global_step_point_value -= 1
@@ -297,7 +297,7 @@ cl_dump()
 time.sleep(3)
 print("-"*60)
 
-sv_measurement_point.value = 1234
+sv_measurement_point.value = float(1234)
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 sv_measurement_point.on_before_auto_transmit(callable=pmct.pt_on_before_auto_transmit_measurement_point)
 
@@ -306,7 +306,7 @@ cl_dump()
 time.sleep(3)
 print("-"*60)
 
-sv_measurement_point.info = c104.ShortInfo(actual=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=int(time.time() * 1000))
+sv_measurement_point.info = c104.ShortInfo(actual=-1234.56, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.fromtimestamp(time.time()))
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 
 time.sleep(3)
