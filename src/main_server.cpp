@@ -222,7 +222,9 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
    */
 
   //  while(true) {
+  //    std::cout << "start" << std::endl;
   //    my_server->start();
+  //    std::cout << "stop" << std::endl;
   //    my_server->stop();
   //  }
   my_server->start();

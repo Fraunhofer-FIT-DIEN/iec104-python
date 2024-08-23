@@ -17,7 +17,7 @@ def main():
             print("Loop Start")
             client.start()
             print("Loop Started")
-            time.sleep(1)
+            time.sleep(0.1)
             connection.disconnect()
             print("Disconnected")
             client.stop() # or client.reconnect_all()

@@ -130,12 +130,14 @@ int main(int argc, char *argv[]) {
    * connect loop
    */
 
-  // while(true) {
-  // my_client->start();
-  // std::this_thread::sleep_for(1s);
-  // cl_connection_1->disconnect();
-  // my_client->stop();
-  //}
+  //   while(true) {
+  //     std::cout << "start" << std::endl;
+  //     my_client->start();
+  //     std::cout << "stop" << std::endl;
+  //     //std::this_thread::sleep_for(1s);
+  //     cl_connection_1->disconnect();
+  //     my_client->stop();
+  //  }
   my_client->start();
 
   while (!cl_connection_1->isOpen()) {
