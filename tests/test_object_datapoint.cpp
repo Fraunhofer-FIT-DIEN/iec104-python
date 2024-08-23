@@ -44,7 +44,8 @@ TEST_CASE("Create point", "[object::point]") {
   REQUIRE(std::get<Quality>(point->getQuality()) == Quality::None);
   REQUIRE(std::get<bool>(point->getInfo()->getValue()) == false);
   REQUIRE(std::get<bool>(point->getValue()) == false);
-  REQUIRE(point->getProcessedAt() > std::chrono::utc_clock::time_point::min());
+  REQUIRE(point->getProcessedAt() >
+          std::chrono::system_clock::time_point::min());
   REQUIRE(point->getRecordedAt().has_value() == false);
 }
 
@@ -55,12 +56,12 @@ TEST_CASE("Set point value", "[object::point]") {
 
   point->setInfo(
       Object::ScaledInfo::create(LimitedInt16(334), Quality::Invalid,
-                                 std::chrono::utc_clock::time_point(
+                                 std::chrono::system_clock::time_point(
                                      std::chrono::milliseconds(1234567890))));
   REQUIRE(std::get<LimitedInt16>(point->getValue()).get() ==
           LimitedInt16(334).get());
   REQUIRE(point->getRecordedAt().value() ==
-          std::chrono::utc_clock::time_point(
+          std::chrono::system_clock::time_point(
               std::chrono::milliseconds(1234567890)));
   REQUIRE(std::get<Quality>(point->getQuality()) == Quality::Invalid);
 }
@@ -91,9 +92,8 @@ TEST_CASE("Set point value via message", "[object::point]") {
   REQUIRE(std::get<DoublePointValue>(point->getValue()) ==
           IEC60870_DOUBLE_POINT_OFF);
   REQUIRE(point->getRecordedAt() ==
-          std::chrono::utc_clock::time_point(
+          std::chrono::system_clock::time_point(
               std::chrono::milliseconds(1680517666000)));
-  // SinglePoint value must be of [0, 1]
   REQUIRE(std::get<std::monostate>(point->getQuality()) == std::monostate{});
 
   InformationObject_destroy(io);

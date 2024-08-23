@@ -64,7 +64,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
                                 std::to_string(dp_ioa));
   }
 
-  setReportInterval_ms(reportInterval_ms);
+  setReportInterval_ms(dp_report_ms);
 
   if (dp_related_ioa.has_value()) {
     if (MAX_INFORMATION_OBJECT_ADDRESS < dp_related_ioa) {
