@@ -184,7 +184,7 @@ std::shared_ptr<Remote::Connection>
 Client::addConnection(const std::string &ip, const uint_fast16_t port,
                       const ConnectionInit init) {
   if (hasConnection(ip, port)) {
-    std::cerr << "[c104.Client.add_connection] Connection already exists"
+    std::cerr << "[c104.Client] add_connection] Connection already exists"
               << std::endl;
     return {nullptr};
   }
@@ -335,7 +335,7 @@ void Client::thread_run() {
         auto delay = now - tasks.top().schedule_time;
         if (delay > TASK_DELAY_THRESHOLD) {
           DEBUG_PRINT_CONDITION(
-              debug, Debug::Server,
+              debug, Debug::Client,
               "Warning: Task started delayed by " +
                   std::to_string(
                       std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -354,12 +354,14 @@ void Client::thread_run() {
     try {
       task();
     } catch (const std::exception &e) {
-      std::cerr << "[c104.Client.loop] Task aborted: " << e.what() << std::endl;
+      std::cerr << "[c104.Client] loop] Task aborted: " << e.what()
+                << std::endl;
     }
   }
   if (!tasks.empty()) {
-    std::cerr << "[c104.Server.loop] Tasks dropped: " << tasks.size()
-              << std::endl;
+    DEBUG_PRINT_CONDITION(debug, Debug::Client,
+                          "loop] Tasks dropped due to stop: " +
+                              std::to_string(tasks.size()));
     std::priority_queue<Task> empty;
     std::swap(tasks, empty);
   }

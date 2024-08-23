@@ -239,12 +239,14 @@ void Server::thread_run() {
     try {
       task();
     } catch (const std::exception &e) {
-      std::cerr << "[c104.Server.loop] Task aborted: " << e.what() << std::endl;
+      std::cerr << "[c104.Server] loop] Task aborted: " << e.what()
+                << std::endl;
     }
   }
   if (!tasks.empty()) {
-    std::cerr << "[c104.Server.stop] Tasks dropped: " << tasks.size()
-              << std::endl;
+    DEBUG_PRINT_CONDITION(debug, Debug::Server,
+                          "loop] Tasks dropped due to stop: " +
+                              std::to_string(tasks.size()));
     std::priority_queue<Task> empty;
     std::swap(tasks, empty);
   }
@@ -1295,7 +1297,7 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
           try {
             instance->transmit(point, CS101_COT_REQUEST);
           } catch (const std::exception &e) {
-            std::cerr << "[c104.Server.read] Auto respond failed for "
+            std::cerr << "[c104.Server] read] Auto respond failed for "
                       << TypeID_toString(point->getType()) << " at IOA "
                       << point->getInformationObjectAddress() << ": "
                       << e.what() << std::endl;
@@ -1405,7 +1407,7 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                                            CS101_COT_RETURN_INFO_REMOTE);
                       } catch (const std::exception &e) {
                         std::cerr
-                            << "[c104.Server.asdu_handler] Auto transmit "
+                            << "[c104.Server] asdu_handler] Auto transmit "
                                "related point failed for "
                             << TypeID_toString(related_point->getType())
                             << " at IOA "

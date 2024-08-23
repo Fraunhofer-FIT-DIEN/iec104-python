@@ -164,18 +164,18 @@ public:
    * @brief Setter for muted state
    * @param value value of new muted state (true = muted, false = unmuted)
    */
-  bool setMuted(bool value);
+  void setMuted(bool value);
 
   /**
    * @brief Setter for open state: Mark connection as open
    */
-  bool setOpen();
+  void setOpen();
 
   /**
    * @brief Setter for open state: Mark connection as closed, start reconnect
    * state
    */
-  bool setClosed();
+  void setClosed();
 
   /**
    * @brief add command id to awaiting command result map

@@ -30,7 +30,6 @@
  */
 
 #include "types.h"
-#include <sstream>
 
 std::atomic<Debug> GLOBAL_DEBUG_MODE{Debug::None};
 

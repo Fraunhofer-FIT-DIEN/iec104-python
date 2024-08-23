@@ -159,9 +159,8 @@ void Connection::connect() {
     DEBUG_PRINT(Debug::Connection,
                 "connect] Wait for closing before reconnecting to " +
                     getConnectionString());
-    while (state.load() == OPEN_AWAIT_CLOSED) {
-      std::this_thread::sleep_for(10ms);
-    }
+    setState(CLOSED_AWAIT_OPEN);
+    return;
   }
 
   DEBUG_PRINT(Debug::Connection,
@@ -189,9 +188,8 @@ void Connection::disconnect() {
     DEBUG_PRINT(Debug::Connection,
                 "connect] Wait for opening before closing to " +
                     getConnectionString());
-    while (state.load() == CLOSED_AWAIT_OPEN) {
-      std::this_thread::sleep_for(10ms);
-    }
+    setState(OPEN_AWAIT_CLOSED);
+    return;
   }
 
   if (CLOSED_AWAIT_RECONNECT == current) {
@@ -247,69 +245,74 @@ bool Connection::unmute() {
   return true;
 }
 
-bool Connection::setMuted(bool value) {
-  bool const result = OPEN_MUTED == state.load();
-
-  if (isOpen()) {
+void Connection::setMuted(bool value) {
+  ConnectionState current = state.load();
+  if (OPEN == current && value) {
     // print
     DEBUG_PRINT(Debug::Connection,
-                "set_muted] Muted: " + std::to_string(value) +
-                    " for connection to " + getConnectionString());
+                "set_muted] Muted connection to " + getConnectionString());
+    setState(OPEN_MUTED);
+  } else if (OPEN_MUTED == current && !value) {
+    // print
+    DEBUG_PRINT(Debug::Connection,
+                "set_muted] Unmuted connection to " + getConnectionString());
 
-    if (value) {
-      setState(OPEN_MUTED);
-    } else {
-      switch (init) {
-      case INIT_ALL:
-        if (auto c = getClient()) {
-          c->scheduleTask(
-              [this]() {
-                this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
-                                    CS101_COT_ACTIVATION, QOI_STATION, true);
-                this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
-                setState(OPEN);
-              },
-              -1);
-        }
-        break;
-      case INIT_INTERROGATION:
-        if (auto c = getClient()) {
-          c->scheduleTask(
-              [this]() {
-                this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
-                                    CS101_COT_ACTIVATION, QOI_STATION, true);
-                setState(OPEN);
-              },
-              -1);
-        }
-        break;
-      case INIT_CLOCK_SYNC:
-        if (auto c = getClient()) {
-          c->scheduleTask(
-              [this]() {
-                this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
-                setState(OPEN);
-              },
-              -1);
-        }
-        break;
-      default:
-        setState(OPEN);
+    switch (init) {
+    case INIT_ALL:
+      if (auto c = getClient()) {
+        c->scheduleTask(
+            [this]() {
+              this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
+                                  CS101_COT_ACTIVATION, QOI_STATION, true);
+              this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+              setState(OPEN);
+            },
+            -1);
       }
+      break;
+    case INIT_INTERROGATION:
+      if (auto c = getClient()) {
+        c->scheduleTask(
+            [this]() {
+              this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
+                                  CS101_COT_ACTIVATION, QOI_STATION, true);
+              setState(OPEN);
+            },
+            -1);
+      }
+      break;
+    case INIT_CLOCK_SYNC:
+      if (auto c = getClient()) {
+        c->scheduleTask(
+            [this]() {
+              this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+              setState(OPEN);
+            },
+            -1);
+      }
+      break;
+    default:
+      setState(OPEN);
     }
   }
-  return result;
 }
 
-bool Connection::setOpen() {
+void Connection::setOpen() {
   // DO NOT LOCK connection_mutex: connect locks
+  ConnectionState current = state.load();
 
-  if (CLOSED_AWAIT_OPEN != state.load()) {
+  if (OPEN == current || OPEN_MUTED == current) {
     // print
-    DEBUG_PRINT(Debug::Connection, "set_open] Connection state invalid to " +
-                                       getConnectionString() + " | State " +
-                                       ConnectionState_toString(state.load()));
-    return false;
+    DEBUG_PRINT(Debug::Connection,
+                "set_open] Already opened to " + getConnectionString());
+    return;
+  }
+
+  if (OPEN_AWAIT_CLOSED == current) {
+    if (auto c = getClient()) {
+      c->scheduleTask([this]() { this->disconnect(); }, -1);
+    }
+    return;
   }
 
   if (INIT_MUTED != init) {
@@ -323,20 +326,17 @@ bool Connection::setOpen() {
 
   DEBUG_PRINT(Debug::Connection,
               "set_open] Opened connection to " + getConnectionString());
-
-  return true;
 }
 
-bool Connection::setClosed() {
+void Connection::setClosed() {
   // DO NOT LOCK connection_mutex: disconnect locks
   ConnectionState const current = state.load();
 
   if (CLOSED == current) {
     // print
-    DEBUG_PRINT(Debug::Connection, "set_closed] Already closed to " +
-                                       getConnectionString() + " | State " +
-                                       ConnectionState_toString(current));
-    return false;
+    DEBUG_PRINT(Debug::Connection,
+                "set_closed] Already closed to " + getConnectionString());
+    return;
   }
 
   if (CLOSED_AWAIT_OPEN != current && CLOSED_AWAIT_RECONNECT != current) {
@@ -350,13 +350,13 @@ bool Connection::setClosed() {
   } else {
     setState(CLOSED_AWAIT_RECONNECT);
     if (auto c = getClient()) {
-      c->scheduleTask([this]() { this->connect(); }, 1000);
+      c->scheduleTask([this]() { this->connect(); },
+                      CLOSED_AWAIT_OPEN == current ? -1 : 1000);
     }
   }
 
   DEBUG_PRINT(Debug::Connection,
               "set_closed] Connection closed to " + getConnectionString());
-  return true;
 }
 
 bool Connection::prepareCommandSuccess(
