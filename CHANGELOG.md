@@ -18,6 +18,8 @@
 - point.updated_at_ms: int -> point.recorded_at: Optional\[datetime.datetime\]
 - point.sent_at_ms: int & point.received_at_ms: int -> point.processed_at: datetime.datetime
 - point.transmit(cause: c104.Cot = c104.Cot.UNKNOWN_COT, qualifier: c104.Qoc = c104.Qoc.NONE) -> point.transmit(cause: c104.Cot)
+- fix select detection in explain_bytes_dict
+- transmit throws an exception if the same point is in an active transmission
 
 ## v1.18
 - Add support for Qualifier of Command for single, double and regulating step commands

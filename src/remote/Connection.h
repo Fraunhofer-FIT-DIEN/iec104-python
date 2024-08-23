@@ -181,10 +181,9 @@ public:
    * @brief add command id to awaiting command result map
    * @param cmdId unique command id
    * @param state command process state
-   * @returns if command preparation was successfully (no collision with active
-   * sequence)
+   * @throws std::runtime_error if cmdId already in use
    */
-  bool prepareCommandSuccess(const std::string &cmdId,
+  void prepareCommandSuccess(const std::string &cmdId,
                              CommandProcessState state);
 
   /**
@@ -446,10 +445,6 @@ private:
   /// @brief awaited command responses (must be access with
   /// expectedResponseMap_mutex)
   std::map<std::string, CommandProcessState> expectedResponseMap{};
-
-  /// @brief currently active command sequence, if any (must be access with
-  /// expectedResponseMap_mutex)
-  std::string sequenceId{""};
 
   /// @brief Condition to wait for successfully command confirmation and success
   /// information or timeout

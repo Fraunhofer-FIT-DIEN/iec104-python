@@ -128,11 +128,11 @@ def cl_dump():
                 st = ct.stations[st_iter]
                 st_pt_count = len(st.points)
                 print("          |--+ STATION {0} has {1} points".format(st.common_address, st_pt_count))
-                print("             |      TYPE      |   IOA   |       VALUE       | PROCESSED  AT |  RECORDED AT  |      QUALITY      ")
-                print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
+                print("             |      TYPE      |   IOA   |       VALUE        | PROCESSED  AT |  RECORDED AT  |      QUALITY      ")
+                print("             |----------------|---------|--------------------|---------------|---------------|-------------------")
                 for pt_iter in range(st_pt_count):
                     pt = st.points[pt_iter]
-                    print("             | {0} | {1:7} | {2:17} | {3:13} | {4:13} | {5}".format(pt.type, pt.io_address, str(pt.value), pt.recorded_at or 'N. A.',
+                    print("             | %s | %7s | %18s | %13s | %13s | %s" % (pt.type, pt.io_address, pt.value, pt.recorded_at or 'N. A.',
                                                                                                pt.processed_at, pt.quality))
                     print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
 
@@ -188,16 +188,17 @@ cl_single_command.value = False
 if cl_single_command.transmit(cause=c104.Cot.ACTIVATION):
     print("CL] transmit: Single command OFF successful")
 else:
-    print("CL] transmit: Single command OFF failed")
+    print("CL] transmit: Single command OFF failed (not selected)")
 
 time.sleep(1)
 
 cl_single_command.command_mode = c104.CommandMode.SELECT_AND_EXECUTE
 print(cl_single_command.command_mode)
 
-cl_single_command.value = False
-if cl_single_command.transmit(cause=c104.Cot.ACTIVATION, qualifier=c104.Qoc.SHORT_PULSE):
-    print("CL] transmit: Single command OFF successful")
+cl_single_command.info = c104.SingleCmd(on=False, qualifier=c104.Qoc.SHORT_PULSE)
+
+if cl_single_command.transmit(cause=c104.Cot.ACTIVATION):
+    print("CL] transmit: Single command OFF successful (selected)")
 else:
     print("CL] transmit: Single command OFF failed")
 
@@ -209,15 +210,15 @@ time.sleep(1)
 
 cl_double_command = cl_station_2.add_point(io_address=22, type=c104.Type.C_DC_TA_1)
 
-cl_double_command.info = c104.DoubleCmd(state=c104.Double.ON, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
-if cl_double_command.transmit(cause=c104.Cot.ACTIVATION, qualifier=c104.Qoc.LONG_PULSE):
+cl_double_command.info = c104.DoubleCmd(state=c104.Double.ON, qualifier=c104.Qoc.LONG_PULSE, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
+if cl_double_command.transmit(cause=c104.Cot.ACTIVATION):
     print("CL] transmit: Double command ON successful")
 else:
     print("CL] transmit: Double command ON failed")
 
 time.sleep(1)
 
-cl_double_command = c104.DoubleCmd(state=c104.Double.OFF, qualifier=c104.Qoc.PERSISTENT, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
+cl_double_command.info = c104.DoubleCmd(state=c104.Double.OFF, qualifier=c104.Qoc.PERSISTENT, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
 if cl_double_command.transmit(cause=c104.Cot.ACTIVATION):
     print("CL] transmit: Double command OFF successful")
 else:
@@ -263,7 +264,8 @@ while cl_connection_1.is_connected:
     time.sleep(3)
 
     if cl_step_command:
-        if cl_step_command.transmit(cause=c104.Cot.ACTIVATION, qualifier=c104.Qoc.CONTINUOUS):
+        cl_step_command.info = c104.StepCmd(step=c104.Step.HIGHER, qualifier=c104.Qoc.PERSISTENT)
+        if cl_step_command.transmit(cause=c104.Cot.ACTIVATION):
             print("CL]  > transmit: Step command successful")
         else:
             print("CL]  > transmit: Step command failed")

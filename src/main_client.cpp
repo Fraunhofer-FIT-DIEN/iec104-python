@@ -173,13 +173,17 @@ int main(int argc, char *argv[]) {
   if (cl_single_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Single command OFF successful" << std::endl;
   } else {
-    std::cout << "CL] transmit: Single command OFF failed" << std::endl;
+    std::cout << "CL] transmit: Single command OFF failed (not selected)"
+              << std::endl;
   }
   std::this_thread::sleep_for(1s);
 
   cl_single_command->setCommandMode(SELECT_AND_EXECUTE_COMMAND);
+  cl_single_command->setInfo(
+      Object::SingleCmd::create(false, CS101_QualifierOfCommand::SHORT_PULSE));
   if (cl_single_command->transmit(CS101_COT_ACTIVATION)) {
-    std::cout << "CL] transmit: Single command OFF successful" << std::endl;
+    std::cout << "CL] transmit: Single command OFF successful (selected)"
+              << std::endl;
   } else {
     std::cout << "CL] transmit: Single command OFF failed" << std::endl;
   }

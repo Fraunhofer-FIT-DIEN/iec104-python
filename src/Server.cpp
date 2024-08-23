@@ -491,7 +491,7 @@ Server::execute(IMasterConnection connection,
   auto res = point->onReceive(std::move(message));
 
   if (selected) {
-    cleanupSelection(ca, ioa);
+    scheduleTask([this, ca, ioa]() { cleanupSelection(ca, ioa); }, 1);
   }
 
   return res;
@@ -1401,20 +1401,22 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                   // send related point info in case of auto return
                   if (related_ioa.has_value()) {
                     auto related_point = station->getPoint(related_ioa.value());
-                    instance->scheduleTask([instance, related_point]() {
-                      try {
-                        instance->transmit(related_point,
-                                           CS101_COT_RETURN_INFO_REMOTE);
-                      } catch (const std::exception &e) {
-                        std::cerr
-                            << "[c104.Server] asdu_handler] Auto transmit "
-                               "related point failed for "
-                            << TypeID_toString(related_point->getType())
-                            << " at IOA "
-                            << related_point->getInformationObjectAddress()
-                            << ": " << e.what() << std::endl;
-                      }
-                    });
+                    instance->scheduleTask(
+                        [instance, related_point]() {
+                          try {
+                            instance->transmit(related_point,
+                                               CS101_COT_RETURN_INFO_REMOTE);
+                          } catch (const std::exception &e) {
+                            std::cerr
+                                << "[c104.Server] asdu_handler] Auto transmit "
+                                   "related point failed for "
+                                << TypeID_toString(related_point->getType())
+                                << " at IOA "
+                                << related_point->getInformationObjectAddress()
+                                << ": " << e.what() << std::endl;
+                          }
+                        },
+                        2);
                   }
                 }
 

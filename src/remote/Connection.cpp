@@ -350,8 +350,7 @@ void Connection::setClosed() {
   } else {
     setState(CLOSED_AWAIT_RECONNECT);
     if (auto c = getClient()) {
-      c->scheduleTask([this]() { this->connect(); },
-                      CLOSED_AWAIT_OPEN == current ? -1 : 1000);
+      c->scheduleTask([this]() { this->connect(); }, 1000);
     }
   }
 
@@ -359,20 +358,17 @@ void Connection::setClosed() {
               "set_closed] Connection closed to " + getConnectionString());
 }
 
-bool Connection::prepareCommandSuccess(
+void Connection::prepareCommandSuccess(
     const std::string &cmdId,
     CommandProcessState const process_state = COMMAND_AWAIT_CON) {
   std::lock_guard<Module::GilAwareMutex> const map_lock(
       expectedResponseMap_mutex);
-  expectedResponseMap[cmdId] = process_state;
-  if (process_state > COMMAND_AWAIT_CON) {
-    if (sequenceId.empty()) {
-      sequenceId = cmdId;
-    } else {
-      return false;
-    }
+  auto const it = expectedResponseMap.find(cmdId);
+  if (it != expectedResponseMap.end()) {
+    throw std::runtime_error("[c104.Connection] command " + cmdId +
+                             " already running!");
   }
-  return true;
+  expectedResponseMap[cmdId] = process_state;
 }
 
 bool Connection::awaitCommandSuccess(const std::string &cmdId) {
@@ -491,11 +487,6 @@ void Connection::setCommandSuccess(
         default:
           expectedResponseMap[cmdId] = COMMAND_SUCCESS;
         }
-        // clear active sequence
-        if (expectedResponseMap[cmdId] == COMMAND_SUCCESS &&
-            sequenceId == cmdId) {
-          sequenceId = "";
-        }
       }
     }
   }
@@ -516,9 +507,6 @@ void Connection::cancelCommandSuccess(const std::string &cmdId) {
   auto it = expectedResponseMap.find(cmdId);
   if (it != expectedResponseMap.end()) {
     expectedResponseMap.erase(it);
-  }
-  if (sequenceId == cmdId) {
-    sequenceId = "";
   }
 }
 
@@ -655,9 +643,8 @@ bool Connection::interrogation(std::uint_fast16_t commonAddress,
                                 std::to_string(qualifier));
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_IC_NA_1-0";
-  if (wait_for_response &&
-      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM);
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -689,9 +676,8 @@ bool Connection::counterInterrogation(std::uint_fast16_t commonAddress,
                                 std::to_string(qualifier));
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_CI_NA_1-0";
-  if (wait_for_response &&
-      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM);
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -826,8 +812,8 @@ bool Connection::command(std::shared_ptr<Message::OutgoingMessage> message,
   std::string const cmdId = std::to_string(message->getCommonAddress()) + "-" +
                             TypeID_toString(message->getType()) + "-" +
                             std::to_string(message->getIOA());
-  if (wait_for_response && !prepareCommandSuccess(cmdId, state)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, state);
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -865,9 +851,8 @@ bool Connection::read(std::shared_ptr<Object::DataPoint> point,
 
   std::string const cmdId =
       std::to_string(ca) + "-C_RD_NA_1-" + std::to_string(ioa);
-  if (wait_for_response &&
-      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_REQUEST)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, COMMAND_AWAIT_REQUEST);
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
