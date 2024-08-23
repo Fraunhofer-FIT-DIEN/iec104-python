@@ -1067,8 +1067,10 @@ std::uint_fast16_t DataPoint::getReportInterval_ms() const {
 void DataPoint::setReportInterval_ms(const std::uint_fast16_t interval_ms) {
   if (interval_ms > 0) {
     if (interval_ms < tickRate_ms || interval_ms % tickRate_ms != 0) {
-      throw std::range_error("interval_ms must be a positive integer multiple "
-                             "of server/client tickRate_ms");
+      throw std::range_error("interval_ms (=" + std::to_string(interval_ms) +
+                             ") must be a positive integer multiple "
+                             "of server/client tickRate_ms (=" +
+                             std::to_string(tickRate_ms) + ")");
     }
     if (type > M_IT_TB_1) {
       throw std::invalid_argument("Report interval option is only allowed for "

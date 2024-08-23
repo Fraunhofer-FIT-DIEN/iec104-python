@@ -65,16 +65,11 @@ void cl_dump(std::shared_ptr<Client> my_client,
                     << " | " << std::setw(7)
                     << std::to_string(pt_iter->getInformationObjectAddress())
                     << " | " << std::setw(13)
-                    << InfoValue_toString(pt_iter->getValue()) << " | ";
-
-          if (pt_iter->getRecordedAt().has_value())
-            std::cout << std::setw(13)
-                      << TIMEPOINT_ISOFORMAT(pt_iter->getRecordedAt().value());
-          else
-            std::cout << std::setw(13) << "N. A.";
-
-          std::cout << " | " << std::setw(13)
-                    << TIMEPOINT_ISOFORMAT(pt_iter->getProcessedAt()) << " | "
+                    << InfoValue_toString(pt_iter->getValue()) << " | "
+                    << std::setw(13)
+                    << TimePoint_toString(pt_iter->getRecordedAt()) << " | "
+                    << std::setw(13)
+                    << TimePoint_toString(pt_iter->getProcessedAt()) << " | "
                     << InfoQuality_toString(pt_iter->getQuality()) << std::endl;
         }
         std::cout << "             "

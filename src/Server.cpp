@@ -561,21 +561,17 @@ Server::onClockSync(const std::string _ip,
     }
 
     using us_t = std::chrono::duration<int, std::micro>;
-    auto us =
-        duration_cast<us_t>(time.time_since_epoch() % std::chrono::seconds(1));
+    auto us = std::chrono::duration_cast<us_t>(time.time_since_epoch() %
+                                               std::chrono::seconds(1));
     if (us.count() < 0) {
       us += std::chrono::seconds(1);
     }
 
     std::time_t tt = std::chrono::system_clock::to_time_t(
-        time_point_cast<std::chrono::system_clock::duration>(time - us));
+        std::chrono::time_point_cast<std::chrono::system_clock::duration>(time -
+                                                                          us));
 
-    std::tm localtime;
-    std::tm *localtime_ptr =
-        pybind11::detail::localtime_thread_safe(&tt, &localtime);
-    if (!localtime_ptr) {
-      throw py::cast_error("Unable to represent system_clock in local time");
-    }
+    std::tm localtime = *std::localtime(&tt);
 
     PyObject *pydate = PyDateTime_FromDateAndTime(
         localtime.tm_year + 1900, localtime.tm_mon + 1, localtime.tm_mday,
@@ -1375,7 +1371,7 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
 
       DEBUG_PRINT_CONDITION(debug, Debug::Server,
                             "clock_sync_handler] TIME " +
-                                TIMEPOINT_ISOFORMAT(time_point));
+                                TimePoint_toString(time_point));
     } else {
       if (message->getType() >= C_SC_NA_1) {
         if (auto station = instance->getStation(message->getCommonAddress())) {

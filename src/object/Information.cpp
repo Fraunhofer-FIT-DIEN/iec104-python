@@ -117,12 +117,8 @@ void Information::setProcessedAt(std::chrono::system_clock::time_point val) {
 
 std::string Information::base_toString() const {
   std::ostringstream oss;
-  oss << "recorded_at=";
-  if (recorded_at.has_value())
-    oss << TIMEPOINT_ISOFORMAT(recorded_at.value());
-  else
-    oss << "None";
-  oss << ", processed_at=" << TIMEPOINT_ISOFORMAT(processed_at)
+  oss << "recorded_at=" << TimePoint_toString(recorded_at)
+      << ", processed_at=" << TimePoint_toString(processed_at)
       << ", readonly=" << readonly << " at " << std::hex << std::showbase
       << reinterpret_cast<std::uintptr_t>(this);
   return oss.str();

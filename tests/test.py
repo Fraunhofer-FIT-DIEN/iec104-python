@@ -119,7 +119,7 @@ def cl_dump():
 # SERVER
 ##################################
 
-my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=2000, max_connections=10)
+my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=100, max_connections=10)
 my_server.max_connections = 11
 
 sv_station_2 = my_server.add_station(common_address=47)

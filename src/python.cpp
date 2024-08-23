@@ -67,46 +67,46 @@ static EnvironmentInitializer initializer;
 // @todo Ubuntu 18 x64, Ubuntu 20 x64, arm7v32, later: arm aarch64
 
 // Bind Number with Template
-template <typename T, T Min, T Max, typename W>
+template <typename T, typename Params, typename W>
 void bind_BaseNumber(py::module &m, const std::string &name) {
-  py::class_<BaseNumber<T, Min, Max, W>,
-             std::shared_ptr<BaseNumber<T, Min, Max, W>>>(m, name.c_str())
+  py::class_<BaseNumber<T, Params, W>,
+             std::shared_ptr<BaseNumber<T, Params, W>>>(m, name.c_str())
       .def(py::init<T>())
       .def(py::init<W>())
       // Overloading operators with different types
-      .def("__add__", [](const BaseNumber<T, Min, Max, W> &self,
+      .def("__add__", [](const BaseNumber<T, Params, W> &self,
                          const W &other) { return self + other; })
-      .def("__sub__", [](const BaseNumber<T, Min, Max, W> &self,
+      .def("__sub__", [](const BaseNumber<T, Params, W> &self,
                          const W &other) { return self - other; })
-      .def("__mul__", [](const BaseNumber<T, Min, Max, W> &self,
+      .def("__mul__", [](const BaseNumber<T, Params, W> &self,
                          const W &other) { return self * other; })
-      .def("__truediv__", [](const BaseNumber<T, Min, Max, W> &self,
+      .def("__truediv__", [](const BaseNumber<T, Params, W> &self,
                              const W &other) { return self / other; })
       .def("__iadd__",
-           [](BaseNumber<T, Min, Max, W> &self, const W &other) {
+           [](BaseNumber<T, Params, W> &self, const W &other) {
              self += other;
              return self;
            })
       .def("__isub__",
-           [](BaseNumber<T, Min, Max, W> &self, const W &other) {
+           [](BaseNumber<T, Params, W> &self, const W &other) {
              self -= other;
              return self;
            })
       .def("__imul__",
-           [](BaseNumber<T, Min, Max, W> &self, const W &other) {
+           [](BaseNumber<T, Params, W> &self, const W &other) {
              self *= other;
              return self;
            })
       .def("__itruediv__",
-           [](BaseNumber<T, Min, Max, W> &self, const W &other) {
+           [](BaseNumber<T, Params, W> &self, const W &other) {
              self /= other;
              return self;
            })
       .def("__str__",
-           [name](const BaseNumber<T, Min, Max, W> &a) {
+           [name](const BaseNumber<T, Params, W> &a) {
              return std::to_string(a.get());
            })
-      .def("__repr__", [name](const BaseNumber<T, Min, Max, W> &a) {
+      .def("__repr__", [name](const BaseNumber<T, Params, W> &a) {
         return "<c104." + name + " value=" + std::to_string(a.get()) + ">";
       });
 }
@@ -603,12 +603,12 @@ PY_MODULE(c104, m) {
           .def(py::init([]() { return FieldSet16(0); }));
   bind_BitFlags_ops(py_field_set, &FieldSet16_toString);
 
-  bind_BaseNumber<uint8_t, 0, 31, uint32_t>(m, "UInt5");
-  bind_BaseNumber<uint8_t, 0, 127, uint32_t>(m, "UInt7");
-  bind_BaseNumber<uint16_t, 0, 65535, uint32_t>(m, "UInt16");
-  bind_BaseNumber<int8_t, -64, 63, int32_t>(m, "Int7");
-  bind_BaseNumber<int16_t, -32768, 32767, int32_t>(m, "Int16");
-  bind_BaseNumber<float, -1.f, 1.f, double>(m, "NormalizedFloat");
+  bind_BaseNumber<uint8_t, NumberParams<uint8_t>, uint32_t>(m, "UInt5");
+  bind_BaseNumber<uint8_t, NumberParamsAlt<uint8_t>, uint32_t>(m, "UInt7");
+  bind_BaseNumber<uint16_t, NumberParams<uint16_t>, uint32_t>(m, "UInt16");
+  bind_BaseNumber<int8_t, NumberParams<int8_t>, int32_t>(m, "Int7");
+  bind_BaseNumber<int16_t, NumberParams<int16_t>, int32_t>(m, "Int16");
+  bind_BaseNumber<float, NumberParams<float>, double>(m, "NormalizedFloat");
 
   py::class_<Byte32>(m, "Byte32")
       .def(py::init<uint32_t>())

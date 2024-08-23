@@ -37,11 +37,24 @@
 #include <stdexcept>
 #include <type_traits>
 
-template <typename T, T Min, T Max, typename W> class BaseNumber {
+// c++17 compatible non-template approach
+// First min,max option for a type as non-template version
+template <typename T> struct NumberParams {
+  static constexpr T min_value = static_cast<T>(0);
+  static constexpr T max_value = static_cast<T>(0);
+};
+
+// Alternative min,max option for the same type as non-template version
+template <typename T> struct NumberParamsAlt {
+  static constexpr T min_value = static_cast<T>(0);
+  static constexpr T max_value = static_cast<T>(0);
+};
+
+template <typename T, typename Params, typename W> class BaseNumber {
 public:
   // Constructor
   explicit BaseNumber(T v = 0) {
-    if (v < Min || v > Max) {
+    if (v < Params::min_value || v > Params::max_value) {
       throw std::out_of_range("Value is out of range.");
     }
     value = v;
@@ -160,7 +173,7 @@ public:
 
   [[nodiscard]] T get() const { return value; }
   void set(W v) {
-    if (v < Min || v > Max) {
+    if (v < Params::min_value || v > Params::max_value) {
       throw std::out_of_range("Value is out of range.");
     }
     value = static_cast<T>(v);
@@ -171,19 +184,44 @@ protected:
   template <typename U,
             typename = std::enable_if_t<std::is_arithmetic<U>::value>>
   [[nodiscard]] T check_range(U v) const {
-    if (v < Min || v > Max) {
+    if (v < Params::min_value || v > Params::max_value) {
       throw std::out_of_range("Value is out of range.");
     }
     return v;
   }
 };
 
-typedef BaseNumber<uint8_t, 0, 31, uint32_t> LimitedUInt5;
-typedef BaseNumber<uint8_t, 0, 127, uint32_t> LimitedUInt7;
-typedef BaseNumber<uint16_t, 0, 65535, uint32_t> LimitedUInt16;
-typedef BaseNumber<int8_t, -64, 63, int32_t> LimitedInt7;
-typedef BaseNumber<int16_t, -32768, 32767, int32_t> LimitedInt16;
-typedef BaseNumber<float, -1.f, 1.f, double> NormalizedFloat;
+template <> struct NumberParams<uint8_t> {
+  static constexpr uint8_t min_value = 0;
+  static constexpr uint8_t max_value = 31;
+};
+template <> struct NumberParamsAlt<uint8_t> {
+  static constexpr uint8_t min_value = 0;
+  static constexpr uint8_t max_value = 127;
+};
+template <> struct NumberParams<uint16_t> {
+  static constexpr uint16_t min_value = 0;
+  static constexpr uint16_t max_value = 65535;
+};
+template <> struct NumberParams<int8_t> {
+  static constexpr int8_t min_value = -64;
+  static constexpr int8_t max_value = 63;
+};
+template <> struct NumberParams<int16_t> {
+  static constexpr int16_t min_value = -32768;
+  static constexpr int16_t max_value = 32767;
+};
+template <> struct NumberParams<float> {
+  static constexpr float min_value = -1.f;
+  static constexpr float max_value = 1.f;
+};
+
+typedef BaseNumber<uint8_t, NumberParams<uint8_t>, uint32_t> LimitedUInt5;
+typedef BaseNumber<uint8_t, NumberParamsAlt<uint8_t>, uint32_t> LimitedUInt7;
+typedef BaseNumber<uint16_t, NumberParams<uint16_t>, uint32_t> LimitedUInt16;
+typedef BaseNumber<int8_t, NumberParams<int8_t>, int32_t> LimitedInt7;
+typedef BaseNumber<int16_t, NumberParams<int16_t>, int32_t> LimitedInt16;
+typedef BaseNumber<float_t, NumberParams<float>, double_t> NormalizedFloat;
 
 class Byte32 {
 public:

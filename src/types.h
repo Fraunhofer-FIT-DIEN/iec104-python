@@ -39,7 +39,6 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <format>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -50,6 +49,7 @@
 #include <pybind11/pybind11.h>
 #include <queue>
 #include <regex>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <variant>
@@ -74,7 +74,6 @@
 #define TICTOCNOW(begin) TICTOC(begin, std::chrono::steady_clock::now())
 #define MAX_INFORMATION_OBJECT_ADDRESS 16777215
 #define UNDEFINED_INFORMATION_OBJECT_ADDRESS 16777216
-#define TIMEPOINT_ISOFORMAT(point) std::format("{0:%F}T{0:%T%z}", (point))
 
 extern std::atomic<Debug> GLOBAL_DEBUG_MODE;
 
@@ -87,6 +86,12 @@ void enableDebug(Debug mode);
 void disableDebug(Debug mode);
 
 void printDebugMessage(Debug mode, const std::string &message);
+
+std::string
+TimePoint_toString(const std::chrono::system_clock::time_point &time);
+
+std::string TimePoint_toString(
+    const std::optional<std::chrono::system_clock::time_point> &time);
 
 /**
  * @brief Validate and convert an ip address from string to in_addr struct

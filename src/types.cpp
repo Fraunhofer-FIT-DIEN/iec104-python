@@ -48,12 +48,38 @@ void disableDebug(Debug mode) {
 
 void printDebugMessage(const Debug mode, const std::string &message) {
   if (test(GLOBAL_DEBUG_MODE.load(), mode)) {
-    std::stringstream print_str{};
-    print_str << "[c104." << Debug_toFlagString(mode) << "] " << message
-              << std::endl;
-    std::cout << print_str.str();
+    std::ostringstream oss;
+    oss << "[c104." << Debug_toFlagString(mode) << "] " << message << std::endl;
+    std::cout << oss.str();
     std::cout.flush();
   }
+}
+
+std::string
+TimePoint_toString(const std::chrono::system_clock::time_point &time) {
+  using us_t = std::chrono::duration<int, std::micro>;
+  auto us = std::chrono::duration_cast<us_t>(time.time_since_epoch() %
+                                             std::chrono::seconds(1));
+  if (us.count() < 0) {
+    us += std::chrono::seconds(1);
+  }
+
+  std::time_t tt = std::chrono::system_clock::to_time_t(
+      std::chrono::time_point_cast<std::chrono::system_clock::duration>(time -
+                                                                        us));
+
+  std::tm local_tt = *std::localtime(&tt);
+
+  std::ostringstream oss;
+  oss << std::put_time(&local_tt, "%Y-%m-%dT%H:%M:%S");
+  oss << '.' << std::setw(3) << std::setfill('0') << us.count();
+  oss << std::put_time(&local_tt, "%z");
+  return oss.str();
+}
+
+std::string TimePoint_toString(
+    const std::optional<std::chrono::system_clock::time_point> &time) {
+  return time.has_value() ? TimePoint_toString(time.value()) : "None";
 }
 
 void Assert_IPv4(const std::string &s) {
