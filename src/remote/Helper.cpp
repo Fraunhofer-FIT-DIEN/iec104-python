@@ -226,7 +226,7 @@ py::dict Remote::rawMessageDictionaryFormatter(uint_fast8_t *msg,
 
         if ((type >= C_SC_NA_1 && type <= C_SE_NC_1) ||
             (type >= C_SC_TA_1 && type <= C_SE_TC_1)) {
-          d["select"] = (bool)(msg[IEC60870_OBJECT_OFFSET + 3] << 7);
+          d["select"] = (bool)(msg[IEC60870_OBJECT_OFFSET + 3] >> 7);
         }
       }
 
