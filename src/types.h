@@ -87,6 +87,10 @@ void disableDebug(Debug mode);
 
 void printDebugMessage(Debug mode, const std::string &message);
 
+std::string bool_toString(const bool &val);
+
+std::string Byte32_toString(const Byte32 &byte);
+
 std::string
 TimePoint_toString(const std::chrono::system_clock::time_point &time);
 

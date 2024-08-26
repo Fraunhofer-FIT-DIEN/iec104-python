@@ -64,6 +64,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
                                 std::to_string(dp_ioa));
   }
 
+  lastSentAt = std::chrono::steady_clock::now();
   setReportInterval_ms(dp_report_ms);
 
   if (dp_related_ioa.has_value()) {
@@ -1057,6 +1058,7 @@ std::chrono::system_clock::time_point DataPoint::getProcessedAt() const {
 
 void DataPoint::setProcessedAt(
     const std::chrono::system_clock::time_point val) {
+  lastSentAt.store(std::chrono::steady_clock::now());
   info->setProcessedAt(val);
 }
 
@@ -1152,9 +1154,7 @@ void DataPoint::onBeforeAutoTransmit() {
 std::optional<std::chrono::steady_clock::time_point>
 DataPoint::nextReportAt() const {
   if (reportInterval_ms > 0) {
-    return std::chrono::steady_clock::time_point(
-               info->getProcessedAt().time_since_epoch()) +
-           std::chrono::milliseconds(reportInterval_ms);
+    return lastSentAt.load() + std::chrono::milliseconds(reportInterval_ms);
   }
   return std::nullopt;
 }

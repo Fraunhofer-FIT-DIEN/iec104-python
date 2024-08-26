@@ -122,6 +122,9 @@ private:
   /// @brief abstract representation of information
   std::shared_ptr<Information> info{nullptr};
 
+  /// @brief steady clock to calculate nextReportAt
+  std::atomic<std::chrono::steady_clock::time_point> lastSentAt;
+
   const std::uint_fast16_t tickRate_ms;
 
   /// @brief interval (in milliseconds) between periodic transmissions, 0 => no
@@ -355,16 +358,18 @@ public:
 
   std::string toString() const {
     std::ostringstream oss;
-    oss << "<c104.Point io_address=" << informationObjectAddress
+    oss << "<c104.Point io_address=" << std::to_string(informationObjectAddress)
         << ", type=" << TypeID_toString(type) << ", info=" << info->name()
-        << ", report_ms=" << reportInterval_ms << ", related_io_address=";
+        << ", report_ms=" << std::to_string(reportInterval_ms.load())
+        << ", related_io_address=";
 
     if (relatedInformationObjectAddress < MAX_INFORMATION_OBJECT_ADDRESS)
-      oss << relatedInformationObjectAddress;
+      oss << std::to_string(relatedInformationObjectAddress.load());
     else
       oss << "None";
 
-    oss << ", related_io_autoreturn=" << relatedInformationObjectAutoReturn
+    oss << ", related_io_autoreturn="
+        << bool_toString(relatedInformationObjectAutoReturn.load())
         << ", command_mode=" << CommandTransmissionMode_toString(commandMode)
         << " at " << std::hex << std::showbase
         << reinterpret_cast<std::uintptr_t>(this) << ">";

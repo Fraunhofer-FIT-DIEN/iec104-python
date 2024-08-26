@@ -119,8 +119,8 @@ std::string Information::base_toString() const {
   std::ostringstream oss;
   oss << "recorded_at=" << TimePoint_toString(recorded_at)
       << ", processed_at=" << TimePoint_toString(processed_at)
-      << ", readonly=" << readonly << " at " << std::hex << std::showbase
-      << reinterpret_cast<std::uintptr_t>(this);
+      << ", readonly=" << bool_toString(readonly) << " at " << std::hex
+      << std::showbase << reinterpret_cast<std::uintptr_t>(this);
   return oss.str();
 }
 
@@ -148,7 +148,7 @@ void SingleInfo::setQualityImpl(const InfoQuality val) {
 
 std::string SingleInfo::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " on=" << on
+  oss << "<c104." << name() << " on=" << bool_toString(on)
       << ", quality=" << Quality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -160,7 +160,7 @@ void SingleCmd::setValueImpl(const InfoValue val) { on = std::get<bool>(val); }
 
 std::string SingleCmd::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " on=" << on
+  oss << "<c104." << name() << " on=" << bool_toString(on)
       << ", qualifier=" << QualifierOfCommand_toString(qualifier) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -214,8 +214,8 @@ void StepInfo::setQualityImpl(const InfoQuality val) {
 
 std::string StepInfo::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " position=" << position.get()
-      << ", transient=" << transient
+  oss << "<c104." << name() << " position=" << std::to_string(position.get())
+      << ", transient=" << bool_toString(transient)
       << ", quality=" << Quality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -249,7 +249,7 @@ void BinaryInfo::setQualityImpl(const InfoQuality val) {
 
 std::string BinaryInfo::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " blob=" << blob.get()
+  oss << "<c104." << name() << " blob=" << Byte32_toString(blob)
       << ", quality=" << Quality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -263,7 +263,7 @@ void BinaryCmd::setValueImpl(const InfoValue val) {
 
 std::string BinaryCmd::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " blob=" << blob.get() << ", "
+  oss << "<c104." << name() << " blob=" << Byte32_toString(blob) << ", "
       << Information::base_toString() << ">";
   return oss.str();
 }
@@ -282,7 +282,7 @@ void NormalizedInfo::setQualityImpl(const InfoQuality val) {
 
 std::string NormalizedInfo::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " actual=" << actual.get()
+  oss << "<c104." << name() << " actual=" << std::to_string(actual.get())
       << ", quality=" << Quality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -296,8 +296,8 @@ void NormalizedCmd::setValueImpl(const InfoValue val) {
 
 std::string NormalizedCmd::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " target=" << target.get()
-      << ", qualifier=" << qualifier.get() << ", "
+  oss << "<c104." << name() << " target=" << std::to_string(target.get())
+      << ", qualifier=" << std::to_string(qualifier.get()) << ", "
       << Information::base_toString() << ">";
   return oss.str();
 }
@@ -316,7 +316,7 @@ void ScaledInfo::setQualityImpl(const InfoQuality val) {
 
 std::string ScaledInfo::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " actual=" << actual.get()
+  oss << "<c104." << name() << " actual=" << std::to_string(actual.get())
       << ", quality=" << Quality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -330,8 +330,8 @@ void ScaledCmd::setValueImpl(const InfoValue val) {
 
 std::string ScaledCmd::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " target=" << target.get()
-      << ", qualifier=" << qualifier.get() << ", "
+  oss << "<c104." << name() << " target=" << std::to_string(target.get())
+      << ", qualifier=" << std::to_string(qualifier.get()) << ", "
       << Information::base_toString() << ">";
   return oss.str();
 }
@@ -350,7 +350,7 @@ void ShortInfo::setQualityImpl(const InfoQuality val) {
 
 std::string ShortInfo::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " actual=" << actual
+  oss << "<c104." << name() << " actual=" << std::to_string(actual)
       << ", quality=" << Quality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -364,8 +364,8 @@ void ShortCmd::setValueImpl(const InfoValue val) {
 
 std::string ShortCmd::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " target=" << target
-      << ", qualifier=" << qualifier.get() << ", "
+  oss << "<c104." << name() << " target=" << std::to_string(target)
+      << ", qualifier=" << std::to_string(qualifier.get()) << ", "
       << Information::base_toString() << ">";
   return oss.str();
 }
@@ -384,8 +384,8 @@ void BinaryCounterInfo::setQualityImpl(const InfoQuality val) {
 
 std::string BinaryCounterInfo::toString() const {
   std::ostringstream oss;
-  oss << "<c104." << name() << " counter=" << counter
-      << ", sequence=" << sequence.get()
+  oss << "<c104." << name() << " counter=" << std::to_string(counter)
+      << ", sequence=" << std::to_string(sequence.get())
       << ", quality=" << BinaryCounterQuality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -408,7 +408,7 @@ void ProtectionEquipmentEventInfo::setQualityImpl(const InfoQuality val) {
 std::string ProtectionEquipmentEventInfo::toString() const {
   std::ostringstream oss;
   oss << "<c104." << name() << " state=" << EventState_toString(state)
-      << ", elapsed_ms=" << elapsed_ms.get()
+      << ", elapsed_ms=" << std::to_string(elapsed_ms.get())
       << ", quality=" << Quality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -433,7 +433,7 @@ void ProtectionEquipmentStartEventsInfo::setQualityImpl(const InfoQuality val) {
 std::string ProtectionEquipmentStartEventsInfo::toString() const {
   std::ostringstream oss;
   oss << "<c104." << name() << " events=" << StartEvents_toString(events)
-      << ", relay_duration_ms=" << relay_duration_ms.get()
+      << ", relay_duration_ms=" << std::to_string(relay_duration_ms.get())
       << ", quality=" << Quality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();
@@ -459,7 +459,7 @@ void ProtectionEquipmentOutputCircuitInfo::setQualityImpl(
 std::string ProtectionEquipmentOutputCircuitInfo::toString() const {
   std::ostringstream oss;
   oss << "<c104." << name() << " circuits=" << OutputCircuits_toString(circuits)
-      << ", relay_operating_ms=" << relay_operating_ms.get()
+      << ", relay_operating_ms=" << std::to_string(relay_operating_ms.get())
       << ", quality=" << Quality_toString(quality) << ", "
       << Information::base_toString() << ">";
   return oss.str();

@@ -142,9 +142,9 @@ public:
       len = points.size();
     }
     std::ostringstream oss;
-    oss << "<104.Station common_address=" << commonAddress
-        << ", #points=" << len << " at " << std::hex << std::showbase
-        << reinterpret_cast<std::uintptr_t>(this) << ">";
+    oss << "<104.Station common_address=" << std::to_string(commonAddress)
+        << ", #points=" << std::to_string(len) << " at " << std::hex
+        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
     return oss.str();
   };
 };

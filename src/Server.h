@@ -523,10 +523,10 @@ public:
       lenst = stations.size();
     }
     std::ostringstream oss;
-    oss << "<104.Server ip=" << ip << ", port=" << port
-        << ", #clients=" << lencon << ", #stations=" << lenst << " at "
-        << std::hex << std::showbase << reinterpret_cast<std::uintptr_t>(this)
-        << ">";
+    oss << "<104.Server ip=" << ip << ", port=" << std::to_string(port)
+        << ", #clients=" << std::to_string(lencon)
+        << ", #stations=" << std::to_string(lenst) << " at " << std::hex
+        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
     return oss.str();
   };
 };

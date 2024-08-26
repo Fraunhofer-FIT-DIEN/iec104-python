@@ -54,6 +54,13 @@ void printDebugMessage(const Debug mode, const std::string &message) {
   }
 }
 
+std::string bool_toString(const bool &val) { return val ? "True" : "False"; }
+
+std::string Byte32_toString(const Byte32 &byte) {
+  std::bitset<32> bits(byte.get());
+  return "0b" + bits.to_string();
+}
+
 std::string
 TimePoint_toString(const std::chrono::system_clock::time_point &time) {
   using us_t = std::chrono::duration<int, std::micro>;

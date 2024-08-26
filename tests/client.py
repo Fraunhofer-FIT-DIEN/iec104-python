@@ -128,13 +128,13 @@ def cl_dump():
                 st = ct.stations[st_iter]
                 st_pt_count = len(st.points)
                 print("          |--+ STATION {0} has {1} points".format(st.common_address, st_pt_count))
-                print("             |      TYPE      |   IOA   |       VALUE        | PROCESSED  AT |  RECORDED AT  |      QUALITY      ")
-                print("             |----------------|---------|--------------------|---------------|---------------|-------------------")
+                print("             |      TYPE      |   IOA   |       VALUE        |        PROCESSED AT        |        RECORDED  AT        |      QUALITY      ")
+                print("             |----------------|---------|--------------------|----------------------------|----------------------------|-------------------")
                 for pt_iter in range(st_pt_count):
                     pt = st.points[pt_iter]
-                    print("             | %s | %7s | %18s | %13s | %13s | %s" % (pt.type, pt.io_address, pt.value, pt.recorded_at or 'N. A.',
-                                                                                               pt.processed_at, pt.quality))
-                    print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
+                    print("             | %s | %7s | %18s | %26s | %26s | %s" % (pt.type, pt.io_address, pt.value, pt.processed_at,
+                                                                                 pt.recorded_at or 'N. A.', pt.quality))
+                    print("             |----------------|---------|--------------------|----------------------------|----------------------------|-------------------")
 
 
 ##################################

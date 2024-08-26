@@ -488,10 +488,10 @@ public:
       len = stations.size();
     }
     std::ostringstream oss;
-    oss << "<104.Connection ip=" << ip << ", port=" << port
+    oss << "<104.Connection ip=" << ip << ", port=" << std::to_string(port)
         << ", state=" << ConnectionState_toString(state)
-        << ", #stations=" << len << " at " << std::hex << std::showbase
-        << reinterpret_cast<std::uintptr_t>(this) << ">";
+        << ", #stations=" << std::to_string(len) << " at " << std::hex
+        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
     return oss.str();
   };
 };

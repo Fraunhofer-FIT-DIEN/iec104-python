@@ -166,6 +166,20 @@ protected:
 
   /// @brief state that defines if informationObject has a value
   std::atomic_bool sequence{false};
+
+public:
+  std::string toString() const {
+    std::ostringstream oss;
+    oss << "<c104.Message common_address=" << std::to_string(commonAddress)
+        << ", io_address=" << std::to_string(informationObjectAddress)
+        << ", type=" << TypeID_toString(type) << ", info=" << info->name()
+        << ", cot=" << CS101_CauseOfTransmission_toString(causeOfTransmission)
+        << ", test=" << bool_toString(test)
+        << ", negative=" << bool_toString(negative)
+        << ", sequence=" << bool_toString(sequence) << " at " << std::hex
+        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 } // namespace Message
 

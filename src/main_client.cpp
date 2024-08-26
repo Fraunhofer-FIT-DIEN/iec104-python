@@ -67,9 +67,9 @@ void cl_dump(std::shared_ptr<Client> my_client,
                     << " | " << std::setw(13)
                     << InfoValue_toString(pt_iter->getValue()) << " | "
                     << std::setw(13)
-                    << TimePoint_toString(pt_iter->getRecordedAt()) << " | "
-                    << std::setw(13)
                     << TimePoint_toString(pt_iter->getProcessedAt()) << " | "
+                    << std::setw(13)
+                    << TimePoint_toString(pt_iter->getRecordedAt()) << " | "
                     << InfoQuality_toString(pt_iter->getQuality()) << std::endl;
         }
         std::cout << "             "

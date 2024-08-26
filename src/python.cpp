@@ -66,9 +66,10 @@ static EnvironmentInitializer initializer;
 
 // Bind Number with Template
 template <typename T, typename Params, typename W>
-void bind_BaseNumber(py::module &m, const std::string &name) {
-  py::class_<BaseNumber<T, Params, W>,
-             std::shared_ptr<BaseNumber<T, Params, W>>>(m, name.c_str())
+py::class_<BaseNumber<T, Params, W>> bind_BaseNumber(py::module &m,
+                                                     const std::string &name) {
+  return py::class_<BaseNumber<T, Params, W>,
+                    std::shared_ptr<BaseNumber<T, Params, W>>>(m, name.c_str())
       .def(py::init<T>())
       .def(py::init<W>())
       // Overloading operators with different types
@@ -99,6 +100,16 @@ void bind_BaseNumber(py::module &m, const std::string &name) {
            [](BaseNumber<T, Params, W> &self, const W &other) {
              self /= other;
              return self;
+           })
+      .def("__int__",
+           [](const BaseNumber<T, Params, W> &a) {
+             T value = a.get();
+             return static_cast<int>(value);
+           })
+      .def("__float__",
+           [](const BaseNumber<T, Params, W> &a) {
+             T value = a.get();
+             return static_cast<float>(value);
            })
       .def("__str__",
            [name](const BaseNumber<T, Params, W> &a) {
@@ -610,20 +621,30 @@ PY_MODULE(c104, m) {
 
   py::class_<Byte32>(m, "Byte32")
       .def(py::init<uint32_t>())
+      .def(py::init([](const py::bytes &byte_obj) {
+        py::buffer_info info(py::buffer(byte_obj).request());
+
+        if (info.size > sizeof(uint32_t)) {
+          throw std::runtime_error(
+              "Invalid size of bytes object. Expected 4 bytes, got " +
+              std::to_string(info.size) + ".");
+        }
+        uint32_t value = 0;
+
+        // Copy only the available bytes
+        std::memcpy(&value, info.ptr, info.size);
+
+        return Byte32(value);
+      }))
       .def("__bytes__",
            [](const Byte32 &b) {
              uint32_t value = b.get();
              return py::bytes(reinterpret_cast<const char *>(&value),
                               sizeof(value));
            })
-      .def("__str__",
-           [](const Byte32 &b) {
-             std::bitset<32> bits(b.get());
-             return "0b" + bits.to_string();
-           })
+      .def("__str__", &Byte32_toString)
       .def("__repr__", [](const Byte32 &b) {
-        std::bitset<32> bits(b.get());
-        return "<Byte32 value=0b" + bits.to_string() + ">";
+        return "<Byte32 value=" + Byte32_toString(b) + ">";
       });
 
   py::class_<Remote::TransportSecurity,
@@ -751,7 +772,8 @@ PY_MODULE(c104, m) {
     >>> tls.set_version(min=c104.TLSVersion.TLS_1_2, max=c104.TLSVersion.TLS_1_2)
 )def",
            "min"_a = TLS_VERSION_NOT_SELECTED,
-           "max"_a = TLS_VERSION_NOT_SELECTED);
+           "max"_a = TLS_VERSION_NOT_SELECTED)
+      .def("__repr__", &Remote::TransportSecurity::toString);
 
   m.def("explain_bytes", &explain_bytes, R"def(
     explain_bytes(apdu: bytes) -> str
@@ -1095,7 +1117,8 @@ PY_MODULE(c104, m) {
     >>>
     >>> my_client.on_new_point(callable=cl_on_new_point)
 )def",
-           "callable"_a);
+           "callable"_a)
+      .def("__repr__", &Client::toString);
 
   py::class_<Server, std::shared_ptr<Server>>(
       m, "Server",
@@ -1391,7 +1414,8 @@ PY_MODULE(c104, m) {
     >>>
     >>> my_server.on_unexpected_message(callable=sv_on_unexpected_message)
 )def",
-           "callable"_a);
+           "callable"_a)
+      .def("__repr__", &Server::toString);
 
   py::class_<Remote::Connection, std::shared_ptr<Remote::Connection>>(
       m, "Connection",
@@ -1733,7 +1757,9 @@ PY_MODULE(c104, m) {
     >>>
     >>> my_connection.on_state_change(callable=con_on_state_change)
 )def",
-           "callable"_a);
+           "callable"_a)
+      .def("__repr__", &Remote::Connection::toString);
+  ;
 
   py::class_<Object::Station, std::shared_ptr<Object::Station>>(
       m, "Station",
@@ -1998,12 +2024,12 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> def on_before_read_steppoint(point: c104.Point) -> None:
-    >>>     print("SV] {0} READ COMMAND on IOA: {1}".format(point.type, point.io_address))
-    >>>     point.value = random.randint(-64,63)  # import random
+    >>> def on_before_auto_transmit_step(point: c104.Point) -> None:
+    >>>     print("SV] {0} PERIODIC TRANSMIT on IOA: {1}".format(point.type, point.io_address))
+    >>>     point.value = c104.Int7(random.randint(-64,63))  # import random
     >>>
     >>> step_point = sv_station_2.add_point(io_address=31, type=c104.Type.M_ST_TB_1, report_ms=2000)
-    >>> step_point.on_before_auto_transmit(callable=on_before_read_steppoint)
+    >>> step_point.on_before_auto_transmit(callable=on_before_auto_transmit_step)
 )def",
            "callable"_a)
       .def("on_timer", &Object::DataPoint::setOnTimerCallback, R"def(
@@ -2109,7 +2135,9 @@ PY_MODULE(c104, m) {
           "recorded_at", &Object::Information::getRecordedAt,
           "Optional[int]: timestamp with milliseconds transported with the "
           "value "
-          "itself or None (read-only)");
+          "itself or None (read-only)")
+      .def("__repr__", &Object::Information::toString);
+  ;
 
   py::class_<Object::SingleInfo, Object::Information,
              std::shared_ptr<Object::SingleInfo>>(
@@ -2702,7 +2730,15 @@ PY_MODULE(c104, m) {
           ":ref:`c104.PackedSingle`: the changed information (read-only)")
       .def("__repr__", &Object::StatusWithChangeDetection::toString);
 
+  py::class_<Remote::Message::IMessageInterface,
+             std::shared_ptr<Remote::Message::IMessageInterface>>(
+      m, "Message",
+      "This class represents all protocol messages and provides access to "
+      "structured properties")
+      .def("__repr__", &Remote::Message::IMessageInterface::toString);
+
   py::class_<Remote::Message::IncomingMessage,
+             Remote::Message::IMessageInterface,
              std::shared_ptr<Remote::Message::IncomingMessage>>(
       m, "IncomingMessage",
       "This class represents incoming messages and provides access to "
@@ -2774,6 +2810,7 @@ PY_MODULE(c104, m) {
     bool
         True, if another information element exists, otherwise False
 )def");
+  ;
 
   //*/
 

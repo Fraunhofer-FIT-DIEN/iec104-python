@@ -273,9 +273,10 @@ public:
       len = connections.size();
     }
     std::ostringstream oss;
-    oss << "<104.Client originator_address=" << originatorAddress
-        << ", #connections=" << len << " at " << std::hex << std::showbase
-        << reinterpret_cast<std::uintptr_t>(this) << ">";
+    oss << "<104.Client originator_address="
+        << std::to_string(originatorAddress.load())
+        << ", #connections=" << std::to_string(len) << " at " << std::hex
+        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
     return oss.str();
   };
 };
