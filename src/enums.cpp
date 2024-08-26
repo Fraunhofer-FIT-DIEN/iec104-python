@@ -186,6 +186,8 @@ std::string FieldSet16_toString(const FieldSet16 &infos) {
     return "Field set: {}";
   }
   std::vector<std::string> sv{};
+  if (test(infos, FieldSet16::I0))
+    sv.emplace_back("I0");
   if (test(infos, FieldSet16::I1))
     sv.emplace_back("I1");
   if (test(infos, FieldSet16::I2))
@@ -216,7 +218,7 @@ std::string FieldSet16_toString(const FieldSet16 &infos) {
     sv.emplace_back("I14");
   if (test(infos, FieldSet16::I15))
     sv.emplace_back("I15");
-  return "Field set: { " +
+  return "PackedSingle set: { " +
          std::accumulate(std::next(sv.begin()), sv.end(), sv[0],
                          [](const std::string &a, const std::string &b) {
                            return a + " | " + b;

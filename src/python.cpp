@@ -41,12 +41,10 @@
 #ifdef VERSION_INFO
 #define PY_MODULE(name, var) PYBIND11_MODULE(name, var)
 #else
+#define VERSION_INFO "embedded"
 #include <pybind11/embed.h>
 #define PY_MODULE(name, var) PYBIND11_EMBEDDED_MODULE(name, var)
 #endif
-
-#define STRINGIFY(x) #x
-#define MACRO_STRINGIFY(x) STRINGIFY(x)
 
 using namespace pybind11::literals;
 
@@ -470,7 +468,7 @@ PY_MODULE(c104, m) {
       .value("GROUP_16", QOI_GROUP_16);
 
   py::enum_<CS101_CauseOfInitialization>(
-      m, "CoI",
+      m, "Coi",
       "This enum contains all valid IEC60870 cause of initialization values.")
       .value("LOCAL_POWER_ON", CS101_CauseOfInitialization::LOCAL_POWER_ON)
       .value("LOCAL_MANUAL_RESET",
@@ -581,9 +579,9 @@ PY_MODULE(c104, m) {
 
   auto py_field_set =
       py::enum_<FieldSet16>(
-          m, "FieldSet16"
-             "This enum contains all State bits to "
-             "interpret and manipulate status with change detection messages.")
+          m, "PackedSingle",
+          "This enum contains all State bits to "
+          "interpret and manipulate status with change detection messages.")
           .value("I0", FieldSet16::I0)
           .value("I1", FieldSet16::I1)
           .value("I2", FieldSet16::I2)
@@ -600,7 +598,7 @@ PY_MODULE(c104, m) {
           .value("I13", FieldSet16::I13)
           .value("I14", FieldSet16::I14)
           .value("I15", FieldSet16::I15)
-          .def(py::init([]() { return FieldSet16(0); }));
+          .def(py::init([]() { return FieldSet16::None; }));
   bind_BitFlags_ops(py_field_set, &FieldSet16_toString);
 
   bind_BaseNumber<uint8_t, NumberParams<uint8_t>, uint32_t>(m, "UInt5");
@@ -891,11 +889,28 @@ PY_MODULE(c104, m) {
 )def",
            "tick_rate_ms"_a = 100, "command_timeout_ms"_a = 100,
            "transport_security"_a = nullptr)
+      .def_property_readonly(
+          "tick_rate_ms", &Client::getTickRate_ms,
+          "int: the clients tick rate in milliseconds (read-only)")
       .def_property_readonly("is_running", &Client::isRunning,
                              "bool: test if client is running (read-only)")
       .def_property_readonly("has_connections", &Client::hasConnections,
                              "bool: test if client has at least one remote "
                              "server connection (read-only)")
+      .def_property_readonly(
+          "has_open_connections", &Client::hasOpenConnections,
+          "bool: test if client has open connections to servers (read-only)")
+      .def_property_readonly(
+          "open_connection_count", &Client::getOpenConnectionCount,
+          "int: get number of open connections to servers (read-only)")
+      .def_property_readonly("has_active_connections",
+                             &Client::hasActiveConnections,
+                             "bool: test if client has active (open and not "
+                             "muted) connections to servers (read-only)")
+      .def_property_readonly("active_connection_count",
+                             &Client::getActiveConnectionCount,
+                             "int: get number of active (open and not muted) "
+                             "connections to servers (read-only)")
       .def_property_readonly(
           "connections", &Client::getConnections,
           "List[:ref:`c104.Connection`]: list of all remote terminal unit "
@@ -1113,6 +1128,9 @@ PY_MODULE(c104, m) {
            "ip"_a = "0.0.0.0", "port"_a = IEC_60870_5_104_DEFAULT_PORT,
            "tick_rate_ms"_a = 100, "select_timeout_ms"_a = 100,
            "max_connections"_a = 0, "transport_security"_a = nullptr)
+      .def_property_readonly(
+          "tick_rate_ms", &Server::getTickRate_ms,
+          "int: the servers tick rate in milliseconds (read-only)")
       .def_property_readonly("ip", &Server::getIP,
                              "str: ip address the server will accept "
                              "connections on, \"0.0.0.0\" = any (read-only)")
@@ -2246,14 +2264,14 @@ PY_MODULE(c104, m) {
       m, "StepCmd",
       "This class represents all specific step command information")
       .def(py::init(&Object::StepCmd::create), R"def(
-    __init__(self: c104.StepCmd, step: c104.Step, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.StepCmd, direction: c104.Step, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new step command
 
     Parameters
     -------
     step: :ref:`c104.Step`
-        t. b. a.
+    direction: :ref:`c104.Step`
     qualifier: :ref:`c104.Qoc`
         t. b. a.
     recorded_at: Optional[datetime.datetime]
@@ -2261,9 +2279,9 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> step_cmd = c104.StepCmd(step=c104.Step.HIGHER, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.utcnow())
+    >>> step_cmd = c104.StepCmd(direction=c104.Step.HIGHER, qualifier=c104.Qoc.SHORT_PULSE, recorded_at=datetime.datetime.utcnow())
 )def",
-           "step"_a, "qualifier"_a = CS101_QualifierOfCommand::NONE,
+           "direction"_a, "qualifier"_a = CS101_QualifierOfCommand::NONE,
            "recorded_at"_a = py::none())
       .def_property_readonly("direction", &Object::StepCmd::getStep,
                              ":ref:`c104.Step`: the value (read-only)")
@@ -2662,9 +2680,9 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     status: :ref:`c104.FieldSet16`
-        t. b. a.
     changed: :ref:`c104.FieldSet16`
-        t. b. a.
+    status: :ref:`c104.PackedSingle`
+    changed: :ref:`c104.PackedSingle`
     quality: :ref:`c104.Quality`
         t. b. a.
     recorded_at: Optional[datetime.datetime]
@@ -2672,16 +2690,16 @@ PY_MODULE(c104, m) {
 
     Example
     -------
-    >>> output_circuits = c104.StatusAndChanged(status=c104.FieldSet16(3), changed=c104.FieldSet16(5), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
+    >>> status_and_changed = c104.StatusAndChanged(status=c104.PackedSingle.I0|c104.PackedSingle.I5, changed=c104.PackedSingle(15), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
            "status"_a, "changed"_a = FieldSet16(0), "quality"_a = Quality::None,
            "recorded_at"_a = py::none())
       .def_property_readonly(
           "status", &Object::StatusWithChangeDetection::getStatus,
-          ":ref:`c104.FieldSet16`: the current status (read-only)")
+          ":ref:`c104.PackedSingle`: the current status (read-only)")
       .def_property_readonly(
           "changed", &Object::StatusWithChangeDetection::getChanged,
-          ":ref:`c104.FieldSet16`: the changed information (read-only)")
+          ":ref:`c104.PackedSingle`: the changed information (read-only)")
       .def("__repr__", &Object::StatusWithChangeDetection::toString);
 
   py::class_<Remote::Message::IncomingMessage,
@@ -2758,9 +2776,6 @@ PY_MODULE(c104, m) {
 )def");
 
   //*/
-#ifdef VERSION_INFO
-  m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
-#else
-  m.attr("__version__") = "dev";
-#endif
+
+  m.attr("__version__") = VERSION_INFO;
 }

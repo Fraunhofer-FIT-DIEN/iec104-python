@@ -969,7 +969,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     } else {
       throw std::invalid_argument(
           "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type StatusAndChange, but is " +
+          "] requires Information of type StatusAndChanged, but is " +
           new_info->name());
     }
   } break;

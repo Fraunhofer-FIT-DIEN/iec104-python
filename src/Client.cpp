@@ -139,6 +139,48 @@ bool Client::hasConnections() {
   return !connections.empty();
 }
 
+bool Client::hasOpenConnections() const {
+  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+  for (auto &c : connections) {
+    if (c->isOpen()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::uint_fast8_t Client::getOpenConnectionCount() const {
+  std::uint_fast8_t count = 0;
+  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+  for (auto &c : connections) {
+    if (c->isOpen()) {
+      count++;
+    }
+  }
+  return count;
+}
+
+bool Client::hasActiveConnections() const {
+  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+  for (auto &c : connections) {
+    if (ConnectionState::OPEN == c->getState()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::uint_fast8_t Client::getActiveConnectionCount() const {
+  std::uint_fast8_t count = 0;
+  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+  for (auto &c : connections) {
+    if (ConnectionState::OPEN == c->getState()) {
+      count++;
+    }
+  }
+  return count;
+}
+
 Remote::ConnectionVector Client::getConnections() {
   std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
 

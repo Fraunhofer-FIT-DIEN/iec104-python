@@ -99,6 +99,31 @@ public:
 
   bool hasConnections();
 
+  /**
+   * @brief Test if Client has open connections to clients
+   * @return information if at least one connection exists
+   */
+  bool hasOpenConnections() const;
+
+  /**
+   * @brief get number of open connections to servers
+   * @return open connection count
+   */
+  std::uint_fast8_t getOpenConnectionCount() const;
+
+  /**
+   * @brief Test if Client has active (open and not muted) connections to
+   * servers
+   * @return information if at least one connection is active
+   */
+  bool hasActiveConnections() const;
+
+  /**
+   * @brief get number of active (open and not muted) connections to servers
+   * @return active connection count
+   */
+  std::uint_fast8_t getActiveConnectionCount() const;
+
   Remote::ConnectionVector getConnections();
 
   bool hasConnection(const std::string &ip,

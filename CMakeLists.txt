@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(c104)
+project(c104 LANGUAGES CXX)
 
 # ##############################################################################
 # COMPILE FLAGS
@@ -22,13 +22,13 @@ endif()
 # ##############################################################################
 
 message(STATUS "Add Pybind11")
+set(Python_FIND_STRATEGY "LOCATION")
+set(Python_FIND_REGISTRY "LAST")
 set(PYBIND11_FINDPYTHON ON)
 add_subdirectory(depends/pybind11)
-list(APPEND c104_PRIVATE_LIBRARIES pybind11::module pybind11::windows_extras)
-list(APPEND c104_tests_PRIVATE_LIBRARIES pybind11::embed
-     pybind11::windows_extras)
-if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-  list(APPEND c104_PRIVATE_LIBRARIES pybind11::lto)
+list(APPEND c104_tests_PRIVATE_LIBRARIES pybind11::embed)
+if(MSVC)
+  list(APPEND c104_tests_PRIVATE_LIBRARIES pybind11::windows_extras)
 endif()
 
 # ##############################################################################
@@ -57,9 +57,19 @@ endif()
 # ##############################################################################
 
 message(STATUS "Add lib60870")
-set(BUILD_COMMON ON)
-set(BUILD_HAL ON)
-set(WITH_MBEDTLS 1)
+set(BUILD_COMMON
+    ON
+    CACHE BOOL "Build the platform abstraction layer (HAL)")
+set(BUILD_HAL
+    ON
+    CACHE BOOL
+          "Build common code (shared with other libraries - e.g. libiec61850)")
+set(BUILD_EXAMPLES
+    OFF
+    CACHE BOOL "Build the examples")
+set(BUILD_TESTS
+    OFF
+    CACHE BOOL "Build the tests")
 message(STATUS "Copy mbedtls")
 file(
   COPY depends/mbedtls/library depends/mbedtls/include
@@ -116,45 +126,36 @@ set(c104_SOURCES
     src/object/Station.cpp
     src/python.cpp)
 
-add_library(c104 MODULE ${c104_SOURCES})
+pybind11_add_module(c104 MODULE OPT_SIZE ${c104_SOURCES})
 
 if(c104_PRIVATE_LIBRARIES)
   target_link_libraries(c104 PRIVATE ${c104_PRIVATE_LIBRARIES})
 endif()
 
-pybind11_extension(c104)
-if(NOT MSVC AND NOT ${CMAKE_BUILD_TYPE} MATCHES Debug|RelWithDebInfo)
-  pybind11_strip(c104)
-endif()
-
-set_target_properties(
-  c104
-  PROPERTIES CXX_VISIBILITY_PRESET "hidden"
-             CUDA_VISIBILITY_PRESET "hidden"
-             PREFIX "${PYTHON_MODULE_PREFIX}"
-             SUFFIX "${PYTHON_MODULE_EXTENSION}")
-
-target_compile_definitions(c104 PRIVATE VERSION_INFO=${C104_VERSION_INFO})
+target_compile_definitions(c104 PRIVATE VERSION_INFO=\"${C104_VERSION_INFO}\")
 
 # ##############################################################################
 # Tests with Catch2
 # ##############################################################################
 
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
-
-add_subdirectory(depends/catch)
-list(APPEND c104_tests_PRIVATE_LIBRARIES Catch2::Catch2)
-
 add_executable(c104_tests ${c104_SOURCES} tests/test_object_datapoint.cpp
                           tests/test_object_station.cpp tests/main.cpp)
 
-if(c104_tests_PRIVATE_LIBRARIES)
-  target_link_libraries(c104_tests PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
-endif()
+if(TARGET c104_tests)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
 
-include(CTest)
-include(Catch)
-catch_discover_tests(c104_tests)
+  add_subdirectory(depends/catch)
+  list(APPEND c104_tests_PRIVATE_LIBRARIES Catch2::Catch2)
+
+  if(c104_tests_PRIVATE_LIBRARIES)
+    target_link_libraries(c104_tests PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
+  endif()
+
+  include(CTest)
+  include(Catch)
+  catch_discover_tests(c104_tests)
+
+endif()
 
 add_executable(c104_test_client ${c104_SOURCES} src/main_client.cpp)
 

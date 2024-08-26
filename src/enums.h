@@ -293,22 +293,23 @@ constexpr bool enum_bitmask(OutputCircuits &&);
 std::string OutputCircuits_toString(const OutputCircuits &infos);
 
 enum class FieldSet16 {
-  I0 = 1,
-  I1,
-  I2,
-  I3,
-  I4,
-  I5,
-  I6,
-  I7,
-  I8,
-  I9,
-  I10,
-  I11,
-  I12,
-  I13,
-  I14,
-  I15
+  None = 0x0000,
+  I0 = 0x0001,
+  I1 = 0x0002,
+  I2 = 0x0004,
+  I3 = 0x0008,
+  I4 = 0x0010,
+  I5 = 0x0020,
+  I6 = 0x0040,
+  I7 = 0x0080,
+  I8 = 0x0100,
+  I9 = 0x0200,
+  I10 = 0x0400,
+  I11 = 0x0800,
+  I12 = 0x1000,
+  I13 = 0x2000,
+  I14 = 0x4000,
+  I15 = 0x8000
 };
 constexpr bool enum_bitmask(FieldSet16 &&);
 std::string FieldSet16_toString(const FieldSet16 &infos);

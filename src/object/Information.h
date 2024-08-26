@@ -302,11 +302,11 @@ protected:
 
 public:
   [[nodiscard]] static std::shared_ptr<StepCmd> create(
-      const StepCommandValue step,
+      const StepCommandValue direction,
       const CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE,
       const std::optional<std::chrono::system_clock::time_point> recorded_at =
           std::nullopt) {
-    return std::make_shared<StepCmd>(step, false, qualifier, recorded_at,
+    return std::make_shared<StepCmd>(direction, false, qualifier, recorded_at,
                                      false);
   };
 
@@ -805,7 +805,7 @@ public:
 
   [[nodiscard]] FieldSet16 getChanged() const { return changed; }
 
-  [[nodiscard]] static std::string name() { return "StatusAndChange"; }
+  [[nodiscard]] static std::string name() { return "StatusAndChanged"; }
 
   [[nodiscard]] std::string toString() const override;
 };
