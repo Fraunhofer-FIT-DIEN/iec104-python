@@ -2730,15 +2730,7 @@ PY_MODULE(c104, m) {
           ":ref:`c104.PackedSingle`: the changed information (read-only)")
       .def("__repr__", &Object::StatusWithChangeDetection::toString);
 
-  py::class_<Remote::Message::IMessageInterface,
-             std::shared_ptr<Remote::Message::IMessageInterface>>(
-      m, "Message",
-      "This class represents all protocol messages and provides access to "
-      "structured properties")
-      .def("__repr__", &Remote::Message::IMessageInterface::toString);
-
   py::class_<Remote::Message::IncomingMessage,
-             Remote::Message::IMessageInterface,
              std::shared_ptr<Remote::Message::IncomingMessage>>(
       m, "IncomingMessage",
       "This class represents incoming messages and provides access to "
@@ -2809,7 +2801,8 @@ PY_MODULE(c104, m) {
     -------
     bool
         True, if another information element exists, otherwise False
-)def");
+)def")
+      .def("__repr__", &Remote::Message::IncomingMessage::toString);
   ;
 
   //*/

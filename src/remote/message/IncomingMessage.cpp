@@ -860,3 +860,17 @@ bool IncomingMessage::isSelectCommand() const {
   auto cmd = std::dynamic_pointer_cast<Object::Command>(info);
   return cmd && cmd->isSelectable() && cmd->isSelect();
 }
+
+std::string IncomingMessage::toString() const {
+  std::ostringstream oss;
+  oss << "<c104.IncomingMessage common_address="
+      << std::to_string(commonAddress)
+      << ", io_address=" << std::to_string(informationObjectAddress)
+      << ", type=" << TypeID_toString(type) << ", info=" << info->name()
+      << ", cot=" << CS101_CauseOfTransmission_toString(causeOfTransmission)
+      << ", test=" << bool_toString(test)
+      << ", negative=" << bool_toString(negative)
+      << ", sequence=" << bool_toString(sequence) << " at " << std::hex
+      << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+  return oss.str();
+};

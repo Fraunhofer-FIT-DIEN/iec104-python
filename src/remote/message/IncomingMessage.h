@@ -119,6 +119,8 @@ public:
    */
   bool isSelectCommand() const;
 
+  std::string toString() const;
+
 private:
   /**
    * @brief Create an IncomingMessage as facade pattern to access an incoming
