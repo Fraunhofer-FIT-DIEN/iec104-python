@@ -1,5 +1,5 @@
-Debug
+BinaryCounterQuality
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: BinaryCounterQuality
    :project: iec104-python

@@ -8,7 +8,6 @@ Enums
    commandmode
    connectionstate
    cot
-   data
    double
    eventstate
    init

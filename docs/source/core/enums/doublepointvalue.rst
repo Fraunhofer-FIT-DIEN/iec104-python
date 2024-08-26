@@ -1,5 +1,5 @@
-Debug
+DoublePointValue
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: DoublePointValue
    :project: iec104-python

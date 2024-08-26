@@ -1,5 +1,5 @@
-Debug
+EventState
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: EventState
    :project: iec104-python

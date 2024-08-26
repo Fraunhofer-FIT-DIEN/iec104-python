@@ -1,5 +1,5 @@
-Debug
+Byte32
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: Byte32
    :project: iec104-python

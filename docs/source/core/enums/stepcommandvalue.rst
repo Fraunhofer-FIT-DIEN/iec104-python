@@ -1,5 +1,5 @@
-Debug
+StepCommandValue
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: StepCommandValue
    :project: iec104-python

@@ -6,7 +6,7 @@ EnumSets
 
    binarycounterquality
    debug
-   fieldset16
+   packedsingle
    outputcircuits
    quality
    startevents

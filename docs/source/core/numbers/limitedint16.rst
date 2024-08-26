@@ -1,5 +1,5 @@
-Debug
+LimitedInt16
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: LimitedInt16
    :project: iec104-python

@@ -1,5 +1,5 @@
-Debug
+CommandProcessState
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: CommandProcessState
    :project: iec104-python

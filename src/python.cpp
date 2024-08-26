@@ -1141,13 +1141,13 @@ PY_MODULE(c104, m) {
                              "bool: test if server is running (read-only)")
       .def_property_readonly(
           "has_open_connections", &Server::hasOpenConnections,
-          "bool: test if Server has open connections to clients (read-only)")
+          "bool: test if server has open connections to clients (read-only)")
       .def_property_readonly(
           "open_connection_count", &Server::getOpenConnectionCount,
           "int: get number of open connections to clients (read-only)")
       .def_property_readonly("has_active_connections",
                              &Server::hasActiveConnections,
-                             "bool: test if Server has active (open and not "
+                             "bool: test if server has active (open and not "
                              "muted) connections to clients (read-only)")
       .def_property_readonly("active_connection_count",
                              &Server::getActiveConnectionCount,
@@ -1155,7 +1155,7 @@ PY_MODULE(c104, m) {
                              "connections to clients (read-only)")
       .def_property_readonly(
           "has_stations", &Server::hasStations,
-          "bool: test if local server has at least one station (read-only)")
+          "bool: test if server has at least one station (read-only)")
       .def_property_readonly("stations", &Server::getStations,
                              "List[:ref:`c104.Station`]: list of all local "
                              "Station objects (read-only)")
@@ -2123,11 +2123,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     on: bool
-        t. b. a.
+        Single status value
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2150,11 +2150,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     on: bool
-        t. b. a.
+        Single command value
     qualifier: :ref:`c104.Qoc`
-        t. b. a.
+        Qualifier of command
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2181,11 +2181,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     state: :ref:`c104.Double`
-        t. b. a.
+        Double point status value
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2208,11 +2208,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     state: :ref:`c104.Double`
-        t. b. a.
+        Double command value
     qualifier: :ref:`c104.Qoc`
-        t. b. a.
+        Qualifier of command
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2239,13 +2239,13 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     position: :ref:`c104.Int7`
-        t. b. a.
+        Current transformer step position value
     transient: bool
-        t. b. a.
+        Indicator, if transformer is currently in step change procedure
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2270,12 +2270,12 @@ PY_MODULE(c104, m) {
 
     Parameters
     -------
-    step: :ref:`c104.Step`
     direction: :ref:`c104.Step`
+        Step command direction value
     qualifier: :ref:`c104.Qoc`
-        t. b. a.
+        Qualifier of Command
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2302,11 +2302,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     blob: :ref:`c104.Byte32`
-        t. b. a.
+        Binary status value
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2329,9 +2329,9 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     blob: :ref:`c104.Byte32`
-        t. b. a.
+        Binary command value
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2355,11 +2355,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     actual: :ref:`c104.NormalizedFloat`
-        t. b. a.
+        Actual measurement value [-1.f, 1.f]
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2385,11 +2385,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     target: :ref:`c104.NormalizedFloat`
-        t. b. a.
+        Target setpoint value [-1.f, 1.f]
     qualifier: :ref:`c104.UInt7`
-        t. b. a.
+        Qualifier of setpoint command
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2417,11 +2417,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     actual: :ref:`c104.Int16`
-        t. b. a.
+        Actual measurement value [-32768, 32767]
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2445,11 +2445,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     target: :ref:`c104.Int16`
-        t. b. a.
+        Target setpoint value [-32768, 32767]
     qualifier: :ref:`c104.UInt7`
-        t. b. a.
+        Qualifier of setpoint command
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2476,11 +2476,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     actual: float
-        t. b. a.
+        Actual measurement value in 32-bit precision
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2504,11 +2504,11 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     target: float
-        t. b. a.
+        Target setpoint value in 32-bit precision
     qualifier: :ref:`c104.UInt7`
-        t. b. a.
+        Qualifier of setpoint command
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2536,13 +2536,13 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     counter: int
-        t. b. a.
+        Counter value
     sequence: :ref:`c104.UInt5`
-        t. b. a.
-    quality: :ref:`c104.Quality`
-        t. b. a.
+        Counter info sequence number
+    quality: :ref:`c104.BinaryCounterQuality`
+        Binary counter quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2570,13 +2570,13 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     state: :ref:`c104.EventState`
-        t. b. a.
+        State of the event
     elapsed_ms: :ref:`c104.UInt16`
-        t. b. a.
+        Time in milliseconds elapsed
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2606,13 +2606,13 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     events: :ref:`c104.StartEvents`
-        t. b. a.
+        Set of start events
     relay_duration_ms: :ref:`c104.UInt16`
-        t. b. a.
+        Time in milliseconds of relay duration
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2643,13 +2643,13 @@ PY_MODULE(c104, m) {
     Parameters
     -------
     circuits: :ref:`c104.OutputCircuits`
-        t. b. a.
+        Set of output circuits
     relay_operating_ms: :ref:`c104.UInt16`
-        t. b. a.
+        Time in milliseconds of relay operation
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------
@@ -2673,20 +2673,20 @@ PY_MODULE(c104, m) {
       "This class represents all specific packed status point information with "
       "change detection")
       .def(py::init(&Object::StatusWithChangeDetection::create), R"def(
-    __init__(self: c104.StatusAndChanged, status: c104.FieldSet16, changed: c104.FieldSet16, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.StatusAndChanged, status: c104.PackedSingle, changed: c104.PackedSingle, quality: c104.Quality = c104.Quality.None, recorded_at: Optional[datetime.datetime] = None) -> None
 
     create a new event info raised by protection equipment
 
     Parameters
     -------
-    status: :ref:`c104.FieldSet16`
-    changed: :ref:`c104.FieldSet16`
     status: :ref:`c104.PackedSingle`
+        Set of current single values
     changed: :ref:`c104.PackedSingle`
+        Set of changed single values
     quality: :ref:`c104.Quality`
-        t. b. a.
+        Quality information
     recorded_at: Optional[datetime.datetime]
-        t. b. a.
+        Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
     Example
     -------

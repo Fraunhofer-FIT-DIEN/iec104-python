@@ -1,5 +1,5 @@
-Debug
+Cause of Initialization
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: CS101_CauseOfInitialization
    :project: iec104-python

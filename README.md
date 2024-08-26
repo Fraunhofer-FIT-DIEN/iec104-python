@@ -110,7 +110,7 @@ The library is used as testing framework for test-automation.
 * Raspbian (aarch64): Not yet tested
 
 ### Python versions
-* python >= 3.6, < 3.13
+* python >= 3.7, < 3.13
 
 ## Installation
 Please adjust the version number to the latest version or use a specific version according to your needs.
@@ -181,19 +181,27 @@ Read more about the **Classes** and their **Properties** in our [read the docs d
 
 1. Install dependencies
     - [Python 3](https://www.python.org/downloads/windows/)
-    - [Buildtools für Visual Studio 201*x*](https://visualstudio.microsoft.com/de/downloads/) (Scroll down &raquo; All Downloads &raquo; Tools for Visual Studio 201*x*)
+    - [Buildtools für Visual Studio 2022](https://visualstudio.microsoft.com/de/downloads/) (Scroll down &raquo; All Downloads &raquo; Tools for Visual Studio 2022)
 
-1. Build wheel
+1. Option 1: Build as wheel
    ```bash
    python3 -m pip wheel .
    ```
+
+1. Option 2: Build pyd via Powershell
+   ```powershell
+   cmake -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 17 2022" -B cmake-build-release -A x64 -DPython_EXECUTABLE=C:\PATH_TO_PYTHON\python.exe
+   &"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe" /m /p:Platform=x64 /p:Configuration=Release c104.sln /t:Rebuild
+   ```
+   Set a valid PATH_TO_PYTHON, if you have multiple python versions. \
+   Set a valid path to MSBuild.exe unless msbuild is already in path.
 
 ### Generate documentation
 
 1. Build c104 module
 
 1. Install dependencies
-   - `python3 -m pip install --upgrade sphinx breathe sphinx-autodoc-typehints`
+   - `python3 -m pip install -r ./docs/requirements.txt`
    - doxygen
    - graphviz
 

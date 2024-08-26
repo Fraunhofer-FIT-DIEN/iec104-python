@@ -1,5 +1,5 @@
-Debug
+OutputCircuits
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: OutputCircuits
    :project: iec104-python

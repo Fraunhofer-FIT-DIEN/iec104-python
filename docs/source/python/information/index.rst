@@ -23,4 +23,4 @@ Information
    protectioneventinfo
    protectionstartinfo
    protectioncircuitinfo
-   statusandchange
+   statusandchanged

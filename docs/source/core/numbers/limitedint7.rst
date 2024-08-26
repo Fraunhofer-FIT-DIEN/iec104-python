@@ -1,5 +1,5 @@
-Debug
+LimitedInt7
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: LimitedInt7
    :project: iec104-python

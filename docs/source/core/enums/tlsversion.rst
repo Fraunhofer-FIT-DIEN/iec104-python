@@ -1,5 +1,5 @@
-Debug
+TLSConfigVersion
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: TLSConfigVersion
    :project: iec104-python

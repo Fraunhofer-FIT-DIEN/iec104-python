@@ -1,5 +1,5 @@
-Debug
+NormalizedFloat
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: NormalizedFloat
    :project: iec104-python

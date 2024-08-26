@@ -1,5 +1,5 @@
-Debug
+FieldSet16
 ======================================================================
 
-.. doxygenenum:: Debug
+.. doxygenenum:: FieldSet16
    :project: iec104-python
