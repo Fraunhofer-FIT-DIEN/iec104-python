@@ -14,7 +14,7 @@ auditwheel repair ./c104-*-linux_x86_64.whl ; \
 mv ./wheelhouse/* /opt/c104/dist/
 "
 
-docker run -it --rm -v "$DIR:/opt/c104" quay.io/pypa/manylinux_2_28_x86_64 /bin/bash -c "$CMD1"
+docker run -it --rm -v "$DIR:/opt/c104" quay.io/pypa/manylinux_2_28_aarch64 /bin/bash -c "$CMD1"
 
 CMD2="
 /opt/python/cp37-cp37m/bin/python3 -m pip wheel /opt/c104 ; \
@@ -23,4 +23,4 @@ auditwheel repair ./c104-*-linux_x86_64.whl ; \
 mv ./wheelhouse/* /opt/c104/dist/
 "
 
-docker run -it --rm -v "$DIR:/opt/c104" quay.io/pypa/manylinux2014_x86_64 /bin/bash -c "$CMD2"
+docker run -it --rm -v "$DIR:/opt/c104" quay.io/pypa/manylinux2014_aarch64 /bin/bash -c "$CMD2"

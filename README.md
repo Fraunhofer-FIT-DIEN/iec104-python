@@ -104,10 +104,10 @@ The library is used as testing framework for test-automation.
 
 ### Operating systems
 
-* Debian/Ubuntu (x64): YES >= 20.04
-* Raspbian (arm32v7): YES
+* Manylinux (x86_64): YES
+* Manylinux (aarch64): YES
+* Raspbian (armv7l): YES
 * Windows (x64): YES
-* Raspbian (aarch64): Not yet tested
 
 ### Python versions
 * python >= 3.7, < 3.13
@@ -125,6 +125,8 @@ python3 -m pip install c104
 python3 -m pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git
 ```
 
+You need the build requirements, listed under "How to build".
+
 ## Documentation
 
 Read more about the **Classes** and their **Properties** in our [read the docs documentation](https://iec104-python.readthedocs.io/python/index.html).
@@ -136,12 +138,6 @@ Read more about the **Classes** and their **Properties** in our [read the docs d
 1. Add feature requests and report bugs using GitHub's issues
 
 1. Create pull requests
-
-### How to build for multiple python versions (linux with docker)
-
-1. Build wheels via docker
-   ```bash
-   /bin/bash ./bin/linux-build.sh
    ```
 
 ### How to build (linux)
@@ -152,10 +148,23 @@ Read more about the **Classes** and their **Properties** in our [read the docs d
    python3 -m pip install --upgrade pip
    ```
 
+1. Clone repository
+   ```bash
+   git clone --depth=1 --branch=main https://github.com/Fraunhofer-FIT-DIEN/iec104-python.git
+   cd iec104-python
+   git submodule update --init
+   ```
+
 1. Build wheel
    ```bash
    python3 -m pip wheel .
    ```
+
+### How to build for multiple python versions (linux with docker)
+
+1. Build wheels via docker (linux)
+   ```bash
+   /bin/bash ./bin/linux-build.sh
 
 ### How to analyze performance (linux)
 

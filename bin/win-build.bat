@@ -9,6 +9,5 @@ py -3.10 -m pip wheel . -w dist
 py -3.9 -m pip wheel . -w dist
 py -3.8 -m pip wheel . -w dist
 py -3.7 -m pip wheel . -w dist
-py -3.6 -m pip wheel . -w dist
 
 py -m build . --sdist
