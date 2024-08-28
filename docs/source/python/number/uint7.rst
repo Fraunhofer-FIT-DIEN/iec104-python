@@ -1,7 +1,7 @@
 .. _c104.UInt7:
 
-Init
-####
+Usigned Integer (7-bit)
+########################
 
 .. autoclass:: c104.UInt7
    :members:

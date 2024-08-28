@@ -1,7 +1,7 @@
 .. _c104.UInt16:
 
-Init
-####
+Usigned Integer (16-bit)
+########################
 
 .. autoclass:: c104.UInt16
    :members:

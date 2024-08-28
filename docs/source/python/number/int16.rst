@@ -1,7 +1,7 @@
 .. _c104.Int16:
 
-Init
-####
+Signed Integer (16-bit)
+########################
 
 .. autoclass:: c104.Int16
    :members:

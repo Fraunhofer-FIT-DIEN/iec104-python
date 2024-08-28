@@ -5,4 +5,4 @@ Information
 
 .. autoclass:: c104.Information
    :members:
-   :exclude-members:
+   :exclude-members: __init__,__new__

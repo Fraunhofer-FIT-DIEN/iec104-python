@@ -1,7 +1,7 @@
 .. _c104.NormalizedFloat:
 
-Init
-####
+Normalized Float
+################
 
 .. autoclass:: c104.NormalizedFloat
    :members:

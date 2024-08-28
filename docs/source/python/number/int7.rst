@@ -1,7 +1,7 @@
 .. _c104.Int7:
 
-Init
-####
+Signed Integer (7-bit)
+########################
 
 .. autoclass:: c104.Int7
    :members:

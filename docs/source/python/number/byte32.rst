@@ -1,7 +1,7 @@
 .. _c104.Byte32:
 
-Init
-####
+Raw Bytes (32-bit)
+##################
 
 .. autoclass:: c104.Byte32
    :members:
