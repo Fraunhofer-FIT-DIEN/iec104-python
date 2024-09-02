@@ -1,0 +1,29 @@
+diff --git a/lib60870-C/src/hal/tls/mbedtls/mbedtls_config.h b/lib60870-C/src/hal/tls/mbedtls/mbedtls_config.h
+index 4cb7722..e211d58 100644
+--- a/lib60870-C/src/hal/tls/mbedtls/mbedtls_config.h
++++ b/lib60870-C/src/hal/tls/mbedtls/mbedtls_config.h
+@@ -7,7 +7,6 @@
+ #define MBEDTLS_HAVE_TIME_DATE
+ #define MBEDTLS_NO_UDBL_DIVISION
+ #define MBEDTLS_PLATFORM_C
+-#define MBEDTLS_DEBUG_C
+
+ /* mbed TLS feature support */
+ #define MBEDTLS_CIPHER_MODE_CBC
+diff --git a/lib60870-C/src/iec60870/cs104/cs104_connection.c b/lib60870-C/src/iec60870/cs104/cs104_connection.c
+index 856cd7f..4bb917d 100644
+--- a/lib60870-C/src/iec60870/cs104/cs104_connection.c
++++ b/lib60870-C/src/iec60870/cs104/cs104_connection.c
+@@ -1021,8 +1021,10 @@ handleConnection(void* parameter)
+         }
+
+     #if (CONFIG_CS104_SUPPORT_TLS == 1)
+-        if (self->tlsSocket)
+-            TLSSocket_close(self->tlsSocket);
++        if (self->tlsSocket) {
++          TLSSocket_close(self->tlsSocket);
++          self->tlsSocket = NULL;
++        }
+     #endif
+
+         Socket_destroy(self->socket);
