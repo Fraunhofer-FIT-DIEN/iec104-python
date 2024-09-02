@@ -5,4 +5,4 @@ ProtectionCircuitInfo
 
 .. autoclass:: c104.ProtectionCircuitInfo
    :members:
-   :exclude-members:
+   :exclude-members: __new__

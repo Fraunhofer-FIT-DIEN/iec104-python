@@ -5,4 +5,4 @@ ProtectionStartInfo
 
 .. autoclass:: c104.ProtectionStartInfo
    :members:
-   :exclude-members:
+   :exclude-members: __new__

@@ -5,4 +5,4 @@ Signed Integer (16-bit)
 
 .. autoclass:: c104.Int16
    :members:
-   :noindex:
+   :exclude-members: __new__

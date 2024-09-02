@@ -147,21 +147,21 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case M_ME_NA_1:
   case M_ME_ND_1:
-    info = std::make_shared<NormalizedInfo>(NormalizedFloat(0.0), Quality::None,
+    info = std::make_shared<NormalizedInfo>(NormalizedFloat(0), Quality::None,
                                             std::nullopt, false);
     break;
   case M_ME_TD_1:
-    info = std::make_shared<NormalizedInfo>(NormalizedFloat(0.0), Quality::None,
+    info = std::make_shared<NormalizedInfo>(NormalizedFloat(0), Quality::None,
                                             std::chrono::system_clock::now(),
                                             false);
     break;
   case C_SE_NA_1:
     info = std::make_shared<NormalizedCmd>(
-        NormalizedFloat(0.0), false, LimitedUInt7(0), std::nullopt, false);
+        NormalizedFloat(0), false, LimitedUInt7(0), std::nullopt, false);
     break;
   case C_SE_TA_1:
     info = std::make_shared<NormalizedCmd>(
-        NormalizedFloat(0.0), false, LimitedUInt7(0),
+        NormalizedFloat(0), false, LimitedUInt7(0),
         std::chrono::system_clock::now(), false);
     break;
   case M_ME_NB_1:

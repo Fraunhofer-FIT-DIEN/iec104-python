@@ -262,5 +262,5 @@ __New coding convention:__ Caller passes self-reference as first argument to cal
 - Server.on_receive_raw: Server reference as additional argument in the first place
 - Server.on_send_raw: Server reference as additional argument in the first place
 - Server.on_connect: Server reference as additional argument in the first place
-- Server.on_clock_sync: Server reference as additional argument in the first placele
+- Server.on_clock_sync: Server reference as additional argument in the first place
 - Server.on_unexpected_message: Server reference as additional argument in the first place

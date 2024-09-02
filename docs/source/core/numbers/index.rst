@@ -1,5 +1,5 @@
 Numbers
-=====
+========
 
 List
 
@@ -9,7 +9,7 @@ List
    byte32
    limitedint7
    limitedint16
-   normalizedfloat
    limiteduint5
    limiteduint7
    limiteduint16
+   normalizedfloat

@@ -264,7 +264,7 @@ while cl_connection_1.is_connected:
     time.sleep(3)
 
     if cl_step_command:
-        cl_step_command.info = c104.StepCmd(step=c104.Step.HIGHER, qualifier=c104.Qoc.PERSISTENT)
+        cl_step_command.info = c104.StepCmd(direction=c104.Step.HIGHER, qualifier=c104.Qoc.PERSISTENT)
         if cl_step_command.transmit(cause=c104.Cot.ACTIVATION):
             print("CL]  > transmit: Step command successful")
         else:

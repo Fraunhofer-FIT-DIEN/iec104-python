@@ -5,4 +5,4 @@ ShortCmd
 
 .. autoclass:: c104.ShortCmd
    :members:
-   :exclude-members:
+   :exclude-members: __new__

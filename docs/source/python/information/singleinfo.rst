@@ -5,4 +5,4 @@ SingleInfo
 
 .. autoclass:: c104.SingleInfo
    :members:
-   :exclude-members:
+   :exclude-members: __new__

@@ -5,4 +5,4 @@ ProtectionEventInfo
 
 .. autoclass:: c104.ProtectionEventInfo
    :members:
-   :exclude-members:
+   :exclude-members: __new__

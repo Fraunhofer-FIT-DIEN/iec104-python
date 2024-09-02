@@ -5,4 +5,4 @@ BinaryInfo
 
 .. autoclass:: c104.BinaryInfo
    :members:
-   :exclude-members:
+   :exclude-members: __new__

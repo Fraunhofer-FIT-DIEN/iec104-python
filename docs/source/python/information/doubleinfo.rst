@@ -5,4 +5,4 @@ DoubleInfo
 
 .. autoclass:: c104.DoubleInfo
    :members:
-   :exclude-members:
+   :exclude-members: __new__

@@ -5,4 +5,4 @@ ScaledInfo
 
 .. autoclass:: c104.ScaledInfo
    :members:
-   :exclude-members:
+   :exclude-members: __new__

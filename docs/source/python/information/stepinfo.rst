@@ -5,4 +5,4 @@ StepInfo
 
 .. autoclass:: c104.StepInfo
    :members:
-   :exclude-members:
+   :exclude-members: __new__

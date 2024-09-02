@@ -5,4 +5,4 @@ ShortInfo
 
 .. autoclass:: c104.ShortInfo
    :members:
-   :exclude-members:
+   :exclude-members: __new__

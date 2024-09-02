@@ -55,6 +55,35 @@ endif()
 # ##############################################################################
 # lib60870-C 2.3.2
 # ##############################################################################
+message(STATUS "Patch lib60870")
+
+# test apply the patch
+execute_process(
+  COMMAND git apply --check --ignore-whitespace ../lib60870.patch
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/depends/lib60870
+  RESULT_VARIABLE GIT_APPLY_CHECK_RESULT
+  ERROR_VARIABLE GIT_APPLY_CHECK_ERROR
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+# If the patch can be applied cleanly (i.e., it has not been applied yet), apply
+# the patch
+if(GIT_APPLY_CHECK_RESULT EQUAL "0")
+  execute_process(
+    COMMAND git apply --ignore-whitespace ../lib60870.patch
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/depends/lib60870
+    RESULT_VARIABLE GIT_APPLY_RESULT
+    ERROR_VARIABLE GIT_APPLY_ERROR
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+  # Check if the patch was applied successfully
+  if(NOT GIT_APPLY_RESULT EQUAL "0")
+    message(FATAL_ERROR "> Failed to apply patch: ${GIT_APPLY_ERROR}")
+  else()
+    message(STATUS "> Patch applied successfully.")
+  endif()
+else()
+  message(STATUS "> Patch already applied or cannot be applied")
+endif()
 
 message(STATUS "Add lib60870")
 set(BUILD_COMMON

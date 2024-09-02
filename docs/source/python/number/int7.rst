@@ -5,4 +5,4 @@ Signed Integer (7-bit)
 
 .. autoclass:: c104.Int7
    :members:
-   :noindex:
+   :exclude-members: __new__

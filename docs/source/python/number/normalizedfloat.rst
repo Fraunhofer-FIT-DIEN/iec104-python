@@ -5,4 +5,4 @@ Normalized Float
 
 .. autoclass:: c104.NormalizedFloat
    :members:
-   :noindex:
+   :exclude-members: __new__

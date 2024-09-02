@@ -1,14 +1,6 @@
 Information
 ======================================================================
 
-.. doxygenclass:: Object::Information
-   :project: iec104-python
-   :members:
-
-.. doxygenclass:: Object::Command
-   :project: iec104-python
-   :members:
-
 .. doxygenclass:: Object::SingleInfo
    :project: iec104-python
    :members:

@@ -5,4 +5,4 @@ StepCmd
 
 .. autoclass:: c104.StepCmd
    :members:
-   :exclude-members:
+   :exclude-members: __new__

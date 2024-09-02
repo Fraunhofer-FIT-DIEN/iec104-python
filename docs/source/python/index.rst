@@ -13,7 +13,7 @@ c104 python module
    point
    information/index
    transportsecurity
-   message
+   incomingmessage
    enumset/index
    enum/index
    number/index

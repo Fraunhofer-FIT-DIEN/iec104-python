@@ -37,133 +37,50 @@
 #include <stdexcept>
 #include <type_traits>
 
-// c++17 compatible non-template approach
-// First min,max option for a type as non-template version
-template <typename T> struct NumberParams {
-  static constexpr T min_value = static_cast<T>(0);
-  static constexpr T max_value = static_cast<T>(0);
-};
-
-// Alternative min,max option for the same type as non-template version
-template <typename T> struct NumberParamsAlt {
-  static constexpr T min_value = static_cast<T>(0);
-  static constexpr T max_value = static_cast<T>(0);
-};
-
-template <typename T, typename Params, typename W> class BaseNumber {
+/**
+ * @brief integer representation with special limits
+ */
+template <typename T> class LimitedInteger {
 public:
   // Constructor
-  explicit BaseNumber(T v = 0) {
-    if (v < Params::min_value || v > Params::max_value) {
-      throw std::out_of_range("Value is out of range.");
-    }
-    value = v;
-  }
+  LimitedInteger() = default;
 
-  explicit BaseNumber(W v) { set(v); }
+  explicit LimitedInteger(int v) { throw std::domain_error("using base ctor"); }
 
-  template <
-      typename U = T,
-      typename std::enable_if<!std::is_same<U, int32_t>::value, int>::type = 0>
-  explicit BaseNumber(int32_t v) {
-    set(v);
-  }
+  [[nodiscard]] virtual int getMin() const { return 0; }
 
-  // Overloading operators with same type
-  BaseNumber operator+(const BaseNumber &other) const {
-    return BaseNumber(check_range(value + other.value));
-  }
-
-  BaseNumber operator-(const BaseNumber &other) const {
-    return BaseNumber(check_range(value - other.value));
-  }
-
-  BaseNumber operator*(const BaseNumber &other) const {
-    return BaseNumber(check_range(value * other.value));
-  }
-
-  BaseNumber operator/(const BaseNumber &other) const {
-    if (other.value == 0) {
-      throw std::runtime_error("Division by zero");
-    }
-    return BaseNumber(check_range(value / other.value));
-  }
-
-  BaseNumber &operator+=(const BaseNumber &other) {
-    value = check_range(value + other.value);
-    return *this;
-  }
-
-  BaseNumber &operator-=(const BaseNumber &other) {
-    value = check_range(value - other.value);
-    return *this;
-  }
-
-  BaseNumber &operator*=(const BaseNumber &other) {
-    value = check_range(value * other.value);
-    return *this;
-  }
-
-  BaseNumber &operator/=(const BaseNumber &other) {
-    if (other.value == 0) {
-      throw std::runtime_error("Division by zero");
-    }
-    value = check_range(value / other.value);
-    return *this;
-  }
+  [[nodiscard]] virtual int getMax() const { return 0; }
 
   // Overloading operators with different types
-  template <typename U,
-            typename = std::enable_if_t<std::is_arithmetic<U>::value>>
-  BaseNumber operator+(const U &other) const {
-    return BaseNumber(check_range(value + other));
-  }
+  virtual int operator+(const int &other) const { return value + other; }
 
-  template <typename U,
-            typename = std::enable_if_t<std::is_arithmetic<U>::value>>
-  BaseNumber operator-(const U &other) const {
-    return BaseNumber(check_range(value - other));
-  }
+  virtual int operator-(const int &other) const { return value - other; }
 
-  template <typename U,
-            typename = std::enable_if_t<std::is_arithmetic<U>::value>>
-  BaseNumber operator*(const U &other) const {
-    return BaseNumber(check_range(value * other));
-  }
+  virtual int operator*(const int &other) const { return value * other; }
 
-  template <typename U,
-            typename = std::enable_if_t<std::is_arithmetic<U>::value>>
-  BaseNumber operator/(const U &other) const {
+  virtual int operator/(const int &other) const {
     if (other == 0) {
       throw std::runtime_error("Division by zero");
     }
-    return BaseNumber(check_range(value / other));
+    return value / other;
   }
 
-  template <typename U,
-            typename = std::enable_if_t<std::is_arithmetic<U>::value>>
-  BaseNumber &operator+=(const U &other) {
+  LimitedInteger &operator+=(const int &other) {
     value = check_range(value + other);
     return *this;
   }
 
-  template <typename U,
-            typename = std::enable_if_t<std::is_arithmetic<U>::value>>
-  BaseNumber &operator-=(const U &other) {
+  LimitedInteger &operator-=(const int &other) {
     value = check_range(value - other);
     return *this;
   }
 
-  template <typename U,
-            typename = std::enable_if_t<std::is_arithmetic<U>::value>>
-  BaseNumber &operator*=(const U &other) {
+  LimitedInteger &operator*=(const int &other) {
     value = check_range(value * other);
     return *this;
   }
 
-  template <typename U,
-            typename = std::enable_if_t<std::is_arithmetic<U>::value>>
-  BaseNumber &operator/=(const U &other) {
+  LimitedInteger &operator/=(const int &other) {
     if (other == 0) {
       throw std::runtime_error("Division by zero");
     }
@@ -172,63 +89,210 @@ public:
   }
 
   [[nodiscard]] T get() const { return value; }
-  void set(W v) {
-    if (v < Params::min_value || v > Params::max_value) {
-      throw std::out_of_range("Value is out of range.");
-    }
-    value = static_cast<T>(v);
-  }
+
+  void set(int v) { value = check_range(v); }
 
 protected:
-  T value;
-  template <typename U,
-            typename = std::enable_if_t<std::is_arithmetic<U>::value>>
-  [[nodiscard]] T check_range(U v) const {
-    if (v < Params::min_value || v > Params::max_value) {
+  T value{0};
+
+  [[nodiscard]] T check_range(int v) const {
+    if (v < getMin() || v > getMax()) {
       throw std::out_of_range("Value is out of range.");
     }
     return v;
   }
 };
 
-template <> struct NumberParams<uint8_t> {
-  static constexpr uint8_t min_value = 0;
-  static constexpr uint8_t max_value = 31;
-};
-template <> struct NumberParamsAlt<uint8_t> {
-  static constexpr uint8_t min_value = 0;
-  static constexpr uint8_t max_value = 127;
-};
-template <> struct NumberParams<uint16_t> {
-  static constexpr uint16_t min_value = 0;
-  static constexpr uint16_t max_value = 65535;
-};
-template <> struct NumberParams<int8_t> {
-  static constexpr int8_t min_value = -64;
-  static constexpr int8_t max_value = 63;
-};
-template <> struct NumberParams<int16_t> {
-  static constexpr int16_t min_value = -32768;
-  static constexpr int16_t max_value = 32767;
-};
-template <> struct NumberParams<float> {
-  static constexpr float min_value = -1.f;
-  static constexpr float max_value = 1.f;
+/**
+ * @brief unsigned integer of 5 bits size (0 - 31)
+ */
+class LimitedUInt5 : public LimitedInteger<uint8_t> {
+public:
+  // Constructor
+  LimitedUInt5() = default;
+
+  explicit LimitedUInt5(int v) { set(v); }
+
+  [[nodiscard]] int getMin() const override { return 0; }
+
+  [[nodiscard]] int getMax() const override { return 31; }
 };
 
-typedef BaseNumber<uint8_t, NumberParams<uint8_t>, uint32_t> LimitedUInt5;
-typedef BaseNumber<uint8_t, NumberParamsAlt<uint8_t>, uint32_t> LimitedUInt7;
-typedef BaseNumber<uint16_t, NumberParams<uint16_t>, uint32_t> LimitedUInt16;
-typedef BaseNumber<int8_t, NumberParams<int8_t>, int32_t> LimitedInt7;
-typedef BaseNumber<int16_t, NumberParams<int16_t>, int32_t> LimitedInt16;
-typedef BaseNumber<float_t, NumberParams<float>, double_t> NormalizedFloat;
+/**
+ * @brief unsigned integer of 7 bits size (0 - 127)
+ */
+class LimitedUInt7 : public LimitedInteger<uint8_t> {
+public:
+  // Constructor
+  LimitedUInt7() = default;
 
+  explicit LimitedUInt7(int v) { set(v); }
+
+  [[nodiscard]] int getMin() const override { return 0; }
+
+  [[nodiscard]] int getMax() const override { return 127; }
+};
+
+/**
+ * @brief unsigned integer of 16 bits size (0 - 65535)
+ */
+class LimitedUInt16 : public LimitedInteger<uint16_t> {
+public:
+  // Constructor
+  LimitedUInt16() = default;
+
+  explicit LimitedUInt16(int v) { set(v); }
+
+  [[nodiscard]] int getMin() const override { return 0; }
+
+  [[nodiscard]] int getMax() const override { return 65535; }
+};
+
+/**
+ * @brief signed integer of 7 bits size (-64 - 63)
+ */
+class LimitedInt7 : public LimitedInteger<int8_t> {
+public:
+  // Constructor
+  LimitedInt7() = default;
+
+  explicit LimitedInt7(int v) { set(v); }
+
+  [[nodiscard]] int getMin() const override { return -64; }
+
+  [[nodiscard]] int getMax() const override { return 63; }
+};
+
+/**
+ * @brief signed integer of 16 bits size (-32768 - 32767)
+ */
+class LimitedInt16 : public LimitedInteger<int16_t> {
+public:
+  // Constructor
+  LimitedInt16() = default;
+
+  explicit LimitedInt16(int v) { set(v); }
+
+  [[nodiscard]] int getMin() const override { return -32768; }
+
+  [[nodiscard]] int getMax() const override { return 32767; }
+};
+
+/**
+ * @brief normalized floating point value of 32 bits size (-1.0 - 1.0)
+ */
+class NormalizedFloat {
+public:
+  // Constructor
+  NormalizedFloat() = default;
+
+  explicit NormalizedFloat(int v) { set(v); }
+
+  explicit NormalizedFloat(float v) { set(v); }
+
+  [[nodiscard]] float getMin() const { return -1.f; }
+
+  [[nodiscard]] float getMax() const { return 1.f; }
+
+  // Overloading operators with different types
+  float operator+(const int &other) const { return value + other; }
+
+  float operator-(const int &other) const { return value - other; }
+
+  float operator*(const int &other) const { return value * other; }
+
+  float operator/(const int &other) const {
+    if (other == 0) {
+      throw std::runtime_error("Division by zero");
+    }
+    return value / other;
+  }
+
+  float operator+(const float &other) const { return value + other; }
+
+  float operator-(const float &other) const { return value - other; }
+
+  float operator*(const float &other) const { return value * other; }
+
+  float operator/(const float &other) const {
+    if (other == 0) {
+      throw std::runtime_error("Division by zero");
+    }
+    return value / other;
+  }
+
+  NormalizedFloat &operator+=(const int &other) {
+    value = check_range(value + other);
+    return *this;
+  }
+
+  NormalizedFloat &operator-=(const int &other) {
+    value = check_range(value - other);
+    return *this;
+  }
+
+  NormalizedFloat &operator*=(const int &other) {
+    value = check_range(value * other);
+    return *this;
+  }
+
+  NormalizedFloat &operator/=(const int &other) {
+    if (other == 0) {
+      throw std::runtime_error("Division by zero");
+    }
+    value = check_range(value / other);
+    return *this;
+  }
+
+  NormalizedFloat &operator+=(const float &other) {
+    value = check_range(value + other);
+    return *this;
+  }
+
+  NormalizedFloat &operator-=(const float &other) {
+    value = check_range(value - other);
+    return *this;
+  }
+
+  NormalizedFloat &operator*=(const float &other) {
+    value = check_range(value * other);
+    return *this;
+  }
+
+  NormalizedFloat &operator/=(const float &other) {
+    if (other == 0) {
+      throw std::runtime_error("Division by zero");
+    }
+    value = check_range(value / other);
+    return *this;
+  }
+
+  [[nodiscard]] float get() const { return value; }
+
+  void set(float v) { value = check_range(v); }
+
+protected:
+  float value{0};
+
+  [[nodiscard]] float check_range(float v) const {
+    if (v < getMin() || v > getMax()) {
+      throw std::out_of_range("Value is out of range.");
+    }
+    return v;
+  }
+};
+
+/**
+ * @brief raw bytes of 32 bits size
+ */
 class Byte32 {
 public:
   Byte32() : value(0) {}
+
   explicit Byte32(uint32_t val) : value(val) {}
 
   [[nodiscard]] uint32_t get() const { return value; }
+
   void set(uint32_t val) { value = val; }
 
 private:

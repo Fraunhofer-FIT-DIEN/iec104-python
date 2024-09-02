@@ -5,4 +5,4 @@ NormalizedCmd
 
 .. autoclass:: c104.NormalizedCmd
    :members:
-   :exclude-members:
+   :exclude-members: __new__

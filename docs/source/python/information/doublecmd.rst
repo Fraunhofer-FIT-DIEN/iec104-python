@@ -5,4 +5,4 @@ DoubleCmd
 
 .. autoclass:: c104.DoubleCmd
    :members:
-   :exclude-members:
+   :exclude-members: __new__

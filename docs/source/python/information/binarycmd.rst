@@ -5,4 +5,4 @@ BinaryCmd
 
 .. autoclass:: c104.BinaryCmd
    :members:
-   :exclude-members:
+   :exclude-members: __new__

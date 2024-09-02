@@ -5,4 +5,4 @@ SingleCmd
 
 .. autoclass:: c104.SingleCmd
    :members:
-   :exclude-members:
+   :exclude-members: __new__

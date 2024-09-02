@@ -5,4 +5,4 @@ ScaledCmd
 
 .. autoclass:: c104.ScaledCmd
    :members:
-   :exclude-members:
+   :exclude-members: __new__

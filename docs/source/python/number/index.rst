@@ -1,5 +1,5 @@
 Number
-=====
+=======
 
 .. toctree::
    :maxdepth: 4

@@ -5,4 +5,4 @@ Usigned Integer (16-bit)
 
 .. autoclass:: c104.UInt16
    :members:
-   :noindex:
+   :exclude-members: __new__

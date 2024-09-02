@@ -105,6 +105,9 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief bool value, quality and optional recorded_at timestamp
+ */
 class SingleInfo : public Information {
 protected:
   bool on;
@@ -137,6 +140,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief bool value, select or execute flag, qualifier of command and optional
+ * recorded_at timestamp
+ */
 class SingleCmd : public Command {
 protected:
   bool on;
@@ -179,6 +186,9 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief bool value with transition, quality and optional recorded_at timestamp
+ */
 class DoubleInfo : public Information {
 protected:
   DoublePointValue state;
@@ -211,6 +221,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief bool value with transition, select or execute flag, qualifier of
+ * command and optional recorded_at timestamp
+ */
 class DoubleCmd : public Command {
 protected:
   DoublePointValue state;
@@ -253,6 +267,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief step position value with transition info, quality and optional
+ * recorded_at timestamp
+ */
 class StepInfo : public Information {
 protected:
   LimitedInt7 position;
@@ -291,6 +309,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief step direction, select or execute flag, qualifier of command and
+ * optional recorded_at timestamp
+ */
 class StepCmd : public Command {
 protected:
   StepCommandValue step;
@@ -333,6 +355,9 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief binary value, quality and optional recorded_at timestamp
+ */
 class BinaryInfo : public Information {
 protected:
   Byte32 blob;
@@ -365,6 +390,9 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief binary value and optional recorded_at timestamp
+ */
 class BinaryCmd : public Command {
 protected:
   Byte32 blob;
@@ -393,6 +421,9 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief NormalizedFloat value, quality and optional recorded_at timestamp
+ */
 class NormalizedInfo : public Information {
 protected:
   NormalizedFloat actual;
@@ -426,6 +457,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief NormalizedFloat value, select or execute flag, qualifier of set-point
+ * command and optional recorded_at timestamp
+ */
 class NormalizedCmd : public Command {
 protected:
   NormalizedFloat target;
@@ -438,7 +473,7 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<NormalizedCmd> create(
       const NormalizedFloat target,
-      const LimitedUInt7 qualifier = LimitedUInt7{(uint32_t)0},
+      const LimitedUInt7 qualifier = LimitedUInt7{0},
       const std::optional<std::chrono::system_clock::time_point> recorded_at =
           std::nullopt) {
     return std::make_shared<NormalizedCmd>(target, false, qualifier,
@@ -466,6 +501,9 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief scaled LimitedInt16 value, quality and optional recorded_at timestamp
+ */
 class ScaledInfo : public Information {
 protected:
   LimitedInt16 actual;
@@ -498,6 +536,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief LimitedInt16 value, select or execute flag, qualifier of set-point
+ * command and optional recorded_at timestamp
+ */
 class ScaledCmd : public Command {
 protected:
   LimitedInt16 target;
@@ -509,8 +551,7 @@ protected:
 
 public:
   [[nodiscard]] static std::shared_ptr<ScaledCmd> create(
-      const LimitedInt16 target,
-      const LimitedUInt7 qualifier = LimitedUInt7{(uint32_t)0},
+      const LimitedInt16 target, const LimitedUInt7 qualifier = LimitedUInt7{0},
       const std::optional<std::chrono::system_clock::time_point> recorded_at =
           std::nullopt) {
     return std::make_shared<ScaledCmd>(target, false, qualifier, recorded_at,
@@ -538,6 +579,9 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief float value, quality and optional recorded_at timestamp
+ */
 class ShortInfo : public Information {
 protected:
   float actual;
@@ -570,6 +614,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief float value, select or execute flag, qualifier of set-point command
+ * and optional recorded_at timestamp
+ */
 class ShortCmd : public Command {
 protected:
   float target;
@@ -581,8 +629,7 @@ protected:
 
 public:
   [[nodiscard]] static std::shared_ptr<ShortCmd> create(
-      const float target,
-      const LimitedUInt7 qualifier = LimitedUInt7{(uint32_t)0},
+      const float target, const LimitedUInt7 qualifier = LimitedUInt7{0},
       const std::optional<std::chrono::system_clock::time_point> recorded_at =
           std::nullopt) {
     return std::make_shared<ShortCmd>(target, false, qualifier, recorded_at,
@@ -609,6 +656,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief binary counter value with read sequence number, quality and optional
+ * recorded_at timestamp
+ */
 class BinaryCounterInfo : public Information {
 protected:
   int32_t counter;
@@ -623,8 +674,7 @@ protected:
 
 public:
   [[nodiscard]] static std::shared_ptr<BinaryCounterInfo> create(
-      const int32_t counter,
-      const LimitedUInt5 sequence = LimitedUInt5{(uint32_t)0},
+      const int32_t counter, const LimitedUInt5 sequence = LimitedUInt5{0},
       const BinaryCounterQuality quality = BinaryCounterQuality::None,
       const std::optional<std::chrono::system_clock::time_point> recorded_at =
           std::nullopt) {
@@ -649,6 +699,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief event state info with elapsed_ms, quality and optional recorded_at
+ * timestamp
+ */
 class ProtectionEquipmentEventInfo : public Information {
 protected:
   EventState state;
@@ -688,6 +742,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief start events info with relay_duration_ms, quality and optional
+ * recorded_at timestamp
+ */
 class ProtectionEquipmentStartEventsInfo : public Information {
 protected:
   StartEvents events;
@@ -730,6 +788,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief output circuits info with replay_operating_ms, quality and optional
+ * recorded_at timestamp
+ */
 class ProtectionEquipmentOutputCircuitInfo : public Information {
 protected:
   OutputCircuits circuits;
@@ -772,6 +834,10 @@ public:
   [[nodiscard]] std::string toString() const override;
 };
 
+/**
+ * @brief 16 packed bool values with change indicator, quality and optional
+ * recorded_at timestamp
+ */
 class StatusWithChangeDetection : public Information {
 protected:
   FieldSet16 status;

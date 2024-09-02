@@ -36,6 +36,7 @@
 #include "Server.h"
 
 #include <pybind11/chrono.h>
+#include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
 #ifdef VERSION_INFO
@@ -59,116 +60,84 @@ struct EnvironmentInitializer {
 #endif
   }
 };
+
 // Initialize the environment variable before main() is called
 static EnvironmentInitializer initializer;
 
 // @todo Ubuntu 18 x64, Ubuntu 20 x64, arm7v32, later: arm aarch64
 
 // Bind Number with Template
-template <typename T, typename Params, typename W>
-py::class_<BaseNumber<T, Params, W>> bind_BaseNumber(py::module &m,
-                                                     const std::string &name) {
-  return py::class_<BaseNumber<T, Params, W>,
-                    std::shared_ptr<BaseNumber<T, Params, W>>>(m, name.c_str())
-      .def(py::init<T>())
-      .def(py::init<W>())
-      // Overloading operators with different types
-      .def("__add__", [](const BaseNumber<T, Params, W> &self,
-                         const W &other) { return self + other; })
-      .def("__sub__", [](const BaseNumber<T, Params, W> &self,
-                         const W &other) { return self - other; })
-      .def("__mul__", [](const BaseNumber<T, Params, W> &self,
-                         const W &other) { return self * other; })
-      .def("__truediv__", [](const BaseNumber<T, Params, W> &self,
-                             const W &other) { return self / other; })
-      .def("__iadd__",
-           [](BaseNumber<T, Params, W> &self, const W &other) {
-             self += other;
-             return self;
-           })
-      .def("__isub__",
-           [](BaseNumber<T, Params, W> &self, const W &other) {
-             self -= other;
-             return self;
-           })
-      .def("__imul__",
-           [](BaseNumber<T, Params, W> &self, const W &other) {
-             self *= other;
-             return self;
-           })
-      .def("__itruediv__",
-           [](BaseNumber<T, Params, W> &self, const W &other) {
-             self /= other;
-             return self;
-           })
-      .def("__int__",
-           [](const BaseNumber<T, Params, W> &a) {
-             T value = a.get();
-             return static_cast<int>(value);
-           })
-      .def("__float__",
-           [](const BaseNumber<T, Params, W> &a) {
-             T value = a.get();
-             return static_cast<float>(value);
-           })
-      .def("__str__",
-           [name](const BaseNumber<T, Params, W> &a) {
-             return std::to_string(a.get());
-           })
-      .def("__repr__", [name](const BaseNumber<T, Params, W> &a) {
-        return "<c104." + name + " value=" + std::to_string(a.get()) + ">";
-      });
+template <typename T>
+void bind_Number(py::module &m, const std::string &name,
+                 const bool with_float = false) {
+  auto py_number =
+      py::class_<T, std::shared_ptr<T>>(m, name.c_str())
+          .def(py::init<int>())
+          // Overloading operators with different types
+          .def(py::self + int())
+          .def(py::self - int())
+          .def(py::self * int())
+          .def(py::self / int())
+          .def(py::self += int())
+          .def(py::self -= int())
+          .def(py::self *= int())
+          .def(py::self /= int())
+          .def("__int__", [](T &a) { return static_cast<int>(a.get()); })
+          .def("__float__", [](T &a) { return static_cast<float>(a.get()); })
+          .def("__str__", [name](T &a) { return std::to_string(a.get()); })
+          .def("__repr__", [name](const T &a) {
+            return "<c104." + name + " value=" + std::to_string(a.get()) + ">";
+          });
+
+  if (with_float) {
+    py_number.def(py::init<float>())
+        .def_property_readonly("min", &T::getMin,
+                               "float: minimum value (read-only)")
+        .def_property_readonly("max", &T::getMax,
+                               "float: maximum value (read-only)")
+        .def(py::self + float())
+        .def(py::self - float())
+        .def(py::self * float())
+        .def(py::self / float())
+        .def(py::self += float())
+        .def(py::self -= float())
+        .def(py::self *= float())
+        .def(py::self /= float());
+  } else {
+    py_number
+        .def_property_readonly("min", &T::getMin,
+                               "int: minimum value (read-only)")
+        .def_property_readonly("max", &T::getMax,
+                               "int: maximum value (read-only)");
+  }
 }
 
 template <typename T>
-void bind_BitFlags_ops(py::class_<T> &py_bit_enum,
-                       std::string (*fn)(const T &)) {
-  py_bit_enum
-      .def(
-          "__and__", [](const T &a, T b) { return a & b; }, py::is_operator())
-      .def(
-          "__rand__", [](const T &a, T b) { return a & b; }, py::is_operator())
-      .def(
-          "__or__", [](const T &a, T b) { return a | b; }, py::is_operator())
-      .def(
-          "__ror__", [](const T &a, T b) { return a | b; }, py::is_operator())
-      .def(
-          "__xor__", [](const T &a, T b) { return a ^ b; }, py::is_operator())
-      .def(
-          "__rxor__", [](const T &a, T b) { return a ^ b; }, py::is_operator())
-      .def(
-          "__invert__", [](const T &a) { return ~a; }, py::is_operator())
-      .def(
-          "__iand__",
-          [](T &a, T b) {
-            a &= b;
-            return a;
-          },
-          py::is_operator())
-      .def(
-          "__ior__",
-          [](T &a, T b) {
-            a |= b;
-            return a;
-          },
-          py::is_operator())
-      .def(
-          "__ixor__",
-          [](T &a, T b) {
-            a ^= b;
-            return a;
-          },
-          py::is_operator())
-      .def(
-          "__contains__",
-          [](const T &mode, const T &flag) { return test(mode, flag); },
-          py::is_operator())
+void bind_BitFlags_ops(py::class_<T> &py_bit_enum, std::string (*fn)(const T &),
+                       bool is_quality = false) {
+  py_bit_enum.def(py::self & py::self)
+      .def(py::self | py::self)
+      .def(py::self ^ py::self)
+      .def(py::self == py::self)
+      .def(py::self != py::self)
+      .def(py::self &= py::self)
+      .def(py::self |= py::self)
+      .def(py::self ^= py::self)
+      .def("__contains__",
+           [](const T &mode, const T &flag) { return test(mode, flag); })
       .def(
           "is_any", [](const T &mode) { return is_any(mode); },
-          "test if there are any flags set")
-      .def(
-          "is_good", [](const T &mode) { return is_none(mode); },
-          "test if there are no flags set");
+          "test if there are any flags set");
+
+  if (is_quality) {
+    py_bit_enum.def(
+        "is_good", [](const T &mode) { return is_none(mode); },
+        "test if there are no flags set");
+  } else {
+    py_bit_enum.def(
+        "is_none", [](const T &mode) { return is_none(mode); },
+        "test if there are no flags set");
+  }
 
   py_bit_enum.attr("__str__") =
       py::cpp_function(fn, py::name("__str__"), py::is_method(py_bit_enum));
@@ -549,7 +518,7 @@ PY_MODULE(c104, m) {
           .value("NonTopical", Quality::NonTopical)
           .value("Invalid", Quality::Invalid)
           .def(py::init([]() { return Quality::None; }));
-  bind_BitFlags_ops(py_quality, &Quality_toString);
+  bind_BitFlags_ops(py_quality, &Quality_toString, true);
 
   auto py_bcrquality =
       py::enum_<BinaryCounterQuality>(
@@ -560,7 +529,7 @@ PY_MODULE(c104, m) {
           .value("Carry", BinaryCounterQuality::Carry)
           .value("Invalid", BinaryCounterQuality::Invalid)
           .def(py::init([]() { return BinaryCounterQuality::None; }));
-  bind_BitFlags_ops(py_bcrquality, &BinaryCounterQuality_toString);
+  bind_BitFlags_ops(py_bcrquality, &BinaryCounterQuality_toString, true);
 
   auto py_start_events =
       py::enum_<StartEvents>(
@@ -612,12 +581,12 @@ PY_MODULE(c104, m) {
           .def(py::init([]() { return FieldSet16::None; }));
   bind_BitFlags_ops(py_field_set, &FieldSet16_toString);
 
-  bind_BaseNumber<uint8_t, NumberParams<uint8_t>, uint32_t>(m, "UInt5");
-  bind_BaseNumber<uint8_t, NumberParamsAlt<uint8_t>, uint32_t>(m, "UInt7");
-  bind_BaseNumber<uint16_t, NumberParams<uint16_t>, uint32_t>(m, "UInt16");
-  bind_BaseNumber<int8_t, NumberParams<int8_t>, int32_t>(m, "Int7");
-  bind_BaseNumber<int16_t, NumberParams<int16_t>, int32_t>(m, "Int16");
-  bind_BaseNumber<float, NumberParams<float>, double>(m, "NormalizedFloat");
+  bind_Number<LimitedUInt5>(m, "UInt5");
+  bind_Number<LimitedUInt7>(m, "UInt7");
+  bind_Number<LimitedUInt16>(m, "UInt16");
+  bind_Number<LimitedInt7>(m, "Int7");
+  bind_Number<LimitedInt16>(m, "Int16");
+  bind_Number<NormalizedFloat>(m, "NormalizedFloat", true);
 
   py::class_<Byte32>(m, "Byte32")
       .def(py::init<uint32_t>())
@@ -1446,11 +1415,11 @@ PY_MODULE(c104, m) {
           "int: primary originator address of this connection (0-255)")
       .def_property_readonly("connected_at",
                              &Remote::Connection::getConnectedAt,
-                             "Optional[datetime.datetime]: datetime of "
+                             "datetime.datetime | None: datetime of "
                              "disconnect, if connection is closed (read-only)")
       .def_property_readonly("disconnected_at",
                              &Remote::Connection::getDisconnectedAt,
-                             "Optional[datetime.datetime]: test if connection "
+                             "datetime.datetime | None: test if connection "
                              "is muted (read-only)")
       .def("connect", &Remote::Connection::connect, R"def(
     connect(self: c104.Connection) -> None
@@ -2123,9 +2092,11 @@ PY_MODULE(c104, m) {
       "This class represents all specialized kind of information a specific "
       "point may have")
       .def_property_readonly("value", &Object::Information::getValue,
-                             "Any: mixed InfoValue type")
+                             "Any: mixed InfoValue type (read-only). The "
+                             "setter is available via point.value=xyz")
       .def_property_readonly("quality", &Object::Information::getQuality,
-                             "Any: mixed InfoQuality type")
+                             "Any: mixed InfoQuality type (read-only). The "
+                             "setter is available via point.quality=xyz")
       .def_property_readonly(
           "processed_at", &Object::Information::getProcessedAt,
           "datetime.datetime: timestamp with milliseconds of last local "
@@ -2423,7 +2394,7 @@ PY_MODULE(c104, m) {
     -------
     >>> normalized_cmd = c104.NormalizedCmd(target=c104.NormalizedFloat(23.45), qualifier=c104.UInt7(123), recorded_at=datetime.datetime.utcnow())
 )def",
-           "target"_a, "qualifier"_a = LimitedUInt7((uint32_t)0),
+           "target"_a, "qualifier"_a = LimitedUInt7(0),
            "recorded_at"_a = py::none())
       .def_property_readonly(
           "target", &Object::NormalizedCmd::getTarget,
@@ -2483,7 +2454,7 @@ PY_MODULE(c104, m) {
     -------
     >>> scaled_cmd = c104.ScaledCmd(target=c104.Int16(-2345), qualifier=c104.UInt7(123), recorded_at=datetime.datetime.utcnow())
 )def",
-           "target"_a, "qualifier"_a = LimitedUInt7((uint32_t)0),
+           "target"_a, "qualifier"_a = LimitedUInt7(0),
            "recorded_at"_a = py::none())
       .def_property_readonly("target", &Object::ScaledCmd::getTarget,
                              ":ref:`c104.Int16`: the value (read-only)")
@@ -2542,7 +2513,7 @@ PY_MODULE(c104, m) {
     -------
     >>> short_cmd = c104.ShortCmd(target=-23.45, qualifier=c104.UInt7(123), recorded_at=datetime.datetime.utcnow())
 )def",
-           "target"_a, "qualifier"_a = LimitedUInt7((uint32_t)0),
+           "target"_a, "qualifier"_a = LimitedUInt7(0),
            "recorded_at"_a = py::none())
       .def_property_readonly("target", &Object::ShortCmd::getTarget,
                              "float: the value (read-only)")
@@ -2576,7 +2547,7 @@ PY_MODULE(c104, m) {
     -------
     >>> counter_info = c104.BinaryCounterInfo(counter=2345, sequence=c104.UInt5(35), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
-           "counter"_a, "sequence"_a = LimitedUInt5((uint32_t)0),
+           "counter"_a, "sequence"_a = LimitedUInt5(0),
            "quality"_a = Quality::None, "recorded_at"_a = py::none())
       .def_property_readonly("counter", &Object::BinaryCounterInfo::getCounter,
                              "int: the value (read-only)")
@@ -2610,7 +2581,7 @@ PY_MODULE(c104, m) {
     -------
     >>> single_event = c104.ProtectionEventInfo(state=c104.EventState.ON, elapsed_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
-           "state"_a, "elapsed_ms"_a = LimitedUInt16((uint32_t)0),
+           "state"_a, "elapsed_ms"_a = LimitedUInt16(0),
            "quality"_a = Quality::None, "recorded_at"_a = py::none())
       .def_property_readonly("state",
                              &Object::ProtectionEquipmentEventInfo::getState,
@@ -2646,7 +2617,7 @@ PY_MODULE(c104, m) {
     -------
     >>> start_events = c104.ProtectionStartInfo(events=c104.StartEvents.ON, relay_duration_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
-           "events"_a, "relay_duration_ms"_a = LimitedUInt16((uint32_t)0),
+           "events"_a, "relay_duration_ms"_a = LimitedUInt16(0),
            "quality"_a = Quality::None, "recorded_at"_a = py::none())
       .def_property_readonly(
           "events", &Object::ProtectionEquipmentStartEventsInfo::getEvents,
@@ -2683,7 +2654,7 @@ PY_MODULE(c104, m) {
     -------
     >>> output_circuits = c104.ProtectionCircuitInfo(events=c104.OutputCircuits.PhaseL1|c104.OutputCircuits.PhaseL2, relay_operating_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.utcnow())
 )def",
-           "events"_a, "relay_duration_ms"_a = LimitedUInt16((uint32_t)0),
+           "events"_a, "relay_duration_ms"_a = LimitedUInt16(0),
            "quality"_a = Quality::None, "recorded_at"_a = py::none())
       .def_property_readonly(
           "circuits",
