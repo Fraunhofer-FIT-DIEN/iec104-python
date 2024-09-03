@@ -5,4 +5,3 @@ OutputCircuits
 
 .. autoclass:: c104.OutputCircuits
    :members:
-   :noindex:

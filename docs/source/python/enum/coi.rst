@@ -5,4 +5,3 @@ Coi (Cause of Initialization)
 
 .. autoclass:: c104.Coi
    :members:
-   :noindex:

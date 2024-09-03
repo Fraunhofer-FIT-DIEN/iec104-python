@@ -5,4 +5,3 @@ Double
 
 .. autoclass:: c104.Double
    :members:
-   :noindex:

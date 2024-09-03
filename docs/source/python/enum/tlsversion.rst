@@ -5,4 +5,3 @@ TlsVersion
 
 .. autoclass:: c104.TlsVersion
    :members:
-   :noindex:

@@ -5,7 +5,6 @@ Type
 
 .. autoclass:: c104.Type
    :members:
-   :noindex:
 
 Float, Short, NaN
 -----------------

@@ -1,7 +1,24 @@
-graft depends
+graft depends/lib60870/lib60870-C/config
+graft depends/lib60870/lib60870-C/src
+include depends/lib60870/lib60870-C/CMakeLists.txt
+include depends/lib60870/COPYING
+include depends/lib60870.patch
+
+graft depends/mbedtls/library
+graft depends/mbedtls/include
+include depends/mbedtls/CMakeLists.txt
+include depends/mbedtls/LICENSE
+
+graft depends/pybind11/include
+graft depends/pybind11/pybind11
+graft depends/pybind11/tools
+include depends/pybind11/CMakeLists.txt
+include depends/pybind11/LICENSE
+
 graft src
-include tests/*.cpp
+exclude src/main_client.cpp
+exclude src/main_server.cpp
+
 global-exclude **/.*
-prune **/.*
-prune **/docs
-include CHANGELOG.md CMakeLists.txt LICENSE README.md pyproject.toml setup.cfg setup.py
+prune **/tests
+include CMakeLists.txt LICENSE README.md pyproject.toml setup.cfg setup.py

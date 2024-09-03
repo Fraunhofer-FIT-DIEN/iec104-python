@@ -5,4 +5,3 @@ Cot (Cause of Transmission)
 
 .. autoclass:: c104.Cot
    :members:
-   :noindex:

@@ -7,22 +7,37 @@ v2.0
 Features
 ^^^^^^^^^
 
-- Support for equipment protection points (*M_EP_TD_1*, *M_EP_TE_1*, *M_EP_TF_1*) and status with change detection (*M_PS_NA_1*)
-- Command mode select and execute with automatic selection timeout
-- Added point timer callback for extended event driven transmission scenarios
-- Added Option *MUTED* to *c104.Init*, to open a connection in muted state
-- Extended datetime.datetime support
-- Performance and stability improvements
-- Improved string representation for all classes
-- Improved type safety
+- Add support for equipment protection points (*M_EP_TD_1*, *M_EP_TE_1*, *M_EP_TF_1*) and status with change detection (*M_PS_NA_1*)
+- Add advanced property support for all messages
+- Add point timer callback for extended event driven transmission scenarios
+- Add option *c104.Init.MUTED*, to open a connection in muted state
+- Add extended datetime.datetime support
+- Add support for information object address **0**
+- Improve command mode select and execute with automatic selection timeout
+- Improve performance and stability
+- Improve string representation for all classes
+- Improve type safety
 
 Breaking Changes
 ^^^^^^^^^^^^^^^^^
 
 - Dropped python 3.6 support, since pybind11 does not support
+- c104.Point signature changes (see below)
+- c104.Station signature changes (see below)
+- c104.Client signature changes (see below)
+- c104.Connection signature changes (see below)
+- c104.Server signature changes (see below)
+- c104.IncomingMessage signature changes (see below)
+- Renamed enum property **c104.Qoc.CONTINUOUS** to **c104.Qoc.PERSISTENT**. \
+  This corresponds to the standard description for Qualifier of command.
+- Removed deprecated function **c104.add_server(...)**, use ``c104.Server()`` constructor instead
+- Removed deprecated function **c104.remove_server(...)**, remove last reference to server instance instead
+- Removed deprecated function **c104.add_client(...)**, use ``c104.Client()`` constructor instead
+- Removed deprecated function **c104.remove_client(...)**, remove last reference to client instance instead
 
-c104.Point
-"""""""""""""""""
+
+Changed signatures in c104.Point
+""""""""""""""""""""""""""""""""
 
 The concept of a points value is not enough to support all properties of all protocol messages. Therefore, the value was replaced by individual information objects. Every point type has a specific information type that stores a specific value type but also other properties. This also ensures type safety because there is no automatic cast from a Python number to a required value class.
 
@@ -44,7 +59,7 @@ The concept of a points value is not enough to support all properties of all pro
         pe_circuit_point.info = c104.ProtectionCircuitInfo(c104.OutputCircuits.PhaseL1)
         pe_changed_point.info = c104.StatusAndChanged(c104.PackedSingle.I0)
 
-- Changed signature of **point.value** ``float`` **->** ``Union[None,bool,c104.Double,c104.Step,c104.Int7,c104.Int16,int,c104.Byte32,c104.NormalizedFloat,float,c104.EventState,c104.StartEvents,c104.OutputCircuits,c104.PackedSingle]``
+- Changed signature of **point.value** ``float`` **->** ``typing.Union[None, bool, c104.Double, c104.Step, c104.Int7, c104.Int16, int, c104.Byte32, c104.NormalizedFloat, float, c104.EventState, c104.StartEvents, c104.OutputCircuits, c104.PackedSingle]``
   The *point.value* property is a shortcut to *point.info.value* for convenience.
   Example: ``single_point.value = False``
 
@@ -52,7 +67,7 @@ The concept of a points value is not enough to support all properties of all pro
 - Removed property **point.value_int32**
 - Removed property **point.value_float**
 
-- Changed signature of **point.quality** ``c104.Quality`` **->** ``Union[None,c104.Quality,c104.BinaryCounterQuality]``
+- Changed signature of **point.quality** ``c104.Quality`` **->** ``typing.Union[None, c104.Quality, c104.BinaryCounterQuality]``
   The *point.quality* property is a shortcut to *point.info.quality* and returns point-specific types. For points without quality information, this will be None. Calling ``point.quality.is_good()`` can therefore result in an error if ``point.quality`` is **None**.
 
 - Removed **point.set(...)** method
@@ -67,15 +82,15 @@ The concept of a points value is not enough to support all properties of all pro
 - Removed property **point.sent_at_ms**: ``int``, use ``point.processed_at`` instead
 - Removed property **point.reported_at_ms**: ``int``, use ``point.processed_at`` instead
 
-- Added read-only property **point.recorded_at**: ``Optional[datetime.datetime]``
+- Added read-only property **point.recorded_at**: ``typing.Optional[datetime.datetime]``
   The timestamp sent with the info via protocol. At the sender side, this value will be set on info creation time and updated on info.value assigning. This timestamp will not be updated on point transmission. The property can be None, if the protocol message type does not contain a timestamp.
 - Added read-only property **point.processed_at**: ``datetime.datetime``
   This timestamp stands for the last sending or receiving timestamp of this info.
-- Added read-only property **point.selected_by**: ``Optional[int]``
+- Added read-only property **point.selected_by**: ``typing.Optional[int]``
   If select this will be the originator address, otherwise None
 - Changed signature of method **point.transmit** (cause: c104.Cot = c104.Cot.UNKNOWN_COT, qualifier: c104.Qoc = c104.Qoc.NONE) -> point.transmit(cause: c104.Cot)
   The qualifier is now part of the info object of command points and can be set via a new info assignment. The cause qualifier does not have a default value anymore so that this argument is obligatory now.
-- Changed signature of **point.related_io_address** to accept None as value: ``int`` **->** ``Optional[int]``
+- Changed signature of **point.related_io_address** to accept None as value: ``int`` **->** ``typing.Optional[int]``
   This is necessary to accept a value of 0 as a valid io_address.
 - Changed signature of **point.on_receive(...)** callback signature from ``(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState`` to ``(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState`` \
   The argument ``previous_state: dict`` was replaced by argument ``previous_info: c104.Information``. Since all relevant is accessible via the info object, a dict is not required anymore. Instead, the previous info object will be provided.
@@ -87,32 +102,32 @@ The concept of a points value is not enough to support all properties of all pro
   This property defines the interval between two on_timer callback executions. \
   This property can only be changed via the ``point.on_timer(...)`` method
 
-c104.Station
-"""""""""""""""""
+Changed signatures in c104.Station
+"""""""""""""""""""""""""""""""""""
 - Changed signature of method **station.add_point(...)** \
   Parameter *io_address* accepts a value of ``0``. \
   Parameter *related_io_address*  accepts a value of ``0`` as valid IOA and a value of ``None`` as not set
 
-c104.IncomingMessage
-"""""""""""""""""""""
+Changed signatures in c104.IncomingMessage
+"""""""""""""""""""""""""""""""""""""""""""
 - Added read-only property info: Union[...]
 - Removed property command_qualifier, use message.info.qualifier instead
 - Removed property connection_string
 - Removed property value
 - Removed property quality
 
-c104.Client
-"""""""""""""""""
+Changed signatures in c104.Client
+""""""""""""""""""""""""""""""""""
 - Changed signature of **constructor**
   Reduced default value of argument **command_timeout_ms** from ``1000ms`` to ``100ms``. \
   Reduced default value of argument **tick_rate_ms** from ``1000ms`` to ``100ms``. \
   The minimum tick rate is ``50ms``.
 - Added read-only property **client.tick_rate_ms**: ``int``
 
-c104.Connection
-"""""""""""""""""
-- Added read-only property **connection.connected_at**: ``Optional[datetime.datetime]``
-- Added read-only property **connection.disconnected_at**: ``Optional[datetime.datetime]``
+Changed signatures in c104.Connection
+""""""""""""""""""""""""""""""""""""""
+- Added read-only property **connection.connected_at**: ``typing.Optional[datetime.datetime]``
+- Added read-only property **connection.disconnected_at**: ``typing.Optional[datetime.datetime]``
 - Add c104.Init.MUTED to connect to a server without activating the message transmission.
 - Removed c104.ConnectionState values: OPEN_AWAIT_UNMUTE, OPEN_AWAIT_INTERROGATION, OPEN_AWAIT_CLOCK_SYNC
   The connection will change from CLOSED_AWAIT_OPEN to OPEN_MUTED, will then execute the init commands, if any and change the state afterwards to OPEN if init != c104.Init.MUTED. The intermediary states are not required anymore.
@@ -123,42 +138,21 @@ c104.Connection
   while connection.state != c104.ConnectionState.OPEN:
   time.sleep(1)
 
-c104.Server
-"""""""""""""""""
+Changed signatures in c104.Server
+""""""""""""""""""""""""""""""""""
 - Changed signature of **constructor** \
   Add argument **select_timeout_ms** to constructor with default value ``100ms`` \
   Reduced default value of **tick_rate_ms** from ``1000ms`` to ``100ms``. \
   The minimum tick rate is 50ms.
 - Added read-only property **client.tick_rate_ms**: ``int``
 
-c104 Enums, Numbers and Helper Classes
-"""""""""""""""""""""""""""""""""""""""
-- Renamed enum property **c104.Qoc.CONTINUOUS** to **c104.Qoc.PERSISTENT** \
-  This corresponds to the standard description for Qualifier of command.
-
-c104 Global functions
-""""""""""""""""""""""
-- Removed deprecated function **c104.add_server(...)**, use ``c104.Server()`` constructor instead
-- Removed deprecated function **c104.remove_server(...)**, remove last reference to server instance instead
-- Removed deprecated function **c104.add_client(...)**, use ``c104.Client()`` constructor instead
-- Removed deprecated function **c104.remove_client(...)**, remove last reference to client instance instead
-
 Bugfixes
 ^^^^^^^^^^
-- Accept **io_address=0** for points
 - Read property **IncomingMessage.raw** caused SIGABRT
 - **Server.active_connection_count** counts also inactive open connections
 - fix select detection in **c104.explain_bytes_dict(...)**
 - **point.transmit(...)** throws an exception if the same point is in an active transmission
 - auto set environment variable **PYTHONUNBUFFERED** to avoid delayed print output from Python callbacks
-
-Dependencies
-^^^^^^^^^^^^^
-- Update catch2 to 3.7.0
-- Update pybind11 to 2.13.5
-- Update lib60870-C to latest (>2.3.3)
-- Update mbedtls to 2.28.8
-
 
 v1.18
 -------

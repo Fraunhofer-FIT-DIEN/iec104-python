@@ -5,4 +5,3 @@ StartEvents
 
 .. autoclass:: c104.StartEvents
    :members:
-   :noindex:

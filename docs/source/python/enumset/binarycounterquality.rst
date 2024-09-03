@@ -5,4 +5,3 @@ BinaryCounterQuality
 
 .. autoclass:: c104.BinaryCounterQuality
    :members:
-   :noindex:

@@ -5,4 +5,3 @@ Quality
 
 .. autoclass:: c104.Quality
    :members:
-   :noindex:

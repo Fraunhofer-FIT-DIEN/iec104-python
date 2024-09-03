@@ -42,7 +42,7 @@ cl_connection_1 = my_client.add_connection(ip="127.0.0.1", port=2404, init=c104.
 
 
 def cl_pt_on_receive_point(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("CL] {0} REPORT on IOA: {1} , cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
+    print("CL] {0} REPORT on IOA: {1} , message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
     # print("{0}".format(message.is_negative))
     # print("-->| POINT: 0x{0} | EXPLAIN: {1}".format(message.raw.hex(), c104.explain_bytes(apdu=message.raw)))
     return c104.ResponseState.SUCCESS
@@ -163,7 +163,7 @@ my_server.on_unexpected_message(callable=sv_on_unexpected_message)
 ##################################
 
 def sv_pt_on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} SETPOINT COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
+    print("SV] {0} SETPOINT COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
     if point.related_io_address:
         print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
@@ -197,7 +197,7 @@ sv_measurement_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
 ##################################
 
 def sv_pt_on_double_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} DOUBLE COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
+    print("SV] {0} DOUBLE COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
     if point.related_io_address:
         print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
@@ -226,7 +226,7 @@ sv_global_step_point_value = c104.Int7(0)
 
 def sv_pt_on_step_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     global sv_global_step_point_value
-    print("SV] {0} STEP COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
+    print("SV] {0} STEP COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
     if point.value == c104.Step.LOWER:
         sv_global_step_point_value -= 1

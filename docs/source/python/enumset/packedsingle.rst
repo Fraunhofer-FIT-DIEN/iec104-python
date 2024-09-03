@@ -5,4 +5,3 @@ PackedSingle
 
 .. autoclass:: c104.PackedSingle
    :members:
-   :noindex:

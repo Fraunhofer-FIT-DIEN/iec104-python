@@ -5,4 +5,3 @@ CommandMode
 
 .. autoclass:: c104.CommandMode
    :members:
-   :noindex:

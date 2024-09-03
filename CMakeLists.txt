@@ -99,12 +99,27 @@ set(BUILD_EXAMPLES
 set(BUILD_TESTS
     OFF
     CACHE BOOL "Build the tests")
-message(STATUS "Copy mbedtls")
-file(
-  COPY depends/mbedtls/library depends/mbedtls/include
-       depends/mbedtls/CMakeLists.txt
-  DESTINATION
-    ${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-2.28)
+if(EXISTS "${PROJECT_SOURCE_DIR}/depends/mbedtls/library")
+  message(STATUS "> copy mbedtls")
+  file(
+    MAKE_DIRECTORY
+    "${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-2.28"
+  )
+  file(
+    COPY depends/mbedtls/library depends/mbedtls/include
+         depends/mbedtls/CMakeLists.txt
+    DESTINATION
+      ${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-2.28
+  )
+else()
+  if(EXISTS
+     "${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-2.28/library"
+  )
+    message(STATUS " > Use existing copy of mbedtls")
+  else()
+    message(FATAL_ERROR "> mbedtls not found")
+  endif()
+endif()
 add_subdirectory(depends/lib60870/lib60870-C)
 list(APPEND c104_PRIVATE_LIBRARIES lib60870)
 list(APPEND c104_tests_PRIVATE_LIBRARIES lib60870)
@@ -167,35 +182,42 @@ target_compile_definitions(c104 PRIVATE VERSION_INFO=\"${C104_VERSION_INFO}\")
 # Tests with Catch2
 # ##############################################################################
 
-add_executable(c104_tests ${c104_SOURCES} tests/test_object_datapoint.cpp
-                          tests/test_object_station.cpp tests/main.cpp)
+if(EXISTS "${PROJECT_SOURCE_DIR}/depends/catch/src"
+   AND EXISTS "${PROJECT_SOURCE_DIR}/tests/main.cpp")
+  message(STATUS "Add catch2 and tests")
 
-if(TARGET c104_tests)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
+  add_executable(c104_tests ${c104_SOURCES} tests/test_object_datapoint.cpp
+                            tests/test_object_station.cpp tests/main.cpp)
 
-  add_subdirectory(depends/catch)
-  list(APPEND c104_tests_PRIVATE_LIBRARIES Catch2::Catch2)
+  if(TARGET c104_tests)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
 
-  if(c104_tests_PRIVATE_LIBRARIES)
-    target_link_libraries(c104_tests PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
+    add_subdirectory(depends/catch)
+    list(APPEND c104_tests_PRIVATE_LIBRARIES Catch2::Catch2)
+
+    if(c104_tests_PRIVATE_LIBRARIES)
+      target_link_libraries(c104_tests PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
+    endif()
+
+    include(CTest)
+    include(Catch)
+    catch_discover_tests(c104_tests)
+
   endif()
 
-  include(CTest)
-  include(Catch)
-  catch_discover_tests(c104_tests)
+  add_executable(c104_test_client ${c104_SOURCES} src/main_client.cpp)
 
-endif()
+  if(c104_tests_PRIVATE_LIBRARIES)
+    target_link_libraries(c104_test_client
+                          PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
+  endif()
 
-add_executable(c104_test_client ${c104_SOURCES} src/main_client.cpp)
+  add_executable(c104_test_server ${c104_SOURCES} src/main_server.cpp)
 
-if(c104_tests_PRIVATE_LIBRARIES)
-  target_link_libraries(c104_test_client
-                        PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
-endif()
-
-add_executable(c104_test_server ${c104_SOURCES} src/main_server.cpp)
-
-if(c104_tests_PRIVATE_LIBRARIES)
-  target_link_libraries(c104_test_server
-                        PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
+  if(c104_tests_PRIVATE_LIBRARIES)
+    target_link_libraries(c104_test_server
+                          PRIVATE ${c104_tests_PRIVATE_LIBRARIES})
+  endif()
+else()
+  message(STATUS "Skip catch2 and tests")
 endif()
