@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bitset>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -48,17 +49,31 @@
 #include <pybind11/pybind11.h>
 #include <queue>
 #include <regex>
+#include <sstream>
 #include <string>
 #include <thread>
+#include <variant>
 #include <vector>
 
 #include "enums.h"
+#include "numbers.h"
 
-#define DEBUG_PRINT_CONDITION(X, Y, Z) (X ? printDebugMessage(Y, Z) : (void)0)
+#define DEBUG_PRINT_CONDITION(X, Y, Z)                                         \
+  ((X) ? printDebugMessage((Y), (Z)) : (void)0)
 #define DEBUG_PRINT(mode, Y)                                                   \
-  (::test(GLOBAL_DEBUG_MODE.load(), mode) ? printDebugMessage(mode, Y)         \
+  (::test(GLOBAL_DEBUG_MODE.load(), mode) ? printDebugMessage(mode, (Y))       \
                                           : (void)0)
 #define DEBUG_TEST(mode) ::test(GLOBAL_DEBUG_MODE.load(), mode)
+
+#define MICRO_SEC_STR u8" \xc2\xb5s"
+#define DIFF_MS(begin, end)                                                    \
+  std::chrono::duration_cast<std::chrono::microseconds>((end) - (begin)).count()
+#define TICTOC(begin, end)                                                     \
+  (std::to_string(DIFF_MS(begin, end)) +                                       \
+   std::string(reinterpret_cast<const char *>(MICRO_SEC_STR)))
+#define TICTOCNOW(begin) TICTOC(begin, std::chrono::steady_clock::now())
+#define MAX_INFORMATION_OBJECT_ADDRESS 16777215
+#define UNDEFINED_INFORMATION_OBJECT_ADDRESS 16777216
 
 extern std::atomic<Debug> GLOBAL_DEBUG_MODE;
 
@@ -71,6 +86,16 @@ void enableDebug(Debug mode);
 void disableDebug(Debug mode);
 
 void printDebugMessage(Debug mode, const std::string &message);
+
+std::string bool_toString(const bool &val);
+
+std::string Byte32_toString(const Byte32 &byte);
+
+std::string
+TimePoint_toString(const std::chrono::system_clock::time_point &time);
+
+std::string TimePoint_toString(
+    const std::optional<std::chrono::system_clock::time_point> &time);
 
 /**
  * @brief Validate and convert an ip address from string to in_addr struct
@@ -86,15 +111,33 @@ void Assert_IPv4(const std::string &s);
  */
 void Assert_Port(int_fast64_t port);
 
-/**
- * @brief Get the time since epoch in milliseconds
- * @return number of milliseconds since 2000-01-01 00:00:00
- */
-uint_fast64_t GetTimestamp_ms();
+std::chrono::system_clock::time_point to_time_point(const CP56Time2a time);
+void from_time_point(CP56Time2a time,
+                     const std::chrono::system_clock::time_point time_point);
+
+struct Task {
+  std::function<void()> function;
+  std::chrono::steady_clock::time_point schedule_time;
+  bool operator<(const Task &rhs) const {
+    return schedule_time > rhs.schedule_time;
+  }
+};
+constexpr auto TASK_DELAY_THRESHOLD = std::chrono::milliseconds(100);
+
+typedef std::variant<std::monostate, bool, DoublePointValue, LimitedInt7,
+                     StepCommandValue, Byte32, NormalizedFloat, LimitedInt16,
+                     float, int32_t, EventState, StartEvents, OutputCircuits,
+                     FieldSet16>
+    InfoValue;
+typedef std::variant<std::monostate, Quality, BinaryCounterQuality> InfoQuality;
+
+std::string InfoValue_toString(const InfoValue &value);
+std::string InfoQuality_toString(const InfoQuality &value);
 
 // forward declaration to avoid .h loop inclusion
 namespace Object {
 class DataPoint;
+class Information;
 
 class Station;
 } // namespace Object

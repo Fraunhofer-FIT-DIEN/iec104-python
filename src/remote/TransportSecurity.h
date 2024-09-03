@@ -95,6 +95,14 @@ private:
   TransportSecurity(bool validate, bool only_known);
 
   TLSConfiguration config{nullptr};
+
+public:
+  std::string toString() const {
+    std::ostringstream oss;
+    oss << "<104.TransportSecurity at " << std::hex << std::showbase
+        << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 } // namespace Remote
 

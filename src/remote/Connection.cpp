@@ -43,16 +43,16 @@ using namespace std::chrono_literals;
 
 Connection::Connection(
     std::shared_ptr<Client> _client, const std::string &_ip,
-    const uint_fast16_t _port, const uint_fast32_t command_timeout_ms,
+    const uint_fast16_t _port, const uint_fast16_t command_timeout_ms,
     const ConnectionInit _init,
     std::shared_ptr<Remote::TransportSecurity> transport_security,
     const uint_fast8_t originator_address)
-    : client(_client), ip(_ip), port(_port),
+    : client(_client), ip(_ip), port(_port), init(_init),
       commandTimeout_ms(command_timeout_ms) {
   Assert_IPv4(_ip);
   Assert_Port(_port);
 
-  if (transport_security.get() != nullptr) {
+  if (transport_security) {
     connection = CS104_Connection_createSecure(ip.c_str(), _port,
                                                transport_security->get());
   } else {
@@ -68,7 +68,7 @@ Connection::Connection(
   // timeout elapsed without confirmation the connection will
   // be closed. This is used by the sender to determine if
   // the receiver has failed to confirm a message.
-  param->t1 = std::max(1, (int)round(command_timeout_ms / 1000));
+  param->t1 = 1;
   // Timeout to confirm messages (in s). This timeout is used by
   // the receiver to determine the time when the message
   // confirmation has to be sent.
@@ -77,7 +77,6 @@ Connection::Connection(
   // connection
   CS104_Connection_setAPCIParameters(connection, param);
 
-  init.store(_init);
   if (originator_address > 0) {
     setOriginatorAddress(originator_address);
   }
@@ -113,9 +112,13 @@ void Connection::setState(ConnectionState connectionState) {
   if (prev != connectionState) {
     state.store(connectionState);
     if (py_onStateChange.is_set()) {
-      DEBUG_PRINT(Debug::Connection, "CALLBACK on_state_change");
-      Module::ScopedGilAcquire const scoped("Connection.on_state_change");
-      py_onStateChange.call(shared_from_this(), connectionState);
+      if (auto c = getClient()) {
+        c->scheduleTask([this, connectionState]() {
+          DEBUG_PRINT(Debug::Connection, "CALLBACK on_state_change");
+          Module::ScopedGilAcquire const scoped("Connection.on_state_change");
+          this->py_onStateChange.call(shared_from_this(), connectionState);
+        });
+      }
     }
     DEBUG_PRINT(Debug::Connection,
                 "state] " + ConnectionState_toString(prev) + " -> " +
@@ -149,51 +152,65 @@ std::shared_ptr<Client> Connection::getClient() const {
 
 void Connection::connect() {
   ConnectionState const current = state.load();
-  if (CLOSED != current && CLOSED_AWAIT_RECONNECT != current)
+  if (current == OPEN || current == OPEN_MUTED || CLOSED_AWAIT_OPEN == current)
     return;
 
-  Module::ScopedGilRelease const scoped("Connection.connect");
-  //    bool success = false;
-
-  // connect
-  setState(CLOSED_AWAIT_OPEN);
-  {
-    std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
-    // free connection thread if exists
-    CS104_Connection_close(connection);
-
-    // reconnect
-    CS104_Connection_connectAsync(connection);
+  if (current == OPEN_AWAIT_CLOSED) {
+    DEBUG_PRINT(Debug::Connection,
+                "connect] Wait for closing before reconnecting to " +
+                    getConnectionString());
+    setState(CLOSED_AWAIT_OPEN);
+    return;
   }
 
   DEBUG_PRINT(Debug::Connection,
               "connect] Asynchronous connect to " + getConnectionString());
+
+  // connect
+  setState(CLOSED_AWAIT_OPEN);
+
+  std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+
+  // free connection thread if exists
+  CS104_Connection_close(connection);
+
+  // reconnect
+  CS104_Connection_connectAsync(connection);
 }
 
 void Connection::disconnect() {
-  {
-    // free connection thread
-    std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
-    CS104_Connection_close(connection);
+  ConnectionState const current = state.load();
+  if (CLOSED == current || OPEN_AWAIT_CLOSED == current) {
+    return;
   }
 
-  if (isOpen()) {
-    setState(OPEN_AWAIT_CLOSED);
-
-    // print
+  if (current == CLOSED_AWAIT_OPEN) {
     DEBUG_PRINT(Debug::Connection,
-                "disconnect] Disconnect from " + getConnectionString());
-
-    // Thread_sleep(1000);
-  } else {
-    setState(CLOSED);
+                "connect] Wait for opening before closing to " +
+                    getConnectionString());
+    setState(OPEN_AWAIT_CLOSED);
+    return;
   }
+
+  if (CLOSED_AWAIT_RECONNECT == current) {
+    setState(CLOSED);
+  } else {
+    setState(OPEN_AWAIT_CLOSED);
+  }
+
+  // free connection thread
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS104_Connection_close(connection);
+  lock.unlock();
+
+  // print
+  DEBUG_PRINT(Debug::Connection,
+              "disconnect] Disconnect from " + getConnectionString());
 }
 
 bool Connection::isOpen() const {
   ConnectionState const current = state.load();
-  return OPEN_MUTED == current || OPEN_AWAIT_INTERROGATION == current ||
-         OPEN_AWAIT_CLOCK_SYNC == current || OPEN == current;
+  return current == OPEN || current == OPEN_MUTED;
 }
 
 bool Connection::isMuted() const { return state == OPEN_MUTED; }
@@ -228,101 +245,130 @@ bool Connection::unmute() {
   return true;
 }
 
-bool Connection::setMuted(bool value) {
-  bool const result = OPEN_MUTED == state.load();
-
-  if (isOpen()) {
+void Connection::setMuted(bool value) {
+  ConnectionState current = state.load();
+  if (OPEN == current && value) {
     // print
     DEBUG_PRINT(Debug::Connection,
-                "set_muted] Muted: " + std::to_string(value) +
-                    " for connection to " + getConnectionString());
+                "set_muted] Muted connection to " + getConnectionString());
+    setState(OPEN_MUTED);
+  } else if (OPEN_MUTED == current && !value) {
+    // print
+    DEBUG_PRINT(Debug::Connection,
+                "set_muted] Unmuted connection to " + getConnectionString());
 
-    if (value) {
-      setState(OPEN_MUTED);
-    } else {
-      switch (init) {
-      case INIT_ALL:
-      case INIT_INTERROGATION:
-        setState(OPEN_AWAIT_INTERROGATION);
-        break;
-      case INIT_CLOCK_SYNC:
-        setState(OPEN_AWAIT_CLOCK_SYNC);
-      default:
-        setState(OPEN);
+    switch (init) {
+    case INIT_ALL:
+      if (auto c = getClient()) {
+        c->scheduleTask(
+            [this]() {
+              this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
+                                  CS101_COT_ACTIVATION, QOI_STATION, true);
+              this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+              setState(OPEN);
+            },
+            -1);
       }
+      break;
+    case INIT_INTERROGATION:
+      if (auto c = getClient()) {
+        c->scheduleTask(
+            [this]() {
+              this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
+                                  CS101_COT_ACTIVATION, QOI_STATION, true);
+              setState(OPEN);
+            },
+            -1);
+      }
+      break;
+    case INIT_CLOCK_SYNC:
+      if (auto c = getClient()) {
+        c->scheduleTask(
+            [this]() {
+              this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+              setState(OPEN);
+            },
+            -1);
+      }
+      break;
+    default:
+      setState(OPEN);
     }
   }
-  return result;
 }
 
-bool Connection::setOpen() {
-  DEBUG_PRINT(Debug::Connection, "set_open] " + getConnectionString());
+void Connection::setOpen() {
   // DO NOT LOCK connection_mutex: connect locks
-  ConnectionState const current = state.load();
+  ConnectionState current = state.load();
 
-  if (current == OPEN || current == OPEN_MUTED ||
-      current == OPEN_AWAIT_CLOSED) {
+  if (OPEN == current || OPEN_MUTED == current) {
     // print
     DEBUG_PRINT(Debug::Connection,
                 "set_open] Already opened to " + getConnectionString());
-    return false;
-  } else {
-    // print
-    DEBUG_PRINT(Debug::Connection,
-                "set_open] Opening connection to " + getConnectionString());
+    return;
   }
 
-  setState(OPEN_MUTED);
+  if (OPEN_AWAIT_CLOSED == current) {
+    if (auto c = getClient()) {
+      c->scheduleTask([this]() { this->disconnect(); }, -1);
+    }
+    return;
+  }
+
+  if (INIT_MUTED != init) {
+    if (auto c = getClient()) {
+      c->scheduleTask([this]() { this->unmute(); }, -1);
+    }
+  }
   connectionCount++;
-  connectedAt_ms.store(GetTimestamp_ms());
+  connectedAt.store(std::chrono::system_clock::now());
+  setState(OPEN_MUTED);
 
   DEBUG_PRINT(Debug::Connection,
-              "set_open] Unmuting connection to " + getConnectionString());
-  unmute();
-  DEBUG_PRINT(Debug::Connection, "set_open] DONE " + getConnectionString());
-  return true;
+              "set_open] Opened connection to " + getConnectionString());
 }
 
-bool Connection::setClosed() {
+void Connection::setClosed() {
   // DO NOT LOCK connection_mutex: disconnect locks
   ConnectionState const current = state.load();
 
   if (CLOSED == current) {
     // print
-    DEBUG_PRINT(Debug::Connection, "set_closed] Already closed to " +
-                                       getConnectionString() + " | State " +
-                                       ConnectionState_toString(current));
-    return false;
-  } else {
-    // print
     DEBUG_PRINT(Debug::Connection,
-                "set_closed] Connection closed to " + getConnectionString());
+                "set_closed] Already closed to " + getConnectionString());
+    return;
   }
 
   if (CLOSED_AWAIT_OPEN != current && CLOSED_AWAIT_RECONNECT != current) {
     // set disconnected if connected previously
-    disconnectedAt_ms.store(GetTimestamp_ms());
+    disconnectedAt.store(std::chrono::system_clock::now());
   }
 
   // controlled close or connection lost?
-  setState((OPEN_AWAIT_CLOSED == current) ? CLOSED : CLOSED_AWAIT_RECONNECT);
-  return true;
+  if (OPEN_AWAIT_CLOSED == current) {
+    setState(CLOSED);
+  } else {
+    setState(CLOSED_AWAIT_RECONNECT);
+    if (auto c = getClient()) {
+      c->scheduleTask([this]() { this->connect(); }, 1000);
+    }
+  }
+
+  DEBUG_PRINT(Debug::Connection,
+              "set_closed] Connection closed to " + getConnectionString());
 }
 
-bool Connection::prepareCommandSuccess(
+void Connection::prepareCommandSuccess(
     const std::string &cmdId,
     CommandProcessState const process_state = COMMAND_AWAIT_CON) {
   std::lock_guard<Module::GilAwareMutex> const map_lock(
       expectedResponseMap_mutex);
-  expectedResponseMap[cmdId] = process_state;
-  if (process_state > COMMAND_AWAIT_CON) {
-    if (sequenceId.empty()) {
-      sequenceId = cmdId;
-    } else {
-      return false;
-    }
+  auto const it = expectedResponseMap.find(cmdId);
+  if (it != expectedResponseMap.end()) {
+    throw std::runtime_error("[c104.Connection] command " + cmdId +
+                             " already running!");
   }
-  return true;
+  expectedResponseMap[cmdId] = process_state;
 }
 
 bool Connection::awaitCommandSuccess(const std::string &cmdId) {
@@ -332,7 +378,8 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
   auto const it = expectedResponseMap.find(cmdId);
   if (it != expectedResponseMap.end()) {
 
-    auto const end = std::chrono::system_clock::now() + commandTimeout_ms * 1ms;
+    auto const end = std::chrono::steady_clock::now() +
+                     std::chrono::milliseconds(commandTimeout_ms.load());
 
     DEBUG_PRINT(Debug::Connection, "await_command_success] Await " + cmdId);
 
@@ -371,13 +418,8 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
     }
 
     // print
-    DEBUG_PRINT(Debug::Connection,
-                "await_command_success] Stats " + cmdId + " | TOTAL " +
-                    std::to_string(
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                            end - std::chrono::system_clock::now())
-                            .count()) +
-                    u8" \xb5s");
+    DEBUG_PRINT(Debug::Connection, "await_command_success] Stats " + cmdId +
+                                       " | TOTAL " + TICTOCNOW(end));
   }
 
   map_lock.unlock();
@@ -393,31 +435,24 @@ void Connection::setCommandSuccess(
   ConnectionState const current = state.load();
   bool found = false;
 
-  // continue init procedure event though the response might be negative
-  if (type == C_CS_NA_1 && current == OPEN_AWAIT_CLOCK_SYNC) {
-    setState(OPEN);
-  }
-
-  if (type == C_IC_NA_1 && current == OPEN_AWAIT_INTERROGATION) {
-    if (init == INIT_INTERROGATION) {
-      setState(OPEN);
-    } else {
-      setState(OPEN_AWAIT_CLOCK_SYNC);
-    }
-  }
-
-  std::string const cmdId = std::to_string(message->getCommonAddress()) + "-" +
-                            TypeID_toString(type) + "-" +
-                            std::to_string(message->getIOA());
-
-  // print
-  DEBUG_PRINT(Debug::Connection, "set_command_success] Result " + cmdId + ": " +
-                                     std::to_string(!message->isNegative()));
+  std::string cmdId = std::to_string(message->getCommonAddress()) + "-" +
+                      TypeID_toString(type) + "-" +
+                      std::to_string(message->getIOA());
+  std::string const cmdIdAlt = std::to_string(IEC60870_GLOBAL_COMMON_ADDRESS) +
+                               "-" + TypeID_toString(type) + "-" +
+                               std::to_string(message->getIOA());
 
   {
     std::lock_guard<Module::GilAwareMutex> const map_lock(
         expectedResponseMap_mutex);
     auto it = expectedResponseMap.find(cmdId);
+    if (it == expectedResponseMap.end()) {
+      // try global common address
+      it = expectedResponseMap.find(cmdIdAlt);
+      if (it != expectedResponseMap.end()) {
+        cmdId = cmdIdAlt;
+      }
+    }
     if (it != expectedResponseMap.end()) {
       found = true;
       if (message->isNegative()) {
@@ -444,22 +479,22 @@ void Connection::setCommandSuccess(
           break;
         case COMMAND_AWAIT_REQUEST:
           expectedResponseMap[cmdId] =
-              (message->getCauseOfTransmission() == CS101_COT_REQUEST)
+              (message->getCauseOfTransmission() == CS101_COT_ACTIVATION_CON ||
+               message->getCauseOfTransmission() == CS101_COT_REQUEST)
                   ? COMMAND_SUCCESS
                   : COMMAND_FAILURE;
           break;
         default:
           expectedResponseMap[cmdId] = COMMAND_SUCCESS;
         }
-        // clear active sequence
-        if (expectedResponseMap[cmdId] == COMMAND_SUCCESS &&
-            sequenceId == cmdId) {
-          sequenceId = "";
-        }
       }
     }
   }
 
+  // print
+  DEBUG_PRINT(Debug::Connection, "set_command_success] Result " + cmdId + ": " +
+                                     std::to_string(!message->isNegative()) +
+                                     " | found: " + std::to_string(found));
   // notify about update
   if (found) {
     response_wait.notify_all();
@@ -472,9 +507,6 @@ void Connection::cancelCommandSuccess(const std::string &cmdId) {
   auto it = expectedResponseMap.find(cmdId);
   if (it != expectedResponseMap.end()) {
     expectedResponseMap.erase(it);
-  }
-  if (sequenceId == cmdId) {
-    sequenceId = "";
   }
 }
 
@@ -533,13 +565,22 @@ void Connection::setOnReceiveRawCallback(py::object &callable) {
 
 void Connection::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
   if (py_onReceiveRaw.is_set()) {
-    DEBUG_PRINT(Debug::Connection, "CALLBACK on_receive_raw");
-    Module::ScopedGilAcquire const scoped("Connection.on_receive_raw");
-    PyObject *pymemview =
-        PyMemoryView_FromMemory((char *)msg, msgSize, PyBUF_READ);
-    PyObject *pybytes = PyBytes_FromObject(pymemview);
+    if (auto c = getClient()) {
+      // create a copy
+      auto *cp = new char[msgSize];
+      memcpy(cp, msg, msgSize);
 
-    py_onReceiveRaw.call(shared_from_this(), py::handle(pybytes));
+      c->scheduleTask([this, cp, msgSize]() {
+        DEBUG_PRINT(Debug::Connection, "CALLBACK on_receive_raw");
+        Module::ScopedGilAcquire const scoped("Connection.on_receive_raw");
+        PyObject *pymemview = PyMemoryView_FromMemory(cp, msgSize, PyBUF_READ);
+        PyObject *pybytes = PyBytes_FromObject(pymemview);
+
+        this->py_onReceiveRaw.call(shared_from_this(), py::handle(pybytes));
+
+        delete[] cp;
+      });
+    }
   }
 }
 
@@ -549,18 +590,43 @@ void Connection::setOnSendRawCallback(py::object &callable) {
 
 void Connection::onSendRaw(unsigned char *msg, unsigned char msgSize) {
   if (py_onSendRaw.is_set()) {
-    DEBUG_PRINT(Debug::Connection, "CALLBACK on_send_raw");
-    Module::ScopedGilAcquire const scoped("Connection.on_send_raw");
-    PyObject *pymemview =
-        PyMemoryView_FromMemory((char *)msg, msgSize, PyBUF_READ);
-    PyObject *pybytes = PyBytes_FromObject(pymemview);
+    if (auto c = getClient()) {
+      // create a copy
+      auto *cp = new char[msgSize];
+      memcpy(cp, msg, msgSize);
 
-    py_onSendRaw.call(shared_from_this(), py::handle(pybytes));
+      c->scheduleTask([this, cp, msgSize]() {
+        DEBUG_PRINT(Debug::Connection, "CALLBACK on_send_raw");
+        Module::ScopedGilAcquire const scoped("Connection.on_send_raw");
+        PyObject *pymemview = PyMemoryView_FromMemory(cp, msgSize, PyBUF_READ);
+        PyObject *pybytes = PyBytes_FromObject(pymemview);
+
+        this->py_onSendRaw.call(shared_from_this(), py::handle(pybytes));
+
+        delete[] cp;
+      });
+    }
   }
 }
 
 void Connection::setOnStateChangeCallback(py::object &callable) {
   py_onStateChange.reset(callable);
+}
+
+std::optional<std::chrono::system_clock::time_point>
+Connection::getConnectedAt() const {
+  if (isOpen()) {
+    return connectedAt.load();
+  }
+  return std::nullopt;
+}
+
+std::optional<std::chrono::system_clock::time_point>
+Connection::getDisconnectedAt() const {
+  if (!isOpen()) {
+    return disconnectedAt.load();
+  }
+  return std::nullopt;
 }
 
 bool Connection::interrogation(std::uint_fast16_t commonAddress,
@@ -577,9 +643,8 @@ bool Connection::interrogation(std::uint_fast16_t commonAddress,
                                 std::to_string(qualifier));
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_IC_NA_1-0";
-  if (wait_for_response &&
-      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM);
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -611,9 +676,8 @@ bool Connection::counterInterrogation(std::uint_fast16_t commonAddress,
                                 std::to_string(qualifier));
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_CI_NA_1-0";
-  if (wait_for_response &&
-      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM);
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -639,12 +703,12 @@ bool Connection::clockSync(std::uint_fast16_t commonAddress,
     return false;
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_CS_NA_1-0";
-  if (wait_for_response && !prepareCommandSuccess(cmdId)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId);
   }
 
-  sCP56Time2a time;
-  CP56Time2a_createFromMsTimestamp(&time, GetTimestamp_ms());
+  sCP56Time2a time{};
+  from_time_point(&time, std::chrono::system_clock::now());
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
   bool const result =
@@ -669,13 +733,13 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
     return false;
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_TS_TA_1-0";
-  if (wait_for_response && !prepareCommandSuccess(cmdId)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId);
   }
 
   if (with_time) {
-    sCP56Time2a time;
-    CP56Time2a_createFromMsTimestamp(&time, GetTimestamp_ms());
+    sCP56Time2a time{};
+    from_time_point(&time, std::chrono::system_clock::now());
 
     std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
     bool const result = CS104_Connection_sendTestCommandWithTimestamp(
@@ -708,8 +772,7 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
 }
 
 bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
-                          const CS101_CauseOfTransmission cause,
-                          const CS101_QualifierOfCommand qualifier) {
+                          const CS101_CauseOfTransmission cause) {
   auto type = point->getType();
 
   // is a supported control command?
@@ -720,7 +783,7 @@ bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
   bool selectAndExecute = point->getCommandMode() == SELECT_AND_EXECUTE_COMMAND;
   // send select command
   if (selectAndExecute) {
-    auto message = Message::PointCommand::create(point, true, qualifier);
+    auto message = Message::PointCommand::create(point, true);
     message->setCauseOfTransmission(cause);
     // Select success ?
     if (!command(std::move(message), true)) {
@@ -729,7 +792,7 @@ bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
   }
   // send execute command
 
-  auto message = Message::PointCommand::create(point, false, qualifier);
+  auto message = Message::PointCommand::create(point, false);
   message->setCauseOfTransmission(cause);
   if (selectAndExecute) {
     // wait for ACT_TERM after ACT_CON
@@ -749,8 +812,8 @@ bool Connection::command(std::shared_ptr<Message::OutgoingMessage> message,
   std::string const cmdId = std::to_string(message->getCommonAddress()) + "-" +
                             TypeID_toString(message->getType()) + "-" +
                             std::to_string(message->getIOA());
-  if (wait_for_response && !prepareCommandSuccess(cmdId, state)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, state);
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -788,9 +851,8 @@ bool Connection::read(std::shared_ptr<Object::DataPoint> point,
 
   std::string const cmdId =
       std::to_string(ca) + "-C_RD_NA_1-" + std::to_string(ioa);
-  if (wait_for_response &&
-      !prepareCommandSuccess(cmdId, COMMAND_AWAIT_REQUEST)) {
-    return false;
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, COMMAND_AWAIT_REQUEST);
   }
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -816,7 +878,15 @@ void Connection::rawMessageHandler(void *parameter, uint_fast8_t *msg,
     begin = std::chrono::steady_clock::now();
   }
 
-  auto instance = (static_cast<Connection *>(parameter)->shared_from_this());
+  std::shared_ptr<Connection> instance{};
+
+  try {
+    instance = static_cast<Connection *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Connection, "Ignore raw message in shutdown");
+    return;
+  }
+
   if (sent) {
     instance->onSendRaw(msg, msgSize);
   } else {
@@ -825,14 +895,9 @@ void Connection::rawMessageHandler(void *parameter, uint_fast8_t *msg,
 
   if (debug) {
     end = std::chrono::steady_clock::now();
-    DEBUG_PRINT_CONDITION(
-        true, Debug::Connection,
-        "raw_message_handler] Stats | TOTAL " +
-            std::to_string(
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      begin)
-                    .count()) +
-            u8" \xb5s");
+    DEBUG_PRINT_CONDITION(true, Debug::Connection,
+                          "raw_message_handler] Stats | TOTAL " +
+                              TICTOC(begin, end));
   }
 }
 
@@ -847,17 +912,23 @@ void Connection::connectionHandler(void *parameter, CS104_Connection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  auto instance = (static_cast<Connection *>(parameter)->shared_from_this());
+  std::shared_ptr<Connection> instance{};
+
+  try {
+    instance = static_cast<Connection *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Connection, "Ignore connection event " +
+                                       ConnectionEvent_toString(event) +
+                                       " in shutdown");
+    return;
+  }
 
   switch (event) {
-  case CS104_CONNECTION_FAILED: {
-    instance->setClosed();
-    break;
-  }
   case CS104_CONNECTION_OPENED: {
     instance->setOpen();
     break;
   }
+  case CS104_CONNECTION_FAILED:
   case CS104_CONNECTION_CLOSED: {
     instance->setClosed();
     break;
@@ -874,15 +945,11 @@ void Connection::connectionHandler(void *parameter, CS104_Connection connection,
 
   if (debug) {
     end = std::chrono::steady_clock::now();
-    DEBUG_PRINT_CONDITION(
-        true, Debug::Connection,
-        "connection_handler] Connection " + ConnectionEvent_toString(event) +
-            " to " + instance->getConnectionString() + " | TOTAL " +
-            std::to_string(
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      begin)
-                    .count()) +
-            u8" \xb5s");
+    DEBUG_PRINT_CONDITION(true, Debug::Connection,
+                          "connection_handler] Connection " +
+                              ConnectionEvent_toString(event) + " to " +
+                              instance->getConnectionString() + " | TOTAL " +
+                              TICTOC(begin, end));
   }
 }
 
@@ -896,9 +963,15 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
     begin = std::chrono::steady_clock::now();
   }
 
-  auto instance = (static_cast<Connection *>(parameter)->shared_from_this());
-  auto client = instance->getClient();
+  std::shared_ptr<Connection> instance{};
+  try {
+    instance = static_cast<Connection *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT(Debug::Connection, "asdu_handler] Connection removed");
+    return false;
+  }
 
+  auto client = instance->getClient();
   if (!client || !client->isRunning()) {
     DEBUG_PRINT_CONDITION(debug, Debug::Connection,
                           "asdu_handler] Client stopped");
@@ -931,8 +1004,6 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
       }
 
       while (message->next()) {
-        // @todo add invalid
-
         auto station = instance->getStation(message->getCommonAddress());
         if (!station) {
           client->onNewStation(instance, message->getCommonAddress());
@@ -941,13 +1012,13 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
         if (station) {
           auto point = station->getPoint(message->getIOA());
           if (!point) {
+            // accept point via callback?
             client->onNewPoint(station, message->getIOA(), message->getType());
             point = station->getPoint(message->getIOA());
           }
           if (point) {
             point->onReceive(message);
           } else {
-            // @todo add error callback?
             DEBUG_PRINT_CONDITION(debug, Debug::Connection,
                                   "asdu_handler] Message ignored: Unknown IOA");
           }
@@ -964,14 +1035,11 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
             true, Debug::Connection,
             "asdu_handler] " +
                 std::string(TypeID_toString(message->getType())) +
-                " Report Stats | CA " +
+                " Report Stats"
+                " | CA " +
                 std::to_string(message->getCommonAddress()) + " | IOA " +
                 std::to_string(message->getIOA()) + " | TOTAL " +
-                std::to_string(
-                    std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          begin)
-                        .count()) +
-                u8" \xb5s");
+                TICTOC(begin, end));
       }
       return true;
     }
@@ -990,14 +1058,10 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
             true, Debug::Connection,
             "asdu_handler] " +
                 std::string(TypeID_toString(message->getType())) +
-                " Response Stats | CA " +
+                " Response Stats" + " | CA " +
                 std::to_string(message->getCommonAddress()) + " | IOA " +
                 std::to_string(message->getIOA()) + " | TOTAL " +
-                std::to_string(
-                    std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          begin)
-                        .count()) +
-                u8" \xb5s");
+                TICTOC(begin, end));
       }
       return true;
     }
@@ -1008,14 +1072,10 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
       DEBUG_PRINT_CONDITION(
           true, Debug::Connection,
           "asduHandler] Unhandled " +
-              std::string(TypeID_toString(message->getType())) +
-              " Stats | CA " + std::to_string(message->getCommonAddress()) +
+              std::string(TypeID_toString(message->getType())) + " Stats" +
+              " | CA " + std::to_string(message->getCommonAddress()) +
               " | IOA " + std::to_string(message->getIOA()) + " | TOTAL " +
-              std::to_string(
-                  std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                        begin)
-                      .count()) +
-              u8" \xb5s");
+              TICTOC(begin, end));
     }
 
   } catch (const std::exception &e) {

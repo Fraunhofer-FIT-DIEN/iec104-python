@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -43,6 +43,7 @@
  * @brief service model for IEC60870-5-104 communication as client
  */
 class Client : public std::enable_shared_from_this<Client> {
+
   // @todo import/export station with DataPoints to string
   // @todo add callback each packet
 public:
@@ -51,8 +52,8 @@ public:
   Client &operator=(const Client &) = delete;
 
   [[nodiscard]] static std::shared_ptr<Client> create(
-      std::uint_fast32_t tick_rate_ms = 1000,
-      std::uint_fast32_t timeout_ms = 1000,
+      std::uint_fast16_t tick_rate_ms = 100,
+      std::uint_fast16_t timeout_ms = 100,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr) {
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<Client>(
@@ -97,6 +98,31 @@ public:
   // CONNECTION HANDLING
 
   bool hasConnections();
+
+  /**
+   * @brief Test if Client has open connections to clients
+   * @return information if at least one connection exists
+   */
+  bool hasOpenConnections() const;
+
+  /**
+   * @brief get number of open connections to servers
+   * @return open connection count
+   */
+  std::uint_fast8_t getOpenConnectionCount() const;
+
+  /**
+   * @brief Test if Client has active (open and not muted) connections to
+   * servers
+   * @return information if at least one connection is active
+   */
+  bool hasActiveConnections() const;
+
+  /**
+   * @brief get number of active (open and not muted) connections to servers
+   * @return active connection count
+   */
+  std::uint_fast8_t getActiveConnectionCount() const;
 
   Remote::ConnectionVector getConnections();
 
@@ -161,21 +187,34 @@ public:
   void onNewPoint(std::shared_ptr<Object::Station> station,
                   std::uint_fast32_t io_address, IEC60870_5_TypeID type);
 
+  std::uint_fast16_t getTickRate_ms() const;
+
+  void schedulePeriodicTask(const std::function<void()> &task, int interval);
+  void scheduleTask(const std::function<void()> &task, int delay = 0);
+
 private:
+  void scheduleDataPointTimer();
   /**
    * @brief Create a new remote connection handler instance that acts as a
    * client
    * @details create a map of possible connections
-   * @param tick_rate_ms intervall in milliseconds between the client checks connection states
+   * @param tick_rate_ms intervall in milliseconds between the client checks
+   * connection states
    * @param timeout_ms timeout in milliseconds before an inactive connection
    * @param transport_security communication encryption instance reference
    * gets closed
    */
-  Client(std::uint_fast32_t tick_rate_ms, std::uint_fast32_t timeout_ms,
+  Client(std::uint_fast16_t tick_rate_ms, std::uint_fast16_t timeout_ms,
          std::shared_ptr<Remote::TransportSecurity> transport_security);
 
+  /// @brief minimum interval between to periodic broadcasts in milliseconds
+  const std::uint_fast16_t tickRate_ms{1000};
+
+  /// @brief timeout in milliseconds before an inactive connection gets closed
+  const std::uint_fast16_t commandTimeout_ms{100};
+
   /// @brief tls handler
-  std::shared_ptr<Remote::TransportSecurity> security{nullptr};
+  const std::shared_ptr<Remote::TransportSecurity> security{nullptr};
 
   /// @brief originator address of outgoing messages
   std::atomic_uint_fast8_t originatorAddress{0};
@@ -183,8 +222,8 @@ private:
   /// @brief state that describes if the client component is enabled or not
   std::atomic_bool enabled{false};
 
-  /// @brief timeout in milliseconds before an inactive connection gets closed
-  std::atomic_uint_fast32_t commandTimeout_ms{1000};
+  /// @brief client thread state
+  std::atomic_bool running{false};
 
   /// @brief MUTEX Lock to access connectionMap
   mutable Module::GilAwareMutex connections_mutex{"Client::connections_mutex"};
@@ -192,20 +231,10 @@ private:
   /// @brief list of all created connections to remote servers
   Remote::ConnectionVector connections;
 
-  /// @brief number of active connections
-  std::atomic_uint_fast8_t activeConnections{0};
-
-  /// @brief number of open connections
-  std::atomic_uint_fast8_t openConnections{0};
-
-  /// @brief minimum interval between to reconnects in milliseconds
-  std::atomic_uint_fast32_t tickRate_ms{1000};
+  std::priority_queue<Task> tasks;
 
   /// @brief client thread to execute reconnects
   std::thread *runThread = nullptr;
-
-  /// @brief client thread state
-  std::atomic_bool running{false};
 
   /// @brief client thread mutex to not lock thread execution
   mutable std::mutex runThread_mutex{};
@@ -235,6 +264,21 @@ private:
    */
   std::shared_ptr<Remote::Connection>
   getConnectionFromString(const std::string &connectionString);
+
+public:
+  std::string toString() const {
+    size_t len = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(connections_mutex);
+      len = connections.size();
+    }
+    std::ostringstream oss;
+    oss << "<104.Client originator_address="
+        << std::to_string(originatorAddress.load())
+        << ", #connections=" << std::to_string(len) << " at " << std::hex
+        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 
 #endif // C104_CLIENT_H

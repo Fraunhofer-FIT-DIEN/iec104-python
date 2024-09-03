@@ -31,16 +31,22 @@
  */
 
 #include "IncomingMessage.h"
+
+#include "object/Information.h"
 #include "remote/Helper.h"
+#include <memory>
 
 using namespace Remote::Message;
 
 IncomingMessage::IncomingMessage(CS101_ASDU packet,
                                  CS101_AppLayerParameters app_layer_parameters)
-    : IMessageInterface(), asdu(packet), parameters(app_layer_parameters),
+    : IMessageInterface(), asdu(nullptr), parameters(app_layer_parameters),
       position(0), positionReset(true), positionValid(false),
       numberOfObject(0) {
   if (packet) {
+    asdu = CS101_ASDU_clone(packet, nullptr);
+  }
+  if (asdu) {
     extractMetaData();
     first();
   }
@@ -50,6 +56,9 @@ IncomingMessage::IncomingMessage(CS101_ASDU packet,
 IncomingMessage::~IncomingMessage() {
   if (io) {
     InformationObject_destroy(io);
+  }
+  if (asdu) {
+    CS101_ASDU_destroy(asdu);
   }
   DEBUG_PRINT(Debug::Message, "Removed (incoming)");
 }
@@ -198,8 +207,6 @@ std::uint_fast8_t IncomingMessage::getNumberOfObject() const {
   return numberOfObject;
 }
 
-std::uint_fast64_t IncomingMessage::getUpdatedAt() const { return updatedAt; }
-
 void IncomingMessage::first() {
   {
     std::lock_guard<Module::GilAwareMutex> const lock(position_mutex);
@@ -210,7 +217,7 @@ void IncomingMessage::first() {
   }
 
   if (positionValid)
-    extractInformationObject();
+    extractInformation();
 }
 
 bool IncomingMessage::next() {
@@ -228,12 +235,12 @@ bool IncomingMessage::next() {
   }
 
   if (positionValid)
-    extractInformationObject();
+    extractInformation();
 
   return positionValid;
 }
 
-void IncomingMessage::extractInformationObject() {
+void IncomingMessage::extractInformation() {
   std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
 
   if (io)
@@ -242,424 +249,391 @@ void IncomingMessage::extractInformationObject() {
   io = CS101_ASDU_getElement(asdu, position);
   informationObjectAddress =
       (io == nullptr) ? 0 : InformationObject_getObjectAddress(io);
-  value = 0;
-  quality = Quality::Invalid;
+  info.reset();
 
-  if (positionValid && informationObjectAddress) {
-    bool transient = false;
-    // IEC 60870-5-104 standard uses only messages without timestamp or with
-    // CP56Time2a timestamp
-    CP16Time2a elapsed = nullptr;
-    CP56Time2a timestamp56 = nullptr;
-
+  if ((io != nullptr) && positionValid) {
     switch (type) {
-    /**
-     * MONITORING
-     */
+      /**
+       * MONITORING
+       */
 
-    // s->c: bool Single Point
     case M_SP_NA_1: {
-      value = SinglePointInformation_getValue((SinglePointInformation)io);
-      quality = static_cast<Quality>(
-          SinglePointInformation_getQuality((SinglePointInformation)io));
+      info = std::make_shared<Object::SingleInfo>(
+          SinglePointInformation_getValue((SinglePointInformation)io),
+          static_cast<Quality>(
+              SinglePointInformation_getQuality((SinglePointInformation)io)),
+          std::nullopt, true);
     } break;
 
-      // s->c: bool Single Point + Extended Time
     case M_SP_TB_1: {
-      value = SinglePointInformation_getValue((SinglePointInformation)io);
-      quality = static_cast<Quality>(
-          SinglePointInformation_getQuality((SinglePointInformation)io));
-      timestamp56 =
-          SinglePointWithCP56Time2a_getTimestamp((SinglePointWithCP56Time2a)io);
+      info = std::make_shared<Object::SingleInfo>(
+          SinglePointInformation_getValue((SinglePointInformation)io),
+          static_cast<Quality>(
+              SinglePointInformation_getQuality((SinglePointInformation)io)),
+          to_time_point(SinglePointWithCP56Time2a_getTimestamp(
+              (SinglePointWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: enum Double Point [INTERMEDIATE|ON|OFF|INDETERMINATE]
     case M_DP_NA_1: {
-      DoublePointValue dpv1 =
-          DoublePointInformation_getValue((DoublePointInformation)io);
-      value = dpv1;
-      quality = static_cast<Quality>(
-          DoublePointInformation_getQuality((DoublePointInformation)io));
+      info = std::make_shared<Object::DoubleInfo>(
+          DoublePointInformation_getValue((DoublePointInformation)io),
+          static_cast<Quality>(
+              DoublePointInformation_getQuality((DoublePointInformation)io)),
+          std::nullopt, true);
     } break;
 
-      // s->c: enum Double Point [INTERMEDIATE|ON|OFF|INDETERMINATE] + Extended
-      // Time
     case M_DP_TB_1: {
-      DoublePointValue dpv3 =
-          DoublePointInformation_getValue((DoublePointInformation)io);
-      value = dpv3;
-      quality = static_cast<Quality>(
-          DoublePointInformation_getQuality((DoublePointInformation)io));
-      timestamp56 =
-          DoublePointWithCP56Time2a_getTimestamp((DoublePointWithCP56Time2a)io);
+      info = std::make_shared<Object::DoubleInfo>(
+          DoublePointInformation_getValue((DoublePointInformation)io),
+          static_cast<Quality>(
+              DoublePointInformation_getQuality((DoublePointInformation)io)),
+          to_time_point(DoublePointWithCP56Time2a_getTimestamp(
+              (DoublePointWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: int [-64,63] StepPosition (Trafo)
     case M_ST_NA_1: {
-      //@todo getObjectAddress ??? transient ???
-      uint_fast16_t objAddr1 =
-          StepPositionInformation_getObjectAddress((StepPositionInformation)io);
-      value = StepPositionInformation_getValue((StepPositionInformation)io);
-      quality = static_cast<Quality>(
-          StepPositionInformation_getQuality((StepPositionInformation)io));
-      transient =
-          StepPositionInformation_isTransient((StepPositionInformation)io);
+      info = std::make_shared<Object::StepInfo>(
+          LimitedInt7(
+              StepPositionInformation_getValue((StepPositionInformation)io)),
+          StepPositionInformation_isTransient((StepPositionInformation)io),
+          static_cast<Quality>(
+              StepPositionInformation_getQuality((StepPositionInformation)io)),
+          std::nullopt, true);
     } break;
 
-      // s->c: int [-64,63] StepPosition (Trafo) + Extended Time
     case M_ST_TB_1: {
-      //@todo getObjectAddress ??? transient ???
-      uint_fast16_t objAddr3 =
-          StepPositionInformation_getObjectAddress((StepPositionInformation)io);
-      value = StepPositionInformation_getValue((StepPositionInformation)io);
-      quality = static_cast<Quality>(
-          StepPositionInformation_getQuality((StepPositionInformation)io));
-      transient =
-          StepPositionInformation_isTransient((StepPositionInformation)io);
-      timestamp56 = StepPositionWithCP56Time2a_getTimestamp(
-          (StepPositionWithCP56Time2a)io);
+      info = std::make_shared<Object::StepInfo>(
+          LimitedInt7(
+              StepPositionInformation_getValue((StepPositionInformation)io)),
+          StepPositionInformation_isTransient((StepPositionInformation)io),
+          static_cast<Quality>(
+              StepPositionInformation_getQuality((StepPositionInformation)io)),
+          to_time_point(StepPositionWithCP56Time2a_getTimestamp(
+              (StepPositionWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: [0,2^32] BitString 32bits
     case M_BO_NA_1: {
-      //@todo usage? conversion?
-      value = BitString32_getValue((BitString32)io);
-      quality = static_cast<Quality>(BitString32_getQuality((BitString32)io));
+      info = std::make_shared<Object::BinaryInfo>(
+          Byte32(BitString32_getValue((BitString32)io)),
+          static_cast<Quality>(BitString32_getQuality((BitString32)io)),
+          std::nullopt, true);
     } break;
 
-      // s->c: [0,2^32] BitString 32bits + Extended Time
     case M_BO_TB_1: {
-      //@todo usage? conversion?
-      value = BitString32_getValue((BitString32)io);
-      quality = static_cast<Quality>(BitString32_getQuality((BitString32)io));
-      timestamp56 =
-          Bitstring32WithCP56Time2a_getTimestamp((Bitstring32WithCP56Time2a)io);
+      info = std::make_shared<Object::BinaryInfo>(
+          Byte32(BitString32_getValue((BitString32)io)),
+          static_cast<Quality>(BitString32_getQuality((BitString32)io)),
+          to_time_point(Bitstring32WithCP56Time2a_getTimestamp(
+              (Bitstring32WithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: float Measurement Value (NORMALIZED)
     case M_ME_NA_1: {
-      value = MeasuredValueNormalized_getValue((MeasuredValueNormalized)io);
-      quality = static_cast<Quality>(
-          MeasuredValueNormalized_getQuality((MeasuredValueNormalized)io));
+      info = std::make_shared<Object::NormalizedInfo>(
+          NormalizedFloat(
+              MeasuredValueNormalized_getValue((MeasuredValueNormalized)io)),
+          static_cast<Quality>(
+              MeasuredValueNormalized_getQuality((MeasuredValueNormalized)io)),
+          std::nullopt, true);
     } break;
 
-      // s->c: float Measurement Value (NORMALIZED) + Extended Time
     case M_ME_TD_1: {
-      value = MeasuredValueNormalized_getValue((MeasuredValueNormalized)io);
-      quality = static_cast<Quality>(
-          MeasuredValueNormalized_getQuality((MeasuredValueNormalized)io));
-      timestamp56 = MeasuredValueNormalizedWithCP56Time2a_getTimestamp(
-          (MeasuredValueNormalizedWithCP56Time2a)io);
+      info = std::make_shared<Object::NormalizedInfo>(
+          NormalizedFloat(
+              MeasuredValueNormalized_getValue((MeasuredValueNormalized)io)),
+          static_cast<Quality>(
+              MeasuredValueNormalized_getQuality((MeasuredValueNormalized)io)),
+          to_time_point(MeasuredValueNormalizedWithCP56Time2a_getTimestamp(
+              (MeasuredValueNormalizedWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: int Measurement Value (SCALED)
     case M_ME_NB_1: {
-      value = MeasuredValueScaled_getValue((MeasuredValueScaled)io);
-      quality = static_cast<Quality>(
-          MeasuredValueScaled_getQuality((MeasuredValueScaled)io));
+      info = std::make_shared<Object::ScaledInfo>(
+          LimitedInt16(MeasuredValueScaled_getValue((MeasuredValueScaled)io)),
+          static_cast<Quality>(
+              MeasuredValueScaled_getQuality((MeasuredValueScaled)io)),
+          std::nullopt, true);
     } break;
 
-      // s->c: int Measurement Value (SCALED) + Extended Time
     case M_ME_TE_1: {
-      value = MeasuredValueScaled_getValue((MeasuredValueScaled)io);
-      quality = static_cast<Quality>(
-          MeasuredValueScaled_getQuality((MeasuredValueScaled)io));
-      timestamp56 = MeasuredValueScaledWithCP56Time2a_getTimestamp(
-          (MeasuredValueScaledWithCP56Time2a)io);
+      info = std::make_shared<Object::ScaledInfo>(
+          LimitedInt16(MeasuredValueScaled_getValue((MeasuredValueScaled)io)),
+          static_cast<Quality>(
+              MeasuredValueScaled_getQuality((MeasuredValueScaled)io)),
+          to_time_point(MeasuredValueScaledWithCP56Time2a_getTimestamp(
+              (MeasuredValueScaledWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: float Measurement Value (SHORT)
     case M_ME_NC_1: {
-      //@todo not normalized or scaled ?
-      value = MeasuredValueShort_getValue((MeasuredValueShort)io);
-      quality = static_cast<Quality>(
-          MeasuredValueShort_getQuality((MeasuredValueShort)io));
+      info = std::make_shared<Object::ShortInfo>(
+          MeasuredValueShort_getValue((MeasuredValueShort)io),
+          static_cast<Quality>(
+              MeasuredValueShort_getQuality((MeasuredValueShort)io)),
+          std::nullopt, true);
     } break;
 
-      // s->c: float Measurement Value (SHORT) + Extended Time
     case M_ME_TF_1: {
-      value = MeasuredValueShort_getValue((MeasuredValueShort)io);
-      quality = static_cast<Quality>(
-          MeasuredValueShort_getQuality((MeasuredValueShort)io));
-      timestamp56 = MeasuredValueShortWithCP56Time2a_getTimestamp(
-          (MeasuredValueShortWithCP56Time2a)io);
+      info = std::make_shared<Object::ShortInfo>(
+          MeasuredValueShort_getValue((MeasuredValueShort)io),
+          static_cast<Quality>(
+              MeasuredValueShort_getQuality((MeasuredValueShort)io)),
+          to_time_point(MeasuredValueShortWithCP56Time2a_getTimestamp(
+              (MeasuredValueShortWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: Encoded Counter Value
     case M_IT_NA_1: {
-      //@todo usecase? value conversion?
-      //@todo what about quality ?
       BinaryCounterReading bcr1 = IntegratedTotals_getBCR((IntegratedTotals)io);
-      value = (double)(bcr1->encodedValue[0] +
-                       ((uint_fast64_t)bcr1->encodedValue[1] << 8) +
-                       ((uint_fast64_t)bcr1->encodedValue[2] << 16) +
-                       ((uint_fast64_t)bcr1->encodedValue[3] << 24) +
-                       ((uint_fast64_t)bcr1->encodedValue[4] << 32));
-      quality.store(Quality::None);
+      info = std::make_shared<Object::BinaryCounterInfo>(
+          BinaryCounterReading_getValue(bcr1),
+          LimitedUInt5(static_cast<uint32_t>(
+              BinaryCounterReading_getSequenceNumber(bcr1))),
+          BinaryCounterQuality(bcr1->encodedValue[4] & 0b11100000),
+          std::nullopt, true);
     } break;
 
-      // s->c: Encoded Counter Value + Extended Timer
     case M_IT_TB_1: {
-      //@todo support BCR, usecase? value?
-      //@todo what about quality ?
-      BinaryCounterReading bcr3 = IntegratedTotals_getBCR((IntegratedTotals)io);
-      value = (double)(bcr3->encodedValue[0] +
-                       ((uint_fast64_t)bcr3->encodedValue[1] << 8) +
-                       ((uint_fast64_t)bcr3->encodedValue[2] << 16) +
-                       ((uint_fast64_t)bcr3->encodedValue[3] << 24) +
-                       ((uint_fast64_t)bcr3->encodedValue[4] << 32));
-      timestamp56 = IntegratedTotalsWithCP56Time2a_getTimestamp(
-          (IntegratedTotalsWithCP56Time2a)io);
-      quality.store(Quality::None);
+      BinaryCounterReading bcr1 = IntegratedTotals_getBCR((IntegratedTotals)io);
+      info = std::make_shared<Object::BinaryCounterInfo>(
+          BinaryCounterReading_getValue(bcr1),
+          LimitedUInt5(static_cast<uint32_t>(
+              BinaryCounterReading_getSequenceNumber(bcr1))),
+          BinaryCounterQuality(bcr1->encodedValue[4] & 0b11100000),
+          to_time_point(IntegratedTotalsWithCP56Time2a_getTimestamp(
+              (IntegratedTotalsWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: SingleEvent Protection Equipment + Extended Timer
     case M_EP_TD_1: {
-      //@todo usecase? handle event?? value?
-      //@todo what about quality ?
-      SingleEvent ev2 = EventOfProtectionEquipmentWithCP56Time2a_getEvent(
-          (EventOfProtectionEquipmentWithCP56Time2a)io);
-      elapsed = EventOfProtectionEquipmentWithCP56Time2a_getElapsedTime(
-          (EventOfProtectionEquipmentWithCP56Time2a)io);
-      timestamp56 = EventOfProtectionEquipmentWithCP56Time2a_getTimestamp(
-          (EventOfProtectionEquipmentWithCP56Time2a)io);
-      quality.store(Quality::None);
+      SingleEvent single_event =
+          EventOfProtectionEquipmentWithCP56Time2a_getEvent(
+              (EventOfProtectionEquipmentWithCP56Time2a)io);
+      info = std::make_shared<Object::ProtectionEquipmentEventInfo>(
+          static_cast<EventState>(*single_event & 0b00000111),
+          LimitedUInt16(CP16Time2a_getEplapsedTimeInMs(
+              EventOfProtectionEquipmentWithCP56Time2a_getElapsedTime(
+                  (EventOfProtectionEquipmentWithCP56Time2a)io))),
+          static_cast<Quality>(*single_event & 0b11111000),
+          to_time_point(EventOfProtectionEquipmentWithCP56Time2a_getTimestamp(
+              (EventOfProtectionEquipmentWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: StartEvent Protection Equipment + Extended Timer
     case M_EP_TE_1: {
-      //@todo usecase? handle event?? value?
-      StartEvent se2 =
-          PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getEvent(
-              (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io);
-      elapsed =
-          PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getElapsedTime(
-              (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io);
-      quality = static_cast<Quality>(
-          PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getQuality(
-              (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io));
-      timestamp56 =
-          PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getTimestamp(
-              (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io);
+      info = std::make_shared<Object::ProtectionEquipmentStartEventsInfo>(
+          StartEvents(
+              PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getEvent(
+                  (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io) &
+              0b00111111),
+          LimitedUInt16(CP16Time2a_getEplapsedTimeInMs(
+              PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getElapsedTime(
+                  (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io))),
+          static_cast<Quality>(
+              PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getQuality(
+                  (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io)),
+          to_time_point(
+              PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getTimestamp(
+                  (PackedStartEventsOfProtectionEquipmentWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: OuputCircuitInfo Protection Equipment + Extended Timer
     case M_EP_TF_1: {
-      //@todo usecase? handle event?? value?
-      OutputCircuitInfo oci2 = PackedOutputCircuitInfoWithCP56Time2a_getOCI(
-          (PackedOutputCircuitInfoWithCP56Time2a)io);
-      elapsed = PackedOutputCircuitInfoWithCP56Time2a_getOperatingTime(
-          (PackedOutputCircuitInfoWithCP56Time2a)io);
-      quality =
+      info = std::make_shared<Object::ProtectionEquipmentOutputCircuitInfo>(
+          OutputCircuits(PackedOutputCircuitInfoWithCP56Time2a_getOCI(
+                             (PackedOutputCircuitInfoWithCP56Time2a)io) &
+                         0b00001111),
+          LimitedUInt16(CP16Time2a_getEplapsedTimeInMs(
+              PackedOutputCircuitInfoWithCP56Time2a_getOperatingTime(
+                  (PackedOutputCircuitInfoWithCP56Time2a)io))),
           static_cast<Quality>(PackedOutputCircuitInfoWithCP56Time2a_getQuality(
-              (PackedOutputCircuitInfoWithCP56Time2a)io));
-      timestamp56 = PackedOutputCircuitInfoWithCP56Time2a_getTimestamp(
-          (PackedOutputCircuitInfoWithCP56Time2a)io);
+              (PackedOutputCircuitInfoWithCP56Time2a)io)),
+          to_time_point(PackedOutputCircuitInfoWithCP56Time2a_getTimestamp(
+              (PackedOutputCircuitInfoWithCP56Time2a)io)),
+          true);
     } break;
 
-      // s->c: StatusAndStatusChangeDetection Single + Change Detection
     case M_PS_NA_1: {
-      //@todo usecase? decoded value?
       StatusAndStatusChangeDetection sscd =
           PackedSinglePointWithSCD_getSCD((PackedSinglePointWithSCD)io);
-      value = (double)(sscd->encodedValue[0] +
-                       ((uint_fast64_t)sscd->encodedValue[1] << 8) +
-                       ((uint_fast64_t)sscd->encodedValue[2] << 16) +
-                       ((uint_fast64_t)sscd->encodedValue[3] << 24));
-      quality = static_cast<Quality>(
-          PackedSinglePointWithSCD_getQuality((PackedSinglePointWithSCD)io));
+      info = std::make_shared<Object::StatusWithChangeDetection>(
+          FieldSet16(((uint16_t)sscd->encodedValue[0] << 0) +
+                     ((uint16_t)sscd->encodedValue[1] << 8)),
+          FieldSet16(((uint16_t)sscd->encodedValue[2] << 0) +
+                     ((uint16_t)sscd->encodedValue[3] << 8)),
+          static_cast<Quality>(PackedSinglePointWithSCD_getQuality(
+              (PackedSinglePointWithSCD)io)),
+          std::nullopt, true);
     } break;
 
-      // s->c: float Measurement Value (NORMALIZED) - Quality
     case M_ME_ND_1: {
-      //@todo usecase?
-      //@todo what about quality ?
-      value = MeasuredValueNormalizedWithoutQuality_getValue(
-          (MeasuredValueNormalizedWithoutQuality)io);
-      quality.store(Quality::None);
+      info = std::make_shared<Object::NormalizedInfo>(
+          NormalizedFloat(MeasuredValueNormalizedWithoutQuality_getValue(
+              (MeasuredValueNormalizedWithoutQuality)io)),
+          Quality::None, std::nullopt, true);
     } break;
 
       /**
        * CONTROL
        */
 
-      // c->s: bool
     case C_SC_NA_1: {
-      selectFlag = SingleCommand_isSelect((SingleCommand)io);
-      qualifierOfCommand = SingleCommand_getQU((SingleCommand)io);
-      value = SingleCommand_getState((SingleCommand)io);
-      if (value == 0 || value == 1) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::SingleCmd>(
+          SingleCommand_getState((SingleCommand)io),
+          SingleCommand_isSelect((SingleCommand)io),
+          static_cast<CS101_QualifierOfCommand>(
+              SingleCommand_getQU((SingleCommand)io)),
+          std::nullopt, true);
     } break;
 
-      // c->s: bool + Extended Time
     case C_SC_TA_1: {
-      selectFlag = SingleCommand_isSelect((SingleCommand)io);
-      qualifierOfCommand = SingleCommand_getQU((SingleCommand)io);
-      value = SingleCommand_getState((SingleCommand)io);
-      timestamp56 = SingleCommandWithCP56Time2a_getTimestamp(
-          (SingleCommandWithCP56Time2a)io);
-      if (value == 0 || value == 1) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::SingleCmd>(
+          SingleCommand_getState((SingleCommand)io),
+          SingleCommand_isSelect((SingleCommand)io),
+          static_cast<CS101_QualifierOfCommand>(
+              SingleCommand_getQU((SingleCommand)io)),
+          to_time_point(SingleCommandWithCP56Time2a_getTimestamp(
+              (SingleCommandWithCP56Time2a)io)),
+          true);
     } break;
 
-      // c->s: int /enum??
     case C_DC_NA_1: {
-      selectFlag = DoubleCommand_isSelect((DoubleCommand)io);
-      qualifierOfCommand = DoubleCommand_getQU((DoubleCommand)io);
-      value = DoubleCommand_getState((DoubleCommand)io);
-      if (value == 0 || value == 1 || value == 2 || value == 3) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::DoubleCmd>(
+          static_cast<DoublePointValue>(
+              DoubleCommand_getState((DoubleCommand)io)),
+          DoubleCommand_isSelect((DoubleCommand)io),
+          static_cast<CS101_QualifierOfCommand>(
+              DoubleCommand_getQU((DoubleCommand)io)),
+          std::nullopt, true);
     } break;
 
-      // c->s: int /enum? + Extended Time
     case C_DC_TA_1: {
-      selectFlag =
-          DoubleCommandWithCP56Time2a_isSelect((DoubleCommandWithCP56Time2a)io);
-      qualifierOfCommand =
-          DoubleCommandWithCP56Time2a_getQU((DoubleCommandWithCP56Time2a)io);
-      value =
-          DoubleCommandWithCP56Time2a_getState((DoubleCommandWithCP56Time2a)io);
-      timestamp56 = DoubleCommandWithCP56Time2a_getTimestamp(
-          (DoubleCommandWithCP56Time2a)io);
-      if (value == 0 || value == 1 || value == 2 || value == 3) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::DoubleCmd>(
+          static_cast<DoublePointValue>(
+              DoubleCommand_getState((DoubleCommand)io)),
+          DoubleCommand_isSelect((DoubleCommand)io),
+          static_cast<CS101_QualifierOfCommand>(
+              DoubleCommand_getQU((DoubleCommand)io)),
+          to_time_point(DoubleCommandWithCP56Time2a_getTimestamp(
+              (DoubleCommandWithCP56Time2a)io)),
+          true);
     } break;
 
-      // c->s: Regulation Step Command
     case C_RC_NA_1: {
-      selectFlag = StepCommand_isSelect((StepCommand)io);
-      qualifierOfCommand = StepCommand_getQU((StepCommand)io);
-      StepCommandValue scv1 = StepCommand_getState((StepCommand)io);
-      value = scv1;
-      if (value == 1 || value == 2) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::StepCmd>(
+          static_cast<StepCommandValue>(StepCommand_getState((StepCommand)io)),
+          StepCommand_isSelect((StepCommand)io),
+          static_cast<CS101_QualifierOfCommand>(
+              StepCommand_getQU((StepCommand)io)),
+          std::nullopt, true);
     } break;
 
-      // c->s: Regulation Step Command + Extended Time
     case C_RC_TA_1: {
-      selectFlag = StepCommand_isSelect((StepCommand)io);
-      qualifierOfCommand =
-          StepCommandWithCP56Time2a_getQU((StepCommandWithCP56Time2a)io);
-      StepCommandValue scv2 =
-          StepCommandWithCP56Time2a_getState((StepCommandWithCP56Time2a)io);
-      value = scv2;
-      timestamp56 =
-          StepCommandWithCP56Time2a_getTimestamp((StepCommandWithCP56Time2a)io);
-      if (value == 1 || value == 2) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::StepCmd>(
+          static_cast<StepCommandValue>(StepCommand_getState((StepCommand)io)),
+          StepCommand_isSelect((StepCommand)io),
+          static_cast<CS101_QualifierOfCommand>(
+              StepCommand_getQU((StepCommand)io)),
+          to_time_point(StepCommandWithCP56Time2a_getTimestamp(
+              (StepCommandWithCP56Time2a)io)),
+          true);
     } break;
 
-      // c->s: Setpoint Command (NORMALIZED)
     case C_SE_NA_1: {
-      //@todo what about quality / use ql for command ?
-      int ql1 = SetpointCommandNormalized_getQL((SetpointCommandNormalized)io);
-      selectFlag =
-          SetpointCommandNormalized_isSelect((SetpointCommandNormalized)io);
-      value = SetpointCommandNormalized_getValue((SetpointCommandNormalized)io);
-      if (value >= -1 && value <= 1) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::NormalizedCmd>(
+          NormalizedFloat(SetpointCommandNormalized_getValue(
+              (SetpointCommandNormalized)io)),
+          SetpointCommandNormalized_isSelect((SetpointCommandNormalized)io),
+          LimitedUInt7(static_cast<uint32_t>(
+              SetpointCommandNormalized_getQL((SetpointCommandNormalized)io))),
+          std::nullopt, true);
     } break;
 
-      // c->s: Setpoint Command (NORMALIZED) * Extended Time
     case C_SE_TA_1: {
-      //@todo what about quality / use ql for command ?
-      int ql2 = SetpointCommandNormalizedWithCP56Time2a_getQL(
-          (SetpointCommandNormalizedWithCP56Time2a)io);
-      selectFlag = SetpointCommandNormalizedWithCP56Time2a_isSelect(
-          (SetpointCommandNormalizedWithCP56Time2a)io);
-      value = SetpointCommandNormalizedWithCP56Time2a_getValue(
-          (SetpointCommandNormalizedWithCP56Time2a)io);
-      timestamp56 = SetpointCommandNormalizedWithCP56Time2a_getTimestamp(
-          (SetpointCommandNormalizedWithCP56Time2a)io);
-      if (value >= -1 && value <= 1) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::NormalizedCmd>(
+          NormalizedFloat(SetpointCommandNormalized_getValue(
+              (SetpointCommandNormalized)io)),
+          SetpointCommandNormalized_isSelect((SetpointCommandNormalized)io),
+          LimitedUInt7(static_cast<uint32_t>(
+              SetpointCommandNormalized_getQL((SetpointCommandNormalized)io))),
+          to_time_point(SetpointCommandNormalizedWithCP56Time2a_getTimestamp(
+              (SetpointCommandNormalizedWithCP56Time2a)io)),
+          true);
     } break;
 
-      // c->s: Setpoint Command (SCALED)
     case C_SE_NB_1: {
-      //@todo what about quality / use ql for command ?
-      int ql3 = SetpointCommandScaled_getQL((SetpointCommandScaled)io);
-      selectFlag = SetpointCommandScaled_isSelect((SetpointCommandScaled)io);
-      value = SetpointCommandScaled_getValue((SetpointCommandScaled)io);
-      if (value >= -65536. && value <= 65535.) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::ScaledCmd>(
+          LimitedInt16(
+              SetpointCommandScaled_getValue((SetpointCommandScaled)io)),
+          SetpointCommandScaled_isSelect((SetpointCommandScaled)io),
+          LimitedUInt7(static_cast<uint32_t>(
+              SetpointCommandScaled_getQL((SetpointCommandScaled)io))),
+          std::nullopt, true);
     } break;
 
-      // c->s: Setpoint Command (SCALED) + Extended Time
     case C_SE_TB_1: {
-      //@todo what about quality / use ql for command ?
-      int ql4 = SetpointCommandScaledWithCP56Time2a_getQL(
-          (SetpointCommandScaledWithCP56Time2a)io);
-      selectFlag = SetpointCommandScaledWithCP56Time2a_isSelect(
-          (SetpointCommandScaledWithCP56Time2a)io);
-      value = SetpointCommandScaledWithCP56Time2a_getValue(
-          (SetpointCommandScaledWithCP56Time2a)io);
-      timestamp56 = SetpointCommandScaledWithCP56Time2a_getTimestamp(
-          (SetpointCommandScaledWithCP56Time2a)io);
-      if (value >= -65536. && value <= 65535.) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::ScaledCmd>(
+          LimitedInt16(
+              SetpointCommandScaled_getValue((SetpointCommandScaled)io)),
+          SetpointCommandScaled_isSelect((SetpointCommandScaled)io),
+          LimitedUInt7(static_cast<uint32_t>(
+              SetpointCommandScaled_getQL((SetpointCommandScaled)io))),
+          to_time_point(SetpointCommandScaledWithCP56Time2a_getTimestamp(
+              (SetpointCommandScaledWithCP56Time2a)io)),
+          true);
     } break;
 
-      // c->s: Setpoint Command (SHORT)
     case C_SE_NC_1: {
-      //@todo what about quality / use ql for command ?
-      int ql5 = SetpointCommandShort_getQL((SetpointCommandShort)io);
-      selectFlag = SetpointCommandShort_isSelect((SetpointCommandShort)io);
-      value = SetpointCommandShort_getValue((SetpointCommandShort)io);
-      if (value >= -16777216. && value <= 16777215.) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::ShortCmd>(
+          SetpointCommandShort_getValue((SetpointCommandShort)io),
+          SetpointCommandShort_isSelect((SetpointCommandShort)io),
+          LimitedUInt7(static_cast<uint32_t>(
+              SetpointCommandShort_getQL((SetpointCommandShort)io))),
+          std::nullopt, true);
     } break;
 
-      // c->s: Setpoint Command (SHORT) + Extended Time
     case C_SE_TC_1: {
-      //@todo what about quality / use ql for command ?
-      int ql6 = SetpointCommandShortWithCP56Time2a_getQL(
-          (SetpointCommandShortWithCP56Time2a)io);
-      selectFlag = SetpointCommandShortWithCP56Time2a_isSelect(
-          (SetpointCommandShortWithCP56Time2a)io);
-      value = SetpointCommandShortWithCP56Time2a_getValue(
-          (SetpointCommandShortWithCP56Time2a)io);
-      timestamp56 = SetpointCommandShortWithCP56Time2a_getTimestamp(
-          (SetpointCommandShortWithCP56Time2a)io);
-      if (value >= -16777216. && value <= 16777215.) {
-        quality.store(Quality::None);
-      }
+      info = std::make_shared<Object::ShortCmd>(
+          SetpointCommandShort_getValue((SetpointCommandShort)io),
+          SetpointCommandShort_isSelect((SetpointCommandShort)io),
+          LimitedUInt7(static_cast<uint32_t>(
+              SetpointCommandShort_getQL((SetpointCommandShort)io))),
+          to_time_point(SetpointCommandShortWithCP56Time2a_getTimestamp(
+              (SetpointCommandShortWithCP56Time2a)io)),
+          true);
     } break;
 
-      // c->s: BitString 32bit Command
     case C_BO_NA_1: {
-      //@todo what about quality / use ql for command ?
-      value = (double)Bitstring32Command_getValue((Bitstring32Command)io);
-      quality.store(Quality::None);
+      info = std::make_shared<Object::BinaryCmd>(
+          Byte32(Bitstring32Command_getValue((Bitstring32Command)io)),
+          std::nullopt, true);
     } break;
 
-      // c->s: BitString 32bit Command + Extended Time
     case C_BO_TA_1: {
-      //@todo what about quality / use ql for command ?
-      value = (double)Bitstring32CommandWithCP56Time2a_getValue(
-          (Bitstring32CommandWithCP56Time2a)io);
-      timestamp56 = Bitstring32CommandWithCP56Time2a_getTimestamp(
-          (Bitstring32CommandWithCP56Time2a)io);
-      quality.store(Quality::None);
+      info = std::make_shared<Object::BinaryCmd>(
+          Byte32(Bitstring32Command_getValue((Bitstring32Command)io)),
+          to_time_point(Bitstring32CommandWithCP56Time2a_getTimestamp(
+              (Bitstring32CommandWithCP56Time2a)io)),
+          true);
+    } break;
+    case C_CS_NA_1: {
+      info = std::make_shared<Object::Command>(
+          to_time_point(ClockSynchronizationCommand_getTime(
+              (ClockSynchronizationCommand)io)),
+          true);
     } break;
 
-      // c->s: READ Command
-    case C_RD_NA_1: {
-      // accept incoming message instances within read commands
-      quality.store(Quality::None);
-    } break;
+    case C_IC_NA_1:
+    case C_CI_NA_1:
+    case C_RD_NA_1:
+    case C_TS_NA_1:
+      // allow get valid message to pass and extract informationObjectAddress
+      // even though no further info is extracted
+      break;
 
       /**
        * Unhandled message
@@ -668,19 +642,6 @@ void IncomingMessage::extractInformationObject() {
     default:
       std::cerr << "[c104.IncomingMessage.extract] Unsupported type "
                 << TypeID_toString(type) << std::endl;
-    }
-
-    if (timestamp56) {
-      updatedAt = CP56Time2a_toMsTimestamp(timestamp56);
-    }
-
-    // detect NaN values
-    if (std::isnan(value.load())) {
-      // value.store(0);
-      // quality.store(Quality::Invalid);
-      DEBUG_PRINT(Debug::Point, "IncomingMessage.extract] detected NaN value "
-                                "in incoming message at IOA " +
-                                    std::to_string(informationObjectAddress));
     }
   }
 }
@@ -896,25 +857,20 @@ bool IncomingMessage::requireConfirmation() const {
 }
 
 bool IncomingMessage::isSelectCommand() const {
-  if ((type < C_SC_NA_1 && type > C_SE_NC_1) ||
-      (type < C_SC_TA_1 && type > C_SE_TC_1)) {
-    DEBUG_PRINT(Debug::Message,
-                "IncomingMessage.isSelectCommand] point at IOA " +
-                    std::to_string(informationObjectAddress) + " of TypeID " +
-                    TypeID_toString(type) + " does not carry a SELECT flag");
-  }
-  return selectFlag;
+  auto cmd = std::dynamic_pointer_cast<Object::Command>(info);
+  return cmd && cmd->isSelectable() && cmd->isSelect();
 }
 
-CS101_QualifierOfCommand IncomingMessage::getCommandQualifier() const {
-  if ((type < C_SC_NA_1 || (type > C_RC_NA_1 && type < C_SC_TA_1) ||
-       type > C_RC_TA_1)) {
-
-    DEBUG_PRINT(Debug::Message,
-                "IncomingMessage.getCommandQualifier] point at IOA " +
-                    std::to_string(informationObjectAddress) + " of TypeID " +
-                    TypeID_toString(type) +
-                    " does not carry a command QUALIFIER");
-  }
-  return static_cast<CS101_QualifierOfCommand>(qualifierOfCommand.load());
-}
+std::string IncomingMessage::toString() const {
+  std::ostringstream oss;
+  oss << "<c104.IncomingMessage common_address="
+      << std::to_string(commonAddress)
+      << ", io_address=" << std::to_string(informationObjectAddress)
+      << ", type=" << TypeID_toString(type) << ", info=" << info->name()
+      << ", cot=" << CS101_CauseOfTransmission_toString(causeOfTransmission)
+      << ", test=" << bool_toString(test)
+      << ", negative=" << bool_toString(negative)
+      << ", sequence=" << bool_toString(sequence) << " at " << std::hex
+      << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+  return oss.str();
+};

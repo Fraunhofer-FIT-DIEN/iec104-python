@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
- Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology FIT
+ Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology FIT
 
  This file is part of iec104-python.
  iec104-python is free software: you can redistribute it and/or modify
@@ -37,9 +37,9 @@ if USE_TLS:
     tlsconf.set_ca_certificate(cert=str(ROOT / "certs/ca.crt"))
     tlsconf.set_version(min=c104.TlsVersion.TLS_1_2, max=c104.TlsVersion.TLS_1_2)
     tlsconf.add_allowed_remote_certificate(cert=str(ROOT / "certs/client1.crt"))
-    my_server = c104.Server(ip="0.0.0.0", port=19998, tick_rate_ms=2000, max_connections=10, transport_security=tlsconf)
+    my_server = c104.Server(ip="0.0.0.0", port=19998, tick_rate_ms=100, select_timeout_ms=100, max_connections=10, transport_security=tlsconf)
 else:
-    my_server = c104.Server(ip="0.0.0.0", port=19998, tick_rate_ms=2000, max_connections=10)
+    my_server = c104.Server(ip="0.0.0.0", port=19998, tick_rate_ms=100, select_timeout_ms=100, max_connections=10)
 
 my_server.max_connections = 11
 
@@ -83,21 +83,18 @@ my_server.on_unexpected_message(callable=sv_on_unexpected_message)
 # MEASUREMENT POINT WITH COMMAND
 ##################################
 
-def sv_pt_on_setpoint_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+def sv_pt_on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    print("SV] {0} SETPOINT COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
-    if point.quality.is_good():
-        if point.related_io_address:
-            print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
-            related_point = sv_station_2.get_point(point.related_io_address)
-            if related_point:
-                print("SV] -> RELATED POINT VALUE UPDATE")
-                related_point.value = point.value
-            else:
-                print("SV] -> RELATED POINT NOT FOUND!")
-        return c104.ResponseState.SUCCESS
-
-    return c104.ResponseState.FAILURE
+    if point.related_io_address:
+        print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
+        related_point = sv_station_2.get_point(point.related_io_address)
+        if related_point:
+            print("SV] -> RELATED POINT VALUE UPDATE")
+            related_point.value = point.value
+        else:
+            print("SV] -> RELATED POINT NOT FOUND!")
+    return c104.ResponseState.SUCCESS
 
 
 sv_measurement_point = sv_station_2.add_point(io_address=11, type=c104.Type.M_ME_TF_1, report_ms=1000)
@@ -115,17 +112,14 @@ sv_control_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
 # SINGLE POINT WITH COMMAND
 ##################################
 
-def sv_pt_on_single_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} SINGLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
+def sv_pt_on_single_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    print("SV] {0} SINGLE COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
-    if point.quality.is_good():
-        if message.is_select_command:
-            print("SV] -> SELECTED BY: {}".format(point.selected_by))
-        else:
-            print("SV] -> EXECUTED BY {}, NEW SELECTED BY={}".format(message.originator_address, point.selected_by))
-        return c104.ResponseState.SUCCESS
-
-    return c104.ResponseState.FAILURE
+    if message.is_select_command:
+        print("SV] -> SELECTED BY: {}".format(point.selected_by))
+    else:
+        print("SV] -> EXECUTED BY {}, NEW SELECTED BY={}".format(message.originator_address, point.selected_by))
+    return c104.ResponseState.SUCCESS
 
 
 sv_single_point = sv_station_2.add_point(io_address=15, type=c104.Type.M_SP_NA_1)
@@ -141,21 +135,18 @@ sv_single_command.on_receive(callable=sv_pt_on_single_command)
 # DOUBLE POINT WITH COMMAND
 ##################################
 
-def sv_pt_on_double_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, timestamp: {3}, prev: {4}, cot: {5}, quality: {6}, command_qualifier: {7}".format(point.type, point.io_address, point.value, point.updated_at_ms, previous_state, message.cot, point.quality, message.command_qualifier))
+def sv_pt_on_double_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    print("SV] {0} DOUBLE COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
-    if point.quality.is_good():
-        if point.related_io_address:
-            print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
-            related_point = sv_station_2.get_point(point.related_io_address)
-            if related_point:
-                print("SV] -> RELATED POINT VALUE UPDATE")
-                related_point.value = point.value
-            else:
-                print("SV] -> RELATED POINT NOT FOUND!")
-        return c104.ResponseState.SUCCESS
-
-    return c104.ResponseState.FAILURE
+    if point.related_io_address:
+        print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
+        related_point = sv_station_2.get_point(point.related_io_address)
+        if related_point:
+            print("SV] -> RELATED POINT VALUE UPDATE")
+            related_point.value = point.value
+        else:
+            print("SV] -> RELATED POINT NOT FOUND!")
+    return c104.ResponseState.SUCCESS
 
 
 sv_double_point = sv_station_2.add_point(io_address=21, type=c104.Type.M_DP_TB_1)
@@ -169,12 +160,12 @@ sv_double_command.on_receive(callable=sv_pt_on_double_command)
 # STEP POINT WITH COMMAND
 ##################################
 
-sv_global_step_point_value = 0
+sv_global_step_point_value = c104.Int7(0)
 
 
-def sv_pt_on_step_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+def sv_pt_on_step_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     global sv_global_step_point_value
-    print("SV] {0} STEP COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} STEP COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
     if point.value == c104.Step.LOWER:
         sv_global_step_point_value -= 1
@@ -221,17 +212,17 @@ class ServerPointMethodCallbackTestClass:
         self.x = x
 
     def pt_on_before_auto_transmit_measurement_point(self, point: c104.Point) -> None:
-        print(self.x, "--> {0} AUTO TRANSMIT on IOA: {1} updated at: {2}".format(point.type, point.io_address, point.updated_at_ms))
+        print(self.x, "--> {0} AUTO TRANSMIT on IOA: {1} recorded at: {2}".format(point.type, point.io_address, point.recorded_at))
 
 sv_pmct = ServerPointMethodCallbackTestClass("SV] CALLBACK METHOD")
 
 time.sleep(5)
-sv_measurement_point.set(value=1234, timestamp_ms=1711111111111)
+sv_measurement_point.info = c104.ShortInfo(actual=1234, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 sv_measurement_point.on_before_auto_transmit(callable=sv_pmct.pt_on_before_auto_transmit_measurement_point)
 
 time.sleep(5)
-sv_measurement_point.set(value=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=1711111111111)
+sv_measurement_point.info = c104.ShortInfo(actual=-1234.56, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.fromtimestamp(1711111111.111))
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 
 ##################################

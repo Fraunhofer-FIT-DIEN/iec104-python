@@ -64,7 +64,7 @@ public:
   [[nodiscard]] static std::shared_ptr<Connection> create(
       std::shared_ptr<Client> client, const std::string &ip,
       const uint_fast16_t port = IEC_60870_5_104_DEFAULT_PORT,
-      const uint_fast32_t command_timeout_ms = 4000,
+      const uint_fast16_t command_timeout_ms = 100,
       const ConnectionInit init = INIT_ALL,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr,
       const uint_fast8_t originator_address = 0) {
@@ -164,33 +164,26 @@ public:
    * @brief Setter for muted state
    * @param value value of new muted state (true = muted, false = unmuted)
    */
-  bool setMuted(bool value);
-
-  /**
-   * @brief Getter for internal connection object
-   * @return CS104_Connection refrence
-   */
-  CS104_Connection getCS104();
+  void setMuted(bool value);
 
   /**
    * @brief Setter for open state: Mark connection as open
    */
-  bool setOpen();
+  void setOpen();
 
   /**
    * @brief Setter for open state: Mark connection as closed, start reconnect
    * state
    */
-  bool setClosed();
+  void setClosed();
 
   /**
    * @brief add command id to awaiting command result map
    * @param cmdId unique command id
    * @param state command process state
-   * @returns if command preparation was successfully (no collision with active
-   * sequence)
+   * @throws std::runtime_error if cmdId already in use
    */
-  bool prepareCommandSuccess(const std::string &cmdId,
+  void prepareCommandSuccess(const std::string &cmdId,
                              CommandProcessState state);
 
   /**
@@ -268,6 +261,11 @@ public:
    */
   void setOnStateChangeCallback(py::object &callable);
 
+  std::optional<std::chrono::system_clock::time_point> getConnectedAt() const;
+
+  std::optional<std::chrono::system_clock::time_point>
+  getDisconnectedAt() const;
+
   /**
    * @brief send interrogation command
    * @param commonAddress
@@ -320,15 +318,12 @@ public:
    * @brief transmit a command to a remote server
    * @param point control point
    * @param cause reason for transmission
-   * @param qualifier parameter for command duration
    * @returns if operation was successful
    * @throws std::invalid_argument if point type is not supported for this
    * operation
    */
-  bool
-  transmit(std::shared_ptr<Object::DataPoint> point,
-           CS101_CauseOfTransmission cause,
-           CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE);
+  bool transmit(std::shared_ptr<Object::DataPoint> point,
+                CS101_CauseOfTransmission cause);
 
   /**
    * @brief add command id to awaiting command result map
@@ -398,7 +393,7 @@ private:
    * @throws std::invalid_argument if ip or port invalid
    */
   Connection(std::shared_ptr<Client> _client, const std::string &_ip,
-             uint_fast16_t _port, uint_fast32_t command_timeout_ms,
+             uint_fast16_t _port, uint_fast16_t command_timeout_ms,
              ConnectionInit init,
              std::shared_ptr<Remote::TransportSecurity> transport_security,
              uint_fast8_t originator_address);
@@ -411,7 +406,7 @@ private:
       "Connection::connection_mutex"};
 
   /// @brief timeout in milliseconds before an inactive connection gets closed
-  std::uint_fast32_t commandTimeout_ms{1000};
+  std::atomic_uint_fast16_t commandTimeout_ms{100};
 
   /// @brief IP address of remote server
   std::string ip = "";
@@ -438,10 +433,10 @@ private:
   std::atomic<ConnectionState> state{CLOSED};
 
   /// @brief timestamp of last successfully connection opening
-  std::atomic_uint_fast64_t connectedAt_ms{0};
+  std::atomic<std::chrono::system_clock::time_point> connectedAt{};
 
   /// @brief timestamp of last disconnect
-  std::atomic_uint_fast64_t disconnectedAt_ms{0};
+  std::atomic<std::chrono::system_clock::time_point> disconnectedAt{};
 
   /// @brief MUTEX Lock to wait for command response
   mutable Module::GilAwareMutex expectedResponseMap_mutex{
@@ -450,10 +445,6 @@ private:
   /// @brief awaited command responses (must be access with
   /// expectedResponseMap_mutex)
   std::map<std::string, CommandProcessState> expectedResponseMap{};
-
-  /// @brief currently active command sequence, if any (must be access with
-  /// expectedResponseMap_mutex)
-  std::string sequenceId{""};
 
   /// @brief Condition to wait for successfully command confirmation and success
   /// information or timeout
@@ -488,6 +479,21 @@ private:
    * @return connection state enum
    */
   void setState(ConnectionState connectionState);
+
+public:
+  std::string toString() const {
+    size_t len = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(stations_mutex);
+      len = stations.size();
+    }
+    std::ostringstream oss;
+    oss << "<104.Connection ip=" << ip << ", port=" << std::to_string(port)
+        << ", state=" << ConnectionState_toString(state)
+        << ", #stations=" << std::to_string(len) << " at " << std::hex
+        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 
 /**

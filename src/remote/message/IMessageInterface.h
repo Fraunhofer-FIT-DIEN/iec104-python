@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -100,9 +100,9 @@ public:
 
   /**
    * @brief Get the value from an information object inside the remote message
-   * @return value as double
+   * @return value as Information object
    */
-  virtual double getValue() const { return value.load(); }
+  virtual std::shared_ptr<Object::Information> getInfo() const { return info; }
 
   /**
    * @brief test if message test flag is set
@@ -123,49 +123,12 @@ public:
   virtual bool isSequence() const { return sequence.load(); }
 
   /**
-   * @brief Test if message has a connectionString of connection used for this
-   * message
-   * @return information if message has a connectionString
-   */
-  virtual bool hasConnectionString() const {
-    std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
-
-    return !connectionString.empty();
-  }
-
-  /**
-   * @brief Getter for connectionString of connection used for this message
-   * @return ip:port connectionString
-   */
-  virtual std::string getConnectionString() const {
-    std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
-
-    return connectionString;
-  }
-
-  /**
-   * @brief Setter for connectionString of connection used for this message
-   * @param s ip:port connectionString
-   */
-  virtual void setConnectionString(const std::string &s) {
-    std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
-
-    connectionString = s;
-  }
-
-  /**
    * @brief Getter for cause of transmission: why was this message transmitted
    * @return cause of transmission as enum
    */
   virtual CS101_CauseOfTransmission getCauseOfTransmission() const {
     return causeOfTransmission.load();
   }
-
-  /**
-   * @brief Getter for quality of message information
-   * @return quality as bitset object
-   */
-  virtual Quality getQuality() const { return quality.load(); }
 
 protected:
   IMessageInterface() = default;
@@ -192,14 +155,8 @@ protected:
   std::atomic<CS101_CauseOfTransmission> causeOfTransmission{
       CS101_COT_UNKNOWN_COT};
 
-  /// @brief IEC60870-5-104 describes the quality of the information
-  std::atomic<Quality> quality{Quality::None};
-
-  /// @brief ip:port connectionString of the used connection
-  std::string connectionString{};
-
-  /// @brief value of the informationObject
-  std::atomic<double> value{-1};
+  /// @brief abstract representation of information
+  std::shared_ptr<Object::Information> info{nullptr};
 
   /// @brief state that defines if informationObject has a value
   std::atomic_bool test{false};

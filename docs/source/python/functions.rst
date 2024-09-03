@@ -14,11 +14,3 @@ Global functions
 .. autofunction:: explain_bytes
 
 .. autofunction:: explain_bytes_dict
-
-.. autofunction:: add_client
-
-.. autofunction:: remove_client
-
-.. autofunction:: add_server
-
-.. autofunction:: remove_server

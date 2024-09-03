@@ -5,4 +5,3 @@ ResponseState
 
 .. autoclass:: c104.ResponseState
    :members:
-   :noindex:

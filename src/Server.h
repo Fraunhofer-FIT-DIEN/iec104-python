@@ -41,6 +41,15 @@
 #include "remote/TransportSecurity.h"
 #include "remote/message/IncomingMessage.h"
 
+struct Selection {
+  CS101_ASDU asdu;
+  uint8_t oa;
+  uint16_t ca;
+  uint32_t ioa;
+  IMasterConnection connection;
+  std::chrono::steady_clock::time_point created;
+};
+
 /**
  * @brief service model for IEC60870-5-104 communication as server
  */
@@ -55,13 +64,13 @@ public:
   [[nodiscard]] static std::shared_ptr<Server> create(
       std::string bind_ip = "0.0.0.0",
       uint_fast16_t tcp_port = IEC_60870_5_104_DEFAULT_PORT,
-      uint_fast32_t tick_rate_ms = 1000,
+      uint_fast16_t tick_rate_ms = 100, uint_fast16_t select_timeout_ms = 100,
       std::uint_fast8_t max_open_connections = 0,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr) {
     // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<Server>(new Server(bind_ip, tcp_port, tick_rate_ms,
-                                              max_open_connections,
-                                              std::move(transport_security)));
+    return std::shared_ptr<Server>(
+        new Server(bind_ip, tcp_port, tick_rate_ms, select_timeout_ms,
+                   max_open_connections, std::move(transport_security)));
   }
 
   // DESTRUCTOR
@@ -111,6 +120,8 @@ public:
    * @return information on availability of child Station objects
    */
   bool hasStations() const;
+
+  bool isExistingConnection(IMasterConnection connection);
 
   /**
    * @brief Test if Server has open connections to clients
@@ -185,7 +196,8 @@ public:
    */
   void setOnClockSyncCallback(py::object &callable);
 
-  CommandResponseState onClockSync(std::string _ip, CP56Time2a time);
+  CommandResponseState onClockSync(std::string _ip,
+                                   std::chrono::system_clock::time_point time);
 
   /**
    * @brief set python callback that will be executed on unexpected incoming
@@ -205,6 +217,8 @@ public:
    * @throws std::invalid_argument if callable signature does not match
    */
   void setOnConnectCallback(py::object &callable);
+
+  std::uint_fast16_t getTickRate_ms() const;
 
   /**
    * @brief transmit a datapoint related message to a remote client
@@ -240,9 +254,9 @@ public:
    * @param connection send to a single client identified via internal
    * connection object
    */
-  void sendInterrogationResponse(
-      CS101_CauseOfTransmission cot,
-      uint_fast16_t commonAddress = IEC60870_GLOBAL_COMMON_ADDRESS,
+  void sendInventory(
+      const CS101_CauseOfTransmission cot,
+      const uint_fast16_t commonAddress = IEC60870_GLOBAL_COMMON_ADDRESS,
       IMasterConnection connection = nullptr);
   /*
       void sendCounterInterrogationResponse(CS101_CauseOfTransmission cot,
@@ -253,7 +267,12 @@ public:
      IEC60870_GLOBAL_COMMON_ADDRESS, IMasterConnection connection = nullptr);
   */
 
+  void schedulePeriodicTask(const std::function<void()> &task, int interval);
+  void scheduleTask(const std::function<void()> &task, int delay = 0);
+
 private:
+  void scheduleDataPointTimer();
+
   /**
    * @brief Create a new remote connection handler instance that acts as a
    * server
@@ -266,18 +285,40 @@ private:
    * @param transport_security communication encryption instance reference
    */
   Server(const std::string &bind_ip, std::uint_fast16_t tcp_port,
-         std::uint_fast32_t tick_rate_ms,
+         std::uint_fast16_t tick_rate_ms, std::uint_fast16_t select_timeout_ms,
          std::uint_fast8_t max_open_connections,
          std::shared_ptr<Remote::TransportSecurity> transport_security);
 
+  void cleanupSelections();
+
+  void cleanupSelections(IMasterConnection connection);
+
+  void cleanupSelection(uint16_t ca, uint32_t ioa);
+
+  bool select(IMasterConnection connection,
+              std::shared_ptr<Remote::Message::IncomingMessage> message);
+
+  void unselect(const Selection &selection);
+
+  CommandResponseState
+  execute(IMasterConnection connection,
+          std::shared_ptr<Remote::Message::IncomingMessage> message,
+          std::shared_ptr<Object::DataPoint> point);
+
   /// @brief IP address of remote server
-  std::string ip{};
+  const std::string ip{};
 
   ///< @brief Port of remote server
-  std::uint_fast16_t port = 0;
+  const std::uint_fast16_t port = 0;
+
+  /// @brief minimum interval between to periodic broadcasts in milliseconds
+  const std::uint_fast16_t tickRate_ms{100};
+
+  /// @brief selection init timestamp, to test against timeout
+  const std::chrono::milliseconds selectTimeout_ms{100};
 
   /// @brief tls handler
-  std::shared_ptr<Remote::TransportSecurity> security{nullptr};
+  const std::shared_ptr<Remote::TransportSecurity> security{nullptr};
 
   /// @brief vector of stations accessible via this connection
   Object::StationVector stations{};
@@ -291,17 +332,23 @@ private:
   /// @brief state that defines if server thread should be running
   std::atomic_bool enabled{false};
 
-  /// @brief minimum interval between to periodic broadcasts in milliseconds
-  std::atomic_uint_fast32_t tickRate_ms{1000};
+  /// @brief server thread state
+  std::atomic_bool running{false};
 
   /// @brief parameters of current server intance
   CS101_AppLayerParameters appLayerParameters;
 
-  /// @brief MUTEX Lock to access connection_mutex
+  /// @brief MUTEX Lock to access connectionMap
   mutable Module::GilAwareMutex connection_mutex{"Server::connection_mutex"};
 
   /// @brief map of all connections to store connection state
   std::map<IMasterConnection, bool> connectionMap{};
+
+  /// @brief MUTEX Lock to access selectionVEcotr
+  mutable Module::GilAwareMutex selection_mutex{"Server::selection_mutex"};
+
+  /// @brief vector of all selections
+  std::vector<Selection> selectionVector{};
 
   /// @brief number of active connections
   std::atomic_uint_fast8_t activeConnections{0};
@@ -312,8 +359,7 @@ private:
   /// @brief maximum number of connections (0-255), 0 = no limit
   std::atomic_uint_fast8_t maxOpenConnections{0};
 
-  /// @brief server thread state
-  std::atomic_bool running{false};
+  std::priority_queue<Task> tasks;
 
   /// @brief server thread to execute periodic transmission
   std::thread *runThread = nullptr;
@@ -356,6 +402,8 @@ private:
   // void thread_callback();
 
 public:
+  std::optional<uint8_t> getSelector(uint16_t ca, uint32_t ioa);
+
   /**
    * @brief Callback to accept or decline incoming client connections
    * @param parameter reference to custom bound connection data
@@ -462,6 +510,25 @@ public:
    */
   static bool asduHandler(void *parameter, IMasterConnection connection,
                           CS101_ASDU asdu);
+
+  std::string toString() const {
+    size_t lencon = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(connection_mutex);
+      lencon = connectionMap.size();
+    }
+    size_t lenst = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(station_mutex);
+      lenst = stations.size();
+    }
+    std::ostringstream oss;
+    oss << "<104.Server ip=" << ip << ", port=" << std::to_string(port)
+        << ", #clients=" << std::to_string(lencon)
+        << ", #stations=" << std::to_string(lenst) << " at " << std::hex
+        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 
 #endif // C104_SERVER_H

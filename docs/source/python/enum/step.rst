@@ -5,4 +5,3 @@ Step
 
 .. autoclass:: c104.Step
    :members:
-   :noindex:

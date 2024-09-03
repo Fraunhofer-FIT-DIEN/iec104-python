@@ -5,4 +5,3 @@ Debug
 
 .. autoclass:: c104.Debug
    :members:
-   :noindex:

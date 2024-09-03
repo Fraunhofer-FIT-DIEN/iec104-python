@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
- Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology FIT
+ Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology FIT
 
  This file is part of iec104-python.
  iec104-python is free software: you can redistribute it and/or modify
@@ -28,21 +28,21 @@ print("-"*60)
 print("- RUN: TEST")
 print("-"*60)
 
-c104.set_debug_mode(mode=c104.Debug())
+c104.set_debug_mode(c104.Debug.Server|c104.Debug.Client|c104.Debug.Connection|c104.Debug.Point|c104.Debug.Callback)
 print("DEBUG MODE: {0}".format(c104.get_debug_mode()))
 
 ##################################
 # CLIENT
 ##################################
 
-my_client = c104.Client(tick_rate_ms=1000, command_timeout_ms=5000)
+my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=100)
 my_client.originator_address = 123
 
-cl_connection_1 = my_client.add_connection(ip="127.0.0.1", port=2404)
+cl_connection_1 = my_client.add_connection(ip="127.0.0.1", port=2404, init=c104.Init.ALL)
 
 
-def cl_pt_on_receive_point(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("CL] {0} REPORT on IOA: {1} , new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+def cl_pt_on_receive_point(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    print("CL] {0} REPORT on IOA: {1} , message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
     # print("{0}".format(message.is_negative))
     # print("-->| POINT: 0x{0} | EXPLAIN: {1}".format(message.raw.hex(), c104.explain_bytes(apdu=message.raw)))
     return c104.ResponseState.SUCCESS
@@ -93,7 +93,7 @@ cl_step_command.value = c104.Step.HIGHER
 
 
 def cl_dump():
-    global my_client,cl_connection_1
+    global my_client, cl_connection_1
     if cl_connection_1.is_connected:
         print("")
         cl_ct_count = len(my_client.connections)
@@ -106,20 +106,20 @@ def cl_dump():
                 st = ct.stations[st_iter]
                 st_pt_count = len(st.points)
                 print("          |--+ STATION {0} has {1} points".format(st.common_address, st_pt_count))
-                print("             |   TYPE         |    IOA     |        VALUE         |      UPDATED AT      |      REPORTED AT     |      QUALITY      ")
-                print("             |----------------|------------|----------------------|----------------------|----------------------|-------------------")
+                print("             |      TYPE      |   IOA   |       VALUE       | PROCESSED  AT |  RECORDED AT  |      QUALITY      ")
+                print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
                 for pt_iter in range(st_pt_count):
                     pt = st.points[pt_iter]
-                    print("             | {0} | {1:10} | {2:20} | {3:20} | {4:20} | {5}".format(pt.type, pt.io_address, pt.value, pt.updated_at_ms,
-                                                                                                pt.reported_at_ms, pt.quality))
-                    print("             |----------------|------------|----------------------|----------------------|----------------------|-------------------")
+                    print("             | {0} | {1:7} | {2:13} | {3:17} | {4:13} | {5}".format(pt.type, pt.io_address, str(pt.value), pt.recorded_at or 'N. A.',
+                                                                                               pt.processed_at, pt.quality))
+                    print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
 
 
 ##################################
 # SERVER
 ##################################
 
-my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=2000, max_connections=10)
+my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=100, max_connections=10)
 my_server.max_connections = 11
 
 sv_station_2 = my_server.add_station(common_address=47)
@@ -162,21 +162,18 @@ my_server.on_unexpected_message(callable=sv_on_unexpected_message)
 # SERVER: MEASUREMENT POINT WITH COMMAND
 ##################################
 
-def sv_pt_on_setpoint_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+def sv_pt_on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    print("SV] {0} SETPOINT COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
-    if point.quality.is_good():
-        if point.related_io_address:
-            print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
-            related_point = sv_station_2.get_point(point.related_io_address)
-            if related_point:
-                print("SV] -> RELATED POINT VALUE UPDATE")
-                related_point.value = point.value
-            else:
-                print("SV] -> RELATED POINT NOT FOUND!")
-        return c104.ResponseState.SUCCESS
-
-    return c104.ResponseState.FAILURE
+    if point.related_io_address:
+        print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
+        related_point = sv_station_2.get_point(point.related_io_address)
+        if related_point:
+            print("SV] -> RELATED POINT VALUE UPDATE")
+            related_point.value = point.value
+        else:
+            print("SV] -> RELATED POINT NOT FOUND!")
+    return c104.ResponseState.SUCCESS
 
 
 # Nan in short measurement value
@@ -184,7 +181,7 @@ sv_nan_point = sv_station_2.add_point(io_address=87, type=c104.Type.C_SE_NC_1)
 sv_nan_point.value = float("NaN")
 
 sv_measurement_point = sv_station_2.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
-sv_measurement_point.value = 12.34
+sv_measurement_point.value = float(12.34)
 
 sv_measurement_setpoint = sv_station_2.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=sv_measurement_point.io_address, related_io_autoreturn=True)
 sv_measurement_setpoint.on_receive(callable=sv_pt_on_setpoint_command)
@@ -199,21 +196,18 @@ sv_measurement_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
 # SERVER: DOUBLE POINT WITH COMMAND
 ##################################
 
-def sv_pt_on_double_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
-    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+def sv_pt_on_double_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    print("SV] {0} DOUBLE COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
-    if point.quality.is_good():
-        if point.related_io_address:
-            print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
-            related_point = sv_station_2.get_point(point.related_io_address)
-            if related_point:
-                print("SV] -> RELATED POINT VALUE UPDATE")
-                related_point.value = point.value
-            else:
-                print("SV] -> RELATED POINT NOT FOUND!")
-        return c104.ResponseState.SUCCESS
-
-    return c104.ResponseState.FAILURE
+    if point.related_io_address:
+        print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
+        related_point = sv_station_2.get_point(point.related_io_address)
+        if related_point:
+            print("SV] -> RELATED POINT VALUE UPDATE")
+            related_point.value = point.value
+        else:
+            print("SV] -> RELATED POINT NOT FOUND!")
+    return c104.ResponseState.SUCCESS
 
 
 sv_double_point = sv_station_2.add_point(io_address=21, type=c104.Type.M_DP_TB_1)
@@ -227,12 +221,12 @@ sv_double_command.on_receive(callable=sv_pt_on_double_command)
 # SERVER: STEP POINT WITH COMMAND
 ##################################
 
-sv_global_step_point_value = 0
+sv_global_step_point_value = c104.Int7(0)
 
 
-def sv_pt_on_step_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+def sv_pt_on_step_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     global sv_global_step_point_value
-    print("SV] {0} STEP COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("SV] {0} STEP COMMAND on IOA: {1}, message: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message, previous_info, point.info))
 
     if point.value == c104.Step.LOWER:
         sv_global_step_point_value -= 1
@@ -276,7 +270,7 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 my_client.start()
 my_server.start()
 
-while not cl_connection_1.is_connected:
+while not cl_connection_1.is_connected or cl_connection_1.is_muted:
     print("CL] Try to connect to {0}:{1}".format(cl_connection_1.ip, cl_connection_1.port))
     cl_connection_1.connect()
     time.sleep(3)
@@ -303,7 +297,7 @@ cl_dump()
 time.sleep(3)
 print("-"*60)
 
-sv_measurement_point.value = 1234
+sv_measurement_point.value = float(1234)
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 sv_measurement_point.on_before_auto_transmit(callable=pmct.pt_on_before_auto_transmit_measurement_point)
 
@@ -312,7 +306,7 @@ cl_dump()
 time.sleep(3)
 print("-"*60)
 
-sv_measurement_point.set(value=-1234.56, quality=c104.Quality.Invalid, timestamp_ms=int(time.time() * 1000))
+sv_measurement_point.info = c104.ShortInfo(actual=-1234.56, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.fromtimestamp(time.time()))
 sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 
 time.sleep(3)

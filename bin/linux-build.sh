@@ -17,7 +17,6 @@ mv ./wheelhouse/* /opt/c104/dist/
 docker run -it --rm -v "$DIR:/opt/c104" quay.io/pypa/manylinux_2_28_x86_64 /bin/bash -c "$CMD1"
 
 CMD2="
-/opt/python/cp36-cp36m/bin/python3 -m pip wheel /opt/c104 ; \
 /opt/python/cp37-cp37m/bin/python3 -m pip wheel /opt/c104 ; \
 /opt/python/cp38-cp38/bin/python3 -m pip wheel /opt/c104 ; \
 auditwheel repair ./c104-*-linux_x86_64.whl ; \

@@ -66,13 +66,13 @@ private:
                    std::shared_ptr<Remote::Connection> st_connection);
 
   /// @brief unique common address of this station
-  std::uint_fast16_t commonAddress{0};
+  const std::uint_fast16_t commonAddress{0};
 
   /// @brief server object reference (only local station)
-  std::weak_ptr<Server> server;
+  const std::weak_ptr<Server> server;
 
   /// @brief remote connection object reference (only remote station)
-  std::weak_ptr<Remote::Connection> connection;
+  const std::weak_ptr<Remote::Connection> connection;
 
   /// @brief child DataPoint objects (owned by this Station)
   DataPointVector points{};
@@ -117,7 +117,8 @@ public:
    * @param informationObjectAddress information object address
    * @param type iec60870-5-104 information type
    * @param reportInterval_ms auto reporting interval
-   * @param relatedInformationObjectAddress related information object address
+   * @param relatedInformationObjectAddress related information object address,
+   * if any
    * @param relatedInformationObjectAutoReturn auto transmit related point on
    * command
    * @param commandMode command transmission mode (direct or select-and-execute)
@@ -125,24 +126,27 @@ public:
    */
   std::shared_ptr<DataPoint>
   addPoint(std::uint_fast32_t informationObjectAddress, IEC60870_5_TypeID type,
-           std::uint_fast32_t reportInterval_ms = 0,
-           std::uint_fast32_t relatedInformationObjectAddress = 0,
+           std::uint_fast16_t reportInterval_ms = 0,
+           std::optional<std::uint_fast32_t> relatedInformationObjectAddress =
+               std::nullopt,
            bool relatedInformationObjectAutoReturn = false,
            CommandTransmissionMode commandMode = DIRECT_COMMAND);
 
   bool isLocal();
 
 public:
-  inline friend std::ostream &operator<<(std::ostream &os, Station &s) {
-    os << std::endl
-       << "+------------------------------+" << '\n'
-       << "| DUMP Asset/Station           |" << '\n'
-       << "+------------------------------+" << '\n'
-       << "|" << std::setw(19) << "ASDU/CA: " << std::setw(10)
-       << std::to_string(s.commonAddress) << " |" << '\n'
-       << "|------------------------------+" << std::endl;
-    return os;
-  }
+  std::string toString() const {
+    size_t len = 0;
+    {
+      std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
+      len = points.size();
+    }
+    std::ostringstream oss;
+    oss << "<104.Station common_address=" << std::to_string(commonAddress)
+        << ", #points=" << std::to_string(len) << " at " << std::hex
+        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+    return oss.str();
+  };
 };
 
 /**

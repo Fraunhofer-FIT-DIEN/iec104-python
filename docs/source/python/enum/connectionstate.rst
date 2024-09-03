@@ -5,4 +5,3 @@ ConnectionState
 
 .. autoclass:: c104.ConnectionState
    :members:
-   :noindex:

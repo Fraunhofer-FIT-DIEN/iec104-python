@@ -5,4 +5,3 @@ Init
 
 .. autoclass:: c104.Init
    :members:
-   :noindex:

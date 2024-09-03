@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
   }
   ROOT = ROOT + "/tests/";
 
-  setDebug(Debug::Server | Debug::Callback);
+  setDebug(Debug::Server | Debug::Point | Debug::Callback);
   std::cout << "SV] DEBUG MODE: " << Debug_toString(getDebug()) << std::endl;
 
   std::shared_ptr<Remote::TransportSecurity> tlsconf{nullptr};
@@ -67,12 +67,12 @@ int main(int argc, char *argv[]) {
     tlsconf->addAllowedRemoteCertificate(ROOT + "certs/client1.crt");
   }
 
-  auto my_server = Server::create("127.0.0.1", 19998, 1000, 0, tlsconf);
+  auto my_server = Server::create("127.0.0.1", 19998, 100, 100, 0, tlsconf);
 
   auto sv_station_2 = my_server->addStation(47);
 
   auto sv_measurement_point = sv_station_2->addPoint(11, M_ME_TF_1, 1000);
-  sv_measurement_point->setValue(12.34);
+  sv_measurement_point->setValue((float)12.34);
 
   auto sv_control_setpoint = sv_station_2->addPoint(
       12, C_SE_NC_1, 0, sv_measurement_point->getInformationObjectAddress(),
@@ -95,75 +95,81 @@ int main(int argc, char *argv[]) {
       22, C_DC_TA_1, 0, sv_double_point->getInformationObjectAddress(), true);
 
   auto sv_step_point = sv_station_2->addPoint(31, M_ST_TB_1, 2000);
-  sv_step_point->setValue(1);
+  sv_step_point->setValue(LimitedInt7(1));
 
   auto sv_step_command = sv_station_2->addPoint(
       32, C_RC_TA_1, 0, sv_step_point->getInformationObjectAddress(), true);
 
-  auto locals = py::dict("sv_control_setpoint"_a = sv_control_setpoint,
-                         "sv_control_setpoint_2"_a = sv_control_setpoint_2,
-                         "sv_single_command"_a = sv_single_command,
-                         "sv_double_command"_a = sv_double_command,
-                         "sv_step_point"_a = sv_step_point,
-                         "sv_step_command"_a = sv_step_command);
+  auto locals = py::dict(
+      "my_server"_a = my_server, "sv_control_setpoint"_a = sv_control_setpoint,
+      "sv_control_setpoint_2"_a = sv_control_setpoint_2,
+      "sv_single_command"_a = sv_single_command,
+      "sv_double_command"_a = sv_double_command,
+      "sv_step_point"_a = sv_step_point, "sv_step_command"_a = sv_step_command);
 
   try {
     py::exec(R"(
 import c104
+import datetime
 
-def sv_pt_on_setpoint_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+def sv_on_clock_sync(server: c104.Server, ip: str, date_time: datetime.datetime) -> c104.ResponseState:
+    print("SV] ->@| Time {0} from {1} | SERVER {2}:{3}".format(date_time, ip, server.ip, server.port))
+    return c104.ResponseState.SUCCESS
+
+def sv_on_receive_raw(server: c104.Server, data: bytes) -> None:
     import c104
-    print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality))
+    print("SV] -->| {1} [{0}] | SERVER {2}:{3}".format(data.hex(), c104.explain_bytes_dict(apdu=data), server.ip, server.port))
 
-    if point.quality.is_good():
-        if point.related_io_address:
-            print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
-            related_point = point.station.get_point(point.related_io_address)
-            if related_point:
-                print("SV] -> RELATED POINT VALUE UPDATE")
-                related_point.value = point.value
-            else:
-                print("SV] -> RELATED POINT NOT FOUND!")
-        return c104.ResponseState.SUCCESS
-
-    return c104.ResponseState.FAILURE
-
-def sv_pt_on_single_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+def sv_on_send_raw(server: c104.Server, data: bytes) -> None:
     import c104
-    print("SV] {0} SINGLE COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
+    print("SV] <--| {1} [{0}] | SERVER {2}:{3}".format(data.hex(), c104.explain_bytes_dict(apdu=data), server.ip, server.port))
 
-    if point.quality.is_good():
-        if message.is_select_command:
-            print("SV] -> SELECTED BY: {}".format(point.selected_by))
+def sv_pt_on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    import c104
+    print("SV] {0} SETPOINT COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
+
+    if point.related_io_address:
+        print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
+        related_point = point.station.get_point(point.related_io_address)
+        if related_point:
+            print("SV] -> RELATED POINT VALUE UPDATE")
+            related_point.value = point.value
         else:
-            print("SV] -> EXECUTED BY {}, NEW SELECTED BY={}".format(message.originator_address, point.selected_by))
-        return c104.ResponseState.SUCCESS
+            print("SV] -> RELATED POINT NOT FOUND!")
+    return c104.ResponseState.SUCCESS
 
-    return c104.ResponseState.FAILURE
 
-sv_global_step_point_value = 0
-
-def sv_pt_on_double_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+def sv_pt_on_single_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
-    print("SV] {0} DOUBLE COMMAND on IOA: {1}, new: {2}, timestamp: {3}, prev: {4}, cot: {5}, quality: {6}, command_qualifier: {7}".format(point.type, point.io_address, point.value, point.updated_at_ms, previous_state, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} SINGLE COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
 
-    if point.quality.is_good():
-        if point.related_io_address:
-            print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
-            related_point = point.station.get_point(point.related_io_address)
-            if related_point:
-                print("SV] -> RELATED POINT VALUE UPDATE")
-                related_point.value = point.value
-            else:
-                print("SV] -> RELATED POINT NOT FOUND!")
-        return c104.ResponseState.SUCCESS
+    if message.is_select_command:
+        print("SV] -> SELECTED BY: {}".format(point.selected_by))
+    else:
+        print("SV] -> EXECUTED BY {}, NEW SELECTED BY={}".format(message.originator_address, point.selected_by))
+    return c104.ResponseState.SUCCESS
 
-    return c104.ResponseState.FAILURE
 
-def sv_pt_on_step_command(point: c104.Point, previous_state: dict, message: c104.IncomingMessage) -> c104.ResponseState:
+sv_global_step_point_value = c104.Int7(0)
+
+def sv_pt_on_double_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    import c104
+    print("SV] {0} DOUBLE COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
+
+    if point.related_io_address:
+        print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
+        related_point = point.station.get_point(point.related_io_address)
+        if related_point:
+            print("SV] -> RELATED POINT VALUE UPDATE")
+            related_point.value = point.value
+        else:
+            print("SV] -> RELATED POINT NOT FOUND!")
+    return c104.ResponseState.SUCCESS
+
+def sv_pt_on_step_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     import c104
     global sv_global_step_point_value
-    print("SV] {0} STEP COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}, command_qualifier: {6}".format(point.type, point.io_address, point.value, previous_state, message.cot, point.quality, message.command_qualifier))
+    print("SV] {0} STEP COMMAND on IOA: {1}, cot: {2}, previous: {3}, current: {4}".format(point.type, point.io_address, message.cot, previous_info, point.info))
 
     if point.value == c104.Step.LOWER:
         sv_global_step_point_value -= 1
@@ -183,6 +189,9 @@ def sv_pt_on_before_transmit_step_point(point: c104.Point) -> None:
     point.value = sv_global_step_point_value
 
 
+my_server.on_receive_raw(callable=sv_on_receive_raw)
+my_server.on_send_raw(callable=sv_on_send_raw)
+my_server.on_clock_sync(callable=sv_on_clock_sync)
 sv_control_setpoint.on_receive(callable=sv_pt_on_setpoint_command)
 sv_control_setpoint_2.on_receive(callable=sv_pt_on_setpoint_command)
 sv_single_command.on_receive(callable=sv_pt_on_single_command)
@@ -212,6 +221,12 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
    * connect loop
    */
 
+  //  while(true) {
+  //    std::cout << "start" << std::endl;
+  //    my_server->start();
+  //    std::cout << "stop" << std::endl;
+  //    my_server->stop();
+  //  }
   my_server->start();
 
   while (!my_server->hasActiveConnections()) {
@@ -225,7 +240,10 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 
   std::this_thread::sleep_for(10s);
 
-  sv_measurement_point->setValueEx(1234, Quality::None, 1711111111111);
+  sv_measurement_point->setInfo(
+      Object::ShortInfo::create(1234, Quality::None,
+                                std::chrono::system_clock::time_point(
+                                    std::chrono::milliseconds(1711111111111))));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {
@@ -234,7 +252,10 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 
   std::this_thread::sleep_for(10s);
 
-  sv_measurement_point->setValueEx(-1234.56, Quality::Invalid, 1711111111111);
+  sv_measurement_point->setInfo(
+      Object::ShortInfo::create(-1234.56, Quality::Invalid,
+                                std::chrono::system_clock::time_point(
+                                    std::chrono::milliseconds(1711111111111))));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {

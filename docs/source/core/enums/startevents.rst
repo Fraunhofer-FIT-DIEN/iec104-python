@@ -1,5 +1,5 @@
-InformationType
+StartEvents
 ======================================================================
 
-.. doxygenenum:: InformationType
+.. doxygenenum:: StartEvents
    :project: iec104-python

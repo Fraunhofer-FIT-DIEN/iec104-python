@@ -48,20 +48,17 @@ public:
   /**
    * @brief Create a message for a certain DataPoint, type of message is
    * identified via DataPoint
-   * @param point point whom's value should be reported to remote client
+   * @param point point who's value should be reported to remote client
    * @param select flag for select and execute command mode (lock control
    * access)
-   * @param qualifier parameter for command duration
    * @throws std::invalid_argument if point reference, connection or server
    * reference is invalid
    */
   [[nodiscard]] static std::shared_ptr<PointCommand>
-  create(std::shared_ptr<Object::DataPoint> point, const bool select = false,
-         const CS101_QualifierOfCommand qualifier =
-             CS101_QualifierOfCommand::NONE) {
+  create(std::shared_ptr<Object::DataPoint> point, const bool select = false) {
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<PointCommand>(
-        new PointCommand(std::move(point), select, qualifier));
+        new PointCommand(std::move(point), select));
   }
 
   /**
@@ -76,21 +73,10 @@ private:
    * @param point point whom's value should be reported to remote client
    * @param select flag for select and execute command mode (lock control
    * access)
-   * @param qualifier parameter for command duration
    * @throws std::invalid_argument if point reference, connection or server
    * reference is invalid
    */
-  explicit PointCommand(std::shared_ptr<Object::DataPoint> point, bool select,
-                        CS101_QualifierOfCommand qualifier);
-
-  /// @brief timestamp of measurement in milliseconds
-  uint_fast64_t updated_at;
-
-  /// @brief duration of event if required
-  sCP16Time2a duration;
-
-  /// @brief timestamp of measurement formatted as CP56Time2a
-  sCP56Time2a time;
+  PointCommand(std::shared_ptr<Object::DataPoint> point, bool select);
 };
 } // namespace Message
 

@@ -37,8 +37,17 @@ using namespace Remote;
 void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
                                      int eventCode, const char *msg,
                                      TLSConnection con) {
-  std::shared_ptr<TransportSecurity> instance =
-      static_cast<TransportSecurity *>(parameter)->shared_from_this();
+  std::shared_ptr<TransportSecurity> instance{};
+  try {
+    instance = static_cast<TransportSecurity *>(parameter)->shared_from_this();
+  } catch (const std::bad_weak_ptr &e) {
+    if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
+      std::cout << "[c104.TransportSecurity] failed to handle event: instance "
+                   "already removed"
+                << std::endl;
+    }
+    return;
+  }
 
   char peerAddrBuf[60];
   char *peerAddr = nullptr;
@@ -50,7 +59,7 @@ void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
   }
 
   if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
-    printf("TransportSecurity.event] %s (t: %i, c: %i, version: %s remote-ip: "
+    printf("[c104.TransportSecurity] %s (t: %i, c: %i, version: %s remote-ip: "
            "%s)\n",
            msg, eventLevel, eventCode, tlsVersion, peerAddr);
   }

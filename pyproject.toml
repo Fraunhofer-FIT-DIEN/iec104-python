@@ -3,11 +3,11 @@ requires = [
     "setuptools>=42",
     "wheel",
     "ninja",
-    "cmake>=3.18",
+    "cmake>=3.18,<3.28", #3.29 requires libssl.3
 ]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 120
-target-version = ['py36', 'py37', 'py38', 'py39', 'py310', 'py311', 'py312']
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
 skip-string-normalization = true

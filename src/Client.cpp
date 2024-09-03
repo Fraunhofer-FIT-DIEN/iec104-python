@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -40,11 +40,13 @@
 using namespace Remote;
 using namespace std::chrono_literals;
 
-Client::Client(const std::uint_fast32_t tick_rate_ms,
-               const std::uint_fast32_t timeout_ms,
+Client::Client(const std::uint_fast16_t tick_rate_ms,
+               const std::uint_fast16_t timeout_ms,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : tickRate_ms(tick_rate_ms), commandTimeout_ms(timeout_ms),
       security(std::move(transport_security)) {
+  if (tickRate_ms < 50)
+    throw std::range_error("tickRate_ms must be 50 or greater");
   DEBUG_PRINT(Debug::Client, "Created");
 }
 
@@ -72,6 +74,8 @@ void Client::start() {
     runThread = new std::thread(&Client::thread_run, this);
   }
 
+  schedulePeriodicTask([this]() { scheduleDataPointTimer(); }, tickRate_ms);
+
   {
     std::lock_guard<Module::GilAwareMutex> const con_lock(connections_mutex);
     for (auto &c : connections) {
@@ -85,9 +89,7 @@ void Client::start() {
 void Client::stop() {
   Module::ScopedGilRelease const scoped("Client.stop");
 
-  // stop all connections
-  disconnectAll();
-
+  // stop active connection management first
   bool expected = true;
   if (!enabled.compare_exchange_strong(expected, false)) {
     DEBUG_PRINT(Debug::Client, "stop] Already stopped");
@@ -103,6 +105,9 @@ void Client::stop() {
     delete runThread;
     runThread = nullptr;
   }
+
+  // stop all connections
+  disconnectAll();
 
   DEBUG_PRINT(Debug::Client, "stop] Stopped");
 }
@@ -132,6 +137,48 @@ bool Client::hasConnections() {
   std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
 
   return !connections.empty();
+}
+
+bool Client::hasOpenConnections() const {
+  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+  for (auto &c : connections) {
+    if (c->isOpen()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::uint_fast8_t Client::getOpenConnectionCount() const {
+  std::uint_fast8_t count = 0;
+  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+  for (auto &c : connections) {
+    if (c->isOpen()) {
+      count++;
+    }
+  }
+  return count;
+}
+
+bool Client::hasActiveConnections() const {
+  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+  for (auto &c : connections) {
+    if (ConnectionState::OPEN == c->getState()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::uint_fast8_t Client::getActiveConnectionCount() const {
+  std::uint_fast8_t count = 0;
+  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+  for (auto &c : connections) {
+    if (ConnectionState::OPEN == c->getState()) {
+      count++;
+    }
+  }
+  return count;
 }
 
 Remote::ConnectionVector Client::getConnections() {
@@ -179,7 +226,7 @@ std::shared_ptr<Remote::Connection>
 Client::addConnection(const std::string &ip, const uint_fast16_t port,
                       const ConnectionInit init) {
   if (hasConnection(ip, port)) {
-    std::cerr << "[c104.Client.add_connection] Connection already exists"
+    std::cerr << "[c104.Client] add_connection] Connection already exists"
               << std::endl;
     return {nullptr};
   }
@@ -250,7 +297,7 @@ void Client::onNewPoint(std::shared_ptr<Object::Station> station,
     DEBUG_PRINT(Debug::Client, "CALLBACK on_new_point (default: add point)");
     // default behaviour
     try {
-      station->addPoint(io_address, type, 0, 0);
+      station->addPoint(io_address, type, 0, std::nullopt);
     } catch (const std::exception &e) {
       DEBUG_PRINT(Debug::Client, "on_new_point] Failed to add point: " +
                                      std::string(e.what()));
@@ -258,81 +305,107 @@ void Client::onNewPoint(std::shared_ptr<Object::Station> station,
   }
 }
 
-void Client::thread_run() {
-  running.store(true);
-  std::unique_lock<std::mutex> lock(runThread_mutex);
-  std::chrono::system_clock::time_point desiredEnd;
-  bool debug = false;
-  uint_fast8_t count = 0;
-  uint_fast8_t active = 0;
+std::uint_fast16_t Client::getTickRate_ms() const { return tickRate_ms; }
 
-  while (enabled.load()) {
-    debug = DEBUG_TEST(Debug::Client);
-    desiredEnd = std::chrono::system_clock::now() + tickRate_ms.load() * 1ms;
+void Client::scheduleDataPointTimer() {
+  uint16_t counter = 0;
+  auto now = std::chrono::steady_clock::now();
 
-    count = 0;
-    active = 0;
-    std::unique_lock<Module::GilAwareMutex> con_lock(connections_mutex);
-    for (auto &c : connections) {
-      ConnectionState const s = c->getState();
-      switch (s) {
-      case OPEN_MUTED:
-      case OPEN:
-        count++;
-        if (!c->isMuted()) {
-          active++;
+  for (const auto &c : getConnections()) {
+    if (c->isOpen() && !c->isMuted()) {
+      for (const auto &station : c->getStations()) {
+        for (const auto &point : station->getPoints()) {
+          auto next = point->nextTimerAt();
+          if (next.has_value() && next.value() < now) {
+            scheduleTask([point]() { point->onTimer(); }, counter++);
+          }
         }
-        break;
-      case OPEN_AWAIT_INTERROGATION:
-        count++;
-        try {
-          c->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS, CS101_COT_ACTIVATION,
-                           QOI_STATION, false);
-        } catch (const std::exception &e) {
-          std::cerr << "[c104.Client.loop] Failed to send connection "
-                       "initiation interrogation: "
-                    << e.what() << std::endl;
-        }
-        break;
-      case OPEN_AWAIT_CLOCK_SYNC:
-        count++;
-        c->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, false);
-        break;
-      case CLOSED_AWAIT_RECONNECT:
-        c->connect();
-        break;
-      }
-    }
-    con_lock.unlock();
-
-    if (count != openConnections.load()) {
-      openConnections.store(count);
-
-      DEBUG_PRINT_CONDITION(debug, Debug::Client,
-                            "thread_run] Connected servers: " +
-                                std::to_string(count));
-    }
-
-    if (active != activeConnections.load()) {
-      activeConnections.store(active);
-
-      DEBUG_PRINT_CONDITION(debug, Debug::Client,
-                            "thread_run] Active servers: " +
-                                std::to_string(count));
-    }
-
-    runThread_wait.wait_until(lock, desiredEnd);
-    if (debug) {
-      auto diff = std::chrono::duration_cast<std::chrono::microseconds>(
-                      std::chrono::system_clock::now() - desiredEnd)
-                      .count();
-      if (diff > 5000) {
-        DEBUG_PRINT_CONDITION(true, Debug::Client,
-                              "thread_run] Cannot keep up the tick rate: " +
-                                  std::to_string(diff) + u8" \xb5s");
       }
     }
   }
+}
 
+void Client::schedulePeriodicTask(const std::function<void()> &task,
+                                  int interval) {
+  {
+    if (interval < 50) {
+      throw std::out_of_range(
+          "The interval for periodic tasks must be 1000ms at minimum.");
+    }
+    auto periodic = std::make_shared<std::function<void()>>([]() {});
+    *periodic = [this, task, interval, periodic]() {
+      // Schedule next execution
+      scheduleTask(*periodic, interval);
+      task();
+    };
+    // Schedule first execution
+    scheduleTask(*periodic, interval);
+  }
+
+  runThread_wait.notify_one();
+}
+
+void Client::scheduleTask(const std::function<void()> &task, int delay) {
+  {
+    std::lock_guard<std::mutex> lock(runThread_mutex);
+    if (delay < 0) {
+      tasks.push({task, std::chrono::steady_clock::time_point::min()});
+    } else {
+      tasks.push({task, std::chrono::steady_clock::now() +
+                            std::chrono::milliseconds(delay)});
+    }
+  }
+
+  runThread_wait.notify_one();
+}
+
+void Client::thread_run() {
+  bool const debug = DEBUG_TEST(Debug::Client);
+  running.store(true);
+  while (enabled.load()) {
+    std::function<void()> task;
+
+    {
+      std::unique_lock<std::mutex> lock(runThread_mutex);
+      if (tasks.empty()) {
+        runThread_wait.wait(lock);
+        continue;
+      }
+
+      auto now = std::chrono::steady_clock::now();
+      if (now >= tasks.top().schedule_time) {
+        auto delay = now - tasks.top().schedule_time;
+        if (delay > TASK_DELAY_THRESHOLD) {
+          DEBUG_PRINT_CONDITION(
+              debug, Debug::Client,
+              "Warning: Task started delayed by " +
+                  std::to_string(
+                      std::chrono::duration_cast<std::chrono::milliseconds>(
+                          delay)
+                          .count()) +
+                  " ms");
+        }
+        task = tasks.top().function;
+        tasks.pop();
+      } else {
+        runThread_wait.wait_until(lock, tasks.top().schedule_time);
+        continue;
+      }
+    }
+
+    try {
+      task();
+    } catch (const std::exception &e) {
+      std::cerr << "[c104.Client] loop] Task aborted: " << e.what()
+                << std::endl;
+    }
+  }
+  if (!tasks.empty()) {
+    DEBUG_PRINT_CONDITION(debug, Debug::Client,
+                          "loop] Tasks dropped due to stop: " +
+                              std::to_string(tasks.size()));
+    std::priority_queue<Task> empty;
+    std::swap(tasks, empty);
+  }
   running.store(false);
 }

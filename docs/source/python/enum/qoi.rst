@@ -5,4 +5,3 @@ Qoi (Qualifier of interrogation)
 
 .. autoclass:: c104.Qoi
    :members:
-   :noindex:

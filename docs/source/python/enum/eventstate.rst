@@ -5,4 +5,3 @@ EventState
 
 .. autoclass:: c104.EventState
    :members:
-   :noindex:

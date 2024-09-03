@@ -52,33 +52,30 @@ void cl_dump(std::shared_ptr<Client> my_client,
         std::cout << "          |--+ STATION "
                   << std::to_string(st_iter->getCommonAddress()) << " has "
                   << std::to_string(st_pt_count) << " points" << std::endl;
-        std::cout << "             |   TYPE         |    IOA     |        "
-                     "VALUE         |      UPDATED AT      |      REPORTED AT  "
-                     "   |      QUALITY      "
+        std::cout << "             |   TYPE    |   IOA   |     VALUE     | "
+                     "PROCESSED  AT |  RECORDED AT  |      QUALITY      "
                   << std::endl;
-        std::cout
-            << "             "
-               "|----------------|------------|----------------------|---------"
-               "-------------|----------------------|-------------------"
-            << std::endl;
+        std::cout << "             "
+                     "|-----------|---------|---------------|---------------|--"
+                     "-------------|-------------------"
+                  << std::endl;
 
         for (auto &pt_iter : st_iter->getPoints()) {
           std::cout << "             | " << TypeID_toString(pt_iter->getType())
-                    << " | " << std::setw(10)
+                    << " | " << std::setw(7)
                     << std::to_string(pt_iter->getInformationObjectAddress())
-                    << " | " << std::setw(20)
-                    << std::to_string(pt_iter->getValue()) << " | "
-                    << std::setw(20)
-                    << std::to_string(pt_iter->getUpdatedAt_ms()) << " | "
-                    << std::setw(20)
-                    << std::to_string(pt_iter->getReportedAt_ms()) << " | "
-                    << Quality_toString(pt_iter->getQuality()) << std::endl;
+                    << " | " << std::setw(13)
+                    << InfoValue_toString(pt_iter->getValue()) << " | "
+                    << std::setw(13)
+                    << TimePoint_toString(pt_iter->getProcessedAt()) << " | "
+                    << std::setw(13)
+                    << TimePoint_toString(pt_iter->getRecordedAt()) << " | "
+                    << InfoQuality_toString(pt_iter->getQuality()) << std::endl;
         }
-        std::cout
-            << "             "
-               "|----------------|------------|----------------------|---------"
-               "-------------|----------------------|-------------------"
-            << std::endl;
+        std::cout << "             "
+                     "|-----------|---------|---------------|---------------|--"
+                     "-------------|-------------------"
+                  << std::endl;
       }
     }
   }
@@ -103,7 +100,7 @@ int main(int argc, char *argv[]) {
   }
   ROOT = ROOT + "/tests/";
 
-  setDebug(Debug::Client | Debug::Connection);
+  setDebug(Debug::Client | Debug::Connection | Debug::Point | Debug::Callback);
   std::cout << "CL] DEBUG MODE: " << Debug_toString(getDebug()) << std::endl;
 
   std::shared_ptr<Remote::TransportSecurity> tlsconf{nullptr};
@@ -117,10 +114,11 @@ int main(int argc, char *argv[]) {
     tlsconf->addAllowedRemoteCertificate(ROOT + "certs/server1.crt");
   }
 
-  auto my_client = Client::create(1000, 5000, tlsconf);
+  auto my_client = Client::create(100, 100, tlsconf);
   my_client->setOriginatorAddress(123);
 
-  auto cl_connection_1 = my_client->addConnection("127.0.0.1", 19998);
+  auto cl_connection_1 =
+      my_client->addConnection("127.0.0.1", 19998, INIT_NONE);
 
   auto cl_station_1 = cl_connection_1->addStation(47);
   auto cl_step_command = cl_station_1->addPoint(32, C_RC_TA_1);
@@ -132,6 +130,14 @@ int main(int argc, char *argv[]) {
    * connect loop
    */
 
+  //   while(true) {
+  //     std::cout << "start" << std::endl;
+  //     my_client->start();
+  //     std::cout << "stop" << std::endl;
+  //     //std::this_thread::sleep_for(1s);
+  //     cl_connection_1->disconnect();
+  //     my_client->stop();
+  //  }
   my_client->start();
 
   while (!cl_connection_1->isOpen()) {
@@ -163,17 +169,21 @@ int main(int argc, char *argv[]) {
    */
 
   auto cl_single_command = cl_station_2->addPoint(16, C_SC_NA_1);
-  cl_single_command->setValue(0);
+  cl_single_command->setValue(false);
   if (cl_single_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Single command OFF successful" << std::endl;
   } else {
-    std::cout << "CL] transmit: Single command OFF failed" << std::endl;
+    std::cout << "CL] transmit: Single command OFF failed (not selected)"
+              << std::endl;
   }
   std::this_thread::sleep_for(1s);
 
   cl_single_command->setCommandMode(SELECT_AND_EXECUTE_COMMAND);
+  cl_single_command->setInfo(
+      Object::SingleCmd::create(false, CS101_QualifierOfCommand::SHORT_PULSE));
   if (cl_single_command->transmit(CS101_COT_ACTIVATION)) {
-    std::cout << "CL] transmit: Single command OFF successful" << std::endl;
+    std::cout << "CL] transmit: Single command OFF successful (selected)"
+              << std::endl;
   } else {
     std::cout << "CL] transmit: Single command OFF failed" << std::endl;
   }
@@ -184,9 +194,11 @@ int main(int argc, char *argv[]) {
    */
 
   auto cl_double_command = cl_station_2->addPoint(22, C_DC_TA_1);
+  cl_double_command->setInfo(Object::DoubleCmd::create(
+      IEC60870_DOUBLE_POINT_ON, CS101_QualifierOfCommand::NONE,
+      std::chrono::system_clock::time_point(
+          std::chrono::milliseconds(1711111111111))));
 
-  cl_double_command->setValueEx(IEC60870_DOUBLE_POINT_ON, Quality::None,
-                                1711111111111);
   if (cl_double_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Double command ON successful" << std::endl;
   } else {
@@ -209,7 +221,7 @@ int main(int argc, char *argv[]) {
   auto cl_setpoint_1 = cl_station_2->addPoint(12, C_SE_NC_1);
   auto cl_setpoint_2 = cl_station_2->addPoint(13, C_SE_NC_1);
 
-  cl_setpoint_1->setValue(13.45);
+  cl_setpoint_1->setInfo(Object::ShortCmd::create(13.45));
   if (cl_setpoint_1->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Setpoint1 command successful" << std::endl;
   } else {
@@ -217,7 +229,7 @@ int main(int argc, char *argv[]) {
   }
   std::this_thread::sleep_for(1s);
 
-  cl_setpoint_2->setValue(13.45);
+  cl_setpoint_2->setInfo(Object::ShortCmd::create(13.45));
   if (cl_setpoint_2->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Setpoint2 command successful" << std::endl;
   } else {

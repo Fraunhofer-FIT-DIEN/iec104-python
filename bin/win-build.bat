@@ -9,6 +9,7 @@ py -3.10 -m pip wheel . -w dist
 py -3.9 -m pip wheel . -w dist
 py -3.8 -m pip wheel . -w dist
 py -3.7 -m pip wheel . -w dist
-py -3.6 -m pip wheel . -w dist
 
+rmdir /S /Q c104.egg-info
+py -m pip install build
 py -m build . --sdist

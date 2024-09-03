@@ -30,6 +30,7 @@
  */
 
 #include "object/Station.h"
+#include "Client.h"
 #include "Server.h"
 #include "remote/Connection.h"
 
@@ -94,13 +95,12 @@ Station::getPoint(const std::uint_fast32_t informationObjectAddress) {
   return {nullptr};
 }
 
-std::shared_ptr<DataPoint>
-Station::addPoint(const std::uint_fast32_t informationObjectAddress,
-                  const IEC60870_5_TypeID type,
-                  const std::uint_fast32_t reportInterval_ms,
-                  const std::uint_fast32_t relatedInformationObjectAddress,
-                  const bool relatedInformationObjectAutoReturn,
-                  const CommandTransmissionMode commandMode) {
+std::shared_ptr<DataPoint> Station::addPoint(
+    const std::uint_fast32_t informationObjectAddress,
+    const IEC60870_5_TypeID type, const std::uint_fast16_t reportInterval_ms,
+    const std::optional<std::uint_fast32_t> relatedInformationObjectAddress,
+    const bool relatedInformationObjectAutoReturn,
+    const CommandTransmissionMode commandMode) {
   if (getPoint(informationObjectAddress)) {
     return {nullptr};
   }
@@ -109,14 +109,21 @@ Station::addPoint(const std::uint_fast32_t informationObjectAddress,
               "add_point] " + std::string(TypeID_toString(type)) + " | IOA " +
                   std::to_string(informationObjectAddress));
 
+  // forward tickRate_ms
+  uint_fast16_t tickRate_ms = 0;
+  if (auto sv = getServer()) {
+    tickRate_ms = sv->getTickRate_ms();
+  } else if (auto co = getConnection()) {
+    if (auto cl = co->getClient()) {
+      tickRate_ms = cl->getTickRate_ms();
+    }
+  }
+
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
-  auto point =
-      DataPoint::create(informationObjectAddress, type, shared_from_this(),
-                        reportInterval_ms, relatedInformationObjectAddress,
-                        relatedInformationObjectAutoReturn, commandMode);
-  // auto point = new DataPoint(informationObjectAddress, type, this,
-  // reportInterval_ms, relatedInformationObjectAddress,
-  // relatedInformationObjectAutoReturn);
+  auto point = DataPoint::create(
+      informationObjectAddress, type, shared_from_this(), reportInterval_ms,
+      relatedInformationObjectAddress, relatedInformationObjectAutoReturn,
+      commandMode, tickRate_ms);
 
   points.push_back(point);
   return point;

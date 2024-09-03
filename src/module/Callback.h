@@ -203,14 +203,9 @@ public:
 
     if (DEBUG_TEST(Debug::Callback)) {
       this->end = std::chrono::steady_clock::now();
-      DEBUG_PRINT_CONDITION(
-          true, Debug::Callback,
-          name + "] Stats | TOTAL " +
-              std::to_string(
-                  std::chrono::duration_cast<std::chrono::microseconds>(
-                      this->end - this->begin)
-                      .count()) +
-              u8" \xb5s");
+      DEBUG_PRINT_CONDITION(true, Debug::Callback,
+                            name + "] Stats | TOTAL " +
+                                TICTOC(this->begin, this->end));
     }
 
     return this->success;
@@ -287,14 +282,9 @@ public:
 
     if (DEBUG_TEST(Debug::Callback)) {
       this->end = std::chrono::steady_clock::now();
-      DEBUG_PRINT_CONDITION(
-          true, Debug::Callback,
-          name + "] Stats | TOTAL " +
-              std::to_string(
-                  std::chrono::duration_cast<std::chrono::microseconds>(
-                      this->end - this->begin)
-                      .count()) +
-              u8" \xb5s");
+      DEBUG_PRINT_CONDITION(true, Debug::Callback,
+                            name + "] Stats | TOTAL " +
+                                TICTOC(this->begin, this->end));
     }
 
     return this->success;

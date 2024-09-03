@@ -31,223 +31,240 @@
 
 #include "PointMessage.h"
 #include "object/DataPoint.h"
+#include "object/Information.h"
 
 using namespace Remote::Message;
 
 PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
-    : OutgoingMessage(point), updated_at(0), duration({0}), time({0}) {
+    : OutgoingMessage(point) {
   causeOfTransmission = CS101_COT_SPONTANEOUS;
-  updated_at = point->getUpdatedAt_ms();
-
-  CP56Time2a_createFromMsTimestamp(&time, updated_at);
 
   switch (type) {
-  // bool Single Point
+
   // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_SP_NA_1: {
+    auto i = std::dynamic_pointer_cast<Object::SingleInfo>(info);
     io = (InformationObject)SinglePointInformation_create(
-        nullptr, informationObjectAddress, (bool)value.load(),
-        static_cast<uint8_t>(quality.load()));
+        nullptr, informationObjectAddress, i->isOn(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())));
   } break;
 
-    // bool Single Point + Extended Time
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_SP_TB_1: {
+    auto i = std::dynamic_pointer_cast<Object::SingleInfo>(info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)SinglePointWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (bool)value.load(),
-        static_cast<uint8_t>(quality.load()), &time);
+        nullptr, informationObjectAddress, i->isOn(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &time);
   } break;
 
-    // enum Double Point [INTERMEDIATE|ON|OFF|INDETERMINATE]
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_DP_NA_1: {
-    auto state = (DoublePointValue)value.load();
+    auto i = std::dynamic_pointer_cast<Object::DoubleInfo>(info);
     io = (InformationObject)DoublePointInformation_create(
-        nullptr, informationObjectAddress, state,
-        static_cast<uint8_t>(quality.load()));
+        nullptr, informationObjectAddress, i->getState(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())));
   } break;
 
-    // enum Double Point [INTERMEDIATE|ON|OFF|INDETERMINATE] + Extended Time
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_DP_TB_1: {
-    auto state = (DoublePointValue)value.load();
+    auto i = std::dynamic_pointer_cast<Object::DoubleInfo>(info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)DoublePointWithCP56Time2a_create(
-        nullptr, informationObjectAddress, state,
-        static_cast<uint8_t>(quality.load()), &time);
+        nullptr, informationObjectAddress, i->getState(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &time);
   } break;
 
-    // int [-64,63] StepPosition (Trafo)
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_ST_NA_1: {
+    auto i = std::dynamic_pointer_cast<Object::StepInfo>(info);
     io = (InformationObject)StepPositionInformation_create(
-        nullptr, informationObjectAddress, (int)value.load(), false,
-        static_cast<uint8_t>(quality.load()));
+        nullptr, informationObjectAddress, i->getPosition().get(),
+        i->isTransient(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())));
   } break;
 
-    // int [-64,63] StepPosition (Trafo) + Extended Time
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_ST_TB_1: {
+    auto i = std::dynamic_pointer_cast<Object::StepInfo>(info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)StepPositionWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (int)value.load(), false,
-        static_cast<uint8_t>(quality.load()), &time);
+        nullptr, informationObjectAddress, i->getPosition().get(),
+        i->isTransient(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &time);
   } break;
 
-    // uint32_t [0,2^32] BitString 32bits
   case M_BO_NA_1: {
-    // @todo what happens in case of bad quality ??
+    auto i = std::dynamic_pointer_cast<Object::BinaryInfo>(info);
     io = (InformationObject)BitString32_create(
-        nullptr, informationObjectAddress, (uint32_t)value.load());
+        nullptr, informationObjectAddress, i->getBlob().get());
   } break;
 
-    // uint32_t [0,2^32] BitString 32bits + Extended Time
   case M_BO_TB_1: {
-    // @todo what happens in case of bad quality ??
+    auto i = std::dynamic_pointer_cast<Object::BinaryInfo>(info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)Bitstring32WithCP56Time2a_create(
-        nullptr, informationObjectAddress, (uint32_t)value.load(), &time);
+        nullptr, informationObjectAddress, i->getBlob().get(), &time);
   } break;
 
-    // float Measurement Value (NORMALIZED)
-    // NORMALIZATION: from [-1.0f to +1.0f] encoded to int16 [-32.768‬
-    // to 32.767] Valid cause of transmission: 1,2,3,5,20-36
+    // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_NA_1: {
+    auto i = std::dynamic_pointer_cast<Object::NormalizedInfo>(info);
     io = (InformationObject)MeasuredValueNormalized_create(
-        nullptr, informationObjectAddress, (float)value.load(),
-        static_cast<uint8_t>(quality.load()));
+        nullptr, informationObjectAddress, i->getActual().get(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())));
   } break;
 
-    // int16 Measurement Value (NORMALIZED) + Extended Time
-    // NORMALIZATION: from [-1.0f to +1.0f] encoded to [-32.768‬ to 32.767]
     // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_TD_1: {
+    auto i = std::dynamic_pointer_cast<Object::NormalizedInfo>(info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)MeasuredValueNormalizedWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (float)value.load(),
-        static_cast<uint8_t>(quality.load()), &time);
+        nullptr, informationObjectAddress, i->getActual().get(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &time);
   } break;
 
-    // uint16 Measurement Value (SCALED)
-    // SCALED: from [-65536 to +65535] encoded to [0 to 65535] via negative
-    // values + 65535 Valid cause of transmission: 1,2,3,5,20-36
+    // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_NB_1: {
+    auto i = std::dynamic_pointer_cast<Object::ScaledInfo>(info);
     io = (InformationObject)MeasuredValueScaled_create(
-        nullptr, informationObjectAddress, (int)value.load(),
-        static_cast<uint8_t>(quality.load()));
+        nullptr, informationObjectAddress, i->getActual().get(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())));
   } break;
 
-    // uint16 Measurement Value (SCALED) + Extended Time
-    // SCALED: from [-65536 to +65535] encoded to [0 to 65535] via negative
-    // values + 65535 Valid cause of transmission: 1,2,3,5,20-36
+    // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_TE_1: {
+    auto i = std::dynamic_pointer_cast<Object::ScaledInfo>(info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)MeasuredValueScaledWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (int)value.load(),
-        static_cast<uint8_t>(quality.load()), &time);
+        nullptr, informationObjectAddress, i->getActual().get(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &time);
   } break;
 
-    // float (32bit-256) Measurement Value (SHORT)
-    //  [-32.768‬ to 32.767]
     // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_NC_1: {
+    auto i = std::dynamic_pointer_cast<Object::ShortInfo>(info);
     io = (InformationObject)MeasuredValueShort_create(
-        nullptr, informationObjectAddress, (float)value.load(),
-        static_cast<uint8_t>(quality.load()));
+        nullptr, informationObjectAddress, i->getActual(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())));
   } break;
 
-    // float (32bit-256) Measurement Value (SHORT) + Extended Time
-    //  [-32.768‬ to 32.767]
     // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_TF_1: {
+    auto i = std::dynamic_pointer_cast<Object::ShortInfo>(info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     io = (InformationObject)MeasuredValueShortWithCP56Time2a_create(
-        nullptr, informationObjectAddress, (float)value.load(),
-        static_cast<uint8_t>(quality.load()), &time);
+        nullptr, informationObjectAddress, i->getActual(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &time);
   } break;
 
-    // Encoded Counter Value
   case M_IT_NA_1: {
-    // @todo what happens in case of bad quality ??
-    // @todo flags and sequence number usage
-    uint_fast8_t seqNumber = 0;
-    bool hasCarry = ::test(quality.load(), Quality::Overflow),
-         isAdjusted = false, isInvalid = is_any(quality.load());
-    io = (InformationObject)BinaryCounterReading_create(
-        nullptr, (int)value.load(), seqNumber, hasCarry, isAdjusted, isInvalid);
+    auto i = std::dynamic_pointer_cast<Object::BinaryCounterInfo>(info);
+    auto q = std::get<BinaryCounterQuality>(i->getQuality());
+    BinaryCounterReading _value = BinaryCounterReading_create(
+        nullptr, i->getCounter(), i->getSequence().get(),
+        ::test(q, BinaryCounterQuality::Carry),
+        ::test(q, BinaryCounterQuality::Adjusted),
+        ::test(q, BinaryCounterQuality::Invalid));
+    io = (InformationObject)IntegratedTotals_create(
+        nullptr, informationObjectAddress, _value);
   } break;
 
-    // Encoded Counter Value + Extended Timer
   case M_IT_TB_1: {
-    // @todo what happens in case of bad quality ??
-    // @todo flags and sequence number usage
-    uint_fast8_t seqNumber = 0;
-    bool hasCarry = ::test(quality.load(), Quality::Overflow),
-         isAdjusted = false, isInvalid = is_any(quality.load());
+    auto i = std::dynamic_pointer_cast<Object::BinaryCounterInfo>(info);
+    auto q = std::get<BinaryCounterQuality>(i->getQuality());
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
     BinaryCounterReading _value = BinaryCounterReading_create(
-        nullptr, (int)value.load(), seqNumber, hasCarry, isAdjusted, isInvalid);
+        nullptr, i->getCounter(), i->getSequence().get(),
+        ::test(q, BinaryCounterQuality::Carry),
+        ::test(q, BinaryCounterQuality::Adjusted),
+        ::test(q, BinaryCounterQuality::Invalid));
     io = (InformationObject)IntegratedTotalsWithCP56Time2a_create(
         nullptr, informationObjectAddress, _value, &time);
   } break;
 
-    // SingleEvent Protection Equipment + Extended Timer
-    //@todo not yet supported - set event
   case M_EP_TD_1: {
-    throw std::invalid_argument("Event messages not supported!");
-    uint_fast32_t elapsedTime_ms = 0;
-    CP16Time2a_setEplapsedTimeInMs(&duration, elapsedTime_ms);
-    tSingleEvent event = IEC60870_EVENTSTATE_ON; // untested... lifetime ??
+    auto i =
+        std::dynamic_pointer_cast<Object::ProtectionEquipmentEventInfo>(info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
+    sCP16Time2a elapsed{};
+    CP16Time2a_setEplapsedTimeInMs(&elapsed, i->getElapsed_ms().get());
+    tSingleEvent event =
+        ((static_cast<uint8_t>(i->getState()) & 0b00000111) |
+         (static_cast<uint8_t>(std::get<Quality>(i->getQuality())) &
+          0b11111000));
     io = (InformationObject)EventOfProtectionEquipmentWithCP56Time2a_create(
-        nullptr, informationObjectAddress, &event, &duration, &time);
+        nullptr, informationObjectAddress, &event, &elapsed, &time);
   } break;
 
-    // StartEvent Protection Equipment + Extended Timer
-    //@todo not yet supported - set event
   case M_EP_TE_1: {
-    throw std::invalid_argument("Event messages not supported!");
-    uint_fast32_t elapsedTime_ms = 0;
-    CP16Time2a_setEplapsedTimeInMs(&duration, elapsedTime_ms);
+    auto i =
+        std::dynamic_pointer_cast<Object::ProtectionEquipmentStartEventsInfo>(
+            info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
+    sCP16Time2a elapsed{};
+    CP16Time2a_setEplapsedTimeInMs(&elapsed, i->getRelayDuration_ms().get());
     io = (InformationObject)
         PackedStartEventsOfProtectionEquipmentWithCP56Time2a_create(
-            nullptr, informationObjectAddress, IEC60870_START_EVENT_GS,
-            static_cast<uint8_t>(quality.load()), &duration, &time);
+            nullptr, informationObjectAddress,
+            static_cast<uint8_t>(i->getEvents()),
+            static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &elapsed,
+            &time);
   } break;
 
-    // OuputCircuitInfo Protection Equipment + Extended Timer
-    //@todo not yet supported - set output curcuit info
   case M_EP_TF_1: {
-    throw std::invalid_argument("Event messages not supported!");
-    uint_fast32_t operatingTime_ms = 0;
-    CP16Time2a_setEplapsedTimeInMs(&duration, operatingTime_ms);
+    auto i =
+        std::dynamic_pointer_cast<Object::ProtectionEquipmentOutputCircuitInfo>(
+            info);
+    sCP56Time2a time{};
+    from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
+    sCP16Time2a elapsed{};
+    CP16Time2a_setEplapsedTimeInMs(&elapsed, i->getRelayOperating_ms().get());
     io = (InformationObject)PackedOutputCircuitInfoWithCP56Time2a_create(
-        nullptr, informationObjectAddress, IEC60870_OUTPUT_CI_GC,
-        static_cast<uint8_t>(quality.load()), &duration, &time);
+        nullptr, informationObjectAddress,
+        static_cast<uint8_t>(i->getCircuits()),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &elapsed,
+        &time);
   } break;
 
-    // StatusAndStatusChangeDetection Single + Change Detection
-    //@todo not yet supported - set sscd info
   case M_PS_NA_1: {
-    throw std::invalid_argument("StatusAndStatusChangeDetection messages not "
-                                "supported!");
-    sStatusAndStatusChangeDetection sscd{0}; // untested... lifetime ??
-    StatusAndStatusChangeDetection_setSTn(&sscd, 0);
+    auto i = std::dynamic_pointer_cast<Object::StatusWithChangeDetection>(info);
+    sStatusAndStatusChangeDetection sscd{};
+    auto status = static_cast<uint16_t>(i->getStatus());
+    auto changed = static_cast<uint16_t>(i->getChanged());
+    sscd.encodedValue[0] = (status >> 0) & 0b11111111;
+    sscd.encodedValue[1] = (status >> 8) & 0b11111111;
+    sscd.encodedValue[2] = (changed >> 0) & 0b11111111;
+    sscd.encodedValue[3] = (changed >> 8) & 0b11111111;
     io = (InformationObject)PackedSinglePointWithSCD_create(
         nullptr, informationObjectAddress, &sscd,
-        static_cast<uint8_t>(quality.load()));
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())));
   } break;
 
     // float Measurement Value (NORMALIZED) - Quality
   case M_ME_ND_1: {
-    // @todo what happens in case of bad quality ??
+    auto i = std::dynamic_pointer_cast<Object::NormalizedInfo>(info);
     io = (InformationObject)MeasuredValueNormalizedWithoutQuality_create(
-        nullptr, informationObjectAddress, (float)value.load());
+        nullptr, informationObjectAddress, i->getActual().get());
   } break;
 
     // End of initialization
   case M_EI_NA_1: {
+    // todo remove??
     throw std::invalid_argument("End of initialization is not a PointMessage!");
     informationObjectAddress = 0;
     io = (InformationObject)EndOfInitialization_create(
         nullptr, IEC60870_COI_REMOTE_RESET);
-  } break;
-
-  case S_IT_TC_1: {
-    // @todo add IT messages
-    throw std::invalid_argument("Integrated totals messages not supported!");
   } break;
 
   case M_SP_TA_1:
