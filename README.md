@@ -5,7 +5,7 @@ __Table of contents__
 2. [Licensing](#licensing)
 3. [System requirements](#system-requirements)
 4. [Installation](#installation)
-5. [Wiki](#wiki)
+5. [Documentation](#documentation)
 6. [Contribution](#contribution)
 
 
@@ -129,7 +129,7 @@ You need the build requirements, listed under "How to build".
 
 ## Documentation
 
-Read more about the **Classes** and their **Properties** in our [read the docs documentation](https://iec104-python.readthedocs.io/python/index.html).
+Read more about the **Classes** and their **Properties** in our [read the docs documentation](https://iec104-python.readthedocs.io/latest/python/index.html).
 
 ## Contribution
 
