@@ -891,9 +891,9 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
 
   bool const debug = DEBUG_TEST(Debug::Server);
   std::chrono::steady_clock::time_point begin, end;
-  if (debug) {
-    begin = std::chrono::steady_clock::now();
-  }
+
+  // always initialize begin, as it is used for cyclic report interval
+  begin = std::chrono::steady_clock::now();
 
   bool empty = true;
   IEC60870_5_TypeID type = C_TS_TA_1;
