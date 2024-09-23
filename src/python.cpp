@@ -861,7 +861,7 @@ PY_MODULE(c104, m) {
       "This class represents a local client and provides access to meta "
       "information and connected remote servers")
       .def(py::init(&Client::create), R"def(
-    __init__(self: c104.Client, tick_rate_ms: int = 100, command_timeout_ms: int = 100, transport_security: Optional[c104.TransportSecurity] = None) -> None
+    __init__(self: c104.Client, tick_rate_ms: int = 100, command_timeout_ms: int = 100, transport_security: typing.Optional[c104.TransportSecurity] = None) -> None
 
     create a new 104er client
 
@@ -871,7 +871,7 @@ PY_MODULE(c104, m) {
         client thread update interval
     command_timeout_ms: int
         time to wait for a command response
-    transport_security: c104.TransportSecurity
+    transport_security: typing.Optional[c104.TransportSecurity]
         TLS configuration object
 
     Example
@@ -929,7 +929,7 @@ PY_MODULE(c104, m) {
     >>> my_client.stop()
 )def")
       .def("add_connection", &Client::addConnection, R"def(
-    add_connection(self: c104.Client, ip: str, port: int = 2404, init = c104.Init.ALL) -> Optional[c104.Connection]
+    add_connection(self: c104.Client, ip: str, port: int = 2404, init = c104.Init.ALL) -> typing.Optional[c104.Connection]
 
     add a new remote server connection to this client and return the new connection object
 
@@ -944,7 +944,7 @@ PY_MODULE(c104, m) {
 
     Returns
     -------
-    c104.Connection
+    typing.Optional[c104.Connection]
         connection object, if added, else None
 
     Raises
@@ -958,7 +958,7 @@ PY_MODULE(c104, m) {
 )def",
            "ip"_a, "port"_a = IEC_60870_5_104_DEFAULT_PORT, "init"_a = INIT_ALL)
       .def("get_connection", &Client::getConnection, R"def(
-    get_connection(self: c104.Client, ip: str, port: int = 2404) -> Optional[c104.Connection]
+    get_connection(self: c104.Client, ip: str, port: int = 2404) -> typing.Optional[c104.Connection]
 
     get a connection by ip and port
 
@@ -971,7 +971,7 @@ PY_MODULE(c104, m) {
 
     Returns
     -------
-    c104.Connection
+    typing.Optional[c104.Connection]
         connection object, if found else None
 
     Example
@@ -980,7 +980,7 @@ PY_MODULE(c104, m) {
 )def",
            "ip"_a, "port"_a = IEC_60870_5_104_DEFAULT_PORT)
       .def("get_connection", &Client::getConnectionFromCommonAddress, R"def(
-    get_connection(self: c104.Client, common_address: int) -> Optional[c104.Connection]
+    get_connection(self: c104.Client, common_address: int) -> typing.Optional[c104.Connection]
 
     get a connection by common_address
 
@@ -991,7 +991,7 @@ PY_MODULE(c104, m) {
 
     Returns
     -------
-    c104.Connection
+    typing.Optional[c104.Connection]
         connection object, if found else None
 
     Example
@@ -1094,7 +1094,7 @@ PY_MODULE(c104, m) {
       "This class represents a local server and provides access to meta "
       "information and containing stations")
       .def(py::init(&Server::create), R"def(
-    __init__(self: c104.Server, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 100, select_timeout_ms = 100, max_connections: int = 0, transport_security: Optional[c104.TransportSecurity] = None) -> None
+    __init__(self: c104.Server, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 100, select_timeout_ms = 100, max_connections: int = 0, transport_security: typing.Optional[c104.TransportSecurity] = None) -> None
 
     create a new 104er server
 
@@ -1110,7 +1110,7 @@ PY_MODULE(c104, m) {
         execution for points in SELECT_AND_EXECUTE mode must arrive within this interval to succeed
     max_connections: int
         maximum number of clients allowed to connect
-    transport_security: c104.TransportSecurity
+    transport_security: typing.Optional[c104.TransportSecurity]
         TLS configuration object
 
     Example
@@ -1179,7 +1179,7 @@ PY_MODULE(c104, m) {
     >>> my_server.stop()
 )def")
       .def("add_station", &Server::addStation, R"def(
-    add_station(self: c104.Server, common_address: int) -> Optional[c104.Station]
+    add_station(self: c104.Server, common_address: int) -> typing.Optional[c104.Station]
 
     add a new station to this server and return the new station object
 
@@ -1190,7 +1190,7 @@ PY_MODULE(c104, m) {
 
     Returns
     -------
-    c104.Station
+    typing.Optional[c104.Station]
         station object, if station was added, else None
 
     Example
@@ -1199,7 +1199,7 @@ PY_MODULE(c104, m) {
 )def",
            "common_address"_a)
       .def("get_station", &Server::getStation, R"def(
-    get_station(self: c104.Server, common_address: int) -> Optional[c104.Station]
+    get_station(self: c104.Server, common_address: int) -> typing.Optional[c104.Station]
 
     get a station object via common address
 
@@ -1210,7 +1210,7 @@ PY_MODULE(c104, m) {
 
     Returns
     -------
-    c104.Station
+    typing.Optional[c104.Station]
         station object, if found, else None
 
     Example
@@ -1593,7 +1593,7 @@ PY_MODULE(c104, m) {
            "common_address"_a, "with_time"_a = true,
            "wait_for_response"_a = true, py::return_value_policy::copy)
       .def("get_station", &Remote::Connection::getStation, R"def(
-    get_station(self: c104.Connection, common_address: int) -> Optional[c104.Station]
+    get_station(self: c104.Connection, common_address: int) -> typing.Optional[c104.Station]
 
     get a station object via common address
 
@@ -1604,7 +1604,7 @@ PY_MODULE(c104, m) {
 
     Returns
     -------
-    c104.Station
+    typing.Optional[c104.Station]
         station object, if found, else None
 
     Example
@@ -1613,7 +1613,7 @@ PY_MODULE(c104, m) {
 )def",
            "common_address"_a)
       .def("add_station", &Remote::Connection::addStation, R"def(
-    add_station(self: c104.Connection, common_address: int) -> Optional[c104.Station]
+    add_station(self: c104.Connection, common_address: int) -> typing.Optional[c104.Station]
 
     add a new station to this connection and return the new station object
 
@@ -1624,7 +1624,7 @@ PY_MODULE(c104, m) {
 
     Returns
     -------
-    c104.Station
+    typing.Optional[c104.Station]
         station object, if station was added, else None
 
     Example
@@ -1754,7 +1754,7 @@ PY_MODULE(c104, m) {
           "points", &Object::Station::getPoints,
           "list[c104.Point] list of all Point objects (read-only)")
       .def("get_point", &Object::Station::getPoint, R"def(
-    get_point(self: c104.Station, io_address: int) -> Optional[c104.Point]
+    get_point(self: c104.Station, io_address: int) -> typing.Optional[c104.Point]
 
     get a point object via information object address
 
@@ -1765,7 +1765,7 @@ PY_MODULE(c104, m) {
 
     Returns
     -------
-    c104.Point
+    typing.Optional[c104.Point]
         point object, if found, else None
 
     Example
@@ -1774,7 +1774,7 @@ PY_MODULE(c104, m) {
 )def",
            "io_address"_a)
       .def("add_point", &Object::Station::addPoint, R"def(
-    add_point(self: c104.Station, io_address: int, type: c104.Type, report_ms: int = 0, related_io_address: Optional[int] = None, related_io_autoreturn: bool = False, command_mode: c104.CommandMode = c104.CommandMode.DIRECT) -> Optional[c104.Point]
+    add_point(self: c104.Station, io_address: int, type: c104.Type, report_ms: int = 0, related_io_address: typing.Optional[int] = None, related_io_autoreturn: bool = False, command_mode: c104.CommandMode = c104.CommandMode.DIRECT) -> typing.Optional[c104.Point]
 
     add a new point to this station and return the new point object
 
@@ -1795,7 +1795,7 @@ PY_MODULE(c104, m) {
 
     Returns
     -------
-    c104.Station
+    typing.Optional[c104.Station]
         station object, if station was added, else None
 
     Raises
@@ -2127,7 +2127,7 @@ PY_MODULE(c104, m) {
       m, "SingleInfo",
       "This class represents all specific single point information")
       .def(py::init(&Object::SingleInfo::create), R"def(
-    __init__(self: c104.SingleInfo, on: bool, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.SingleInfo, on: bool, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new single info
 
@@ -2160,7 +2160,7 @@ PY_MODULE(c104, m) {
       m, "SingleCmd",
       "This class represents all specific single command information")
       .def(py::init(&Object::SingleCmd::create), R"def(
-    __init__(self: c104.SingleCmd, on: bool, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.SingleCmd, on: bool, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new single command
 
@@ -2197,7 +2197,7 @@ PY_MODULE(c104, m) {
       m, "DoubleInfo",
       "This class represents all specific double point information")
       .def(py::init(&Object::DoubleInfo::create), R"def(
-    __init__(self: c104.DoubleInfo, state: c104.Double, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.DoubleInfo, state: c104.Double, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new double info
 
@@ -2231,7 +2231,7 @@ PY_MODULE(c104, m) {
       m, "DoubleCmd",
       "This class represents all specific double command information")
       .def(py::init(&Object::DoubleCmd::create), R"def(
-    __init__(self: c104.DoubleCmd, state: c104.Double, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.DoubleCmd, state: c104.Double, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new double command
 
@@ -2269,7 +2269,7 @@ PY_MODULE(c104, m) {
       m, "StepInfo",
       "This class represents all specific step point information")
       .def(py::init(&Object::StepInfo::create), R"def(
-    __init__(self: c104.StepInfo, position: c104.Int7, transient: bool, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.StepInfo, position: c104.Int7, transient: bool, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new step info
 
@@ -2308,7 +2308,7 @@ PY_MODULE(c104, m) {
       m, "StepCmd",
       "This class represents all specific step command information")
       .def(py::init(&Object::StepCmd::create), R"def(
-    __init__(self: c104.StepCmd, direction: c104.Step, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.StepCmd, direction: c104.Step, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new step command
 
@@ -2346,7 +2346,7 @@ PY_MODULE(c104, m) {
       m, "BinaryInfo",
       "This class represents all specific binary point information")
       .def(py::init(&Object::BinaryInfo::create), R"def(
-    __init__(self: c104.BinaryInfo, blob: c104.Byte32, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.BinaryInfo, blob: c104.Byte32, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new binary info
 
@@ -2380,7 +2380,7 @@ PY_MODULE(c104, m) {
       m, "BinaryCmd",
       "This class represents all specific binary command information")
       .def(py::init(&Object::BinaryCmd::create), R"def(
-    __init__(self: c104.BinaryCmd, blob: c104.Byte32, recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.BinaryCmd, blob: c104.Byte32, recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new binary command
 
@@ -2413,7 +2413,7 @@ PY_MODULE(c104, m) {
       "This class represents all specific normalized measurement point "
       "information")
       .def(py::init(&Object::NormalizedInfo::create), R"def(
-    __init__(self: c104.NormalizedInfo, actual: c104.NormalizedFloat, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.NormalizedInfo, actual: c104.NormalizedFloat, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new normalized measurement info
 
@@ -2449,7 +2449,7 @@ PY_MODULE(c104, m) {
       "This class represents all specific normalized set point command "
       "information")
       .def(py::init(&Object::NormalizedCmd::create), R"def(
-    __init__(self: c104.NormalizedCmd, target: c104.NormalizedFloat, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.NormalizedCmd, target: c104.NormalizedFloat, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new normalized set point command
 
@@ -2487,7 +2487,7 @@ PY_MODULE(c104, m) {
       m, "ScaledInfo",
       "This class represents all specific scaled measurement point information")
       .def(py::init(&Object::ScaledInfo::create), R"def(
-    __init__(self: c104.ScaledInfo, actual: c104.Int16, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.ScaledInfo, actual: c104.Int16, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new scaled measurement info
 
@@ -2522,7 +2522,7 @@ PY_MODULE(c104, m) {
       m, "ScaledCmd",
       "This class represents all specific scaled set point command information")
       .def(py::init(&Object::ScaledCmd::create), R"def(
-    __init__(self: c104.ScaledCmd, target: c104.Int16, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.ScaledCmd, target: c104.Int16, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new scaled set point command
 
@@ -2560,7 +2560,7 @@ PY_MODULE(c104, m) {
       m, "ShortInfo",
       "This class represents all specific short measurement point information")
       .def(py::init(&Object::ShortInfo::create), R"def(
-    __init__(self: c104.ShortInfo, actual: float, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.ShortInfo, actual: float, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new short measurement info
 
@@ -2594,7 +2594,7 @@ PY_MODULE(c104, m) {
       m, "ShortCmd",
       "This class represents all specific short set point command information")
       .def(py::init(&Object::ShortCmd::create), R"def(
-    __init__(self: c104.ShortCmd, target: float, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.ShortCmd, target: float, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new short set point command
 
@@ -2632,7 +2632,7 @@ PY_MODULE(c104, m) {
       "This class represents all specific integrated totals of binary counter "
       "point information")
       .def(py::init(&Object::BinaryCounterInfo::create), R"def(
-    __init__(self: c104.BinaryCounterInfo, counter: int, sequence: c104.UInt5, quality: c104.BinaryCounterQuality = c104.BinaryCounterQuality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.BinaryCounterInfo, counter: int, sequence: c104.UInt5, quality: c104.BinaryCounterQuality = c104.BinaryCounterQuality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new short measurement info
 
@@ -2673,7 +2673,7 @@ PY_MODULE(c104, m) {
       "This class represents all specific protection equipment single event "
       "point information")
       .def(py::init(&Object::ProtectionEquipmentEventInfo::create), R"def(
-    __init__(self: c104.ProtectionEventInfo, state: c104.EventState, elapsed_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.ProtectionEventInfo, state: c104.EventState, elapsed_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new event info raised by protection equipment
 
@@ -2717,7 +2717,7 @@ PY_MODULE(c104, m) {
       "events point information")
       .def(py::init(&Object::ProtectionEquipmentStartEventsInfo::create),
            R"def(
-    __init__(self: c104.ProtectionStartInfo, events: c104.StartEvents, relay_duration_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.ProtectionStartInfo, events: c104.StartEvents, relay_duration_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new packed event start info raised by protection equipment
 
@@ -2762,7 +2762,7 @@ PY_MODULE(c104, m) {
       "point information")
       .def(py::init(&Object::ProtectionEquipmentOutputCircuitInfo::create),
            R"def(
-    __init__(self: c104.ProtectionCircuitInfo, circuits: c104.OutputCircuits, relay_operating_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.ProtectionCircuitInfo, circuits: c104.OutputCircuits, relay_operating_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new output circuits info raised by protection equipment
 
@@ -2807,7 +2807,7 @@ PY_MODULE(c104, m) {
       "This class represents all specific packed status point information with "
       "change detection")
       .def(py::init(&Object::StatusWithChangeDetection::create), R"def(
-    __init__(self: c104.StatusAndChanged, status: c104.PackedSingle, changed: c104.PackedSingle, quality: c104.Quality = c104.Quality(), recorded_at: Optional[datetime.datetime] = None) -> None
+    __init__(self: c104.StatusAndChanged, status: c104.PackedSingle, changed: c104.PackedSingle, quality: c104.Quality = c104.Quality(), recorded_at: typing.Optional[datetime.datetime] = None) -> None
 
     create a new event info raised by protection equipment
 
