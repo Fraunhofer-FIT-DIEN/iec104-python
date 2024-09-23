@@ -174,6 +174,12 @@ public:
   std::shared_ptr<Object::Station> addStation(std::uint_fast16_t commonAddress);
 
   /**
+   * @brief Get a reference to the protocol parameters to be able to read and
+   * update these
+   */
+  CS104_APCIParameters getParameters() const;
+
+  /**
    * @brief set python callback that will be executed on incoming message
    * @throws std::invalid_argument if callable signature does not match
    */

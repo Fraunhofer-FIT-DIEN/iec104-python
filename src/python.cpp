@@ -613,14 +613,58 @@ PY_MODULE(c104, m) {
            })
       .def("__str__", &Byte32_toString)
       .def("__repr__", [](const Byte32 &b) {
-        return "<Byte32 value=" + Byte32_toString(b) + ">";
+        return "<c104.Byte32 value=" + Byte32_toString(b) + ">";
+      });
+
+  py::class_<sCS104_APCIParameters>(m, "ProtocolParameters",
+                                    "This class is used to configure protocol "
+                                    "parameters for server and client")
+      .def_readwrite("send_window_size", &sCS104_APCIParameters::k,
+                     "Threshold of unconfirmed outgoing messages, before "
+                     "waiting for acknowledgments (property name: k)")
+      .def_readwrite("receive_window_size", &sCS104_APCIParameters::w,
+                     "Threshold of unconfirmed incoming messages to send "
+                     "acknowledgments (property name: w)")
+      .def_readwrite("connection_timeout", &sCS104_APCIParameters::t0,
+                     "Socket connection timeout (ms) (property name: t0)")
+      .def_readwrite("message_timeout", &sCS104_APCIParameters::t1,
+                     "Timeout for sent messages to be acknowledged by "
+                     "counterparty (ms) (property name: t1)")
+      .def_readwrite("confirm_interval", &sCS104_APCIParameters::t2,
+                     "Maximum interval to acknowledge received messages (ms) "
+                     "(property name: t2)")
+      .def_readwrite("keep_alive_interval", &sCS104_APCIParameters::t3,
+                     "Maximum interval without communication, send test frame "
+                     "message to prove liveness (ms) (property name: t3)")
+      .def("__str__",
+           [](const sCS104_APCIParameters parameters) {
+             std::ostringstream oss;
+             oss << "<104.ProtocolParameters send_window_size=" << parameters.k
+                 << ", receive_window_size=" << parameters.w
+                 << ", connection_timeout=" << parameters.t0
+                 << ", message_timeout=" << parameters.t1
+                 << ", confirm_interval=" << parameters.t2
+                 << ", keep_alive_interval=" << parameters.t3 << ">";
+             return oss.str();
+           })
+      .def("__repr__", [](const sCS104_APCIParameters parameters) {
+        std::ostringstream oss;
+        oss << "<104.ProtocolParameters send_window_size=" << parameters.k
+            << ", receive_window_size=" << parameters.w
+            << ", connection_timeout=" << parameters.t0
+            << ", message_timeout=" << parameters.t1
+            << ", confirm_interval=" << parameters.t2
+            << ", keep_alive_interval=" << parameters.t3 << " at " << std::hex
+            << std::showbase << reinterpret_cast<std::uintptr_t>(&parameters)
+            << ">";
+        return oss.str();
       });
 
   py::class_<Remote::TransportSecurity,
              std::shared_ptr<Remote::TransportSecurity>>(
       m, "TransportSecurity",
       "This class is used to configure transport layer security for server and "
-      "clients")
+      "client")
       .def(py::init(&Remote::TransportSecurity::create), R"def(
     __init__(self: c104.TransportSecurity, validate: bool = True, only_known: bool = True) -> None
 
@@ -1151,6 +1195,10 @@ PY_MODULE(c104, m) {
       .def_property_readonly("stations", &Server::getStations,
                              "list[c104.Station]: list of all local "
                              "Station objects (read-only)")
+      .def_property_readonly(
+          "protocol_parameters", &Server::getParameters,
+          "c104.ProtocolParameters: read and update protocol parameters",
+          py::return_value_policy::reference)
       .def_property("max_connections", &Server::getMaxOpenConnections,
                     &Server::setMaxOpenConnections,
                     "int: maximum number of open connections, 0 = no limit",
@@ -1421,6 +1469,10 @@ PY_MODULE(c104, m) {
           "disconnected_at", &Remote::Connection::getDisconnectedAt,
           "typing.Optional[datetime.datetime]: test if connection "
           "is muted (read-only)")
+      .def_property_readonly(
+          "protocol_parameters", &Remote::Connection::getParameters,
+          "c104.ProtocolParameters: read and update protocol parameters",
+          py::return_value_policy::reference)
       .def("connect", &Remote::Connection::connect, R"def(
     connect(self: c104.Connection) -> None
 

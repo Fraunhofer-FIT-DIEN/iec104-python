@@ -60,22 +60,11 @@ Connection::Connection(
   }
   connectionString = connectionStringFormatter(ip, _port);
 
-  // Workaround against 10s Connect Timeout from lib60870-C down to 1s
-  // @todo add python config options for APCI parameters
+  // reduce lib60870-C connection timeout down to 2s
   auto param = CS104_Connection_getAPCIParameters(connection);
-  param->t0 = 2; // Timeout for connection establishment (in s)
-  // Timeout for transmitted APDUs in I/U format (in s) when
-  // timeout elapsed without confirmation the connection will
-  // be closed. This is used by the sender to determine if
-  // the receiver has failed to confirm a message.
-  param->t1 = 1;
-  // Timeout to confirm messages (in s). This timeout is used by
-  // the receiver to determine the time when the message
-  // confirmation has to be sent.
-  param->t2 = 2;
-  param->t3 = 20; // time until test telegrams will be sent in case of an idle
-  // connection
-  CS104_Connection_setAPCIParameters(connection, param);
+  param->t0 = 2; // socket connect timeout
+  param->t1 = 2; // acknowledgement timeout
+  param->t2 = 1; // acknowledgement interval
 
   if (originator_address > 0) {
     setOriginatorAddress(originator_address);
@@ -561,6 +550,10 @@ Connection::addStation(std::uint_fast16_t commonAddress) {
 
 void Connection::setOnReceiveRawCallback(py::object &callable) {
   py_onReceiveRaw.reset(callable);
+}
+
+CS104_APCIParameters Connection::getParameters() const {
+  return CS104_Connection_getAPCIParameters(connection);
 }
 
 void Connection::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
