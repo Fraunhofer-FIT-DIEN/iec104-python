@@ -27,7 +27,7 @@ server = c104.Server(ip="0.0.0.0", port=2404)
 
 # add local station and points
 station = server.add_station(common_address=47)
-measurement_point = station.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
+measurement_point = station.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=5000)
 command_point = station.add_point(io_address=12, type=c104.Type.C_RC_TA_1)
 
 server.start()
@@ -38,12 +38,12 @@ server.start()
 ```python
 import c104
 
-client = c104.Client(tick_rate_ms=1000, command_timeout_ms=5000)
+client = c104.Client()
 
 # add RTU with station and points
 connection = client.add_connection(ip="127.0.0.1", port=2404, init=c104.Init.INTERROGATION)
 station = connection.add_station(common_address=47)
-measurement_point = station.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
+measurement_point = station.add_point(io_address=11, type=c104.Type.M_ME_NC_1)
 command_point = station.add_point(io_address=12, type=c104.Type.C_RC_TA_1)
 
 client.start()
@@ -129,7 +129,7 @@ You need the build requirements, listed under "How to build".
 
 ## Documentation
 
-Read more about the **Classes** and their **Properties** in our [read the docs documentation](https://iec104-python.readthedocs.io/latest/python/index.html).
+Read more about the **Classes** and their **Properties** in our [read the docs documentation](https://iec104-python.readthedocs.io/latest/index.html).
 
 ## Contribution
 
@@ -138,7 +138,6 @@ Read more about the **Classes** and their **Properties** in our [read the docs d
 1. Add feature requests and report bugs using GitHub's issues
 
 1. Create pull requests
-   ```
 
 ### How to build (linux)
 
@@ -165,6 +164,7 @@ Read more about the **Classes** and their **Properties** in our [read the docs d
 1. Build wheels via docker (linux)
    ```bash
    /bin/bash ./bin/linux-build.sh
+   ```
 
 ### How to analyze performance (linux)
 

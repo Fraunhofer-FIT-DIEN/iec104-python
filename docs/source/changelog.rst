@@ -1,8 +1,19 @@
 Change log
 ==========
 
-v2.0
------
+v2.0.1
+-------
+
+Fixes
+^^^^^^
+
+- Fix missing cyclic reports if debug flag c104.Debug.Server is not set #28
+- Improve python docblock signatures
+- Fix project URLs for pypi
+- Fix documentation links in README
+
+v2.0.0
+-------
 
 Features
 ^^^^^^^^^

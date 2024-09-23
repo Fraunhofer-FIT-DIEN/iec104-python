@@ -1,6 +1,11 @@
 # Change log
 
 ## v2.0
+### Fixes
+- Fix (2.0.1): Fix missing cyclic reports if debug flag c104.Debug.Server is not set #28
+- Fix (2.0.1): Improve python docblock signatures
+- Fix (2.0.1): Fix project URLs for pypi
+- Fix (2.0.1): Fix documentation links in README
 ### Features
 - Support for equipment protection points (*M_EP_TD_1*, *M_EP_TE_1*, *M_EP_TF_1*) and status with change detection (*M_PS_NA_1*)
 - Command mode select and execute with automatic selection timeout
