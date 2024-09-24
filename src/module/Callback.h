@@ -180,6 +180,7 @@ public:
 
     try {
       py::object res = cb(std::forward<Types>(values)...);
+      result_type = py::cast<std::string>(py::str(py::type::handle_of(res)));
       result = py::cast<T>(res);
       this->success = true;
     } catch (py::error_already_set &e) {
@@ -195,6 +196,33 @@ public:
       traceback.attr("print_exception")(e.type(), e.value(), e.trace());
 
       std::cerr
+          << "\nRemoved erroneous callback handler!\n\n"
+          << "------------------------------------------------------------"
+          << '\n'
+          << std::endl;
+      this->unset();
+    } catch (py::builtin_exception &e) {
+      this->success = false;
+      std::cerr
+          << '\n'
+          << "------------------------------------------------------------"
+          << '\n'
+          << '\n'
+          << this->name << "] Error:\n"
+          << "TypeError: incompatible return value" << std::endl;
+
+      auto inspect = py::module_::import("inspect");
+      auto sig = inspect.attr("signature")(cb);
+      auto expected =
+          py::cast<std::string>(py::str(sig.attr("return_annotation")));
+      std::cerr << "Cannot convert returned type " << result_type
+                << " to expected type " << expected << ".\n"
+                << "Please make sure your callback function is returning an "
+                   "instance of "
+                << expected << " or a compatible type." << std::endl;
+
+      std::cerr
+          << "\nRemoved erroneous callback handler!\n\n"
           << "------------------------------------------------------------"
           << '\n'
           << std::endl;
@@ -230,6 +258,7 @@ public:
 
 protected:
   T result;
+  std::string result_type{"None"};
 };
 
 template <> class Callback<void> : public CallbackBase {
@@ -274,6 +303,7 @@ public:
       traceback.attr("print_exception")(e.type(), e.value(), e.trace());
 
       std::cerr
+          << "\nRemoved erroneous callback handler!\n\n"
           << "------------------------------------------------------------"
           << '\n'
           << std::endl;

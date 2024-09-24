@@ -7,7 +7,8 @@ v2.0.1
 Fixes
 ^^^^^^
 
-- Fix missing cyclic reports if debug flag c104.Debug.Server is not set #28
+- Fix missing cyclic reports if debug flag c104.Debug.Server is not set
+- Detect and handle invalid return values from callbacks
 - Improve python docblock signatures
 - Fix project URLs for pypi
 - Fix documentation links in README

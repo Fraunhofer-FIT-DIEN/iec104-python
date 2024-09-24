@@ -3,6 +3,7 @@
 ## v2.0
 ### Fixes
 - Fix (2.0.1): Fix missing cyclic reports if debug flag c104.Debug.Server is not set #28
+- Fix (2.0.1): Detect and handle invalid return values from callbacks #27
 - Fix (2.0.1): Improve python docblock signatures
 - Fix (2.0.1): Fix project URLs for pypi
 - Fix (2.0.1): Fix documentation links in README
