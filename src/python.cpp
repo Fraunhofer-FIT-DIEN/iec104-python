@@ -1920,17 +1920,15 @@ PY_MODULE(c104, m) {
     -------
     >>> def on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
     >>>     print("SV] {0} SETPOINT COMMAND on IOA: {1}, new: {2}, prev: {3}, cot: {4}, quality: {5}".format(point.type, point.io_address, point.value, previous_info, message.cot, point.quality))
-    >>>     if point.quality.is_good():
-    >>>         if point.related_io_address:
-    >>>             print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
-    >>>             related_point = sv_station_2.get_point(point.related_io_address)
-    >>>             if related_point:
-    >>>                 print("SV] -> RELATED POINT VALUE UPDATE")
-    >>>                 related_point.value = point.value
-    >>>             else:
-    >>>                 print("SV] -> RELATED POINT NOT FOUND!")
-    >>>         return c104.ResponseState.SUCCESS
-    >>>     return c104.ResponseState.FAILURE
+    >>>     if point.related_io_address:
+    >>>         print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
+    >>>         related_point = sv_station_2.get_point(point.related_io_address)
+    >>>         if related_point:
+    >>>             print("SV] -> RELATED POINT VALUE UPDATE")
+    >>>             related_point.value = point.value
+    >>>         else:
+    >>>             print("SV] -> RELATED POINT NOT FOUND!")
+    >>>     return c104.ResponseState.SUCCESS
     >>>
     >>> sv_measurement_point = sv_station_2.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
     >>> sv_measurement_point.value = 12.34
