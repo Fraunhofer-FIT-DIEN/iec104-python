@@ -126,6 +126,6 @@ class CMakeBuild(build_ext):
         )
 
 setup(
-    ext_modules=[CMakeExtension('c104', str(PROJECT_DIR))],
+    ext_modules=[CMakeExtension('c104.c104', str(PROJECT_DIR))],
     cmdclass={"build_ext": CMakeBuild}
 )
