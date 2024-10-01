@@ -73,6 +73,12 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
 
   appLayerParameters = CS104_Slave_getAppLayerParameters(slave);
 
+  // reduce lib60870-C connection timeout down to 2s
+  auto param = CS104_Slave_getConnectionParameters(slave);
+  param->t0 = 2; // socket connect timeout
+  param->t1 = 2; // acknowledgement timeout
+  param->t2 = 1; // acknowledgement interval
+
   // Function pointers for custom handler functions
   CS104_Slave_setConnectionRequestHandler(
       slave, &Server::connectionRequestHandler, this);
@@ -495,6 +501,10 @@ Server::execute(IMasterConnection connection,
   }
 
   return res;
+}
+
+CS104_APCIParameters Server::getParameters() const {
+  return CS104_Slave_getConnectionParameters(slave);
 }
 
 void Server::setOnReceiveRawCallback(py::object &callable) {
