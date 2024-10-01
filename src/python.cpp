@@ -206,7 +206,7 @@ py::dict explain_bytes_dict(const py::bytes &obj) {
                                                (unsigned char)buffer->len);
 }
 
-PY_MODULE(c104, m) {
+PY_MODULE(_c104, m) {
 #ifdef _WIN32
   system("chcp 65001 > nul");
 #endif
@@ -1005,37 +1005,29 @@ Example
 )def",
           "ip"_a, "port"_a = IEC_60870_5_104_DEFAULT_PORT, "init"_a = INIT_ALL)
       .def(
-          "get_connection", &Client::getConnection,
-          R"def(get_connection(self: c104.Client, ip: str, port: int = 2404) -> c104.Connection | None
+          "get_connection",
+          [](Client &client, const std::string ip, const int port,
+             const int common_address) {
+            if (!ip.empty() && common_address == 0) {
+              return client.getConnection(ip, port);
+            }
+            if (ip.empty() && common_address > 0) {
+              return client.getConnectionFromCommonAddress(common_address);
+            }
+            throw std::invalid_argument("either keyword arguments ip and port "
+                                        "or common_address must be specified");
+          },
+          R"def(get_connection(self: c104.Client, ip: str = "", port: int = 2404, common_address: int = 0) -> c104.Connection | None
 
-get a connection by ip and port
+get a connection (either by ip and port or by common_address)
 
 Parameters
 ----------
-ip: str
+ip: str, optional
     remote terminal units ip address
-port: int
+port: int, optional
     remote terminal units port
-
-Returns
--------
-c104.Connection, optional
-    connection object, if found else None
-
-Example
--------
->>> con = my_client.get_connection(ip="192.168.50.3", port=2406)
-)def",
-          "ip"_a, "port"_a = IEC_60870_5_104_DEFAULT_PORT)
-      .def(
-          "get_connection", &Client::getConnectionFromCommonAddress,
-          R"def(get_connection(self: c104.Client, common_address: int) -> c104.Connection | None
-
-get a connection by common_address
-
-Parameters
-----------
-common_address: int
+common_address: int, optional
     common address (value between 1 and 65534)
 
 Returns
@@ -1045,9 +1037,12 @@ c104.Connection, optional
 
 Example
 -------
->>> con = my_client.get_connection(common_address=4711)
+>>> conA = my_client.get_connection(ip="192.168.50.3")
+>>> conB = my_client.get_connection(ip="192.168.50.3", port=2406)
+>>> conC = my_client.get_connection(common_address=4711)
 )def",
-          "common_address"_a)
+          "ip"_a = "", "port"_a = IEC_60870_5_104_DEFAULT_PORT,
+          "common_address"_a = 0)
       .def("reconnect_all", &Client::reconnectAll,
            R"def(reconnect_all(self: c104.Client) -> None
 
@@ -2357,7 +2352,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific single command information")
       .def(
           py::init(&Object::SingleCmd::create),
-          R"def(__init__(self: c104.SingleCmd, on: bool, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.SingleCmd, on: bool, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: datetime.datetime = None) -> None
 
 create a new single command
 
@@ -2433,7 +2428,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific double command information")
       .def(
           py::init(&Object::DoubleCmd::create),
-          R"def(__init__(self: c104.DoubleCmd, state: c104.Double, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.DoubleCmd, state: c104.Double, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: datetime.datetime = None) -> None
 
 create a new double command
 
@@ -2515,7 +2510,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific step command information")
       .def(
           py::init(&Object::StepCmd::create),
-          R"def(__init__(self: c104.StepCmd, direction: c104.Step, qualifier: c104.Qoc = c104.QoC.NONE, recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.StepCmd, direction: c104.Step, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: datetime.datetime = None) -> None
 
 create a new step command
 

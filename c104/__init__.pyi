@@ -230,33 +230,17 @@ class Client:
         -------
         >>> my_client.disconnect_all()
         """
-    def get_connection(self, ip: str, port: int = 2404) -> Connection | None:
+    def get_connection(self, ip: str = "", port: int = 2404, common_address: int = 0) -> Connection | None:
         """
-        get a connection by ip and port
+        get a connection by ip and port (either ip and port or common_address must be specified)
 
         Parameters
         ----------
-        ip: str
+        ip: str, optional
             remote terminal units ip address
-        port: int
+        port: int, optional
             remote terminal units port
-
-        Returns
-        -------
-        c104.Connection, optional
-            connection object, if found else None
-
-        Example
-        -------
-        >>> con = my_client.get_connection(ip="192.168.50.3", port=2406)
-
-        get_connection(self: c104.Client, common_address: int) -> c104.Connection | None
-
-        get a connection by common_address
-
-        Parameters
-        ----------
-        common_address: int
+        common_address: int, optional
             common address (value between 1 and 65534)
 
         Returns
@@ -266,6 +250,7 @@ class Client:
 
         Example
         -------
+        >>> con = my_client.get_connection(ip="192.168.50.3", port=2406)
         >>> con = my_client.get_connection(common_address=4711)
         """
     def on_new_point(self, callable: collections.abc.Callable[[Client, Station, int, Type], None]) -> None:
@@ -956,7 +941,7 @@ class DoubleCmd(Information):
     """
     This class represents all specific double command information
     """
-    def __init__(self, state: Double, qualifier: Qoc = QoC.NONE, recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, state: Double, qualifier: Qoc = Qoc.NONE, recorded_at: datetime.datetime | None = None) -> None:
         """
         create a new double command
 
@@ -2572,7 +2557,7 @@ class SingleCmd(Information):
     """
     This class represents all specific single command information
     """
-    def __init__(self, on: bool, qualifier: Qoc = QoC.NONE, recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, on: bool, qualifier: Qoc = Qoc.NONE, recorded_at: datetime.datetime | None = None) -> None:
         """
         create a new single command
 
@@ -3307,4 +3292,4 @@ def set_debug_mode(mode: Debug) -> None:
     -------
     >>> c104.set_debug_mode(mode=c104.Debug.Client|c104.Debug.Connection)
     """
-__version__: str = '2.0.1'
+__version__: str

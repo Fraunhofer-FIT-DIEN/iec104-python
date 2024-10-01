@@ -1,3 +1,65 @@
+[project]
+name = "c104"
+version = "2.1.0"
+description = "A Python module to simulate SCADA and RTU communication over protocol 60870-5-104 to research ICT behavior in power grids."
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
+authors = [
+    { name = "Martin Unkel, Fraunhofer FIT", email = "martin.unkel@fit.fraunhofer.de" }
+]
+keywords = [
+    "Python bindings",
+    "scada",
+    "rtu",
+    "remote-terminal-unit",
+    "mtu",
+    "master-terminal-unit",
+    "energy-management",
+    "60870-5-104",
+    "iec60870-5-104",
+    "iec60870-5",
+    "60870",
+    "lib60870",
+    "lib60870-C"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: C",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Emulators",
+    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: Utilities",
+    "Typing :: Typed"
+]
+requires-python = ">=3.7"
+
+[project.urls]
+Documentation = "https://iec104-python.readthedocs.io/latest/python/index.html"
+"Bug Tracker" = "https://github.com/Fraunhofer-FIT-DIEN/iec104-python/issues"
+Changelog = "https://iec104-python.readthedocs.io/latest/changelog.html"
+"Source Code" = "https://github.com/Fraunhofer-FIT-DIEN/iec104-python"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["c104"]
+
+[tool.setuptools.package-data]
+"c104" = ["__init__.pyi", "py.typed"]
+
 [build-system]
 requires = [
     "setuptools>=42",
