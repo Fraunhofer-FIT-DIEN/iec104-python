@@ -2,7 +2,7 @@ from __future__ import annotations
 import collections.abc
 import datetime
 import typing
-__all__ = ['BinaryCmd', 'BinaryCounterInfo', 'BinaryCounterQuality', 'BinaryInfo', 'Byte32', 'Client', 'Coi', 'CommandMode', 'Connection', 'ConnectionState', 'Cot', 'Debug', 'Double', 'DoubleCmd', 'DoubleInfo', 'EventState', 'IncomingMessage', 'Information', 'Init', 'Int16', 'Int7', 'NormalizedCmd', 'NormalizedFloat', 'NormalizedInfo', 'OutputCircuits', 'PackedSingle', 'Point', 'ProtectionCircuitInfo', 'ProtectionEventInfo', 'ProtectionStartInfo', 'Qoc', 'Qoi', 'Quality', 'ResponseState', 'ScaledCmd', 'ScaledInfo', 'Server', 'ShortCmd', 'ShortInfo', 'SingleCmd', 'SingleInfo', 'StartEvents', 'Station', 'StatusAndChanged', 'Step', 'StepCmd', 'StepInfo', 'TlsVersion', 'TransportSecurity', 'Type', 'UInt16', 'UInt5', 'UInt7', 'Umc', 'disable_debug', 'enable_debug', 'explain_bytes', 'explain_bytes_dict', 'get_debug_mode', 'set_debug_mode']
+__all__ = ['BinaryCmd', 'BinaryCounterInfo', 'BinaryCounterQuality', 'BinaryInfo', 'Byte32', 'Client', 'Coi', 'CommandMode', 'Connection', 'ConnectionState', 'Cot', 'Debug', 'Double', 'DoubleCmd', 'DoubleInfo', 'EventState', 'IncomingMessage', 'Information', 'Init', 'Int16', 'Int7', 'NormalizedCmd', 'NormalizedFloat', 'NormalizedInfo', 'OutputCircuits', 'PackedSingle', 'Point', 'ProtectionCircuitInfo', 'ProtectionEventInfo', 'ProtectionStartInfo', 'ProtocolParameters', 'Qoc', 'Qoi', 'Quality', 'ResponseState', 'ScaledCmd', 'ScaledInfo', 'Server', 'ShortCmd', 'ShortInfo', 'SingleCmd', 'SingleInfo', 'StartEvents', 'Station', 'StatusAndChanged', 'Step', 'StepCmd', 'StepInfo', 'TlsVersion', 'TransportSecurity', 'Type', 'UInt16', 'UInt5', 'UInt7', 'Umc', 'disable_debug', 'enable_debug', 'explain_bytes', 'explain_bytes_dict', 'get_debug_mode', 'set_debug_mode']
 class BinaryCmd(Information):
     """
     This class represents all specific binary command information
@@ -232,7 +232,7 @@ class Client:
         """
     def get_connection(self, ip: str = "", port: int = 2404, common_address: int = 0) -> Connection | None:
         """
-        get a connection by ip and port (either ip and port or common_address must be specified)
+        get a connection (either by ip and port or by common_address)
 
         Parameters
         ----------
@@ -814,6 +814,11 @@ class Connection:
     def port(self) -> int:
         """
         remote terminal units (server) port
+        """
+    @property
+    def protocol_parameters(self) -> ProtocolParameters:
+        """
+        read and update protocol parameters
         """
     @property
     def state(self) -> ConnectionState:
@@ -1404,12 +1409,12 @@ class Point:
         **Callable signature**
 
         Callable Parameters
-        ----------
+        -------------------
         point: c104.Point
             point instance
 
         Callable Returns
-        -------
+        ----------------
         None
 
         Warning
@@ -1695,7 +1700,7 @@ class Point:
     @property
     def related_io_address(self) -> int | None:
         """
-        related point identified by its information object address, if any
+        io_address of a related monitoring point or None
         """
     @related_io_address.setter
     def related_io_address(self, value: int) -> None:
@@ -1949,6 +1954,121 @@ class ProtectionStartInfo(Information):
         references property ``events``
 
         The setter is available via point.value=xyz
+        """
+class ProtocolParameters:
+    @property
+    def confirm_interval(self) -> int:
+        """
+        Maximum interval to acknowledge received messages (ms) (property name: t2)
+        """
+    @confirm_interval.setter
+    def confirm_interval(self, value: int) -> None:
+        """
+        set send acknowledge timeout (ms) (property name: t2)
+
+        Parameters
+        ----------
+        value: int
+            new timeout
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def connection_timeout(self) -> int:
+        """
+        Socket connection timeout (ms) (property name: t0)
+        """
+    @connection_timeout.setter
+    def connection_timeout(self, value: int) -> None:
+        """
+        set socket connection timeout (ms) (property name: t0)
+
+        Parameters
+        ----------
+        value: int
+            new timeout
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def keep_alive_interval(self) -> int:
+        """
+        Maximum interval without communication, send test frame message to prove liveness (ms) (property name: t3)
+        """
+    @keep_alive_interval.setter
+    def keep_alive_interval(self, value: int) -> None:
+        """
+        set timeout to send test frame message to prove liveness (ms), if connection silent (property name: t3)
+
+        Parameters
+        ----------
+        value: int
+            new timeout
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def message_timeout(self) -> int:
+        """
+        Timeout for sent messages to be acknowledged by counterparty (ms) (property name: t1)
+        """
+    @message_timeout.setter
+    def message_timeout(self, value: int) -> None:
+        """
+        set timeout for sent messages to be acknowledged by counterparty (ms) (property name: t1)
+
+        Parameters
+        ----------
+        value: int
+            new timeout
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def receive_window_size(self) -> int:
+        """
+        Threshold of unconfirmed incoming messages to send acknowledgments (property name: w)
+        """
+    @receive_window_size.setter
+    def receive_window_size(self, value: int) -> None:
+        """
+        set threshold of unconfirmed incoming messages to send acknowledgments (property name: w)
+
+        Parameters
+        ----------
+        value: int
+            new threshold
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def send_window_size(self) -> int:
+        """
+        Threshold of unconfirmed outgoing messages, before waiting for acknowledgments (property name: k)
+        """
+    @send_window_size.setter
+    def send_window_size(self, value: int) -> None:
+        """
+        set threshold of unconfirmed outgoing messages, before waiting for acknowledgments (property name: k)
+
+        Parameters
+        ----------
+        value: int
+            new threshold
+
+        Returns
+        -------
+        None
         """
 class Qoc:
     """
@@ -2415,7 +2535,8 @@ class Server:
         """
     @property
     def has_stations(self) -> bool:
-        """test if server has at least one station
+        """
+        test if server has at least one station
         """
     @property
     def ip(self) -> str:
@@ -2458,7 +2579,13 @@ class Server:
         """
     @property
     def port(self) -> int:
-        """port number the server will accept connections on
+        """
+        port number the server will accept connections on
+        """
+    @property
+    def protocol_parameters(self) -> ProtocolParameters:
+        """
+        read and update protocol parameters
         """
     @property
     def stations(self) -> list[Station]:
@@ -3292,4 +3419,4 @@ def set_debug_mode(mode: Debug) -> None:
     -------
     >>> c104.set_debug_mode(mode=c104.Debug.Client|c104.Debug.Connection)
     """
-__version__: str
+__version__: str = '2.1.0'
