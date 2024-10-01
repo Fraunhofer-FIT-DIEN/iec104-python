@@ -1465,14 +1465,14 @@ class Point:
         >>> step_point = sv_station_2.add_point(io_address=31, type=c104.Type.M_ST_TB_1, report_ms=2000)
         >>> step_point.on_before_read(callable=on_before_read_steppoint)
         """
-    def on_receive(self, callable: collections.abc.Callable[[Point, dict, IncomingMessage], ResponseState]) -> None:
+    def on_receive(self, callable: collections.abc.Callable[[Point, Information, IncomingMessage], ResponseState]) -> None:
         """
         set python callback that will be executed on every incoming message
         this can be either a command or an monitoring message
 
         Parameters
         ----------
-        callable: collections.abc.Callable[[c104.Point, dict, c104.IncomingMessage], c104.ResponseState]
+        callable: collections.abc.Callable[[c104.Point, c104.Information, c104.IncomingMessage], c104.ResponseState]
             callback function reference
 
         Returns

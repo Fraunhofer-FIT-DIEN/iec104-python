@@ -2041,14 +2041,14 @@ Example
                              py::return_value_policy::copy)
       .def(
           "on_receive", &Object::DataPoint::setOnReceiveCallback,
-          R"def(on_receive(self: c104.Point, callable: collections.abc.Callable[[c104.Point, dict, c104.IncomingMessage], c104.ResponseState]) -> None
+          R"def(on_receive(self: c104.Point, callable: collections.abc.Callable[[c104.Point, c104.Information, c104.IncomingMessage], c104.ResponseState]) -> None
 
 set python callback that will be executed on every incoming message
 this can be either a command or an monitoring message
 
 Parameters
 ----------
-callable: collections.abc.Callable[[c104.Point, dict, c104.IncomingMessage], c104.ResponseState]
+callable: collections.abc.Callable[[c104.Point, c104.Information, c104.IncomingMessage], c104.ResponseState]
     callback function reference
 
 Returns
