@@ -41,7 +41,6 @@ namespace Object {
 
 class DataPoint : public std::enable_shared_from_this<DataPoint> {
 public:
-  //class Station;  // Forward declaration of Station 
   // noncopyable
   DataPoint(const DataPoint &) = delete;
   DataPoint &operator=(const DataPoint &) = delete;
