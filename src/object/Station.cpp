@@ -33,14 +33,17 @@
 #include "Client.h"
 #include "Server.h"
 #include "remote/Connection.h"
+#include "DataPoint.h"
+
 
 using namespace Object;
 
 Station::Station(std::uint_fast16_t st_commonAddress,
                  std::shared_ptr<Server> st_server,
-                 std::shared_ptr<Remote::Connection> st_connection)
+                 std::shared_ptr<Remote::Connection> st_connection,
+                 bool st_isDST)
     : commonAddress(st_commonAddress), server(st_server),
-      connection(st_connection) {
+      connection(st_connection),  isDST(st_isDST) {
   DEBUG_PRINT(Debug::Station, "Created");
 }
 

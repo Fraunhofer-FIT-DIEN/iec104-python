@@ -47,11 +47,13 @@ public:
   [[nodiscard]] static std::shared_ptr<Station>
   create(std::uint_fast16_t st_commonAddress,
          std::shared_ptr<Server> st_server = nullptr,
-         std::shared_ptr<Remote::Connection> st_connection = nullptr) {
+         std::shared_ptr<Remote::Connection> st_connection = nullptr,
+         bool st_isDST = false) {  // Add `st_isDST` parameter
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<Station>(new Station(
-        st_commonAddress, std::move(st_server), std::move(st_connection)));
+        st_commonAddress, std::move(st_server), std::move(st_connection), st_isDST));
   }
+
 
   /**
    * @brief Remove object
@@ -63,7 +65,8 @@ public:
 private:
   explicit Station(std::uint_fast16_t st_commonAddress,
                    std::shared_ptr<Server> st_server,
-                   std::shared_ptr<Remote::Connection> st_connection);
+                   std::shared_ptr<Remote::Connection> st_connection,
+                   bool st_isDST);
 
   /// @brief unique common address of this station
   const std::uint_fast16_t commonAddress{0};
@@ -84,6 +87,9 @@ private:
   /// find a DataPoint via IOA
   std::unordered_map<std::uint_fast32_t, std::shared_ptr<DataPoint>>
       pointIoaMap{};
+
+  /// @brief Flag to indicate whether the station is in Daylight Saving Time
+  bool isDST;  // New member variable for DST
 
 public:
   std::uint_fast16_t getCommonAddress() const;
@@ -133,6 +139,12 @@ public:
            CommandTransmissionMode commandMode = DIRECT_COMMAND);
 
   bool isLocal();
+
+   /// Getter for `isDST`
+  bool getIsDST() const { return isDST; }
+
+  /// Setter for `isDST`
+  void setIsDST(bool dst) { isDST = dst; }
 
 public:
   std::string toString() const {

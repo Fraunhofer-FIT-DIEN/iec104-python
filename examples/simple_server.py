@@ -38,10 +38,17 @@ def main():
     server = c104.Server()
     station = server.add_station(common_address=47)
 
+    station.is_DST = True
+
+
     # monitoring point preparation
-    point = station.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
-    point.on_before_auto_transmit(callable=before_auto_transmit)
-    point.on_before_read(callable=before_read)
+   # point = station.add_point(io_address=11, type=c104.Type.M_ME_TF_1, report_ms=1000)
+   # point.on_before_auto_transmit(callable=before_auto_transmit)
+   # point.on_before_read(callable=before_read)
+   
+   # point.type = c104.Type.M_ME_NC_1
+
+    point2 = station.add_point(io_address=13, type=c104.Type.M_SP_TB_1, report_ms=5000)
 
     # command point preparation
     command = station.add_point(io_address=12, type=c104.Type.C_RC_TA_1)

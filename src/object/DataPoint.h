@@ -41,6 +41,7 @@ namespace Object {
 
 class DataPoint : public std::enable_shared_from_this<DataPoint> {
 public:
+  //class Station;  // Forward declaration of Station 
   // noncopyable
   DataPoint(const DataPoint &) = delete;
   DataPoint &operator=(const DataPoint &) = delete;
@@ -215,6 +216,7 @@ public:
   std::optional<std::uint_fast8_t> getSelectedByOriginatorAddress();
 
   IEC60870_5_TypeID getType() const;
+
 
   /**
    * @brief Get automatic report transmission interval of this point
