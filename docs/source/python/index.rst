@@ -17,4 +17,5 @@ c104 python module
    enumset/index
    enum/index
    number/index
+   protocolparameters
    functions

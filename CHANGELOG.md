@@ -1,5 +1,13 @@
 # Change log
 
+## v2.1
+### Fixes
+- Fix Client.get_connection method to accept ip and port or common_address argument
+- Fix Qoc reference in docs
+### Features
+- Serve type hints for all classes and methods as .pyi file
+- Add property `Server.protocol_parameters` and `Connection.protocol_parameters` to be able to read and update protocol parameters like window size and timeouts
+
 ## v2.0
 ### Fixes
 - Fix (2.0.2): Fix an issue with the point.value setter that was not functioning correctly for the following types: EventState, StartEvents, OutputCircuits, and PackedSingle

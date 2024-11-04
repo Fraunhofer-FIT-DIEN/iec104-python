@@ -1,6 +1,21 @@
 Change log
 ==========
 
+v2.1.0
+-------
+
+Features
+^^^^^^^^
+
+- Serve type hints for all classes and methods as .pyi file
+- Add property **Server.protocol_parameters** and **Connection.protocol_parameters** to be able to read and update protocol parameters like window size and timeouts
+
+Fixes
+^^^^^^
+
+- Fix Client.get_connection method to accept ip and port or common_address argument
+- Fix Qoc reference in docs
+
 v2.0.2
 -------
 

@@ -170,13 +170,13 @@ set(c104_SOURCES
     src/object/Station.cpp
     src/python.cpp)
 
-pybind11_add_module(c104 MODULE OPT_SIZE ${c104_SOURCES})
+pybind11_add_module(_c104 MODULE OPT_SIZE ${c104_SOURCES})
 
 if(c104_PRIVATE_LIBRARIES)
-  target_link_libraries(c104 PRIVATE ${c104_PRIVATE_LIBRARIES})
+  target_link_libraries(_c104 PRIVATE ${c104_PRIVATE_LIBRARIES})
 endif()
 
-target_compile_definitions(c104 PRIVATE VERSION_INFO=\"${C104_VERSION_INFO}\")
+target_compile_definitions(_c104 PRIVATE VERSION_INFO=\"${C104_VERSION_INFO}\")
 
 # ##############################################################################
 # Tests with Catch2

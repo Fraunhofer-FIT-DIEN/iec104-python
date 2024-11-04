@@ -19,6 +19,8 @@ graft src
 exclude src/main_client.cpp
 exclude src/main_server.cpp
 
+graft c104
+
 global-exclude **/.*
 prune **/tests
 include CMakeLists.txt LICENSE README.md pyproject.toml setup.cfg setup.py
