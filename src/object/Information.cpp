@@ -68,8 +68,10 @@ void Information::setValue(const InfoValue val) {
     setValueImpl(val);
   } catch (const std::bad_variant_access &e) {
     throw std::invalid_argument(
-        "Invalid value, please provide an instance of the matching information "
-        "value class (value.__class__)");
+        "Invalid quality, please provide an instance of the matching "
+        "information value\n - Previous: " +
+        InfoValue_toString(getValue()) +
+        "\n - Proposed: " + InfoValue_toString(val));
   }
 };
 
@@ -89,7 +91,9 @@ void Information::setQuality(const InfoQuality val) {
   } catch (const std::bad_variant_access &e) {
     throw std::invalid_argument(
         "Invalid quality, please provide an instance of the matching "
-        "information value class (quality.__class__)");
+        "information value\n - Previous: " +
+        InfoQuality_toString(getQuality()) +
+        "\n - Proposed: " + InfoQuality_toString(val));
   }
 };
 

@@ -16,6 +16,20 @@ Fixes
 - Fix Client.get_connection method to accept ip and port or common_address argument
 - Fix Qoc reference in docs
 
+v2.0.2
+-------
+
+Features
+^^^^^^^^^
+
+- Enhance the error messaging for invalid value and quality assignments of points
+
+Fixes
+^^^^^^
+
+- Fix an issue with the point.value setter that was not functioning correctly for the following types: EventState, StartEvents, OutputCircuits, and PackedSingle
+- Fix a segmentation fault that occurred during the string conversion of Quality and BinaryCounterQuality objects when unsupported bits were set
+
 v2.0.1
 -------
 
@@ -48,7 +62,7 @@ Features
 Breaking Changes
 ^^^^^^^^^^^^^^^^^
 
-- Dropped python 3.6 support, since pybind11 does not support
+- Dropped python 3.6 support, since pybind11 does not support it any longer
 - c104.Point signature changes (see below)
 - c104.Station signature changes (see below)
 - c104.Client signature changes (see below)
