@@ -2,6 +2,8 @@
 
 ## v2.0
 ### Fixes
+- Fix (2.0.2): Fix an issue with the point.value setter that was not functioning correctly for the following types: EventState, StartEvents, OutputCircuits, and PackedSingle
+- Fix (2.0.2): Fix a segmentation fault that occurred during the string conversion of Quality and BinaryCounterQuality objects when unsupported bits were set
 - Fix (2.0.1): Fix missing cyclic reports if debug flag c104.Debug.Server is not set #28
 - Fix (2.0.1): Detect and handle invalid return values from callbacks #27
 - Fix (2.0.1): Improve python docblock signatures
@@ -17,7 +19,7 @@
 - Improved string representation for all classes
 - Improved type safety
 ### Breaking Changes
-- Dropped python 3.6 support, since pybind11 does not suppor
+- Dropped python 3.6 support, since pybind11 does not support it any longer
 #### c104.Point
 The concept of a points value is not enough to support all properties of all protocol messages. therefore the value was replaced by individual information objects. Every point type has a specific information type that stores a specific value type but also other properties.
 This also ensures type safety, because there is no automatic cast from a Python number to a required value class.

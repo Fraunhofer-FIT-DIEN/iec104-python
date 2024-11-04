@@ -111,9 +111,9 @@ void Assert_IPv4(const std::string &s);
  */
 void Assert_Port(int_fast64_t port);
 
-std::chrono::system_clock::time_point to_time_point(const CP56Time2a time);
+std::chrono::system_clock::time_point to_time_point(CP56Time2a time);
 void from_time_point(CP56Time2a time,
-                     const std::chrono::system_clock::time_point time_point);
+                     std::chrono::system_clock::time_point time_point);
 
 struct Task {
   std::function<void()> function;
@@ -124,10 +124,11 @@ struct Task {
 };
 constexpr auto TASK_DELAY_THRESHOLD = std::chrono::milliseconds(100);
 
-typedef std::variant<std::monostate, bool, DoublePointValue, LimitedInt7,
+// use primitives at the end, to avoid pybind11 down-casts (i .e. int)
+typedef std::variant<std::monostate, DoublePointValue, LimitedInt7,
                      StepCommandValue, Byte32, NormalizedFloat, LimitedInt16,
-                     float, int32_t, EventState, StartEvents, OutputCircuits,
-                     FieldSet16>
+                     EventState, StartEvents, OutputCircuits, FieldSet16, bool,
+                     float, int32_t>
     InfoValue;
 typedef std::variant<std::monostate, Quality, BinaryCounterQuality> InfoQuality;
 

@@ -14,7 +14,7 @@ copyright = "2020-2024, Fraunhofer Institute for Applied Information Technology 
 author = "Martin Unkel <martin.unkel@fit.fraunhofer.de>"
 
 release = "2.0"
-version = "2.0.1"
+version = "2.0.2"
 
 
 # -- General configuration ---------------------------------------------------
@@ -33,7 +33,7 @@ extensions = [
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
     'sphinx': ('https://www.sphinx-doc.org/en/master/', None),
-    'c104': ('https://iec104-python.readthedocs.io/', 'objects.inv'),
+    'c104': ('https://iec104-python.readthedocs.io/latest/', 'objects.inv'),
 }
 intersphinx_disabled_domains = ['std']
 

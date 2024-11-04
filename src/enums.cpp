@@ -55,6 +55,8 @@ std::string Debug_toString(const Debug &mode) {
     sv.emplace_back("Callback");
   if (test(mode, Debug::Gil))
     sv.emplace_back("Gil");
+  if (sv.empty())
+    return "Debug set: { UNSUPPORTED_BITS_DETECTED }, is_none: False";
   return "Debug set: { " +
          std::accumulate(std::next(sv.begin()), sv.end(), sv[0],
                          [](const std::string &a, const std::string &b) {
@@ -84,6 +86,8 @@ std::string Debug_toFlagString(const Debug &mode) {
     sv.emplace_back("Callback");
   if (test(mode, Debug::Gil))
     sv.emplace_back("Gil");
+  if (sv.empty())
+    return "UNSUPPORTED_BITS_DETECTED";
   return std::accumulate(
       std::next(sv.begin()), sv.end(), sv[0],
       [](const std::string &a, const std::string &b) { return a + " | " + b; });
@@ -96,8 +100,10 @@ std::string Quality_toString(const Quality &quality) {
   std::vector<std::string> sv{};
   if (test(quality, Quality::Overflow))
     sv.emplace_back("Overflow");
-  //  if (test(quality, Quality::Reserved))
-  //    sv.emplace_back("Reserved");
+  if (static_cast<int>(quality) & 0x02)
+    sv.emplace_back("UNSUPPORTED_BIT_1");
+  if (static_cast<int>(quality) & 0x04)
+    sv.emplace_back("UNSUPPORTED_BIT_2");
   if (test(quality, Quality::ElapsedTimeInvalid))
     sv.emplace_back("ElapsedTimeInvalid");
   if (test(quality, Quality::Blocked))
@@ -108,6 +114,8 @@ std::string Quality_toString(const Quality &quality) {
     sv.emplace_back("NonTopical");
   if (test(quality, Quality::Invalid))
     sv.emplace_back("Invalid");
+  if (sv.empty())
+    return "Quality set: { UNSUPPORTED_BITS_DETECTED }, is_good: False";
   return "Quality set: { " +
          std::accumulate(std::next(sv.begin()), sv.end(), sv[0],
                          [](const std::string &a, const std::string &b) {
@@ -121,12 +129,25 @@ std::string BinaryCounterQuality_toString(const BinaryCounterQuality &quality) {
     return "BinaryCounterQuality set: {}, is_good: True";
   }
   std::vector<std::string> sv{};
+  if (static_cast<int>(quality) & 0x01)
+    sv.emplace_back("UNSUPPORTED_BIT_0");
+  if (static_cast<int>(quality) & 0x02)
+    sv.emplace_back("UNSUPPORTED_BIT_1");
+  if (static_cast<int>(quality) & 0x04)
+    sv.emplace_back("UNSUPPORTED_BIT_2");
+  if (static_cast<int>(quality) & 0x08)
+    sv.emplace_back("UNSUPPORTED_BIT_3");
+  if (static_cast<int>(quality) & 0x10)
+    sv.emplace_back("UNSUPPORTED_BIT_4");
   if (test(quality, BinaryCounterQuality::Adjusted))
     sv.emplace_back("Adjusted");
   if (test(quality, BinaryCounterQuality::Carry))
     sv.emplace_back("Carry");
   if (test(quality, BinaryCounterQuality::Invalid))
     sv.emplace_back("Invalid");
+  if (sv.empty())
+    return "BinaryCounterQuality set: { UNSUPPORTED_BITS_DETECTED }, is_good: "
+           "False";
   return "BinaryCounterQuality set: { " +
          std::accumulate(std::next(sv.begin()), sv.end(), sv[0],
                          [](const std::string &a, const std::string &b) {
@@ -152,6 +173,12 @@ std::string StartEvents_toString(const StartEvents &events) {
     sv.emplace_back("InEarthCurrent");
   if (test(events, StartEvents::ReverseDirection))
     sv.emplace_back("ReverseDirection");
+  if (static_cast<int>(events) & 0x40)
+    sv.emplace_back("UNSUPPORTED_BIT_6");
+  if (static_cast<int>(events) & 0x80)
+    sv.emplace_back("UNSUPPORTED_BIT_7");
+  if (sv.empty())
+    return "StartEvents set: { UNSUPPORTED_BITS_DETECTED }";
   return "StartEvents set: { " +
          std::accumulate(std::next(sv.begin()), sv.end(), sv[0],
                          [](const std::string &a, const std::string &b) {
@@ -173,6 +200,16 @@ std::string OutputCircuits_toString(const OutputCircuits &infos) {
     sv.emplace_back("PhaseL2");
   if (test(infos, OutputCircuits::PhaseL3))
     sv.emplace_back("PhaseL3");
+  if (static_cast<int>(infos) & 0x10)
+    sv.emplace_back("UNSUPPORTED_BIT_4");
+  if (static_cast<int>(infos) & 0x20)
+    sv.emplace_back("UNSUPPORTED_BIT_5");
+  if (static_cast<int>(infos) & 0x40)
+    sv.emplace_back("UNSUPPORTED_BIT_6");
+  if (static_cast<int>(infos) & 0x80)
+    sv.emplace_back("UNSUPPORTED_BIT_7");
+  if (sv.empty())
+    return "OutputCircuit set: { UNSUPPORTED_BITS_DETECTED }";
   return "OutputCircuit set: { " +
          std::accumulate(std::next(sv.begin()), sv.end(), sv[0],
                          [](const std::string &a, const std::string &b) {
@@ -218,6 +255,8 @@ std::string FieldSet16_toString(const FieldSet16 &infos) {
     sv.emplace_back("I14");
   if (test(infos, FieldSet16::I15))
     sv.emplace_back("I15");
+  if (sv.empty())
+    return "PackedSingle set: { UNSUPPORTED_BITS_DETECTED }";
   return "PackedSingle set: { " +
          std::accumulate(std::next(sv.begin()), sv.end(), sv[0],
                          [](const std::string &a, const std::string &b) {
