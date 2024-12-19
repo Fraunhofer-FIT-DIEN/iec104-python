@@ -11,10 +11,29 @@ index 4cb7722..e211d58 100644
  /* mbed TLS feature support */
  #define MBEDTLS_CIPHER_MODE_CBC
 diff --git a/lib60870-C/src/iec60870/cs104/cs104_connection.c b/lib60870-C/src/iec60870/cs104/cs104_connection.c
-index 856cd7f..4bb917d 100644
+index 856cd7f..d8bbbac 100644
 --- a/lib60870-C/src/iec60870/cs104/cs104_connection.c
 +++ b/lib60870-C/src/iec60870/cs104/cs104_connection.c
-@@ -1021,8 +1021,10 @@ handleConnection(void* parameter)
+@@ -856,7 +856,7 @@ handleConnection(void* parameter)
+ {
+     CS104_Connection self = (CS104_Connection) parameter;
+
+-    CS104_ConnectionEvent event = CS104_CONNECTION_OPENED;
++    CS104_ConnectionEvent event = CS104_CONNECTION_FAILED;
+
+     resetConnection(self);
+
+@@ -1006,9 +1006,6 @@ handleConnection(void* parameter)
+ #if (CONFIG_USE_SEMAPHORES == 1)
+             Semaphore_post(self->conStateLock);
+ #endif /* (CONFIG_USE_SEMAPHORES == 1) */
+-
+-            /* register CLOSED event */
+-            event = CS104_CONNECTION_FAILED;
+         }
+
+ #if (CONFIG_USE_SEMAPHORES == 1)
+@@ -1021,8 +1018,10 @@ handleConnection(void* parameter)
          }
 
      #if (CONFIG_CS104_SUPPORT_TLS == 1)
@@ -27,3 +46,16 @@ index 856cd7f..4bb917d 100644
      #endif
 
          Socket_destroy(self->socket);
+@@ -1052,10 +1051,8 @@ handleConnection(void* parameter)
+     }
+
+     /* Call connection handler */
+-    if ((event == CS104_CONNECTION_CLOSED) || (event == CS104_CONNECTION_FAILED)) {
+-        if (self->connectionHandler)
+-            self->connectionHandler(self->connectionHandlerParameter, self, event);
+-    }
++    if (self->connectionHandler)
++        self->connectionHandler(self->connectionHandlerParameter, self, event);
+
+     return NULL;
+ }
