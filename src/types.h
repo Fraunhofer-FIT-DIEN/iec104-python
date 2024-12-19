@@ -137,6 +137,7 @@ std::string InfoQuality_toString(const InfoQuality &value);
 
 // forward declaration to avoid .h loop inclusion
 namespace Object {
+class DateTime;
 class DataPoint;
 class Information;
 

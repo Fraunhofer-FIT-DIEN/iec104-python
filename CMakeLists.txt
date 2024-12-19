@@ -143,6 +143,8 @@ set(c104_SOURCES
     src/module/ScopedGilAcquire.h
     src/module/ScopedGilRelease.h
     src/module/GilAwareMutex.h
+    src/object/DateTime.cpp
+    src/object/DateTime.h
     src/object/Information.h
     src/object/DataPoint.h
     src/object/Station.h

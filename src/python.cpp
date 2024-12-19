@@ -40,11 +40,11 @@
 #include <pybind11/stl.h>
 
 #ifdef VERSION_INFO
-#define PY_MODULE(name, var) PYBIND11_MODULE(name, var)
+#define PY_MODULE(var) PYBIND11_MODULE(_c104, var)
 #else
 #define VERSION_INFO "embedded"
 #include <pybind11/embed.h>
-#define PY_MODULE(name, var) PYBIND11_EMBEDDED_MODULE(name, var)
+#define PY_MODULE(var) PYBIND11_EMBEDDED_MODULE(c104, var)
 #endif
 
 using namespace pybind11::literals;
@@ -206,7 +206,7 @@ py::dict explain_bytes_dict(const py::bytes &obj) {
                                                (unsigned char)buffer->len);
 }
 
-PY_MODULE(_c104, m) {
+PY_MODULE(m) {
 #ifdef _WIN32
   system("chcp 65001 > nul");
 #endif
