@@ -1037,9 +1037,24 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
       return true;
     }
 
-    // @todo handle end of initialization ? Server sends M_EI_NA_1 optionally
-    if (M_EI_NA_1 == type)
-      return true;
+    // End of initialization
+    if (M_EI_NA_1 == type) {
+      if (cot == CS101_COT_INITIALIZED) {
+        auto station = instance->getStation(message->getCommonAddress());
+        if (station) {
+          auto io = (EndOfInitialization)message->getInformationObject();
+          client->onEndOfInitialization(
+              station, static_cast<CS101_CauseOfInitialization>(
+                           EndOfInitialization_getCOI(io)));
+          return true;
+        } else {
+          DEBUG_PRINT_CONDITION(
+              debug, Debug::Connection,
+              "asdu_handler] M_EI_NA_1 Message ignored: Unknown CA");
+        }
+      }
+      return false;
+    }
 
     // command response
     if (type < P_ME_NA_1) {

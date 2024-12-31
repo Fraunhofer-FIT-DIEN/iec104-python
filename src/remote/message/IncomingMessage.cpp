@@ -42,7 +42,7 @@ IncomingMessage::IncomingMessage(CS101_ASDU packet,
                                  CS101_AppLayerParameters app_layer_parameters)
     : IMessageInterface(), asdu(nullptr), parameters(app_layer_parameters),
       position(0), positionReset(true), positionValid(false),
-      numberOfObject(0) {
+      numberOfObjects(0) {
   if (packet) {
     asdu = CS101_ASDU_clone(packet, nullptr);
   }
@@ -80,7 +80,7 @@ void IncomingMessage::extractMetaData() {
 
   {
     std::lock_guard<Module::GilAwareMutex> const lock_position(position_mutex);
-    numberOfObject = (uint_fast8_t)CS101_ASDU_getNumberOfElements(asdu);
+    numberOfObjects = (uint_fast8_t)CS101_ASDU_getNumberOfElements(asdu);
   }
 
   // REJECT CP24Time based messages
@@ -95,10 +95,13 @@ void IncomingMessage::extractMetaData() {
   case M_IT_TA_1:
   case M_EP_TA_1:
   case M_EP_TB_1:
-  case M_EP_TC_1:
+  case M_EP_TC_1: {
+    throw std::invalid_argument("CP24Time based messages not supported by norm "
+                                "IEC60870-5-104 (101 only)!");
+  }
   case C_TS_NA_1:
   case C_CD_NA_1: {
-    throw std::invalid_argument("CP24Time based messages not supported by norm "
+    throw std::invalid_argument("Message not supported by norm "
                                 "IEC60870-5-104 (101 only)!");
   }
   }
@@ -111,7 +114,7 @@ void IncomingMessage::extractMetaData() {
                                   " must not be marked as sequence.");
     }
     // REJECT multiple objects in non-list context
-    if (numberOfObject > 1) {
+    if (numberOfObjects > 1) {
       throw std::invalid_argument(
           "IncomingMessage with TypeID " + std::string(TypeID_toString(type)) +
           " must not contain more than one information object.");
@@ -165,7 +168,7 @@ unsigned char *IncomingMessage::getRawBytes() const {
                            payloadSize; // length following behind length field
 
   msg[ASDU_OFFSET + 0] = type; // typeId
-  msg[ASDU_OFFSET + 1] = numberOfObject;
+  msg[ASDU_OFFSET + 1] = numberOfObjects;
   if (sequence) {
     msg[ASDU_OFFSET + 1] |= 0x80;
   }
@@ -203,8 +206,8 @@ std::string IncomingMessage::getRawMessageString() const {
   return formatted;
 }
 
-std::uint_fast8_t IncomingMessage::getNumberOfObject() const {
-  return numberOfObject;
+std::uint_fast8_t IncomingMessage::getNumberOfObjects() const {
+  return numberOfObjects;
 }
 
 void IncomingMessage::first() {
@@ -213,7 +216,7 @@ void IncomingMessage::first() {
 
     positionReset = true;
     position = 0;
-    positionValid = (numberOfObject > 0);
+    positionValid = (numberOfObjects > 0);
   }
 
   if (positionValid)
@@ -227,10 +230,10 @@ bool IncomingMessage::next() {
     if (positionReset) {
       position = 0;
       positionReset = false;
-      positionValid = (numberOfObject > 0);
+      positionValid = (numberOfObjects > 0);
     } else {
       position++;
-      positionValid = (position < numberOfObject);
+      positionValid = (position < numberOfObjects);
     }
   }
 
@@ -627,6 +630,7 @@ void IncomingMessage::extractInformation() {
           true);
     } break;
 
+    case M_EI_NA_1:
     case C_IC_NA_1:
     case C_CI_NA_1:
     case C_RD_NA_1:
@@ -868,6 +872,7 @@ std::string IncomingMessage::toString() const {
       << ", io_address=" << std::to_string(informationObjectAddress)
       << ", type=" << TypeID_toString(type) << ", info=" << info->name()
       << ", cot=" << CS101_CauseOfTransmission_toString(causeOfTransmission)
+      << ", number_of_objects=" << std::to_string(numberOfObjects)
       << ", test=" << bool_toString(test)
       << ", negative=" << bool_toString(negative)
       << ", sequence=" << bool_toString(sequence) << " at " << std::hex

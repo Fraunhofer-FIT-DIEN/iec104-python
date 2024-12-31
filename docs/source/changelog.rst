@@ -9,12 +9,20 @@ Features
 
 - Serve type hints for all classes and methods as .pyi file
 - Add property **Server.protocol_parameters** and **Connection.protocol_parameters** to be able to read and update protocol parameters like window size and timeouts
+- Add **Client.on_station_initialized** callback to handle end of initialization messages
+- Add **Station.signal_initialized(cause=...)** method to support sending of end of initialization messages per station to all connected clients
+- Send monitoring data formatted as sequences in periodic transmission as well as interrogation responses, if possible
 
 Fixes
 ^^^^^^
 
 - Fix Client.get_connection method to accept ip and port or common_address argument
 - Fix Qoc reference in docs
+- Improved error message on assigning invalid information object to a points value or quality property
+
+Deprecations
+^^^^^^^^^^^^
+- Property **number_of_object** renamed to **number_of_objects** in class **IncomingMessage**
 
 v2.0.2
 -------

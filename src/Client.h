@@ -187,6 +187,16 @@ public:
   void onNewPoint(std::shared_ptr<Object::Station> station,
                   std::uint_fast32_t io_address, IEC60870_5_TypeID type);
 
+  /**
+   * @brief set python callback that will be executed on incoming end of
+   * initialization messages
+   * @throws std::invalid_argument if callable signature does not match
+   */
+  void setOnEndOfInitializationCallback(py::object &callable);
+
+  void onEndOfInitialization(std::shared_ptr<Object::Station> station,
+                             CS101_CauseOfInitialization cause);
+
   std::uint_fast16_t getTickRate_ms() const;
 
   void schedulePeriodicTask(const std::function<void()> &task, int interval);
@@ -252,6 +262,12 @@ private:
   Module::Callback<void> py_onNewPoint{
       "Client.on_new_point", "(client: c104.Client, station: c104.Station, "
                              "io_address: int, point_type: c104.Type) -> None"};
+
+  /// @brief python callback function pointer
+  Module::Callback<void> py_onEndOfInitialization{
+      "Client.on_station_initialized",
+      "(client: c104.Client, station: c104.Station, "
+      "cause: c104.Coi) -> None"};
 
   /// @brief client thread function
   void thread_run();

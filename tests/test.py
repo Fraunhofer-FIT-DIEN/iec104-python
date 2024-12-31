@@ -52,10 +52,17 @@ def cl_pt_on_receive_point(point: c104.Point, previous_info: c104.Information, m
 # CLIENT: NEW HANDLER
 ##################################
 
+INIT_COUNT = {}
+
 def cl_on_new_station(client: c104.Client, connection: c104.Connection, common_address: int) -> None:
     print("CL] NEW STATION {0} | CLIENT OA {1}".format(common_address, client.originator_address))
     connection.add_station(common_address=common_address)
 
+def cl_on_station_initialized(client: c104.Client, station: c104.Station, cause: c104.Coi) -> None:
+    global INIT_COUNT
+    curr = INIT_COUNT.get(station.common_address, 0)
+    INIT_COUNT[station.common_address] = curr + 1
+    print("STATION {0} INITIALIZED due to {1} | INIT COUNT {2} | CLIENT OA {3}".format(station.common_address, cause, INIT_COUNT, client.originator_address))
 
 def cl_on_new_point(client: c104.Client, station: c104.Station, io_address: int, point_type: c104.Type) -> None:
     print("CL] NEW POINT: {1} with IOA {0} | CLIENT OA {2}".format(io_address, point_type, client.originator_address))
@@ -64,6 +71,7 @@ def cl_on_new_point(client: c104.Client, station: c104.Station, io_address: int,
 
 
 my_client.on_new_station(callable=cl_on_new_station)
+my_client.on_station_initialized(callable=cl_on_station_initialized)
 my_client.on_new_point(callable=cl_on_new_point)
 
 
@@ -274,6 +282,19 @@ while not cl_connection_1.is_connected or cl_connection_1.is_muted:
     print("CL] Try to connect to {0}:{1}".format(cl_connection_1.ip, cl_connection_1.port))
     cl_connection_1.connect()
     time.sleep(3)
+
+total_station_count = len(my_server.stations)
+while len(INIT_COUNT) < total_station_count:
+    print("CL] Wait for end of initialization for all stations (init:%s, total:%s)" % (len(INIT_COUNT), total_station_count))
+
+    # signal end of initialization on server side
+    for st_iter in range(total_station_count):
+        st = my_server.stations[st_iter]
+        if st.common_address not in INIT_COUNT:
+            st.signal_initialized(cause=c104.Coi.LOCAL_MANUAL_RESET)
+
+    time.sleep(1)
+
 
 cl_dump()
 time.sleep(3)

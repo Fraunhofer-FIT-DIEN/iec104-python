@@ -40,6 +40,28 @@
 using namespace Remote;
 using namespace std::chrono_literals;
 
+template <typename T>
+bool areKeysSequential(const std::map<uint_fast16_t, T> &inputMap) {
+  if (inputMap.empty()) {
+    return true; // An empty map is trivially sequential
+  }
+
+  // Iterator-based traversal to test key sequences
+  // std::map is always ordered, therefore sorting is not necessary
+  auto it = inputMap.begin();
+  uint_fast16_t previousKey = it->first;
+  ++it;
+
+  for (; it != inputMap.end(); ++it) {
+    if (it->first != previousKey + 1) {
+      return false; // Keys are not sequential
+    }
+    previousKey = it->first;
+  }
+
+  return true; // All keys are sequential
+}
+
 Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
                const std::uint_fast16_t tick_rate_ms,
                const std::uint_fast16_t select_timeout_ms,
@@ -893,6 +915,36 @@ void Server::sendActivationTermination(IMasterConnection connection,
   }
 }
 
+void Server::sendEndOfInitialization(const std::uint_fast16_t commonAddress,
+                                     const CS101_CauseOfInitialization cause) {
+
+  Module::ScopedGilRelease const scoped("Server.send");
+
+  bool const debug = DEBUG_TEST(Debug::Server);
+  std::chrono::steady_clock::time_point begin, end;
+  if (debug) {
+    begin = std::chrono::steady_clock::now();
+  }
+
+  auto io = EndOfInitialization_create(nullptr, static_cast<uint8_t>(cause));
+
+  CS101_ASDU asdu =
+      CS101_ASDU_create(appLayerParameters, false, CS101_COT_INITIALIZED, 0,
+                        commonAddress, false, false);
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  CS104_Slave_enqueueASDU(slave, asdu);
+  CS101_ASDU_destroy(asdu);
+  EndOfInitialization_destroy(io);
+
+  if (debug) {
+    end = std::chrono::steady_clock::now();
+    DEBUG_PRINT_CONDITION(
+        true, Debug::Server,
+        "send] Send M_EI_NA_1 | COI: " + CauseOfInitialization_toString(cause) +
+            " | TOTAL " + TICTOC(begin, end));
+  }
+}
+
 void Server::sendInventory(const CS101_CauseOfTransmission cot,
                            const uint_fast16_t commonAddress,
                            IMasterConnection connection) {
@@ -966,7 +1018,7 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
       // send grouped messages of current station
       for (auto &group : pointGroup) {
         empty = false;
-        bool const isSequence = false;
+        bool const isSequence = areKeysSequential(group.second);
         bool const isTest = false;
         bool const isNegative = false;
 
@@ -987,6 +1039,13 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
           // not added => ASDU packet size exceeded => send asdu and create a
           // new one
           if (!added) {
+            if (CS101_ASDU_getNumberOfElements(asdu) < 0x7f) {
+              DEBUG_PRINT(Debug::Server,
+                          "Message for inventory cannot be added: Mismatching "
+                          "TypeID or invalid sequence" +
+                              std::to_string(message.second->getIOA()));
+            }
+
             // send asdu
             if (connection) {
               IMasterConnection_sendASDU(connection, asdu);

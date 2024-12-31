@@ -87,7 +87,7 @@ public:
    * @brief Get the number of information objects inside this message
    * @return count
    */
-  std::uint_fast8_t getNumberOfObject() const;
+  std::uint_fast8_t getNumberOfObjects() const;
 
   /**
    * @brief Extract the first information object contained in this message
@@ -153,7 +153,7 @@ private:
   std::atomic_bool positionValid{false};
 
   /// @brief number of available information objects inside this message
-  std::atomic_uint_fast8_t numberOfObject{0};
+  std::atomic_uint_fast8_t numberOfObjects{0};
 
   /**
    * @brief extract meta data from this message: commonAddress,

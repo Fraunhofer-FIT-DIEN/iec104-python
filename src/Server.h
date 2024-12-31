@@ -252,6 +252,9 @@ public:
 
   void sendActivationTermination(IMasterConnection connection, CS101_ASDU asdu);
 
+  void sendEndOfInitialization(const std::uint_fast16_t commonAddress,
+                               const CS101_CauseOfInitialization cause);
+
   /**
    * @brief Send full interrogation response or periodic measurement broadcasts
    * @param cot cause of transmission: why this message should be send

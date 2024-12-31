@@ -134,6 +134,8 @@ public:
 
   bool isLocal();
 
+  void sendEndOfInitialization(const CS101_CauseOfInitialization cause);
+
 public:
   std::string toString() const {
     size_t len = 0;

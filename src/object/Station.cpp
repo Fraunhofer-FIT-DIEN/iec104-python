@@ -130,3 +130,12 @@ std::shared_ptr<DataPoint> Station::addPoint(
 }
 
 bool Station::isLocal() { return !server.expired(); }
+
+void Station::sendEndOfInitialization(const CS101_CauseOfInitialization cause) {
+  if (auto sv = getServer()) {
+    return sv->sendEndOfInitialization(commonAddress, cause);
+  }
+
+  throw new std::runtime_error(
+      "Cannot send end of initialization: not a server station");
+}

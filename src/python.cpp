@@ -1106,6 +1106,49 @@ Example
 >>> my_client.disconnect_all()
 )def")
       .def(
+          "on_station_initialized", &Client::setOnEndOfInitializationCallback,
+          R"def(on_station_initialized(self: c104.Client, callable: collections.abc.Callable[[c104.Client, c104.Station, c104.Coi], None]) -> None
+
+set python callback that will be executed on incoming end of initialization message from stations
+
+Parameters
+----------
+callable: collections.abc.Callable[[c104.Client, c104.Station, c104.Coi], None]
+    callback function reference
+
+Returns
+-------
+None
+
+Raises
+------
+ValueError
+    callable signature does not match exactly
+
+**Callable signature**
+
+Callable Parameters
+--------------------
+client: c104.Client
+    client instance
+station: c104.Station
+    reporting station
+cause: c104.Coi
+    what caused the (re-)initialization procedure
+
+Callable Returns
+-----------------
+None
+
+Example
+-------
+>>> def cl_on_station_initialized(client: c104.Client, station: c104.Station, cause: c104.Coi) -> None:
+>>>     print("STATION {0} INITIALIZED due to {1} | CLIENT OA {2}".format(station.common_address, cause, client.originator_address))
+>>>
+>>> my_client.on_station_initialized(callable=cl_on_station_initialized)
+)def",
+          "callable"_a)
+      .def(
           "on_new_station", &Client::setOnNewStationCallback,
           R"def(on_new_station(self: c104.Client, callable: collections.abc.Callable[[c104.Client, c104.Connection, int], None]) -> None
 
@@ -2019,6 +2062,25 @@ Example
           "io_address"_a, "type"_a, "report_ms"_a = 0,
           "related_io_address"_a = std::nullopt,
           "related_io_autoreturn"_a = false, "command_mode"_a = DIRECT_COMMAND)
+      .def("signal_initialized", &Object::Station::sendEndOfInitialization,
+           R"def(signal_initialized(self: c104.Station, cause: c104.Coi) -> None
+
+signal end of initialization for this station to connected clients
+
+Parameters
+----------
+cause: c104.Coi
+    what caused the (re-)initialization procedure
+
+Returns
+-------
+None
+
+Example
+-------
+>>> my_station.signal_initialized(cause=c104.Coi.REMOTE_RESET)
+)def",
+           "cause"_a)
       .def("__repr__", &Object::Station::toString);
 
   py::class_<Object::DataPoint, std::shared_ptr<Object::DataPoint>>(
@@ -3178,7 +3240,13 @@ The setter is available via point.quality=xyz)def")
           py::return_value_policy::copy)
       .def_property_readonly(
           "number_of_object",
-          &Remote::Message::IncomingMessage::getNumberOfObject,
+          &Remote::Message::IncomingMessage::getNumberOfObjects,
+          "int: number of information objects (read-only) (deprecated, use "
+          "`number_of_objects` instead)",
+          py::return_value_policy::copy)
+      .def_property_readonly(
+          "number_of_objects",
+          &Remote::Message::IncomingMessage::getNumberOfObjects,
           "int: number of information objects (read-only)",
           py::return_value_policy::copy)
       .def_property_readonly("is_select_command",

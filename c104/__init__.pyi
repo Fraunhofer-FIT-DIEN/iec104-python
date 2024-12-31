@@ -337,6 +337,46 @@ class Client:
         >>>
         >>> my_client.on_new_station(callable=cl_on_new_station)
         """
+    def on_station_initialized(self, callable: collections.abc.Callable[[Client, Station, Coi], None]) -> None:
+        """
+        set python callback that will be executed on incoming end of initialization message from stations
+
+        Parameters
+        ----------
+        callable: collections.abc.Callable[[c104.Client, c104.Station, c104.Coi], None]
+            callback function reference
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            callable signature does not match exactly
+
+        **Callable signature**
+
+        Callable Parameters
+        --------------------
+        client: c104.Client
+            client instance
+        station: c104.Station
+            reporting station
+        cause: c104.Coi
+            what caused the (re-)initialization procedure
+
+        Callable Returns
+        -----------------
+        None
+
+        Example
+        -------
+        >>> def cl_on_station_initialized(client: c104.Client, station: c104.Station, cause: c104.Coi) -> None:
+            >>>     print("STATION {0} INITIALIZED due to {1} | CLIENT OA {2}".format(station.common_address, cause, client.originator_address))
+        >>>
+        >>> my_client.on_station_initialized(callable=cl_on_station_initialized)
+        """
     def reconnect_all(self) -> None:
         """
         close and reopen all connections
@@ -1105,6 +1145,14 @@ class IncomingMessage:
     def number_of_object(self) -> int:
         """
         number of information objects
+
+        Deprecated: This property is deprecated and will be removed in version 3.0.0.
+        Use `number_of_objects` instead.
+        """
+    @property
+    def number_of_objects(self) -> int:
+        """
+        represents the number of information objects contained in this message
         """
     @property
     def originator_address(self) -> int:
@@ -2849,6 +2897,23 @@ class Station:
         Example
         -------
         >>> point_11 = my_station.get_point(io_address=11)
+        """
+    def signal_initialized(self, cause: Coi) -> None:
+        """
+        signal end of initialization for this station to connected clients
+
+        Parameters
+        ----------
+        cause: c104.Coi
+            what caused the (re-)initialization procedure
+
+        Returns
+        -------
+        None
+
+        Example
+        -------
+        >>> my_station.signal_initialized(cause=c104.Coi.REMOTE_RESET)
         """
     @property
     def common_address(self) -> int:

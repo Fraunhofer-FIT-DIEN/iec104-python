@@ -79,6 +79,9 @@ def cl_on_new_station(client: c104.Client, connection: c104.Connection, common_a
     connection.add_station(common_address=common_address)
 
 
+def cl_on_station_initialized(client: c104.Client, station: c104.Station, cause: c104.Coi) -> None:
+    print("STATION {0} INITIALIZED due to {1} | CLIENT OA {2}".format(station.common_address, cause, client.originator_address))
+
 def cl_on_new_point(client: c104.Client, station: c104.Station, io_address: int, point_type: c104.Type) -> None:
     print("CL] NEW POINT: {1} with IOA {0} | CLIENT OA {2}".format(io_address, point_type, client.originator_address))
     point = station.add_point(io_address=io_address, type=point_type)
@@ -86,6 +89,7 @@ def cl_on_new_point(client: c104.Client, station: c104.Station, io_address: int,
 
 
 my_client.on_new_station(callable=functools.partial(cl_on_new_station, custom_arg="extra argument with default/bounded value passes signature check"))
+my_client.on_station_initialized(callable=cl_on_station_initialized)
 my_client.on_new_point(callable=cl_on_new_point)
 
 

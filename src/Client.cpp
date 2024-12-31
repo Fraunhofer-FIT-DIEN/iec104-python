@@ -305,6 +305,20 @@ void Client::onNewPoint(std::shared_ptr<Object::Station> station,
   }
 }
 
+void Client::setOnEndOfInitializationCallback(py::object &callable) {
+  py_onEndOfInitialization.reset(callable);
+}
+
+void Client::onEndOfInitialization(std::shared_ptr<Object::Station> station,
+                                   CS101_CauseOfInitialization cause) {
+  if (py_onEndOfInitialization.is_set()) {
+    DEBUG_PRINT(Debug::Client, "CALLBACK on_station_initialized");
+    Module::ScopedGilAcquire const scoped("Client.on_station_initialized");
+    py_onEndOfInitialization.call(shared_from_this(), std::move(station),
+                                  cause);
+  }
+}
+
 std::uint_fast16_t Client::getTickRate_ms() const { return tickRate_ms; }
 
 void Client::scheduleDataPointTimer() {
