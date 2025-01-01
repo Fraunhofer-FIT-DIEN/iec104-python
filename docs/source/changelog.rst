@@ -12,6 +12,7 @@ Features
 - Add **Client.on_station_initialized** callback to handle end of initialization messages
 - Add **Station.signal_initialized(cause=...)** method to support sending of end of initialization messages per station to all connected clients
 - Send monitoring data formatted as sequences in periodic transmission as well as interrogation responses, if possible
+- Add Batch Transmission support via new **Batch** class in combination with **Server.transmit_batch(...)** in monitoring direction
 
 Fixes
 ^^^^^^

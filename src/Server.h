@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -246,6 +246,9 @@ public:
    */
   bool send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
             IMasterConnection connection = nullptr);
+
+  bool sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
+                 IMasterConnection connection = nullptr);
 
   void sendActivationConfirmation(IMasterConnection connection, CS101_ASDU asdu,
                                   bool negative = false);

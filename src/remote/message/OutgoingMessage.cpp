@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -31,13 +31,16 @@
 
 #include "OutgoingMessage.h"
 
-#include "Client.h"
-#include "Server.h"
 #include "object/DataPoint.h"
-#include "remote/Connection.h"
-#include "remote/Helper.h"
+#include "object/Station.h"
 
 using namespace Remote::Message;
+
+OutgoingMessage::OutgoingMessage() : IMessageInterface() {
+  DEBUG_PRINT(Debug::Message,
+              "Created (outgoing) at " +
+                  std::to_string(reinterpret_cast<std::uintptr_t>(this)));
+}
 
 OutgoingMessage::OutgoingMessage(
     const std::shared_ptr<Object::DataPoint> &point)
@@ -63,11 +66,15 @@ OutgoingMessage::OutgoingMessage(
   point->setProcessedAt(std::chrono::system_clock::now());
 
   informationObjectAddress = point->getInformationObjectAddress();
-  DEBUG_PRINT(Debug::Message, "Created (outgoing)");
+  DEBUG_PRINT(Debug::Message,
+              "Created (outgoing) at " +
+                  std::to_string(reinterpret_cast<std::uintptr_t>(this)));
 }
 
 OutgoingMessage::~OutgoingMessage() {
-  DEBUG_PRINT(Debug::Message, "Removed (outgoing)");
+  DEBUG_PRINT(Debug::Message,
+              "Removed (outgoing) at " +
+                  std::to_string(reinterpret_cast<std::uintptr_t>(this)));
 }
 
 void OutgoingMessage::setOriginatorAddress(const std::uint_fast8_t address) {

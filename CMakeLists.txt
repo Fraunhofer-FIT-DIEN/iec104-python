@@ -163,6 +163,8 @@ set(c104_SOURCES
     src/remote/message/PointCommand.h
     src/remote/message/PointMessage.cpp
     src/remote/message/PointMessage.h
+    src/remote/message/Batch.cpp
+    src/remote/message/Batch.h
     src/Client.cpp
     src/Client.h
     src/Server.cpp
@@ -188,8 +190,11 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/depends/catch/src"
    AND EXISTS "${PROJECT_SOURCE_DIR}/tests/main.cpp")
   message(STATUS "Add catch2 and tests")
 
-  add_executable(c104_tests ${c104_SOURCES} tests/test_object_datapoint.cpp
-                            tests/test_object_station.cpp tests/main.cpp)
+  add_executable(
+    c104_tests
+    ${c104_SOURCES} tests/test_object_datapoint.cpp
+    tests/test_object_station.cpp tests/test_remote_message_batch.cpp
+    tests/main.cpp)
 
   if(TARGET c104_tests)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)

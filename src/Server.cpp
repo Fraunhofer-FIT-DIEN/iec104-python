@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -33,6 +33,7 @@
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
 #include "remote/TransportSecurity.h"
+#include "remote/message/Batch.h"
 #include "remote/message/PointCommand.h"
 #include "remote/message/PointMessage.h"
 #include <pybind11/chrono.h>
@@ -874,6 +875,118 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
   return true;
 }
 
+bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
+                       IMasterConnection connection) {
+  if (!enabled.load() || !hasActiveConnections())
+    return false;
+
+  Module::ScopedGilRelease const scoped("Server.sendBatch");
+
+  bool const debug = DEBUG_TEST(Debug::Server);
+  std::chrono::steady_clock::time_point begin, end;
+  if (debug) {
+    begin = std::chrono::steady_clock::now();
+  }
+
+  if (!batch->hasPoints()) {
+    DEBUG_PRINT(Debug::Server, "Empty batch");
+    return false;
+  }
+
+  if (connection) {
+    auto param = IMasterConnection_getApplicationLayerParameters(connection);
+    batch->setOriginatorAddress(param->originatorAddress);
+  }
+
+  CS101_ASDU asdu = CS101_ASDU_create(
+      appLayerParameters, batch->isSequence(), batch->getCauseOfTransmission(),
+      batch->getOriginatorAddress(), batch->getCommonAddress(), batch->isTest(),
+      batch->isNegative());
+
+  for (auto &point : batch->getPoints()) {
+
+    // Update all (!) data points before transmitting them
+    if (CS101_COT_PERIODIC == batch->getCauseOfTransmission()) {
+      point->onBeforeAutoTransmit();
+    } else {
+      point->onBeforeRead();
+    }
+
+    auto message = Remote::Message::PointMessage::create(point);
+
+    // not added
+    if (!CS101_ASDU_addInformationObject(asdu,
+                                         message->getInformationObject())) {
+      if (CS101_ASDU_getNumberOfElements(asdu) < 0x7f) {
+        DEBUG_PRINT(Debug::Server,
+                    "Message for inventory cannot be added: Mismatching "
+                    "TypeID or invalid sequence" +
+                        std::to_string(message->getIOA()));
+        continue;
+      }
+
+      // ASDU packet size exceeded => send ASDU and create a new one
+      // @todo high vs low priority messages
+      if (!connection ||
+          CS101_COT_PERIODIC == batch->getCauseOfTransmission() ||
+          CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission())
+        // low priority
+        CS104_Slave_enqueueASDU(slave, asdu);
+      else {
+        // high priority
+        IMasterConnection_sendASDU(connection, asdu);
+      }
+
+      // recreate new asdu
+      CS101_ASDU_destroy(asdu);
+      asdu = CS101_ASDU_create(
+          appLayerParameters, batch->isSequence(),
+          batch->getCauseOfTransmission(), batch->getOriginatorAddress(),
+          batch->getCommonAddress(), batch->isTest(), batch->isNegative());
+
+      // add message to new asdu
+      if (!CS101_ASDU_addInformationObject(asdu,
+                                           message->getInformationObject())) {
+        DEBUG_PRINT(Debug::Server, "Dropped message for inventory, "
+                                   "cannot be added to new ASDU: " +
+                                       std::to_string(message->getIOA()));
+      }
+    }
+    // std::cout << c.str() << std::endl;
+  }
+
+  // if ASDU is not empty, send ASDU
+  if (CS101_ASDU_getNumberOfElements(asdu) > 0) {
+    // @todo high vs low priority messages
+    if (!connection || CS101_COT_PERIODIC == batch->getCauseOfTransmission() ||
+        CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission())
+      // low priority
+      CS104_Slave_enqueueASDU(slave, asdu);
+    else {
+      // high priority
+      IMasterConnection_sendASDU(connection, asdu);
+    }
+  }
+
+  // @todo what about ASDU destruction ?!
+  // high priority, ASDU gets destroyed automatically
+  // low priority, destroy ASDU manually
+  CS101_ASDU_destroy(asdu);
+
+  if (debug) {
+    end = std::chrono::steady_clock::now();
+    DEBUG_PRINT_CONDITION(true, Debug::Server,
+                          "send] Send Batch " +
+                              std::string(TypeID_toString(batch->getType())) +
+                              " | COT: " +
+                              CS101_CauseOfTransmission_toString(
+                                  batch->getCauseOfTransmission()) +
+                              " | TOTAL " + TICTOC(begin, end));
+  }
+
+  return true;
+}
+
 void Server::sendActivationConfirmation(IMasterConnection connection,
                                         CS101_ASDU asdu, bool negative) {
   if (!isExistingConnection(connection))
@@ -960,15 +1073,12 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
   bool empty = true;
   IEC60870_5_TypeID type = C_TS_TA_1;
 
+  // batch messages per station by type
+  std::map<IEC60870_5_TypeID, std::shared_ptr<Remote::Message::Batch>> batchMap;
+
   for (const auto &station : getStations()) {
     if (isGlobalCommonAddress(commonAddress) ||
         station->getCommonAddress() == commonAddress) {
-
-      // group messages per station by type
-      std::map<IEC60870_5_TypeID,
-               std::map<uint_fast16_t,
-                        std::shared_ptr<Remote::Message::OutgoingMessage>>>
-          pointGroup;
 
       for (const auto &point : station->getPoints()) {
         type = point->getType();
@@ -976,6 +1086,8 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
         // only monitoring points
         if (type > 41)
           continue;
+
+        empty = false;
 
         // full interrogation contain all monitoring data
         // Update all (!) data points before transmitting them
@@ -986,28 +1098,17 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
           if (!next.has_value() || begin < next.value()) {
             continue;
           }
-
-          // value polling callback
-          point->onBeforeAutoTransmit();
-        } else {
-          point->onBeforeRead();
         }
 
         try {
-          // transmit value to client
-          auto message = Remote::Message::PointMessage::create(point);
-          message->setCauseOfTransmission(cot);
-          // message->send(connection);
-
           // add message to group
-          auto g = pointGroup.find(type);
-          if (g == pointGroup.end()) {
-            pointGroup[type] =
-                std::map<uint_fast16_t,
-                         std::shared_ptr<Remote::Message::OutgoingMessage>>{
-                    {point->getInformationObjectAddress(), message}};
+          auto g = batchMap.find(type);
+          if (g == batchMap.end()) {
+            auto b = Remote::Message::Batch::create(cot);
+            b->addPoint(point);
+            batchMap[type] = std::move(b);
           } else {
-            g->second[point->getInformationObjectAddress()] = message;
+            g->second->addPoint(point);
           }
         } catch (const std::exception &e) {
           DEBUG_PRINT(Debug::Server, "Invalid point message for inventory: " +
@@ -1015,82 +1116,11 @@ void Server::sendInventory(const CS101_CauseOfTransmission cot,
         }
       }
 
-      // send grouped messages of current station
-      for (auto &group : pointGroup) {
-        empty = false;
-        bool const isSequence = areKeysSequential(group.second);
-        bool const isTest = false;
-        bool const isNegative = false;
-
-        /// indicator if an InformationObject was added to ASDU or not
-        bool added = false;
-
-        CS101_ASDU asdu =
-            CS101_ASDU_create(appLayerParameters, isSequence, cot, 0,
-                              station->getCommonAddress(), isTest, isNegative);
-        // std::stringstream c;
-        // c << "GRP-" << TypeID_toString(group.first) << ": ";
-        for (auto &message : group.second) {
-          // c << std::to_string(message.second->getInformationObjectAddress())
-          // << ",";
-          added = CS101_ASDU_addInformationObject(
-              asdu, message.second->getInformationObject());
-
-          // not added => ASDU packet size exceeded => send asdu and create a
-          // new one
-          if (!added) {
-            if (CS101_ASDU_getNumberOfElements(asdu) < 0x7f) {
-              DEBUG_PRINT(Debug::Server,
-                          "Message for inventory cannot be added: Mismatching "
-                          "TypeID or invalid sequence" +
-                              std::to_string(message.second->getIOA()));
-            }
-
-            // send asdu
-            if (connection) {
-              IMasterConnection_sendASDU(connection, asdu);
-            } else {
-              CS104_Slave_enqueueASDU(slave, asdu);
-            }
-
-            // recreate new asdu
-            CS101_ASDU_destroy(asdu);
-            asdu = CS101_ASDU_create(appLayerParameters, isSequence, cot, 0,
-                                     station->getCommonAddress(), isTest,
-                                     isNegative);
-
-            // add message to new asdu
-            added = CS101_ASDU_addInformationObject(
-                asdu, message.second->getInformationObject());
-            if (!added) {
-              DEBUG_PRINT(Debug::Server,
-                          "Dropped message for inventory, "
-                          "cannot be added to new asdu: " +
-                              std::to_string(message.second->getIOA()));
-            }
-          }
-        }
-        // std::cout << c.str() << std::endl;
-
-        // if ASDU is not empty, send ASDU
-        if (added) {
-          if (connection) {
-            IMasterConnection_sendASDU(connection, asdu);
-          } else {
-            CS104_Slave_enqueueASDU(slave, asdu);
-          }
-        }
-
-        // @todo what about ASDU destruction ?!
-        // high priority, ASDU gets destroyed automatically
-        // low priority, destroy ASDU manually
-        CS101_ASDU_destroy(asdu);
-
-        // free messages
-        for (auto &message : group.second) {
-          message.second.reset();
-        }
+      // send batched messages of current station
+      for (auto &batch : batchMap) {
+        sendBatch(std::move(batch.second), connection);
       }
+      batchMap.clear();
     }
   }
 

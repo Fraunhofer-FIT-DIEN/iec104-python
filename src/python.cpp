@@ -34,6 +34,7 @@
 
 #include "Client.h"
 #include "Server.h"
+#include "remote/message/Batch.h"
 
 #include <pybind11/chrono.h>
 #include <pybind11/operators.h>
@@ -1374,6 +1375,30 @@ Example
 >>> station_2 = my_server.get_connection(common_address=14)
 )def",
           "common_address"_a)
+      .def(
+          "transmit_batch",
+          [](Server &server, std::shared_ptr<Remote::Message::Batch> batch) {
+            return server.sendBatch(std::move(batch));
+          },
+          R"def(transmit_batch(self: c104.Server, batch: c104.Batch) -> bool
+
+transmit a batch object
+
+Parameters
+----------
+batch: c104.Batch
+    batch object to transmit
+
+Returns
+-------
+bool
+    send success
+
+Example
+-------
+>>> success = my_server.transmit_batch(c104.Batch([point1, point2, point3]))
+)def",
+          "batch"_a)
       .def(
           "on_receive_raw", &Server::setOnReceiveRawCallback,
           R"def(on_receive_raw(self: c104.Server, callable: collections.abc.Callable[[c104.Server, bytes], None]) -> None
@@ -3274,6 +3299,86 @@ bool
     True, if another information element exists, otherwise False
 )def")
       .def("__repr__", &Remote::Message::IncomingMessage::toString);
+
+  py::class_<Remote::Message::Batch, std::shared_ptr<Remote::Message::Batch>>(
+      m, "Batch",
+      "This class represents a batch of outgoing messages of the same station "
+      "and type")
+      .def(
+          py::init(&Remote::Message::Batch::create),
+          R"def(__init__(self, cause: c104.Cot, points: list[c104.Point] | None = None) -> None
+
+create a new batch of monitoring messages of the same station and the same type
+
+Parameters
+----------
+cause: c104.Cot
+    what caused the transmission of the monitoring data
+points: list[c104.Point], optional
+    initial list of points
+
+Raises
+------
+ValueError
+    if one point in the list is not compatible with the others
+
+Example
+-------
+>>> batch = c104.Batch(cause=c104.Cot.SPONTANEOUS, points=[point1, point2, point3])
+)def",
+          "cause"_a, "points"_a = py::none())
+      .def_property_readonly(
+          "type", &Remote::Message::Batch::getType,
+          "c104.Type: IEC60870 message type identifier (read-only)",
+          py::return_value_policy::copy)
+      .def_property_readonly("common_address",
+                             &Remote::Message::Batch::getCommonAddress,
+                             "int: common address (1-65534) (read-only)",
+                             py::return_value_policy::copy)
+      .def_property_readonly("originator_address",
+                             &Remote::Message::Batch::getOriginatorAddress,
+                             "int: originator address (0-255) (read-only)",
+                             py::return_value_policy::copy)
+      .def_property_readonly("cot",
+                             &Remote::Message::Batch::getCauseOfTransmission,
+                             "c104.Cot: cause of transmission (read-only)",
+                             py::return_value_policy::copy)
+      .def_property_readonly("is_test", &Remote::Message::Batch::isTest,
+                             "bool: test if test flag is set (read-only)")
+      .def_property_readonly("is_sequence", &Remote::Message::Batch::isSequence,
+                             "bool: test if sequence flag is set (read-only)")
+      .def_property_readonly("is_negative", &Remote::Message::Batch::isNegative,
+                             "bool: test if negative flag is set (read-only)")
+      .def_property_readonly("number_of_objects",
+                             &Remote::Message::Batch::getNumberOfObjects,
+                             "int: number of information objects (read-only)",
+                             py::return_value_policy::copy)
+      .def_property_readonly(
+          "has_points", &Remote::Message::Batch::hasPoints,
+          "bool: test if station has at least one point (read-only)")
+      .def_property_readonly(
+          "points", &Remote::Message::Batch::getPoints,
+          "list[c104.Point] list of all Point objects (read-only)")
+      .def("add_point", &Remote::Message::Batch::addPoint,
+           R"def(add(self: c104.Batch, point: c104.Point) -> None
+
+add a point to this Batch
+
+Parameters
+----------
+point: c104.Point
+    point object
+
+Returns
+-------
+None
+
+Example
+-------
+>>> my_batch.add_point(my_point)
+)def",
+           "point"_a)
+      .def("__repr__", &Remote::Message::Batch::toString);
   ;
 
   //*/

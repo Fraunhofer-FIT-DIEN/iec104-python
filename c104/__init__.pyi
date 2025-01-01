@@ -3,6 +3,98 @@ import collections.abc
 import datetime
 import typing
 __all__ = ['BinaryCmd', 'BinaryCounterInfo', 'BinaryCounterQuality', 'BinaryInfo', 'Byte32', 'Client', 'Coi', 'CommandMode', 'Connection', 'ConnectionState', 'Cot', 'Debug', 'Double', 'DoubleCmd', 'DoubleInfo', 'EventState', 'IncomingMessage', 'Information', 'Init', 'Int16', 'Int7', 'NormalizedCmd', 'NormalizedFloat', 'NormalizedInfo', 'OutputCircuits', 'PackedSingle', 'Point', 'ProtectionCircuitInfo', 'ProtectionEventInfo', 'ProtectionStartInfo', 'ProtocolParameters', 'Qoc', 'Qoi', 'Quality', 'ResponseState', 'ScaledCmd', 'ScaledInfo', 'Server', 'ShortCmd', 'ShortInfo', 'SingleCmd', 'SingleInfo', 'StartEvents', 'Station', 'StatusAndChanged', 'Step', 'StepCmd', 'StepInfo', 'TlsVersion', 'TransportSecurity', 'Type', 'UInt16', 'UInt5', 'UInt7', 'Umc', 'disable_debug', 'enable_debug', 'explain_bytes', 'explain_bytes_dict', 'get_debug_mode', 'set_debug_mode']
+class Batch:
+    """
+    This class represents a batch of outgoing monitoring messages
+    """
+    def __init__(self, cause: Cot, points: list[Point] | None = None) -> None:
+        """
+        create a new batch of monitoring messages of the same station and the same type
+
+        Parameters
+        ----------
+        cause: c104.Cot
+            what caused the transmission of the monitoring data
+        points: list[c104.Point], optional
+            initial list of points
+
+        Raises
+        ------
+        ValueError
+            if one point in the list is not compatible with the others
+
+        Example
+        -------
+        >>> batch = c104.Batch(cause=c104.Cot.SPONTANEOUS, points=[point1, point2, point3])
+        """
+    def add_point(self, point: Point) -> None:
+        """
+        add a new point to the batch of the same station and the same type
+
+        Parameters
+        ----------
+        point: c104.Point
+            to be added point
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            if point is not compatible with the batch or if it is already in the batch
+        """
+    @property
+    def common_address(self) -> int:
+        """
+        common address (1-65534)
+        """
+    @property
+    def cot(self) -> Cot:
+        """
+        cause of transmission
+        """
+    @property
+    def has_points(self) -> bool:
+        """
+        test if batch contains points
+        """
+    @property
+    def is_negative(self) -> bool:
+        """
+        test if negative flag is set
+        """
+    @property
+    def is_sequence(self) -> bool:
+        """
+        test if sequence flag is set
+        """
+    @property
+    def is_test(self) -> bool:
+        """
+        test if test flag is set
+        """
+    @property
+    def number_of_objects(self) -> int:
+        """
+        represents the number of information objects contained in this message
+        """
+    @property
+    def originator_address(self) -> int:
+        """
+        originator address (0-255)
+        """
+    @property
+    def points(self) -> list[Point]:
+        """
+        get a list of points
+        """
+    @property
+    def type(self) -> Type:
+        """
+        IEC60870 message type identifier
+        """
 class BinaryCmd(Information):
     """
     This class represents all specific binary command information
@@ -2565,6 +2657,19 @@ class Server:
         Example
         -------
         >>> my_server.stop()
+        """
+    def transmit_batch(self, batch: Batch) -> bool:
+        """
+        send a batch of messages to all connected clients
+
+        Parameters
+        ----------
+        batch: c104.Batch
+            a batch of outgoing monitoring points
+
+        Example
+        -------
+        >>> my_server.transmit_batch(c104.Batch([point1, point2, point3]))
         """
     @property
     def active_connection_count(self) -> int:

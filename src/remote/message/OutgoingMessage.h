@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -42,9 +42,12 @@ namespace Message {
  * objects
  * @todo add support for packed messages / multiple IOs in outgoing message
  */
-class OutgoingMessage : public IMessageInterface,
-                        public std::enable_shared_from_this<OutgoingMessage> {
+class OutgoingMessage : public IMessageInterface {
 public:
+  // noncopyable
+  OutgoingMessage(const OutgoingMessage &) = delete;
+  OutgoingMessage &operator=(const OutgoingMessage &) = delete;
+
   /**
    * @brief remove object
    */
@@ -65,6 +68,7 @@ public:
   void setCauseOfTransmission(CS101_CauseOfTransmission cause);
 
 protected:
+  OutgoingMessage();
   /**
    * @brief Create an outgoing message that should be send via client or server
    * to a given DataPoint

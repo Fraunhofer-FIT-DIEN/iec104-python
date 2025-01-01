@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -147,8 +147,10 @@ class Station;
 namespace Remote {
 namespace Message {
 class IncomingMessage;
-
 class OutgoingMessage;
+class Batch;
+class PointMessage;
+class PointCommand;
 } // namespace Message
 class Connection;
 class TransportSecurity;

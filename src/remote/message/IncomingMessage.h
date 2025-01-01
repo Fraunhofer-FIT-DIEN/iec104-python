@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -45,6 +45,10 @@ namespace Message {
 class IncomingMessage : public IMessageInterface,
                         public std::enable_shared_from_this<IncomingMessage> {
 public:
+  // noncopyable
+  IncomingMessage(const IncomingMessage &) = delete;
+  IncomingMessage &operator=(const IncomingMessage &) = delete;
+
   /**
    * @brief Create an IncomingMessage as facade pattern to access an incoming
    * CS101_ASDU packet via object oriented methods
