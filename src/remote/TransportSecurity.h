@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -75,6 +75,35 @@ public:
   void setCACertificate(const std::string &cert);
 
   /**
+   * @brief Set the list of allowed TLS cipher suites for communication.
+   * @param ciphers A vector of TLSCipherSuite representing the allowed cipher
+   * suites.
+   * @throws std::invalid_argument if the configuration has already been
+   * finalized or if the provided cipher list is empty.
+   */
+  void setCipherSuites(const std::vector<TLSCipherSuite> &ciphers);
+
+  /**
+   * @brief Set the interval for automatic TLS session renegotiation.
+   * @param interval The desired renegotiation interval in milliseconds. If no
+   * value is provided, automatic renegotiation is disabled by default.
+   * @throws std::invalid_argument if the configuration has already been passed
+   * to a client or server and can no longer be modified.
+   */
+  void setRenegotiationTime(
+      const std::optional<std::chrono::milliseconds> &interval);
+
+  /**
+   * @brief Set the interval for session resumption in TLS configuration.
+   * @param interval The desired session resumption interval in seconds. If no
+   * value is provided, session resumption is disabled.
+   * @throws std::invalid_argument if the configuration has already been
+   * finalized or made read-only.
+   */
+  void
+  setResumptionInterval(const std::optional<std::chrono::seconds> &interval);
+
+  /**
    * @brief add a trusted communication partners x509 certificate from file
    * @param cert path to certificate file
    * @throws std::invalid_argument if loading the certificate fails
@@ -95,6 +124,8 @@ private:
   TransportSecurity(bool validate, bool only_known);
 
   TLSConfiguration config{nullptr};
+
+  std::atomic_bool readonly{false};
 
 public:
   std::string toString() const {

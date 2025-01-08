@@ -7,12 +7,22 @@ v2.1.0
 Features
 ^^^^^^^^
 
-- Serve type hints for all classes and methods as .pyi file
-- Add property **Server.protocol_parameters** and **Connection.protocol_parameters** to be able to read and update protocol parameters like window size and timeouts
-- Add **Client.on_station_initialized** callback to handle end of initialization messages
-- Add **Station.signal_initialized(cause=...)** method to support sending of end of initialization messages per station to all connected clients
-- Send monitoring data formatted as sequences in periodic transmission as well as interrogation responses, if possible
-- Add Batch Transmission support via new **Batch** class in combination with **Server.transmit_batch(...)** in monitoring direction
+- Serve type hints for all classes and methods as a ``.pyi`` file.
+- Add the property **Server.protocol_parameters** and **Connection.protocol_parameters** to enable reading and updating protocol parameters, such as window size and timeouts.
+- Introduce the **Client.on_station_initialized** callback to handle end-of-initialization messages.
+- Add the **Station.signal_initialized(cause=...)** method to support sending end-of-initialization messages per station to all connected clients.
+- Send monitoring data formatted as sequences in periodic transmissions and interrogation responses, if possible.
+- Provide Batch Transmission support via the new **Batch** class, in combination with **Server.transmit_batch(...)**, for monitoring direction.
+- Add **TransportSecurity.set_ciphers()** to specify a list of supported cipher suites.
+- Add **TransportSecurity.set_renegotiation_time()** to configure the TLS renegotiation time.
+- Add **TransportSecurity.set_resumption_interval()** to define the session resumption interval.
+- Raise a ``ValueError`` when modifying a **TransportSecurity** object that is already assigned to a client or server, as changes have no effect.
+
+Dependencies
+^^^^^^^^^^^^
+
+- Minor update of lib60870 to 2.3.3
+- Major update of Mbed TLS to 3.6.2, add support for TLS 1.3
 
 Fixes
 ^^^^^^
@@ -24,6 +34,10 @@ Fixes
 Deprecations
 ^^^^^^^^^^^^
 - Property **number_of_object** renamed to **number_of_objects** in class **IncomingMessage**
+
+Breaking Changes
+^^^^^^^^^^^^
+- Dropped TLS 1.1 support
 
 v2.0.2
 -------

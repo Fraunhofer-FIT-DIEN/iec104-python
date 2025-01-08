@@ -37,7 +37,23 @@ if USE_TLS:
     tlsconf = c104.TransportSecurity(validate=True, only_known=True)
     tlsconf.set_certificate(cert=str(ROOT / "certs/client1.crt"), key=str(ROOT / "certs/client1.key"))
     tlsconf.set_ca_certificate(cert=str(ROOT / "certs/ca.crt"))
-    tlsconf.set_version(min=c104.TlsVersion.TLS_1_2, max=c104.TlsVersion.TLS_1_2)
+    tlsconf.set_version(min=c104.TlsVersion.TLS_1_2, max=c104.TlsVersion.TLS_1_3)
+    tlsconf.set_renegotiation_time(interval=datetime.timedelta(minutes=5))
+    tlsconf.set_resumption_interval(interval=datetime.timedelta(hours=1))
+    tlsconf.set_ciphers(ciphers=[
+        c104.TlsCipher.ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+        c104.TlsCipher.ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+        c104.TlsCipher.ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+        c104.TlsCipher.ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+        c104.TlsCipher.ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+        c104.TlsCipher.ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        c104.TlsCipher.DHE_RSA_WITH_AES_128_GCM_SHA256,
+        c104.TlsCipher.DHE_RSA_WITH_AES_256_GCM_SHA384,
+        c104.TlsCipher.DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        c104.TlsCipher.TLS1_3_AES_128_GCM_SHA256,
+        c104.TlsCipher.TLS1_3_AES_256_GCM_SHA384,
+        c104.TlsCipher.TLS1_3_CHACHA20_POLY1305_SHA256
+    ])
     tlsconf.add_allowed_remote_certificate(cert=str(ROOT / "certs/server1.crt"))
     my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=100, transport_security=tlsconf)
 else:

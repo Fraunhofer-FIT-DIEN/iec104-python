@@ -2,7 +2,6 @@ graft depends/lib60870/lib60870-C/config
 graft depends/lib60870/lib60870-C/src
 include depends/lib60870/lib60870-C/CMakeLists.txt
 include depends/lib60870/COPYING
-include depends/lib60870.patch
 
 graft depends/mbedtls/library
 graft depends/mbedtls/include

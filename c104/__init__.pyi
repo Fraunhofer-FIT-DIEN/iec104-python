@@ -1239,7 +1239,7 @@ class IncomingMessage:
         number of information objects
 
         Deprecated: This property is deprecated and will be removed in version 3.0.0.
-        Use `number_of_objects` instead.
+        Use ``number_of_objects`` instead.
         """
     @property
     def number_of_objects(self) -> int:
@@ -3202,6 +3202,207 @@ class StepInfo(Information):
 
         The setter is available via point.value=xyz
         """
+class TlsCipher:
+    """
+    This enum contains all supported TLS ciphersuites.
+    """
+    RSA_WITH_NULL_MD5: typing.ClassVar[TlsCipher]
+    RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
+    PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    RSA_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_256_CBC_SHA256: typing.ClassVar[TlsCipher]
+    RSA_WITH_CAMELLIA_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_CAMELLIA_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_256_CBC_SHA256: typing.ClassVar[TlsCipher]
+    RSA_WITH_CAMELLIA_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_CAMELLIA_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
+    PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]
+    RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    RSA_WITH_CAMELLIA_256_CBC_SHA256: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]
+    RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    PSK_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    PSK_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    PSK_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    PSK_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
+    RSA_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
+    PSK_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
+    ECJPAKE_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
+    ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
+    DHE_RSA_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
+    PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
+    ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
+    DHE_PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
+    RSA_PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
+    TLS1_3_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
+    TLS1_3_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
+    TLS1_3_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
+    TLS1_3_AES_128_CCM_SHA256: typing.ClassVar[TlsCipher]
+    TLS1_3_AES_128_CCM_8_SHA256: typing.ClassVar[TlsCipher]
+    __members__: typing.ClassVar[dict[str, TlsCipher]]
+    @property
+    def name(self) -> str:
+        ...
+    @property
+    def value(self) -> int:
+        ...
 class TlsVersion:
     """
     This enum contains all supported TLS versions.
@@ -3221,7 +3422,8 @@ class TlsVersion:
         ...
 class TransportSecurity:
     """
-    This class is used to configure transport layer security for server and clients
+    This class is responsible for configuring transport layer security (TLS) for both servers and clients.
+    Once an instance is assigned to a client or server, it becomes read-only and cannot be modified further.
     """
     def __init__(self, validate: bool = True, only_known: bool = True) -> None:
         """
@@ -3254,6 +3456,8 @@ class TransportSecurity:
         Raises
         ------
         ValueError
+            config is readonly and cannot be modified further
+        ValueError
             failed to load the certificate file
 
         Example
@@ -3276,6 +3480,8 @@ class TransportSecurity:
 
         Raises
         ------
+        ValueError
+            config is readonly and cannot be modified further
         ValueError
             failed to load the certificate file
 
@@ -3304,6 +3510,8 @@ class TransportSecurity:
         Raises
         ------
         ValueError
+            config is readonly and cannot be modified further
+        ValueError
             failed to load the certificate file, the private key file or failed decrypting the private key
 
         Example
@@ -3311,9 +3519,110 @@ class TransportSecurity:
         >>> tls = c104.TransportSecurity(validate=True, only_known=False)
         >>> tls.set_certificate(cert="certs/server.crt", key="certs/server.key")
         """
+    def set_ciphers(self, ciphers: list[TlsCipher]) -> None:
+        """
+        set the list of accepted TLS cipher suites
+
+        When configuring minimum and maximum TLS versions together with cipher suites, it's crucial to ensure that the selected cipher suites are **compatible** with the specified TLS versions.
+
+        Parameters
+        ----------
+        ciphers: list[c104.TlsCipher]
+            accepted TLS cipher suites
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            config is readonly and cannot be modified further
+        ValueError
+            list is empty or contains invalid ciphersuites
+
+        Example
+        -------
+        >>> tls = c104.TransportSecurity(validate=True, only_known=False)
+        >>> tls.set_ciphers(ciphers=[
+        >>>   c104.TlsCipher.ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+        >>>   c104.TlsCipher.ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+        >>>   c104.TlsCipher.ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+        >>>   c104.TlsCipher.ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+        >>>   c104.TlsCipher.ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+        >>>   c104.TlsCipher.ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        >>>   c104.TlsCipher.DHE_RSA_WITH_AES_128_GCM_SHA256,
+        >>>   c104.TlsCipher.DHE_RSA_WITH_AES_256_GCM_SHA384,
+        >>>   c104.TlsCipher.DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        >>>   c104.TlsCipher.TLS1_3_AES_128_GCM_SHA256,
+        >>>   c104.TlsCipher.TLS1_3_AES_256_GCM_SHA384,
+        >>>   c104.TlsCipher.TLS1_3_CHACHA20_POLY1305_SHA256
+        >>> ])
+        """
+    def set_renegotiation_time(self, interval: datetime.timedelta | None = None) -> None:
+        """
+        sets the renegotiation interval
+
+        This defines how often the TLS connection should renegotiate. If no interval is
+        specified (None), it disables automatic renegotiation.
+        Per default renegotiation is disabled.
+
+        Parameters
+        ----------
+        interval: datetime.timedelta, optional
+            The interval as a ``datetime.timedelta`` object. If ``None``, renegotiation is disabled.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            config is readonly and cannot be modified further
+        ValueError
+            value too small or too large
+
+        Example
+        -------
+        >>> tls = c104.TransportSecurity(validate=True, only_known=False)
+        >>> tls.set_renegotiation_time(interval=datetime.timedelta(minutes=30))
+        """
+    def set_resumption_interval(self, interval: datetime.timedelta | None = None) -> None:
+        """
+        sets the session resumption interval for the TLS configuration.
+
+        This interval determines the frequency at which session resumption can occur,
+        allowing faster reconnections. If no interval is specified (None), session
+        resumption will be disabled.
+        Per default session resumption is set to 6 hours.
+
+        Parameters
+        ----------
+        interval: datetime.timedelta, optional
+            The interval as a ``datetime.timedelta`` object. If ``None``, session resumption is disabled.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            config is readonly and cannot be modified further
+        ValueError
+            value too small or too large
+
+        Example
+        -------
+        >>> tls = c104.TransportSecurity(validate=True, only_known=False)
+        >>> tls.set_resumption_interval(interval=datetime.timedelta(hours=6))
+        """
     def set_version(self, min: TlsVersion = ..., max: TlsVersion = ...) -> None:
         """
-        set the supported min and/or max TLS version
+        sets the supported min and/or max TLS version
+
+        When configuring minimum and maximum TLS versions together with cipher suites, it's crucial to ensure that the selected cipher suites are **compatible** with the specified TLS versions.
 
         Parameters
         ----------

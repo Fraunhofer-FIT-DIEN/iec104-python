@@ -35,7 +35,7 @@ if USE_TLS:
     tlsconf = c104.TransportSecurity(validate=True, only_known=True)
     tlsconf.set_certificate(cert=str(ROOT / "certs/server1.crt"), key=str(ROOT / "certs/server1.key"))
     tlsconf.set_ca_certificate(cert=str(ROOT / "certs/ca.crt"))
-    tlsconf.set_version(min=c104.TlsVersion.TLS_1_2, max=c104.TlsVersion.TLS_1_2)
+    tlsconf.set_version(min=c104.TlsVersion.TLS_1_2, max=c104.TlsVersion.TLS_1_3)
     tlsconf.add_allowed_remote_certificate(cert=str(ROOT / "certs/client1.crt"))
     my_server = c104.Server(ip="0.0.0.0", port=19998, tick_rate_ms=100, select_timeout_ms=100, max_connections=10, transport_security=tlsconf)
 else:

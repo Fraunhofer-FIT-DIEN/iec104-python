@@ -53,38 +53,8 @@ if(NOT ATOMIC_INT64_IS_BUILTIN)
 endif()
 
 # ##############################################################################
-# lib60870-C 2.3.2
+# lib60870-C 2.3.3
 # ##############################################################################
-message(STATUS "Patch lib60870")
-
-# test apply the patch
-execute_process(
-  COMMAND git apply --check --ignore-whitespace ../lib60870.patch
-  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/depends/lib60870
-  RESULT_VARIABLE GIT_APPLY_CHECK_RESULT
-  ERROR_VARIABLE GIT_APPLY_CHECK_ERROR
-  OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-# If the patch can be applied cleanly (i.e., it has not been applied yet), apply
-# the patch
-if(GIT_APPLY_CHECK_RESULT EQUAL "0")
-  execute_process(
-    COMMAND git apply --ignore-whitespace ../lib60870.patch
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/depends/lib60870
-    RESULT_VARIABLE GIT_APPLY_RESULT
-    ERROR_VARIABLE GIT_APPLY_ERROR
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-  # Check if the patch was applied successfully
-  if(NOT GIT_APPLY_RESULT EQUAL "0")
-    message(FATAL_ERROR "> Failed to apply patch: ${GIT_APPLY_ERROR}")
-  else()
-    message(STATUS "> Patch applied successfully.")
-  endif()
-else()
-  message(STATUS "> Patch already applied or cannot be applied")
-endif()
-
 message(STATUS "Add lib60870")
 set(BUILD_COMMON
     ON
@@ -103,17 +73,17 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/depends/mbedtls/library")
   message(STATUS "> copy mbedtls")
   file(
     MAKE_DIRECTORY
-    "${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-2.28"
+    "${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-3.6"
   )
   file(
     COPY depends/mbedtls/library depends/mbedtls/include
          depends/mbedtls/CMakeLists.txt
     DESTINATION
-      ${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-2.28
+      "${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-3.6"
   )
 else()
   if(EXISTS
-     "${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-2.28/library"
+     "${PROJECT_SOURCE_DIR}/depends/lib60870/lib60870-C/dependencies/mbedtls-3.6/library"
   )
     message(STATUS " > Use existing copy of mbedtls")
   else()
@@ -131,7 +101,7 @@ list(APPEND c104_tests_PRIVATE_LIBRARIES lib60870)
 include_directories(
   src depends/lib60870/lib60870-C/src/inc/api
   depends/lib60870/lib60870-C/src/hal/inc
-  depends/lib60870/lib60870-C/src/common/inc)
+  depends/lib60870/lib60870-C/src/common/inc depends/mbedtls/include)
 
 set(c104_SOURCES
     src/numbers.h

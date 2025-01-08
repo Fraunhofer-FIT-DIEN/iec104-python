@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -71,13 +71,9 @@ TransportSecurity::TransportSecurity(const bool validate,
   TLSConfiguration_setEventHandler(config, &TransportSecurity::eventHandler,
                                    this);
   TLSConfiguration_setChainValidation(config, validate);
+  TLSConfiguration_setTimeValidation(config, validate);
   TLSConfiguration_setAllowOnlyKnownCertificates(config, only_known);
-  TLSConfiguration_enableSessionResumption(config, true);
-  TLSConfiguration_setSessionResumptionInterval(config, 21600); // 6 hours
 
-  // todo add setter for renegotiation time
-  // default: no automatic renegotiation (-1)
-  // TLSConfiguration_setRenegotiationTime(config, 3600000); // 1 hour
   if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
     std::cout << "[c104.TransportSecurity] Created" << std::endl;
   }
@@ -94,6 +90,11 @@ TransportSecurity::~TransportSecurity() {
 void TransportSecurity::setCertificate(const std::string &cert,
                                        const std::string &key,
                                        const std::string &passphrase) {
+  if (readonly.load()) {
+    throw std::invalid_argument(
+        "The configuration has already been passed to a client or server and "
+        "can no longer be modified.");
+  }
   if (cert.empty()) {
     throw std::invalid_argument("Missing value for cert argument");
   }
@@ -122,6 +123,11 @@ void TransportSecurity::setCertificate(const std::string &cert,
 }
 
 void TransportSecurity::setCACertificate(const std::string &cert) {
+  if (readonly.load()) {
+    throw std::invalid_argument(
+        "The configuration has already been passed to a client or server and "
+        "can no longer be modified.");
+  }
   if (cert.empty()) {
     throw std::invalid_argument("Missing value for cert argument");
   }
@@ -132,7 +138,72 @@ void TransportSecurity::setCACertificate(const std::string &cert) {
   TLSConfiguration_addCACertificateFromFile(config, cert.c_str());
 }
 
+void TransportSecurity::setCipherSuites(
+    const std::vector<TLSCipherSuite> &ciphers) {
+  if (readonly.load()) {
+    throw std::invalid_argument(
+        "The configuration has already been passed to a client or server and "
+        "can no longer be modified.");
+  }
+  if (ciphers.empty()) {
+    throw std::invalid_argument("Missing value for allowed ciphers");
+  }
+
+  TLSConfiguration_clearCipherSuiteList(config);
+
+  for (const auto &cipher : ciphers) {
+    TLSConfiguration_addCipherSuite(config, static_cast<int>(cipher));
+  }
+}
+
+void TransportSecurity::setRenegotiationTime(
+    const std::optional<std::chrono::milliseconds> &interval) {
+  if (readonly.load()) {
+    throw std::invalid_argument(
+        "The configuration has already been passed to a client or server and "
+        "can no longer be modified.");
+  }
+  if (interval.has_value()) {
+    if (interval.value() < std::chrono::minutes(5) ||
+        interval.value() > std::chrono::hours(24)) {
+      throw std::invalid_argument(
+          "The value must be between 5 minutes and 1 day.");
+    }
+    TLSConfiguration_setRenegotiationTime(config, interval.value().count());
+  } else {
+    // default: no automatic renegotiation (-1)
+    TLSConfiguration_setRenegotiationTime(config, -1);
+  }
+}
+
+void TransportSecurity::setResumptionInterval(
+    const std::optional<std::chrono::seconds> &interval) {
+  if (readonly.load()) {
+    throw std::invalid_argument(
+        "The configuration has already been passed to a client or server and "
+        "can no longer be modified.");
+  }
+  if (interval.has_value()) {
+    if (interval.value() < std::chrono::minutes(5) ||
+        interval.value() > std::chrono::hours(168)) {
+      throw std::invalid_argument(
+          "The value must be between 1 second and 7 days.");
+    }
+    // default: 6 hours
+    TLSConfiguration_enableSessionResumption(config, true);
+    TLSConfiguration_setSessionResumptionInterval(config,
+                                                  interval.value().count());
+  } else {
+    TLSConfiguration_enableSessionResumption(config, false);
+  }
+}
+
 void TransportSecurity::addAllowedRemoteCertificate(const std::string &cert) {
+  if (readonly.load()) {
+    throw std::invalid_argument(
+        "The configuration has already been passed to a client or server and "
+        "can no longer be modified.");
+  }
   if (cert.empty()) {
     throw std::invalid_argument("Missing value for cert argument");
   }
@@ -145,8 +216,16 @@ void TransportSecurity::addAllowedRemoteCertificate(const std::string &cert) {
 
 void TransportSecurity::setVersion(const TLSConfigVersion min,
                                    const TLSConfigVersion max) {
+  if (readonly.load()) {
+    throw std::invalid_argument(
+        "The configuration has already been passed to a client or server and "
+        "can no longer be modified.");
+  }
   TLSConfiguration_setMinTlsVersion(config, min);
   TLSConfiguration_setMaxTlsVersion(config, max);
 }
 
-TLSConfiguration TransportSecurity::get() { return config; }
+TLSConfiguration TransportSecurity::get() {
+  readonly.store(true);
+  return config;
+}

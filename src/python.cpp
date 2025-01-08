@@ -498,6 +498,370 @@ PY_MODULE(m) {
       .value("TLS_1_2", TLS_VERSION_TLS_1_2)
       .value("TLS_1_3", TLS_VERSION_TLS_1_3);
 
+  py::enum_<TLSCipherSuite>(
+      m, "TlsCipher", "This enum contains all supported TLS ciphersuites.")
+      .value("RSA_WITH_NULL_MD5", TLSCipherSuite::RSA_WITH_NULL_MD5)
+      .value("RSA_WITH_NULL_SHA", TLSCipherSuite::RSA_WITH_NULL_SHA)
+      .value("PSK_WITH_NULL_SHA", TLSCipherSuite::PSK_WITH_NULL_SHA)
+      .value("DHE_PSK_WITH_NULL_SHA", TLSCipherSuite::DHE_PSK_WITH_NULL_SHA)
+      .value("RSA_PSK_WITH_NULL_SHA", TLSCipherSuite::RSA_PSK_WITH_NULL_SHA)
+      .value("RSA_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::RSA_WITH_AES_128_CBC_SHA)
+      .value("DHE_RSA_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA)
+      .value("RSA_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::RSA_WITH_AES_256_CBC_SHA)
+      .value("DHE_RSA_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA)
+      .value("RSA_WITH_NULL_SHA256", TLSCipherSuite::RSA_WITH_NULL_SHA256)
+      .value("RSA_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::RSA_WITH_AES_128_CBC_SHA256)
+      .value("RSA_WITH_AES_256_CBC_SHA256",
+             TLSCipherSuite::RSA_WITH_AES_256_CBC_SHA256)
+      .value("RSA_WITH_CAMELLIA_128_CBC_SHA",
+             TLSCipherSuite::RSA_WITH_CAMELLIA_128_CBC_SHA)
+      .value("DHE_RSA_WITH_CAMELLIA_128_CBC_SHA",
+             TLSCipherSuite::DHE_RSA_WITH_CAMELLIA_128_CBC_SHA)
+      .value("DHE_RSA_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA256)
+      .value("DHE_RSA_WITH_AES_256_CBC_SHA256",
+             TLSCipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA256)
+      .value("RSA_WITH_CAMELLIA_256_CBC_SHA",
+             TLSCipherSuite::RSA_WITH_CAMELLIA_256_CBC_SHA)
+      .value("DHE_RSA_WITH_CAMELLIA_256_CBC_SHA",
+             TLSCipherSuite::DHE_RSA_WITH_CAMELLIA_256_CBC_SHA)
+      .value("PSK_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::PSK_WITH_AES_128_CBC_SHA)
+      .value("PSK_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::PSK_WITH_AES_256_CBC_SHA)
+      .value("DHE_PSK_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::DHE_PSK_WITH_AES_128_CBC_SHA)
+      .value("DHE_PSK_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::DHE_PSK_WITH_AES_256_CBC_SHA)
+      .value("RSA_PSK_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::RSA_PSK_WITH_AES_128_CBC_SHA)
+      .value("RSA_PSK_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::RSA_PSK_WITH_AES_256_CBC_SHA)
+      .value("RSA_WITH_AES_128_GCM_SHA256",
+             TLSCipherSuite::RSA_WITH_AES_128_GCM_SHA256)
+      .value("RSA_WITH_AES_256_GCM_SHA384",
+             TLSCipherSuite::RSA_WITH_AES_256_GCM_SHA384)
+      .value("DHE_RSA_WITH_AES_128_GCM_SHA256",
+             TLSCipherSuite::DHE_RSA_WITH_AES_128_GCM_SHA256)
+      .value("DHE_RSA_WITH_AES_256_GCM_SHA384",
+             TLSCipherSuite::DHE_RSA_WITH_AES_256_GCM_SHA384)
+      .value("PSK_WITH_AES_128_GCM_SHA256",
+             TLSCipherSuite::PSK_WITH_AES_128_GCM_SHA256)
+      .value("PSK_WITH_AES_256_GCM_SHA384",
+             TLSCipherSuite::PSK_WITH_AES_256_GCM_SHA384)
+      .value("DHE_PSK_WITH_AES_128_GCM_SHA256",
+             TLSCipherSuite::DHE_PSK_WITH_AES_128_GCM_SHA256)
+      .value("DHE_PSK_WITH_AES_256_GCM_SHA384",
+             TLSCipherSuite::DHE_PSK_WITH_AES_256_GCM_SHA384)
+      .value("RSA_PSK_WITH_AES_128_GCM_SHA256",
+             TLSCipherSuite::RSA_PSK_WITH_AES_128_GCM_SHA256)
+      .value("RSA_PSK_WITH_AES_256_GCM_SHA384",
+             TLSCipherSuite::RSA_PSK_WITH_AES_256_GCM_SHA384)
+      .value("PSK_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::PSK_WITH_AES_128_CBC_SHA256)
+      .value("PSK_WITH_AES_256_CBC_SHA384",
+             TLSCipherSuite::PSK_WITH_AES_256_CBC_SHA384)
+      .value("PSK_WITH_NULL_SHA256", TLSCipherSuite::PSK_WITH_NULL_SHA256)
+      .value("PSK_WITH_NULL_SHA384", TLSCipherSuite::PSK_WITH_NULL_SHA384)
+      .value("DHE_PSK_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::DHE_PSK_WITH_AES_128_CBC_SHA256)
+      .value("DHE_PSK_WITH_AES_256_CBC_SHA384",
+             TLSCipherSuite::DHE_PSK_WITH_AES_256_CBC_SHA384)
+      .value("DHE_PSK_WITH_NULL_SHA256",
+             TLSCipherSuite::DHE_PSK_WITH_NULL_SHA256)
+      .value("DHE_PSK_WITH_NULL_SHA384",
+             TLSCipherSuite::DHE_PSK_WITH_NULL_SHA384)
+      .value("RSA_PSK_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::RSA_PSK_WITH_AES_128_CBC_SHA256)
+      .value("RSA_PSK_WITH_AES_256_CBC_SHA384",
+             TLSCipherSuite::RSA_PSK_WITH_AES_256_CBC_SHA384)
+      .value("RSA_PSK_WITH_NULL_SHA256",
+             TLSCipherSuite::RSA_PSK_WITH_NULL_SHA256)
+      .value("RSA_PSK_WITH_NULL_SHA384",
+             TLSCipherSuite::RSA_PSK_WITH_NULL_SHA384)
+      .value("RSA_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::RSA_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("RSA_WITH_CAMELLIA_256_CBC_SHA256",
+             TLSCipherSuite::RSA_WITH_CAMELLIA_256_CBC_SHA256)
+      .value("DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256",
+             TLSCipherSuite::DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256)
+      .value("ECDH_ECDSA_WITH_NULL_SHA",
+             TLSCipherSuite::ECDH_ECDSA_WITH_NULL_SHA)
+      .value("ECDH_ECDSA_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::ECDH_ECDSA_WITH_AES_128_CBC_SHA)
+      .value("ECDH_ECDSA_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::ECDH_ECDSA_WITH_AES_256_CBC_SHA)
+      .value("ECDHE_ECDSA_WITH_NULL_SHA",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_NULL_SHA)
+      .value("ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_128_CBC_SHA)
+      .value("ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_256_CBC_SHA)
+      .value("ECDH_RSA_WITH_NULL_SHA", TLSCipherSuite::ECDH_RSA_WITH_NULL_SHA)
+      .value("ECDH_RSA_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::ECDH_RSA_WITH_AES_128_CBC_SHA)
+      .value("ECDH_RSA_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::ECDH_RSA_WITH_AES_256_CBC_SHA)
+      .value("ECDHE_RSA_WITH_NULL_SHA", TLSCipherSuite::ECDHE_RSA_WITH_NULL_SHA)
+      .value("ECDHE_RSA_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::ECDHE_RSA_WITH_AES_128_CBC_SHA)
+      .value("ECDHE_RSA_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::ECDHE_RSA_WITH_AES_256_CBC_SHA)
+      .value("ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_128_CBC_SHA256)
+      .value("ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_256_CBC_SHA384)
+      .value("ECDH_ECDSA_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::ECDH_ECDSA_WITH_AES_128_CBC_SHA256)
+      .value("ECDH_ECDSA_WITH_AES_256_CBC_SHA384",
+             TLSCipherSuite::ECDH_ECDSA_WITH_AES_256_CBC_SHA384)
+      .value("ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::ECDHE_RSA_WITH_AES_128_CBC_SHA256)
+      .value("ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+             TLSCipherSuite::ECDHE_RSA_WITH_AES_256_CBC_SHA384)
+      .value("ECDH_RSA_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::ECDH_RSA_WITH_AES_128_CBC_SHA256)
+      .value("ECDH_RSA_WITH_AES_256_CBC_SHA384",
+             TLSCipherSuite::ECDH_RSA_WITH_AES_256_CBC_SHA384)
+      .value("ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
+      .value("ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_256_GCM_SHA384)
+      .value("ECDH_ECDSA_WITH_AES_128_GCM_SHA256",
+             TLSCipherSuite::ECDH_ECDSA_WITH_AES_128_GCM_SHA256)
+      .value("ECDH_ECDSA_WITH_AES_256_GCM_SHA384",
+             TLSCipherSuite::ECDH_ECDSA_WITH_AES_256_GCM_SHA384)
+      .value("ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+             TLSCipherSuite::ECDHE_RSA_WITH_AES_128_GCM_SHA256)
+      .value("ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+             TLSCipherSuite::ECDHE_RSA_WITH_AES_256_GCM_SHA384)
+      .value("ECDH_RSA_WITH_AES_128_GCM_SHA256",
+             TLSCipherSuite::ECDH_RSA_WITH_AES_128_GCM_SHA256)
+      .value("ECDH_RSA_WITH_AES_256_GCM_SHA384",
+             TLSCipherSuite::ECDH_RSA_WITH_AES_256_GCM_SHA384)
+      .value("ECDHE_PSK_WITH_AES_128_CBC_SHA",
+             TLSCipherSuite::ECDHE_PSK_WITH_AES_128_CBC_SHA)
+      .value("ECDHE_PSK_WITH_AES_256_CBC_SHA",
+             TLSCipherSuite::ECDHE_PSK_WITH_AES_256_CBC_SHA)
+      .value("ECDHE_PSK_WITH_AES_128_CBC_SHA256",
+             TLSCipherSuite::ECDHE_PSK_WITH_AES_128_CBC_SHA256)
+      .value("ECDHE_PSK_WITH_AES_256_CBC_SHA384",
+             TLSCipherSuite::ECDHE_PSK_WITH_AES_256_CBC_SHA384)
+      .value("ECDHE_PSK_WITH_NULL_SHA", TLSCipherSuite::ECDHE_PSK_WITH_NULL_SHA)
+      .value("ECDHE_PSK_WITH_NULL_SHA256",
+             TLSCipherSuite::ECDHE_PSK_WITH_NULL_SHA256)
+      .value("ECDHE_PSK_WITH_NULL_SHA384",
+             TLSCipherSuite::ECDHE_PSK_WITH_NULL_SHA384)
+      .value("RSA_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::RSA_WITH_ARIA_128_CBC_SHA256)
+      .value("RSA_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::RSA_WITH_ARIA_256_CBC_SHA384)
+      .value("DHE_RSA_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::DHE_RSA_WITH_ARIA_128_CBC_SHA256)
+      .value("DHE_RSA_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::DHE_RSA_WITH_ARIA_256_CBC_SHA384)
+      .value("ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256)
+      .value("ECDHE_ECDSA_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_ARIA_256_CBC_SHA384)
+      .value("ECDH_ECDSA_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDH_ECDSA_WITH_ARIA_128_CBC_SHA256)
+      .value("ECDH_ECDSA_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDH_ECDSA_WITH_ARIA_256_CBC_SHA384)
+      .value("ECDHE_RSA_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDHE_RSA_WITH_ARIA_128_CBC_SHA256)
+      .value("ECDHE_RSA_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDHE_RSA_WITH_ARIA_256_CBC_SHA384)
+      .value("ECDH_RSA_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDH_RSA_WITH_ARIA_128_CBC_SHA256)
+      .value("ECDH_RSA_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDH_RSA_WITH_ARIA_256_CBC_SHA384)
+      .value("RSA_WITH_ARIA_128_GCM_SHA256",
+             TLSCipherSuite::RSA_WITH_ARIA_128_GCM_SHA256)
+      .value("RSA_WITH_ARIA_256_GCM_SHA384",
+             TLSCipherSuite::RSA_WITH_ARIA_256_GCM_SHA384)
+      .value("DHE_RSA_WITH_ARIA_128_GCM_SHA256",
+             TLSCipherSuite::DHE_RSA_WITH_ARIA_128_GCM_SHA256)
+      .value("DHE_RSA_WITH_ARIA_256_GCM_SHA384",
+             TLSCipherSuite::DHE_RSA_WITH_ARIA_256_GCM_SHA384)
+      .value("ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256)
+      .value("ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384)
+      .value("ECDH_ECDSA_WITH_ARIA_128_GCM_SHA256",
+             TLSCipherSuite::ECDH_ECDSA_WITH_ARIA_128_GCM_SHA256)
+      .value("ECDH_ECDSA_WITH_ARIA_256_GCM_SHA384",
+             TLSCipherSuite::ECDH_ECDSA_WITH_ARIA_256_GCM_SHA384)
+      .value("ECDHE_RSA_WITH_ARIA_128_GCM_SHA256",
+             TLSCipherSuite::ECDHE_RSA_WITH_ARIA_128_GCM_SHA256)
+      .value("ECDHE_RSA_WITH_ARIA_256_GCM_SHA384",
+             TLSCipherSuite::ECDHE_RSA_WITH_ARIA_256_GCM_SHA384)
+      .value("ECDH_RSA_WITH_ARIA_128_GCM_SHA256",
+             TLSCipherSuite::ECDH_RSA_WITH_ARIA_128_GCM_SHA256)
+      .value("ECDH_RSA_WITH_ARIA_256_GCM_SHA384",
+             TLSCipherSuite::ECDH_RSA_WITH_ARIA_256_GCM_SHA384)
+      .value("PSK_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::PSK_WITH_ARIA_128_CBC_SHA256)
+      .value("PSK_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::PSK_WITH_ARIA_256_CBC_SHA384)
+      .value("DHE_PSK_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::DHE_PSK_WITH_ARIA_128_CBC_SHA256)
+      .value("DHE_PSK_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::DHE_PSK_WITH_ARIA_256_CBC_SHA384)
+      .value("RSA_PSK_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::RSA_PSK_WITH_ARIA_128_CBC_SHA256)
+      .value("RSA_PSK_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::RSA_PSK_WITH_ARIA_256_CBC_SHA384)
+      .value("PSK_WITH_ARIA_128_GCM_SHA256",
+             TLSCipherSuite::PSK_WITH_ARIA_128_GCM_SHA256)
+      .value("PSK_WITH_ARIA_256_GCM_SHA384",
+             TLSCipherSuite::PSK_WITH_ARIA_256_GCM_SHA384)
+      .value("DHE_PSK_WITH_ARIA_128_GCM_SHA256",
+             TLSCipherSuite::DHE_PSK_WITH_ARIA_128_GCM_SHA256)
+      .value("DHE_PSK_WITH_ARIA_256_GCM_SHA384",
+             TLSCipherSuite::DHE_PSK_WITH_ARIA_256_GCM_SHA384)
+      .value("RSA_PSK_WITH_ARIA_128_GCM_SHA256",
+             TLSCipherSuite::RSA_PSK_WITH_ARIA_128_GCM_SHA256)
+      .value("RSA_PSK_WITH_ARIA_256_GCM_SHA384",
+             TLSCipherSuite::RSA_PSK_WITH_ARIA_256_GCM_SHA384)
+      .value("ECDHE_PSK_WITH_ARIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDHE_PSK_WITH_ARIA_128_CBC_SHA256)
+      .value("ECDHE_PSK_WITH_ARIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDHE_PSK_WITH_ARIA_256_CBC_SHA384)
+      .value("ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384)
+      .value("ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384)
+      .value("ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384)
+      .value("ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384)
+      .value("RSA_WITH_CAMELLIA_128_GCM_SHA256",
+             TLSCipherSuite::RSA_WITH_CAMELLIA_128_GCM_SHA256)
+      .value("RSA_WITH_CAMELLIA_256_GCM_SHA384",
+             TLSCipherSuite::RSA_WITH_CAMELLIA_256_GCM_SHA384)
+      .value("DHE_RSA_WITH_CAMELLIA_128_GCM_SHA256",
+             TLSCipherSuite::DHE_RSA_WITH_CAMELLIA_128_GCM_SHA256)
+      .value("DHE_RSA_WITH_CAMELLIA_256_GCM_SHA384",
+             TLSCipherSuite::DHE_RSA_WITH_CAMELLIA_256_GCM_SHA384)
+      .value("ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256)
+      .value("ECDHE_ECDSA_WITH_CAMELLIA_256_GCM_SHA384",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_CAMELLIA_256_GCM_SHA384)
+      .value("ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256",
+             TLSCipherSuite::ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256)
+      .value("ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384",
+             TLSCipherSuite::ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384)
+      .value("ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256",
+             TLSCipherSuite::ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256)
+      .value("ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384",
+             TLSCipherSuite::ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384)
+      .value("ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256",
+             TLSCipherSuite::ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256)
+      .value("ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384",
+             TLSCipherSuite::ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384)
+      .value("PSK_WITH_CAMELLIA_128_GCM_SHA256",
+             TLSCipherSuite::PSK_WITH_CAMELLIA_128_GCM_SHA256)
+      .value("PSK_WITH_CAMELLIA_256_GCM_SHA384",
+             TLSCipherSuite::PSK_WITH_CAMELLIA_256_GCM_SHA384)
+      .value("DHE_PSK_WITH_CAMELLIA_128_GCM_SHA256",
+             TLSCipherSuite::DHE_PSK_WITH_CAMELLIA_128_GCM_SHA256)
+      .value("DHE_PSK_WITH_CAMELLIA_256_GCM_SHA384",
+             TLSCipherSuite::DHE_PSK_WITH_CAMELLIA_256_GCM_SHA384)
+      .value("RSA_PSK_WITH_CAMELLIA_128_GCM_SHA256",
+             TLSCipherSuite::RSA_PSK_WITH_CAMELLIA_128_GCM_SHA256)
+      .value("RSA_PSK_WITH_CAMELLIA_256_GCM_SHA384",
+             TLSCipherSuite::RSA_PSK_WITH_CAMELLIA_256_GCM_SHA384)
+      .value("PSK_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::PSK_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("PSK_WITH_CAMELLIA_256_CBC_SHA384",
+             TLSCipherSuite::PSK_WITH_CAMELLIA_256_CBC_SHA384)
+      .value("DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384",
+             TLSCipherSuite::DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384)
+      .value("RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384",
+             TLSCipherSuite::RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384)
+      .value("ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256",
+             TLSCipherSuite::ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256)
+      .value("ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384",
+             TLSCipherSuite::ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384)
+      .value("RSA_WITH_AES_128_CCM", TLSCipherSuite::RSA_WITH_AES_128_CCM)
+      .value("RSA_WITH_AES_256_CCM", TLSCipherSuite::RSA_WITH_AES_256_CCM)
+      .value("DHE_RSA_WITH_AES_128_CCM",
+             TLSCipherSuite::DHE_RSA_WITH_AES_128_CCM)
+      .value("DHE_RSA_WITH_AES_256_CCM",
+             TLSCipherSuite::DHE_RSA_WITH_AES_256_CCM)
+      .value("RSA_WITH_AES_128_CCM_8", TLSCipherSuite::RSA_WITH_AES_128_CCM_8)
+      .value("RSA_WITH_AES_256_CCM_8", TLSCipherSuite::RSA_WITH_AES_256_CCM_8)
+      .value("DHE_RSA_WITH_AES_128_CCM_8",
+             TLSCipherSuite::DHE_RSA_WITH_AES_128_CCM_8)
+      .value("DHE_RSA_WITH_AES_256_CCM_8",
+             TLSCipherSuite::DHE_RSA_WITH_AES_256_CCM_8)
+      .value("PSK_WITH_AES_128_CCM", TLSCipherSuite::PSK_WITH_AES_128_CCM)
+      .value("PSK_WITH_AES_256_CCM", TLSCipherSuite::PSK_WITH_AES_256_CCM)
+      .value("DHE_PSK_WITH_AES_128_CCM",
+             TLSCipherSuite::DHE_PSK_WITH_AES_128_CCM)
+      .value("DHE_PSK_WITH_AES_256_CCM",
+             TLSCipherSuite::DHE_PSK_WITH_AES_256_CCM)
+      .value("PSK_WITH_AES_128_CCM_8", TLSCipherSuite::PSK_WITH_AES_128_CCM_8)
+      .value("PSK_WITH_AES_256_CCM_8", TLSCipherSuite::PSK_WITH_AES_256_CCM_8)
+      .value("DHE_PSK_WITH_AES_128_CCM_8",
+             TLSCipherSuite::DHE_PSK_WITH_AES_128_CCM_8)
+      .value("DHE_PSK_WITH_AES_256_CCM_8",
+             TLSCipherSuite::DHE_PSK_WITH_AES_256_CCM_8)
+      .value("ECDHE_ECDSA_WITH_AES_128_CCM",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_128_CCM)
+      .value("ECDHE_ECDSA_WITH_AES_256_CCM",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_256_CCM)
+      .value("ECDHE_ECDSA_WITH_AES_128_CCM_8",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_128_CCM_8)
+      .value("ECDHE_ECDSA_WITH_AES_256_CCM_8",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_AES_256_CCM_8)
+      .value("ECJPAKE_WITH_AES_128_CCM_8",
+             TLSCipherSuite::ECJPAKE_WITH_AES_128_CCM_8)
+      .value("ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+             TLSCipherSuite::ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
+      .value("ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+             TLSCipherSuite::ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256)
+      .value("DHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+             TLSCipherSuite::DHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
+      .value("PSK_WITH_CHACHA20_POLY1305_SHA256",
+             TLSCipherSuite::PSK_WITH_CHACHA20_POLY1305_SHA256)
+      .value("ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256",
+             TLSCipherSuite::ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256)
+      .value("DHE_PSK_WITH_CHACHA20_POLY1305_SHA256",
+             TLSCipherSuite::DHE_PSK_WITH_CHACHA20_POLY1305_SHA256)
+      .value("RSA_PSK_WITH_CHACHA20_POLY1305_SHA256",
+             TLSCipherSuite::RSA_PSK_WITH_CHACHA20_POLY1305_SHA256)
+      .value("TLS1_3_AES_128_GCM_SHA256",
+             TLSCipherSuite::TLS1_3_AES_128_GCM_SHA256)
+      .value("TLS1_3_AES_256_GCM_SHA384",
+             TLSCipherSuite::TLS1_3_AES_256_GCM_SHA384)
+      .value("TLS1_3_CHACHA20_POLY1305_SHA256",
+             TLSCipherSuite::TLS1_3_CHACHA20_POLY1305_SHA256)
+      .value("TLS1_3_AES_128_CCM_SHA256",
+             TLSCipherSuite::TLS1_3_AES_128_CCM_SHA256)
+      .value("TLS1_3_AES_128_CCM_8_SHA256",
+             TLSCipherSuite::TLS1_3_AES_128_CCM_8_SHA256);
+
   auto py_debug =
       py::enum_<Debug>(m, "Debug",
                        "This enum contains all valid debug bits to interpret "
@@ -709,8 +1073,9 @@ convert to native bytes
   py::class_<Remote::TransportSecurity,
              std::shared_ptr<Remote::TransportSecurity>>(
       m, "TransportSecurity",
-      "This class is used to configure transport layer security for server and "
-      "client")
+      "This class is responsible for configuring transport layer security "
+      "(TLS) for both servers and clients. Once an instance is assigned to a "
+      "client or server, it becomes read-only and cannot be modified further.")
       .def(
           py::init(&Remote::TransportSecurity::create),
           R"def(__init__(self: c104.TransportSecurity, validate: bool = True, only_known: bool = True) -> None
@@ -720,7 +1085,7 @@ Create a new transport layer configuration
 Parameters
 ----------
 validate: bool
-    validate certificates of communication partners
+    validate certificates of communication partners (chain and time)
 only_known: bool
     accept communication only from partners with certificate added to the list of allowed remote certificates
 
@@ -786,6 +1151,114 @@ Example
 )def",
           "cert"_a)
       .def(
+          "set_ciphers", &Remote::TransportSecurity::setCipherSuites,
+          R"def(set_ciphers(self: c104.TransportSecurity, ciphers: list[c104.TlsCipher]) -> None
+
+set the list of accepted TLS cipher suites
+
+When configuring minimum and maximum TLS versions together with cipher suites, it's crucial to ensure that the selected cipher suites are **compatible** with the specified TLS versions.
+
+Parameters
+----------
+ciphers: list[c104.TlsCipher]
+    accepted TLS cipher suites
+
+Returns
+-------
+None
+
+Raises
+------
+ValueError
+    list is empty or contains invalid cipher suites
+
+Example
+-------
+>>> tls = c104.TransportSecurity(validate=True, only_known=False)
+>>> tls.set_ciphers(ciphers=[
+>>>   c104.TlsCipher.ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+>>>   c104.TlsCipher.ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+>>>   c104.TlsCipher.ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+>>>   c104.TlsCipher.ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+>>>   c104.TlsCipher.ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+>>>   c104.TlsCipher.ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+>>>   c104.TlsCipher.DHE_RSA_WITH_AES_128_GCM_SHA256,
+>>>   c104.TlsCipher.DHE_RSA_WITH_AES_256_GCM_SHA384,
+>>>   c104.TlsCipher.DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+>>>   c104.TlsCipher.TLS1_3_AES_128_GCM_SHA256,
+>>>   c104.TlsCipher.TLS1_3_AES_256_GCM_SHA384,
+>>>   c104.TlsCipher.TLS1_3_CHACHA20_POLY1305_SHA256
+>>> ])
+)def",
+          "ciphers"_a)
+      .def(
+          "set_renegotiation_time",
+          &Remote::TransportSecurity::setRenegotiationTime,
+          R"def(set_renegotiation_time(self: c104.TransportSecurity, interval: datetime.timedelta | None = None) -> None
+
+sets the renegotiation interval
+
+This defines how often the TLS connection should renegotiate. If no interval is
+specified (None), it disables automatic renegotiation.
+Per default renegotiation is disabled.
+
+Parameters
+----------
+interval: datetime.timedelta, optional
+    The interval as a ``datetime.timedelta`` object. If ``None``, renegotiation is disabled.
+
+Returns
+-------
+None
+
+Raises
+------
+ValueError
+    config is readonly and cannot be modified further
+ValueError
+    value too small or too large
+
+Example
+-------
+>>> tls = c104.TransportSecurity(validate=True, only_known=False)
+>>> tls.set_renegotiation_time(interval=datetime.timedelta(minutes=30))
+)def",
+          "interval"_a)
+      .def(
+          "set_resumption_interval",
+          &Remote::TransportSecurity::setResumptionInterval,
+          R"def(set_resumption_interval(self: c104.TransportSecurity, interval: datetime.timedelta | None = None) -> None:
+
+sets the session resumption interval for the TLS configuration.
+
+This interval determines the frequency at which session resumption can occur,
+allowing faster reconnections. If no interval is specified (None), session
+resumption will be disabled.
+Per default session resumption is set to 6 hours.
+
+Parameters
+----------
+interval: datetime.timedelta, optional
+    The interval as a ``datetime.timedelta`` object. If ``None``, session resumption is disabled.
+
+Returns
+-------
+None
+
+Raises
+------
+ValueError
+    config is readonly and cannot be modified further
+ValueError
+    value too small or too large
+
+Example
+-------
+>>> tls = c104.TransportSecurity(validate=True, only_known=False)
+>>> tls.set_resumption_interval(interval=datetime.timedelta(hours=6))
+)def",
+          "interval"_a)
+      .def(
           "add_allowed_remote_certificate",
           &Remote::TransportSecurity::addAllowedRemoteCertificate,
           R"def(add_allowed_remote_certificate(self: c104.TransportSecurity, cert: str) -> None
@@ -816,7 +1289,9 @@ Example
           "set_version", &Remote::TransportSecurity::setVersion,
           R"def(set_version(self: c104.TransportSecurity, min: c104.TlsVersion = c104.TlsVersion.NOT_SELECTED, max: c104.TlsVersion = c104.TlsVersion.NOT_SELECTED) -> None
 
-set the supported min and/or max TLS version
+sets the supported min and/or max TLS version
+
+When configuring minimum and maximum TLS versions together with cipher suites, it's crucial to ensure that the selected cipher suites are **compatible** with the specified TLS versions.
 
 Parameters
 ----------
@@ -3267,7 +3742,7 @@ The setter is available via point.quality=xyz)def")
           "number_of_object",
           &Remote::Message::IncomingMessage::getNumberOfObjects,
           "int: number of information objects (read-only) (deprecated, use "
-          "`number_of_objects` instead)",
+          "``number_of_objects`` instead)",
           py::return_value_policy::copy)
       .def_property_readonly(
           "number_of_objects",
