@@ -51,7 +51,7 @@ public:
 
   /**
    * @brief Create an IncomingMessage as facade pattern to access an incoming
-   * CS101_ASDU packet via object oriented methods
+   * CS101_ASDU packet via object-oriented methods
    * @param packet internal incoming message
    * @param app_layer_parameters connection parameters
    * @throws std::invalid_argument if information value is incompatible with
@@ -65,9 +65,9 @@ public:
   }
 
   /**
-   * @brief free extracted information object
+   * @brief free extracted information object and ASDU
    */
-  ~IncomingMessage();
+  ~IncomingMessage() override;
 
   /**
    * @brief Getter for internal ASDU packet

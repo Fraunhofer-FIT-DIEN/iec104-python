@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -19,7 +19,7 @@
  *  See LICENSE file for the complete license text.
  *
  *
- * @file PointInformation.h
+ * @file PointMessage.h
  * @brief create an outgoing from data point in monitoring direction
  *
  * @package iec104-python
@@ -44,6 +44,18 @@ namespace Message {
  */
 class PointMessage : public OutgoingMessage {
 public:
+  /**
+   * @brief Creates a new instance of PointMessage for a given DataPoint.
+   *
+   * This method creates a shared pointer to a PointMessage object corresponding
+   * to the specified DataPoint.
+   *
+   * @param point The DataPoint object for which the message is created. This
+   * represents the value that should be reported to a remote client.
+   * @return A shared pointer to a newly created PointMessage instance.
+   * @throws std::invalid_argument if point reference, point type, station
+   * reference is invalid
+   */
   [[nodiscard]] static std::shared_ptr<PointMessage>
   create(std::shared_ptr<Object::DataPoint> point) {
     // Not using std::make_shared because the constructor is private.
@@ -51,15 +63,17 @@ public:
   }
 
   /**
-   * @brief free informationObject after use
+   * @brief free information object
    */
-  ~PointMessage();
+  ~PointMessage() override;
 
 private:
   /**
    * @brief Create a message for a certain DataPoint, type of message is
    * identified via DataPoint
-   * @param point point who's value should be reported to remote client
+   * @param point point whose value should be reported to remote client
+   * @throws std::invalid_argument if point reference, point type, station
+   * reference is invalid
    */
   explicit PointMessage(std::shared_ptr<Object::DataPoint> point);
 };

@@ -48,10 +48,8 @@ public:
   OutgoingMessage(const OutgoingMessage &) = delete;
   OutgoingMessage &operator=(const OutgoingMessage &) = delete;
 
-  /**
-   * @brief remove object
-   */
-  ~OutgoingMessage();
+  // destructor
+  ~OutgoingMessage() override;
 
   /**
    * @brief Setter for originator address of outgoing message
@@ -70,10 +68,12 @@ public:
 protected:
   OutgoingMessage();
   /**
-   * @brief Create an outgoing message that should be send via client or server
+   * @brief Create an outgoing message that should be sent via client or server
    * to a given DataPoint
    * @param point point that defines the receiver and related information of the
    * outgoing message
+   * @throws std::invalid_argument if point reference or station reference is
+   * invalid
    */
   explicit OutgoingMessage(const std::shared_ptr<Object::DataPoint> &point);
 };

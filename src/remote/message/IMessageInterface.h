@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -56,6 +56,9 @@ public:
   // noncopyable
   IMessageInterface(const IMessageInterface &) = delete;
   IMessageInterface &operator=(const IMessageInterface &) = delete;
+
+  // destructor
+  virtual ~IMessageInterface() = default;
 
   /**
    * @brief Getter for remote message type identifier

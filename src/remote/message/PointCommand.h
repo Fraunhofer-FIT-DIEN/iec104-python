@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -46,12 +46,15 @@ namespace Message {
 class PointCommand : public OutgoingMessage {
 public:
   /**
-   * @brief Create a message for a certain DataPoint, type of message is
-   * identified via DataPoint
-   * @param point point who's value should be reported to remote client
+   * @brief Create a message for a certain DataPoint
+   *
+   * This method creates a shared pointer to a PointCommand object corresponding
+   * to the specified DataPoint.
+   *
+   * @param point point whose value should be reported to remote client
    * @param select flag for select and execute command mode (lock control
    * access)
-   * @throws std::invalid_argument if point reference, connection or server
+   * @throws std::invalid_argument if point reference, point type, station
    * reference is invalid
    */
   [[nodiscard]] static std::shared_ptr<PointCommand>
@@ -62,9 +65,9 @@ public:
   }
 
   /**
-   * @brief free informationObject after use
+   * @brief free information object
    */
-  ~PointCommand();
+  ~PointCommand() override;
 
 private:
   /**
@@ -73,7 +76,7 @@ private:
    * @param point point whom's value should be reported to remote client
    * @param select flag for select and execute command mode (lock control
    * access)
-   * @throws std::invalid_argument if point reference, connection or server
+   * @throws std::invalid_argument if point reference, point type, station
    * reference is invalid
    */
   PointCommand(std::shared_ptr<Object::DataPoint> point, bool select);

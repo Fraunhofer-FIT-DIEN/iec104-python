@@ -53,7 +53,7 @@ Batch::Batch(const CS101_CauseOfTransmission cause,
 };
 
 Batch::~Batch() {
-  weakpts.clear();
+  pointMap.clear();
   DEBUG_PRINT(Debug::Message,
               "Batch Removed " +
                   std::string(CS101_CauseOfTransmission_toString(
@@ -75,14 +75,14 @@ void Batch::addPoint(std::shared_ptr<Object::DataPoint> point) {
   }
 
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
-  if (weakpts.empty()) {
+  if (pointMap.empty()) {
     type = point->getType();
     commonAddress = _station->getCommonAddress();
   } else {
     // already added?
-    auto it = weakpts.find(point->getInformationObjectAddress());
+    auto it = pointMap.find(point->getInformationObjectAddress());
     // Already exists, throw or handle as needed
-    if (it != weakpts.end() && !it->second.expired()) {
+    if (it != pointMap.end() && !it->second.expired()) {
       throw std::invalid_argument("Point already added to batch");
     }
 
@@ -95,7 +95,7 @@ void Batch::addPoint(std::shared_ptr<Object::DataPoint> point) {
     }
   }
 
-  weakpts[point->getInformationObjectAddress()] = point;
+  pointMap[point->getInformationObjectAddress()] = point;
   DEBUG_PRINT(Debug::Message,
               "Point added to batch " +
                   std::to_string(point->getInformationObjectAddress()));
@@ -104,19 +104,19 @@ void Batch::addPoint(std::shared_ptr<Object::DataPoint> point) {
 bool Batch::hasPoints() const {
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
 
-  return !weakpts.empty();
+  return !pointMap.empty();
 }
 
 std::uint_fast8_t Batch::getNumberOfObjects() const {
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
-  return weakpts.size();
+  return pointMap.size();
 }
 
 Object::DataPointVector Batch::getPoints() const {
   Object::DataPointVector points;
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
 
-  for (auto it = weakpts.begin(); it != weakpts.end(); ++it) {
+  for (auto it = pointMap.begin(); it != pointMap.end(); ++it) {
     // Remove expired pointers
     if (it->second.expired())
       continue;
@@ -128,24 +128,24 @@ Object::DataPointVector Batch::getPoints() const {
 
 bool Batch::isSequence() const {
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
-  if (weakpts.empty()) {
+  if (pointMap.empty()) {
     return true; // An empty map is trivially sequential
   }
 
   // Iterator-based traversal to test key sequences
   // std::map is always ordered, therefore sorting is not necessary
-  auto it = weakpts.begin();
-  while (it->second.expired() && it != weakpts.end()) {
+  auto it = pointMap.begin();
+  while (it->second.expired() && it != pointMap.end()) {
     ++it;
   }
-  if (it == weakpts.end()) {
+  if (it == pointMap.end()) {
     return true;
   }
 
   uint_fast16_t previousKey = it->first;
   ++it;
 
-  for (; it != weakpts.end(); ++it) {
+  for (; it != pointMap.end(); ++it) {
     if (it->second.expired())
       continue;
     if (it->first != previousKey + 1) {
