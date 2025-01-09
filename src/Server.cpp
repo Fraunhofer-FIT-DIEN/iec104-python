@@ -401,17 +401,14 @@ void Server::cleanupSelections() {
       selectionVector.end());
 }
 
-void Server::cleanupSelections(IMasterConnection connection) {
+void Server::dropConnectionSelections(IMasterConnection connection) {
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
   selectionVector.erase(std::remove_if(selectionVector.begin(),
                                        selectionVector.end(),
                                        [this, connection](const Selection &s) {
-                                         if (s.connection == connection) {
-                                           unselect(s);
-                                           return true;
-                                         } else {
-                                           return false;
-                                         }
+                                         // do not call unselect here, because
+                                         // it is called on connection loss
+                                         return s.connection == connection;
                                        }),
                         selectionVector.end());
 }
@@ -474,9 +471,8 @@ bool Server::select(IMasterConnection connection,
     if ((it->connection != connection) &&
         (now - it->created) < selectTimeout_ms) {
       return false;
-    } else {
-      it->created = now;
     }
+    it->created = now;
   }
 
   return true;
@@ -765,7 +761,7 @@ void Server::connectionEventHandler(void *parameter,
       }
       // remove selections
       instance->scheduleTask([instance, connection]() {
-        instance->cleanupSelections(connection);
+        instance->dropConnectionSelections(connection);
       });
     } else if (event == CS104_CON_EVENT_ACTIVATED) {
       // set as valid receiver
