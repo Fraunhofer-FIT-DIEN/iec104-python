@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -50,7 +50,20 @@ namespace Module {
  */
 class ScopedGilAcquire {
 public:
-  inline explicit ScopedGilAcquire(std::string callback_name)
+  // noncopyable
+  ScopedGilAcquire(const ScopedGilAcquire &) = delete;
+  ScopedGilAcquire &operator=(const ScopedGilAcquire &) = delete;
+
+  /**
+   * @brief Acquiring the GIL within the given scope for safe interaction with
+   * the Python interpreter.
+   *
+   * If the GIL is already acquired, it logs the action without re-acquiring.
+   *
+   * @param callback_name A string representing the name of the scope or
+   * function acquiring the GIL, used for debugging and logging purposes.
+   */
+  explicit ScopedGilAcquire(std::string callback_name)
       : gil(), name(std::move(callback_name)) {
     if (PyGILState_Check()) {
       DEBUG_PRINT(Debug::Gil, "--?| (Acquire) GIL | " + name);
@@ -60,7 +73,15 @@ public:
     }
   }
 
-  inline ~ScopedGilAcquire() {
+  /**
+   * @brief Destructor for the ScopedGilAcquire class, releasing the Global
+   * Interpreter Lock (GIL).
+   *
+   * The destructor ensures the proper release of the GIL when the
+   * ScopedGilAcquire object goes out of scope, if and only-if the GIL was
+   * acquired at first place.
+   */
+  ~ScopedGilAcquire() {
     if (gil) {
       delete gil;
       DEBUG_PRINT(Debug::Gil, "<--| Re-release GIL | " + name);
@@ -69,12 +90,11 @@ public:
     }
   }
 
-  ScopedGilAcquire(const ScopedGilAcquire &) = delete;
-
-  ScopedGilAcquire &operator=(const ScopedGilAcquire &) = delete;
-
 private:
+  /// @brief name of the GIL-Holding scope, used for debug logging
   std::string name;
+
+  /// @brief actual GIL reference
   py::gil_scoped_acquire *gil = nullptr;
 };
 }; // namespace Module

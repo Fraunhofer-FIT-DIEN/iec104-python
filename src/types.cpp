@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -20,7 +20,7 @@
  *
  *
  * @file types.cpp
- * @brief collection of framework wide used data structures
+ * @brief collection of framework widely used data structures
  *
  * @package iec104-python
  * @namespace

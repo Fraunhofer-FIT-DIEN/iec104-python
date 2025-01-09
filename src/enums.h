@@ -19,7 +19,7 @@
  *  See LICENSE file for the complete license text.
  *
  *
- * @file Enums.h
+ * @file enums.h
  * @brief shared enums, flags and string conversion of these
  *
  * @package iec104-python
@@ -39,6 +39,17 @@
 #include <cs104_slave.h>
 #include <mbedtls/ssl_ciphersuites.h>
 
+/**
+ * @brief Checks if any bits are set in the given enum value.
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * This function evaluates whether the provided enum value has any bits set.
+ *
+ * @param lhs The enum value to be checked for any bits set.
+ * @return True if any bits are set in the enum value, false otherwise.
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -51,6 +62,19 @@ is_any(const T &lhs) {
   return l > 0;
 }
 
+/**
+ * @brief Checks if no flags are set in the given enum value.
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * This function checks whether the given enum value has no bits set that
+ * correspond to valid bitmask flags, as defined by the `enum_bitmask`
+ * construct.
+ *
+ * @param lhs The enum value to check.
+ * @return True if none of the defined bitmask flags are set; otherwise, false.
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -61,6 +85,24 @@ is_none(const T &lhs) {
   return !is_any(lhs);
 }
 
+/**
+ * @brief Tests whether the bitmask representation of one enum value contains
+ * another.
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * This function operates on enum types and checks if the bitwise AND operation
+ * between the underlying values of `lhs` and `rhs` results in `rhs`.
+ * Additionally, it ensures that neither `lhs` nor `rhs` is zero.
+ *
+ * @param lhs The left-hand-side enum value for the comparison.
+ * @param rhs The right-hand-side enum value to check for containment in `lhs`.
+ * @return true if the bitwise AND of `lhs` and `rhs` equals `rhs` and neither
+ * value is zero.
+ * @return false if either value is zero or the bitwise AND operation does not
+ * match `rhs`.
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -77,6 +119,15 @@ test(const T &lhs, const T &rhs) {
   return (l & r) == r;
 }
 
+/**
+ * @brief Resets the given enum variable to its default zero-initialized state.
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * @param lhs Reference to the enum variable to be reset.
+ * @return A reference to the reset enum variable.
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -88,6 +139,16 @@ reset(T &lhs) {
   return lhs;
 }
 
+/**
+ * @brief bitwise AND operator
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * @param lhs reference to the enum variable
+ * @param rhs reference to the enum variable
+ * @return operation result
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -100,6 +161,16 @@ operator&(T lhs, const T rhs) {
                         static_cast<underlying>(rhs));
 }
 
+/**
+ * @brief bitwise OR operator
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * @param lhs reference to the enum variable
+ * @param rhs reference to the enum variable
+ * @return operation result
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -112,6 +183,16 @@ operator|(T lhs, const T rhs) {
                         static_cast<underlying>(rhs));
 }
 
+/**
+ * @brief bitwise XOR operator
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * @param lhs reference to the enum variable
+ * @param rhs reference to the enum variable
+ * @return operation result
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -124,6 +205,15 @@ operator^(T lhs, const T rhs) {
                         static_cast<underlying>(rhs));
 }
 
+/**
+ * @brief bitwise NOT operator / INVERSE
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * @param lhs reference to the enum variable
+ * @return operation result
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -135,6 +225,16 @@ operator~(T lhs) {
   return static_cast<T>(~static_cast<underlying>(lhs));
 }
 
+/**
+ * @brief bitwise AND operator, result assigned to lhs
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * @param lhs reference to the enum variable
+ * @param rhs reference to the enum variable
+ * @return lhs
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -146,6 +246,16 @@ operator&=(T &lhs, const T rhs) {
   return lhs;
 }
 
+/**
+ * @brief bitwise OR operator, result assigned to lhs
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * @param lhs reference to the enum variable
+ * @param rhs reference to the enum variable
+ * @return lhs
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -157,6 +267,16 @@ operator|=(T &lhs, const T rhs) {
   return lhs;
 }
 
+/**
+ * @brief bitwise XOR operator, result assigned to lhs
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * @param lhs reference to the enum variable
+ * @param rhs reference to the enum variable
+ * @return lhs
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -168,6 +288,16 @@ operator^=(T &lhs, const T &rhs) {
   return lhs;
 }
 
+/**
+ * @brief Convert enum to string representation for output stream compatibility
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * @param os output string stream
+ * @param t reference to the enum variable
+ * @return lhs
+ */
 template <typename T>
 typename std::enable_if<
     std::conjunction_v<
@@ -180,6 +310,9 @@ operator<<(std::ostream &os, const T &t) {
   return os;
 }
 
+/**
+ * @brief IEC60870 qualifier for interrogation commands
+ */
 typedef enum {
   QOI_STATION = 20,
   QOI_GROUP_1 = 21,
@@ -200,16 +333,22 @@ typedef enum {
   QOI_GROUP_16 = 36
 } CS101_QualifierOfInterrogation;
 
+/**
+ * @brief IEC60870 qualifier for single, double or step commands
+ */
 enum class CS101_QualifierOfCommand {
   NONE = IEC60870_QOC_NO_ADDITIONAL_DEFINITION,
   SHORT_PULSE = IEC60870_QOC_SHORT_PULSE_DURATION,
   LONG_PULSE = IEC60870_QOC_LONG_PULSE_DURATION,
   PERSISTENT = IEC60870_QOC_PERSISTANT_OUTPUT
 };
-
 std::string
 QualifierOfCommand_toString(const CS101_QualifierOfCommand &qualifier);
 
+/**
+ * @brief IEC60870 cause of initialization reported in end-of-initialization
+ * messages by RTU stations
+ */
 enum class CS101_CauseOfInitialization {
   LOCAL_POWER_ON = IEC60870_COI_LOCAL_SWITCH_ON,
   LOCAL_MANUAL_RESET = IEC60870_COI_LOCAL_MANUAL_RESET,
@@ -220,6 +359,14 @@ enum class CS101_CauseOfInitialization {
 std::string
 CauseOfInitialization_toString(const CS101_CauseOfInitialization &cause);
 
+/**
+ * @brief Enumerates the potential causes for unexpected messages
+ *
+ * This enumeration defines the various reasons why a received message
+ * might be classified as unexpected during operation. Each enumerator
+ * represents a specific cause that helps in diagnosing and handling protocol
+ * issues.
+ */
 enum UnexpectedMessageCause {
   NO_ERROR_CAUSE,
   UNKNOWN_TYPE_ID,
@@ -233,6 +380,13 @@ enum UnexpectedMessageCause {
 };
 std::string UnexpectedMessageCause_toString(const UnexpectedMessageCause &mode);
 
+/**
+ * @brief Represents various debugging levels as enum_bitmask
+ *
+ * This enum class defines debugging categories that can be used to specify
+ * and manage different areas of debugging in an application. Each category
+ * is represented by a single bit and can be combined using bitwise operations.
+ */
 enum class Debug : uint8_t {
   None = 0,
   Server = 0x01,
@@ -249,6 +403,11 @@ constexpr bool enum_bitmask(Debug &&);
 std::string Debug_toString(const Debug &mode);
 std::string Debug_toFlagString(const Debug &mode);
 
+/**
+ * @brief IEC60870 quality attributes as enum_bitmask
+ *
+ * Transmitted measurement values can be flagged to indicate their quality.
+ */
 enum class Quality {
   None = 0,
   Overflow = IEC60870_QUALITY_OVERFLOW, // only in sp, dp
@@ -262,6 +421,11 @@ enum class Quality {
 constexpr bool enum_bitmask(Quality &&);
 std::string Quality_toString(const Quality &quality);
 
+/**
+ * @brief IEC60870 quality attributes of a binary counter value as enum_bitmask
+ *
+ * Transmitted counter values can be flagged to indicate their quality.
+ */
 enum class BinaryCounterQuality {
   None = 0,
   Adjusted = 0x20,
@@ -271,6 +435,9 @@ enum class BinaryCounterQuality {
 constexpr bool enum_bitmask(BinaryCounterQuality &&);
 std::string BinaryCounterQuality_toString(const BinaryCounterQuality &quality);
 
+/**
+ * @brief IEC60870 equipment protection start events as enum_bitmask
+ */
 enum class StartEvents {
   None = 0,
   General = IEC60870_START_EVENT_GS,
@@ -283,6 +450,9 @@ enum class StartEvents {
 constexpr bool enum_bitmask(StartEvents &&);
 std::string StartEvents_toString(const StartEvents &events);
 
+/**
+ * @brief IEC60870 equipment protection output circuits as enum_bitmask
+ */
 enum class OutputCircuits {
   None = 0,
   General = IEC60870_OUTPUT_CI_GC,
@@ -293,6 +463,10 @@ enum class OutputCircuits {
 constexpr bool enum_bitmask(OutputCircuits &&);
 std::string OutputCircuits_toString(const OutputCircuits &infos);
 
+/**
+ * @brief generic 16 bit enum_bitmask used in IEC60870 status with change
+ * detection
+ */
 enum class FieldSet16 {
   None = 0x0000,
   I0 = 0x0001,
@@ -340,7 +514,8 @@ std::string StepCommandValue_toString(const StepCommandValue &value);
 std::string EventState_toString(const EventState &state);
 
 /**
- * @brief initial commands send to a connection that starts data transmission
+ * @brief initial communication sequences send to a connection that starts data
+ * transmission
  */
 enum ConnectionInit {
   INIT_ALL,
@@ -386,6 +561,15 @@ enum CommandTransmissionMode {
 std::string
 CommandTransmissionMode_toString(const CommandTransmissionMode &mode);
 
+/**
+ * @brief Represents supported TLS cipher suites mapped to their corresponding
+ * identifiers.
+ *
+ * This enumeration provides a comprehensive list of TLS cipher suites supported
+ * by the system. Each cipher suite maps directly to a corresponding
+ * MBEDTLS-defined constant, which enables secure communication in compliance
+ * with the TLS protocol.
+ */
 enum class TLSCipherSuite {
   RSA_WITH_NULL_MD5 = MBEDTLS_TLS_RSA_WITH_NULL_MD5,
   RSA_WITH_NULL_SHA = MBEDTLS_TLS_RSA_WITH_NULL_SHA,

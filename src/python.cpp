@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -19,7 +19,7 @@
  *  See LICENSE file for the complete license text.
  *
  *
- * @file main.cpp
+ * @file python.cpp
  * @brief python module and bindings
  *
  * @package iec104-python
@@ -64,8 +64,6 @@ struct EnvironmentInitializer {
 
 // Initialize the environment variable before main() is called
 static EnvironmentInitializer initializer;
-
-// @todo Ubuntu 18 x64, Ubuntu 20 x64, arm7v32, later: arm aarch64
 
 // Bind Number with Template
 template <typename T>
@@ -177,14 +175,38 @@ test if no bits are set)def");
       py::cpp_function(fn, py::name("__repr__"), py::is_method(py_bit_enum));
 }
 
+/**
+ * @brief Retrieves the raw byte data from an IncomingMessage as a Python bytes
+ * object.
+ *
+ * This function accesses the raw byte data from the given IncomingMessage
+ * object, calculates the size of the message including the header, and returns
+ * the data encapsulated in a Python-compatible bytes object.
+ *
+ * @param message Pointer to an IncomingMessage object that contains the raw
+ * byte data to retrieve.
+ * @return py::bytes A Python bytes object containing the raw byte data from the
+ * message.
+ */
 py::bytes
-IncomingMessage_getRawBytes(Remote::Message::IncomingMessage *message) {
+IncomingMessage_getRawBytes(const Remote::Message::IncomingMessage *message) {
   unsigned char *msg = message->getRawBytes();
   unsigned char msgSize = 2 + msg[1];
 
   return {reinterpret_cast<const char *>(msg), msgSize};
 }
 
+/**
+ * @brief Generates a string representation of the raw bytes data from a Python
+ * bytes object.
+ *
+ * This function interprets the contents of the provided Python bytes object as
+ * a binary buffer, retrieves the data using a memory view, and formats it into
+ * a string.
+ *
+ * @param obj A Python bytes object to be processed and explained.
+ * @return std::string A formatted string representation of the raw byte data.
+ */
 std::string explain_bytes(const py::bytes &obj) {
 
   // PyObject * pymemview = PyMemoryView_FromObject(obj);
@@ -196,6 +218,20 @@ std::string explain_bytes(const py::bytes &obj) {
                                      (unsigned char)buffer->len);
 }
 
+/**
+ * @brief Converts a Python bytes object into a formatted dictionary explaining
+ * its contents.
+ *
+ * This function takes a Python bytes object, creates a memory view for
+ * accessing its internal buffer, and utilizes a formatter function to represent
+ * the raw message contents as a Python dictionary. The dictionary provides a
+ * structured explanation of the data within the bytes object.
+ *
+ * @param obj A Python bytes object containing the raw byte data to be
+ * explained.
+ * @return py::dict A Python dictionary representing the structured format of
+ * the raw byte data.
+ */
 py::dict explain_bytes_dict(const py::bytes &obj) {
 
   // PyObject * pymemview = PyMemoryView_FromObject(obj);

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -141,18 +141,33 @@ protected:
     success = false;
   }
 
+  /// @brief callback function reference
   py::object callback;
 
+  /// @brief callback function name, used for debug logging
   std::string name{"Callback"};
+
+  /// @brief callback function signature, used for validation
   std::string signature{"() -> None"};
 
+  /// @brief store if last execution was successfully
   std::atomic_bool success{false};
 
+  /// @brief timers used for performance measurements and debug logging
   std::chrono::steady_clock::time_point begin, end;
 
+  /// @brief mutex for accessing the callback object
   mutable Module::GilAwareMutex callback_mutex{"Callback::callback_mutex"};
 };
 
+/**
+ * @brief The Callback class (with return type).
+ *
+ * This class is used for managing user-defined callback functions.
+ * It allows assigning a function with well-known signature to be executed at a
+ * specific point, and provides mechanisms for invoking the function securely
+ * and receiving the return value.
+ */
 template <typename T> class Callback : public CallbackBase {
 public:
   Callback(std::string cb_name, std::string cb_signature)
@@ -257,10 +272,22 @@ public:
   }
 
 protected:
+  /// @brief callback return value
   T result;
+
+  /// @brief string representing the python type of the result, i.e. str, int,
+  /// list[...]
   std::string result_type{"None"};
 };
 
+/**
+ * @brief The Callback class (no return type).
+ *
+ * This class is used for managing user-defined callback functions.
+ * It allows assigning a function with well-known signature to be executed at a
+ * specific point, and provides mechanisms for invoking the function securely
+ * without receiving a return value.
+ */
 template <> class Callback<void> : public CallbackBase {
 public:
   Callback(const std::string &cb_name, const std::string &cb_signature)
@@ -320,6 +347,9 @@ public:
     return this->success;
   }
 
+  /**
+   * @brief This callback does not provide a result
+   */
   void getResult() {}
 };
 

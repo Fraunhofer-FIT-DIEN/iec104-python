@@ -36,6 +36,17 @@
 #include "types.h"
 
 namespace Remote {
+/**
+ * @class TransportSecurity
+ * @brief Manages the configuration and enforcement of TLS security settings for
+ * secure communication.
+ *
+ * This class provides functionalities for managing certificates, configuring
+ * TLS settings, enforcing secure communication protocols, and handling
+ * TLS-related events. It is designed to ensure secure transport protocols are
+ * adhered to, supporting features like cipher suite customization, session
+ * renegotiation intervals, and restricting communication to trusted parties.
+ */
 class TransportSecurity
     : public std::enable_shared_from_this<TransportSecurity> {
 public:
@@ -43,6 +54,15 @@ public:
   TransportSecurity(const TransportSecurity &) = delete;
   TransportSecurity &operator=(const TransportSecurity &) = delete;
 
+  /**
+   * @brief Creates a new instance of the TransportSecurity object with the
+   * specified configuration.
+   * @param validate Whether to enable validation for the TransportSecurity
+   * instance. Default is true.
+   * @param only_known Whether to restrict communication to only known and
+   * trusted certificates. Default is true.
+   * @return A shared pointer to the newly created TransportSecurity instance.
+   */
   [[nodiscard]] static std::shared_ptr<TransportSecurity>
   create(bool validate = true, bool only_known = true) {
     // Not using std::make_shared because the constructor is private.
@@ -50,10 +70,24 @@ public:
         new TransportSecurity(validate, only_known));
   }
 
+  /**
+   * @brief Destructor for the TransportSecurity class.
+   *
+   * Clean up the TLS configuration structures
+   */
+  ~TransportSecurity();
+
+  /**
+   * @brief Handles TLS-related events during the TransportSecurity lifetime.
+   * @param parameter A pointer to user-defined data or context associated with
+   * the event.
+   * @param eventLevel The severity level of the TLS event.
+   * @param eventCode A code representing the specific type of TLS event.
+   * @param msg A descriptive message providing details about the event.
+   * @param con The associated TLS connection instance for the event.
+   */
   static void eventHandler(void *parameter, TLSEventLevel eventLevel,
                            int eventCode, const char *msg, TLSConnection con);
-
-  ~TransportSecurity();
 
   /**
    * @brief load x509 certificate from file with (optional encrypted) key from
@@ -118,16 +152,54 @@ public:
   void setVersion(TLSConfigVersion min = TLS_VERSION_NOT_SELECTED,
                   TLSConfigVersion max = TLS_VERSION_NOT_SELECTED);
 
+  /**
+   * @brief Retrieves the current TLS configuration for use by client and server
+   * instances.
+   *
+   * Invoking this method transitions the associated TransportSecurity object to
+   * a readonly state. This transition is required because the client and server
+   * will invoke setupComplete, after which modifications are no longer allowed.
+   *
+   * @return The current TLSConfiguration object containing the TLS security
+   * settings.
+   */
   TLSConfiguration get();
 
 private:
+  /**
+   * @brief Constructs a TransportSecurity instance with specified validation
+   * and certificate policies.
+   *
+   * Initializes the configuration for TLS settings, setting up event handlers
+   * and defining certificate chain and time validation preferences. It also
+   * configures whether to restrict communication strictly to known
+   * certificates.
+   *
+   * @param validate A boolean value indicating whether certificate chain and
+   * time validation should be enforced.
+   * @param only_known A boolean value specifying whether only known
+   * certificates should be allowed for secure communication.
+   * @return An instance of TransportSecurity configured with the specified
+   * security policies.
+   */
   TransportSecurity(bool validate, bool only_known);
 
+  /// @brief actual configuration structure
   TLSConfiguration config{nullptr};
 
+  /// @brief toggle, if this config can still be modified or not
   std::atomic_bool readonly{false};
 
 public:
+  /**
+   * @brief Converts the TransportSecurity object to its string representation.
+   *
+   * This method generates a string containing the memory address of the
+   * TransportSecurity object. Useful for debugging and logging purposes.
+   *
+   * @return A string describing the TransportSecurity object, including its
+   * memory address.
+   */
   std::string toString() const {
     std::ostringstream oss;
     oss << "<104.TransportSecurity at " << std::hex << std::showbase

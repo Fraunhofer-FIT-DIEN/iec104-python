@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -103,7 +103,10 @@ public:
   }
 
 private:
+  /// @brief name of the mutex, used for debug logging
   std::string name{"GilAwareMutex"};
+
+  /// @brief actual mutex
   std::timed_mutex wrapped_mutex{};
 };
 }; // namespace Module

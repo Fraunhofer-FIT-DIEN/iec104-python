@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -47,7 +47,20 @@ namespace Module {
  */
 class ScopedGilRelease {
 public:
-  inline explicit ScopedGilRelease(std::string callback_name)
+  // noncopyable
+  ScopedGilRelease(const ScopedGilRelease &) = delete;
+  ScopedGilRelease &operator=(const ScopedGilRelease &) = delete;
+
+  /**
+   * @brief Releasing the GIL within the given scope for non-blocking non-python
+   * tasks.
+   *
+   * If the GIL is not even acquired, it logs the action without releasing.
+   *
+   * @param callback_name The name of the GIL-dropping scope, used for debugging
+   * purposes.
+   */
+  explicit ScopedGilRelease(std::string callback_name)
       : name(std::move(callback_name)) {
     if (PyGILState_Check()) {
       gil = new py::gil_scoped_release(false);
@@ -57,7 +70,15 @@ public:
     }
   }
 
-  inline ~ScopedGilRelease() {
+  /**
+   * @brief Destructor for the ScopedGilRelease, re-acquiring the Global
+   * Interpreter Lock (GIL)
+   *
+   * The destructor ensures the proper acquiring of the GIL when the
+   * ScopedGilRelease object goes out of scope, if and only-if the GIL was
+   * released at first place.
+   */
+  ~ScopedGilRelease() {
     if (gil) {
       delete gil;
       DEBUG_PRINT(Debug::Gil, +"-->| Re-acquire GIL | " + name);
@@ -66,12 +87,11 @@ public:
     }
   }
 
-  ScopedGilRelease(const ScopedGilRelease &) = delete;
-
-  ScopedGilRelease &operator=(const ScopedGilRelease &) = delete;
-
 private:
+  /// @brief name of the GIL-Dropping scope, used for debug logging
   std::string name;
+
+  /// @brief actual GIL reference
   py::gil_scoped_release *gil = nullptr;
 };
 

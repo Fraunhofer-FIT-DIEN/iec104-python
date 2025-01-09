@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -51,6 +51,17 @@ public:
   Client(const Client &) = delete;
   Client &operator=(const Client &) = delete;
 
+  /**
+   * @brief Factory method to create a shared pointer to a Client instance.
+   *
+   * @param tick_rate_ms Tick rate in milliseconds for the Client execution
+   * loop. Defaults to 100.
+   * @param timeout_ms Timeout in milliseconds for Client operations. Defaults
+   * to 100.
+   * @param transport_security Shared pointer to a TransportSecurity object for
+   * remote communication. Defaults to nullptr.
+   * @return A shared pointer to the newly created Client instance.
+   */
   [[nodiscard]] static std::shared_ptr<Client> create(
       std::uint_fast16_t tick_rate_ms = 100,
       std::uint_fast16_t timeout_ms = 100,
@@ -97,6 +108,11 @@ public:
 
   // CONNECTION HANDLING
 
+  /**
+   * @brief Checks if the client has active (established and not muted)
+   * connections.
+   * @return True if there are active connections, otherwise false.
+   */
   bool hasConnections();
 
   /**
@@ -124,11 +140,37 @@ public:
    */
   std::uint_fast8_t getActiveConnectionCount() const;
 
+  /**
+   * @brief Retrieves the current list of active connections established by the
+   * client.
+   *
+   * This method provides access to the client's connection vector, which
+   * contains shared pointers to all active connections established with remote
+   * servers.
+   *
+   * @return A vector of shared pointers to Connection objects representing
+   * active connections.
+   */
   Remote::ConnectionVector getConnections();
 
+  /**
+   * @brief Checks if a connection exists for the specified IP and port.
+   *
+   * @param ip The IP address to check for a connection.
+   * @param port The port number to check for a connection.
+   * @return True if a connection exists, false otherwise.
+   */
   bool hasConnection(const std::string &ip,
                      std::uint_fast16_t port = IEC_60870_5_104_DEFAULT_PORT);
 
+  /**
+   * @brief Retrieves a connection to a remote host using the specified IP
+   * address and port.
+   *
+   * @param ip The IP address of the remote host.
+   * @param port The port number to connect to on the remote host.
+   * @return A shared pointer to the established connection.
+   */
   std::shared_ptr<Remote::Connection>
   getConnection(const std::string &ip,
                 std::uint_fast16_t port = IEC_60870_5_104_DEFAULT_PORT);
@@ -174,6 +216,14 @@ public:
    */
   void setOnNewStationCallback(py::object &callable);
 
+  /**
+   * @brief Execute configured callback handlers on receiving station
+   * information from a not yet known common address.
+   *
+   * @param connection A shared pointer to the connection object representing
+   * the remote connection.
+   * @param common_address The common address associated with the new station.
+   */
   void onNewStation(std::shared_ptr<Remote::Connection> connection,
                     std::uint_fast16_t common_address);
 
@@ -184,6 +234,16 @@ public:
    */
   void setOnNewPointCallback(py::object &callable);
 
+  /**
+   * @brief Execute configured callback handlers on receiving point information
+   * from a not yet known information object address.
+   *
+   * @param station Shared pointer to the station object where the point is to
+   * be added.
+   * @param io_address The input/output address associated with the new point.
+   * @param type The type identifier for the new point, conforming to the
+   * IEC60870-5 standard.
+   */
   void onNewPoint(std::shared_ptr<Object::Station> station,
                   std::uint_fast32_t io_address, IEC60870_5_TypeID type);
 
@@ -194,16 +254,49 @@ public:
    */
   void setOnEndOfInitializationCallback(py::object &callable);
 
+  /**
+   * @brief Execute configured callback handlers on receiving and end of
+   * initialization message from a station.
+   *
+   * @param station A shared pointer to the station object representing the
+   * initialized station.
+   * @param cause The cause of initialization, indicating the reason for the
+   * initialization event.
+   */
   void onEndOfInitialization(std::shared_ptr<Object::Station> station,
                              CS101_CauseOfInitialization cause);
 
+  /**
+   * @brief getter for tickRate_ms
+   * @return minimum interval between two periodic tasks
+   */
   std::uint_fast16_t getTickRate_ms() const;
 
+  /**
+   * @brief Schedules a periodic task to be executed at a specified interval.
+   *
+   * @param task A callable object representing the task to be executed
+   * periodically.
+   * @param interval The interval in milliseconds at which the task should be
+   * executed. Must be at least 1000ms. Throws std::out_of_range if the interval
+   * is less than 50ms.
+   */
   void schedulePeriodicTask(const std::function<void()> &task, int interval);
+
+  /**
+   * @brief Schedules a task to be executed after a specified delay (or
+   * instant).
+   *
+   * The order of execution will depend on the timestamp calculated from current
+   * time + delay. The delay may be negative for high priority tasks.
+   *
+   * @param task The function to be executed.
+   * @param delay The delay in milliseconds before the task is executed. A
+   * negative delay executes the task immediately.
+   */
   void scheduleTask(const std::function<void()> &task, int delay = 0);
 
 private:
-  void scheduleDataPointTimer();
   /**
    * @brief Create a new remote connection handler instance that acts as a
    * client
@@ -217,7 +310,17 @@ private:
   Client(std::uint_fast16_t tick_rate_ms, std::uint_fast16_t timeout_ms,
          std::shared_ptr<Remote::TransportSecurity> transport_security);
 
-  /// @brief minimum interval between to periodic broadcasts in milliseconds
+  /**
+   * @brief Schedules timers for data points associated with clients' stations.
+   *
+   * This method iterates through all active client connections and their
+   * respective stations. For each data point that has a timer set to execute
+   * before the current time, it schedules a task to trigger the data point's
+   * timer callback.
+   */
+  void scheduleDataPointTimer();
+
+  /// @brief minimum interval between two periodic tasks
   const std::uint_fast16_t tickRate_ms{1000};
 
   /// @brief timeout in milliseconds before an inactive connection gets closed
@@ -282,6 +385,14 @@ private:
   getConnectionFromString(const std::string &connectionString);
 
 public:
+  /**
+   * @brief Converts the current client instance state into a string
+   * representation.
+   *
+   * @return A string representation of the client instance, including
+   * originator address, number of active connections, and memory address of the
+   * object.
+   */
   std::string toString() const {
     size_t len = 0;
     {

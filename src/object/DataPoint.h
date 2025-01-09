@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -38,7 +38,9 @@
 #include "types.h"
 
 namespace Object {
-
+/**
+ * @brief Disallow copying of the DataPoint instance.
+ */
 class DataPoint : public std::enable_shared_from_this<DataPoint> {
 public:
   // noncopyable
@@ -214,6 +216,10 @@ public:
    */
   std::optional<std::uint_fast8_t> getSelectedByOriginatorAddress();
 
+  /**
+   * @brief Get the IEC60870-5-104 information type of the DataPoint.
+   * @return The IEC60870_5_TypeID associated with this DataPoint
+   */
   IEC60870_5_TypeID getType() const;
 
   /**
@@ -235,26 +241,58 @@ public:
    */
   std::uint_fast16_t getTimerInterval_ms() const;
 
+  /**
+   * @brief Retrieve the associated Information instance for the DataPoint
+   * @return shared pointer to the Information instance associated with the
+   * DataPoint
+   */
   std::shared_ptr<Information> getInfo() const;
 
   /**
-   * @brief Set point value
+   * @brief Sets a new information object for the DataPoint.
+   * @param new_info A shared pointer to the new Information object.
+   * @throws std::invalid_argument if the type of the DataPoint is unsupported
+   * or does not match the provided information object.
    */
   void setInfo(std::shared_ptr<Information> new_info);
 
+  /**
+   * @brief Retrieve the value associated with the DataPoint object
+   *
+   * The value is just the primary value property of the related Information
+   * object
+   *
+   * @return InfoValue containing the current value of the DataPoint, using a
+   * variant type that can represent various data models
+   */
   InfoValue getValue();
 
   /**
-   * @brief Set point value
+   * @brief Sets a new value for the DataPoint instance
+   * @param new_value The new value to be assigned to the Information object
+   * related to this DataPoint
    */
   void setValue(InfoValue new_value);
 
+  /**
+   * @brief Retrieves the quality information associated with the DataPoint.
+   *
+   * The value is just the primary quality property of the related Information
+   * object
+   *
+   * @return The quality information as an instance of InfoQuality.
+   */
   InfoQuality getQuality();
 
   /**
-   * @brief Set point value
+   * @brief Sets the quality of the DataPoint instance.
+   *
+   * This method updates the quality of the associated information object.
+   * Depending on the DataPoint type, a timestamp may also be injected.
+   *
+   * @param new_quality The new quality value to be set for the DataPoint.
    */
-  void setQuality(InfoQuality new_value);
+  void setQuality(InfoQuality new_quality);
 
   /**
    * @brief get timestamp bundled with value
@@ -349,13 +387,20 @@ public:
   /**
    * @brief transmit point
    * @param cause cause of transmission
-   * @param qualifier parameter for command duration
    * @return success information
    * @throws std::invalid_argument if parent station or connection reference is
    * invalid
    */
   bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT);
 
+  /**
+   * @brief Converts the current DataPoint object to a string representation,
+   * including its various properties.
+   *
+   * @return A string representation of the DataPoint object containing detailed
+   * information such as its IO address, type, report interval, related IO
+   * address, and additional attributes.
+   */
   std::string toString() const {
     std::ostringstream oss;
     oss << "<c104.Point io_address=" << std::to_string(informationObjectAddress)

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -117,6 +117,10 @@ public:
    */
   std::uint_fast8_t getOriginatorAddress() const;
 
+  /**
+   * @brief getter for client
+   * @return shared pointer to the owning client instance, optional
+   */
   std::shared_ptr<Client> getClient() const;
 
   // Station accessors
@@ -250,6 +254,12 @@ public:
    */
   void setOnReceiveRawCallback(py::object &callable);
 
+  /**
+   * @brief Execute configured callback handlers on receiving raw messages.
+   *
+   * @param msg Pointer to the raw message data.
+   * @param msgSize Size of the raw message data in bytes.
+   */
   void onReceiveRaw(unsigned char *msg, unsigned char msgSize);
 
   /**
@@ -258,6 +268,12 @@ public:
    */
   void setOnSendRawCallback(py::object &callable);
 
+  /**
+   * @brief Execute configured callback handlers on sending raw messages.
+   *
+   * @param msg Pointer to the raw message data to be sent.
+   * @param msgSize Size of the raw message in bytes.
+   */
   void onSendRaw(unsigned char *msg, unsigned char msgSize);
 
   /**
@@ -267,8 +283,18 @@ public:
    */
   void setOnStateChangeCallback(py::object &callable);
 
+  /**
+   * @brief getter for connectedAt
+   * @return the time point the currently active connection was established,
+   * optional
+   */
   std::optional<std::chrono::system_clock::time_point> getConnectedAt() const;
 
+  /**
+   * @brief getter for disconnectedAt
+   * @return the time point the last connection was disconnected, if currently
+   * not connected, optional
+   */
   std::optional<std::chrono::system_clock::time_point>
   getDisconnectedAt() const;
 
@@ -481,12 +507,18 @@ private:
       "(connection: c104.Connection, state: c104.ConnectionState) -> None"};
 
   /**
-   * Getter for connection state
-   * @return connection state enum
+   * @brief update the connection state and trigger the on state change callback
+   * handler
    */
   void setState(ConnectionState connectionState);
 
 public:
+  /**
+   * @brief Returns a string representation of the Connection object, including
+   * its state, IP address, port, number of stations, and memory address.
+   *
+   * @return A formatted string describing the current state of the Connection.
+   */
   std::string toString() const {
     size_t len = 0;
     {

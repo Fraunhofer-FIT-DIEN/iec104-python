@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -1016,8 +1016,8 @@ void DataPoint::setValue(const InfoValue new_value) {
 
 InfoQuality DataPoint::getQuality() { return info->getQuality(); }
 
-void DataPoint::setQuality(const InfoQuality new_Quality) {
-  info->setQuality(new_Quality);
+void DataPoint::setQuality(const InfoQuality new_quality) {
+  info->setQuality(new_quality);
   switch (type) {
   case M_SP_TB_1:
   case C_SC_TA_1:

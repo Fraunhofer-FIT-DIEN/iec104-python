@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2024-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -47,33 +47,57 @@ private:
   std::mutex mtx;
 
 protected:
+  /// @brief timestamp of information value generation, optional
   std::optional<std::chrono::system_clock::time_point> recorded_at;
+
+  /// @brief timestamp of last local processing (sending or receiving)
   std::chrono::system_clock::time_point processed_at;
+
+  /// @brief toggle, if modification is allowed or not
   bool readonly;
 
+  /// @brief retrieve the primary value property - must be implemented by child
+  /// classes
   [[nodiscard]] virtual InfoValue getValueImpl() const;
+  /// @brief update the primary value property - must be implemented by child
+  /// classes
   virtual void setValueImpl(InfoValue val);
 
+  /// @brief retrieve the primary quality property - must be implemented by
+  /// child classes
   [[nodiscard]] virtual InfoQuality getQualityImpl() const;
+  /// @brief update the primary quality property - must be implemented by child
+  /// classes
   virtual void setQualityImpl(InfoQuality val);
 
+  /// @brief converts the common attributes of the current Information instance
+  /// to a string representation
   std::string base_toString() const;
 
 public:
+  // constructor
   explicit Information(std::optional<std::chrono::system_clock::time_point>
                            recorded_at = std::nullopt,
                        bool readonly = false);
 
+  // destructor
+  virtual ~Information() = default;
+
+  /// @brief retrieve the primary value property as variant
   [[nodiscard]] virtual InfoValue getValue();
+  /// @brief update the primary value property from variant
   virtual void setValue(InfoValue val);
 
+  /// @brief retrieve the primary quality property as variant
   [[nodiscard]] virtual InfoQuality getQuality();
+  /// @brief update the primary quality property from variant
   virtual void setQuality(InfoQuality val);
 
   [[nodiscard]] const std::optional<std::chrono::system_clock::time_point> &
   getRecordedAt() const {
     return recorded_at;
   }
+
   virtual void
   setRecordedAt(std::optional<std::chrono::system_clock::time_point> val);
 
@@ -86,8 +110,11 @@ public:
   virtual void setReadonly();
   [[nodiscard]] bool isReadonly() const { return readonly; }
 
+  /// @brief name of the Information type - must be implemented by child classes
   [[nodiscard]] static std::string name() { return "Information"; }
 
+  /// @brief converts the current Information instance to a string
+  /// representation
   virtual std::string toString() const;
 };
 
@@ -110,7 +137,9 @@ public:
  */
 class SingleInfo : public Information {
 protected:
+  /// @brief single value
   bool on;
+  /// @brief single quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -146,8 +175,11 @@ public:
  */
 class SingleCmd : public Command {
 protected:
+  /// @brief single value
   bool on;
+  /// @brief select or execute command
   bool select;
+  /// @brief command qualifier
   CS101_QualifierOfCommand qualifier;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -191,7 +223,9 @@ public:
  */
 class DoubleInfo : public Information {
 protected:
+  /// @brief double value
   DoublePointValue state;
+  /// @brief double quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -227,8 +261,11 @@ public:
  */
 class DoubleCmd : public Command {
 protected:
+  /// @brief double value
   DoublePointValue state;
+  /// @brief select or execute command
   bool select;
+  /// @brief command qualifier
   CS101_QualifierOfCommand qualifier;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -273,8 +310,11 @@ public:
  */
 class StepInfo : public Information {
 protected:
+  /// @brief step position value
   LimitedInt7 position;
+  /// @brief step is in transition
   bool transient;
+  /// @brief step position quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -315,8 +355,11 @@ public:
  */
 class StepCmd : public Command {
 protected:
+  /// @brief step direction
   StepCommandValue step;
+  /// @brief select or execute command
   bool select;
+  /// @brief command qualifier
   CS101_QualifierOfCommand qualifier;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -360,7 +403,9 @@ public:
  */
 class BinaryInfo : public Information {
 protected:
+  /// @brief binary blob
   Byte32 blob;
+  /// @brief binary blob quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -395,6 +440,7 @@ public:
  */
 class BinaryCmd : public Command {
 protected:
+  /// @brief binary blob
   Byte32 blob;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -426,7 +472,9 @@ public:
  */
 class NormalizedInfo : public Information {
 protected:
+  /// @brief measurement value
   NormalizedFloat actual;
+  /// @brief measurement quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -463,8 +511,11 @@ public:
  */
 class NormalizedCmd : public Command {
 protected:
+  /// @brief set-point value
   NormalizedFloat target;
+  /// @brief select or execute command
   bool select;
+  /// @brief set-point qualifier
   LimitedUInt7 qualifier;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -506,7 +557,9 @@ public:
  */
 class ScaledInfo : public Information {
 protected:
+  /// @brief measurement value
   LimitedInt16 actual;
+  /// @brief measurement quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -542,8 +595,11 @@ public:
  */
 class ScaledCmd : public Command {
 protected:
+  /// @brief set-point value
   LimitedInt16 target;
+  /// @brief select or execute command
   bool select;
+  /// @brief set-point qualifier
   LimitedUInt7 qualifier;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -584,7 +640,9 @@ public:
  */
 class ShortInfo : public Information {
 protected:
+  /// @brief measurement value
   float actual;
+  /// @brief measurement quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -620,8 +678,11 @@ public:
  */
 class ShortCmd : public Command {
 protected:
+  /// @brief set-point value
   float target;
+  /// @brief select or execute command
   bool select;
+  /// @brief set-point qualifier
   LimitedUInt7 qualifier;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -662,8 +723,11 @@ public:
  */
 class BinaryCounterInfo : public Information {
 protected:
+  /// @brief counter value
   int32_t counter;
+  /// @brief measurement sequence
   LimitedUInt5 sequence;
+  /// @brief measurement quality
   BinaryCounterQuality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -705,8 +769,11 @@ public:
  */
 class ProtectionEquipmentEventInfo : public Information {
 protected:
+  /// @brief event value
   EventState state;
+  /// @brief time value
   LimitedUInt16 elapsed_ms;
+  /// @brief event quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -748,8 +815,11 @@ public:
  */
 class ProtectionEquipmentStartEventsInfo : public Information {
 protected:
+  /// @brief events value
   StartEvents events;
+  /// @brief time value
   LimitedUInt16 relay_duration_ms;
+  /// @brief events quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -794,8 +864,11 @@ public:
  */
 class ProtectionEquipmentOutputCircuitInfo : public Information {
 protected:
+  /// @brief circuits value
   OutputCircuits circuits;
+  /// @brief time value
   LimitedUInt16 relay_operating_ms;
+  /// @brief circuits quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;
@@ -840,8 +913,11 @@ public:
  */
 class StatusWithChangeDetection : public Information {
 protected:
+  /// @brief status value
   FieldSet16 status;
+  /// @brief change detection indication
   FieldSet16 changed;
+  /// @brief status quality
   Quality quality;
 
   [[nodiscard]] InfoValue getValueImpl() const override;

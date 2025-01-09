@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -44,6 +44,21 @@ public:
   Station(const Station &) = delete;
   Station &operator=(const Station &) = delete;
 
+  /**
+   * @brief Creates a new Station instance with the specified parameters.
+   *
+   * This static method creates a Station object with the provided common
+   * address and optional server or remote connection references. The
+   * constructor is private, so this method must be used to instantiate a
+   * Station.
+   *
+   * @param st_commonAddress The unique common address of the station.
+   * @param st_server A shared pointer to the owning server, if applicable.
+   * Default is nullptr.
+   * @param st_connection A shared pointer to the remote connection, if
+   * applicable. Default is nullptr.
+   * @return A shared pointer to the newly created Station instance.
+   */
   [[nodiscard]] static std::shared_ptr<Station>
   create(std::uint_fast16_t st_commonAddress,
          std::shared_ptr<Server> st_server = nullptr,
@@ -54,7 +69,7 @@ public:
   }
 
   /**
-   * @brief Remove object
+   * @brief Remove station and cleanup all related DataPoints
    */
   ~Station();
 
@@ -86,10 +101,22 @@ private:
       pointIoaMap{};
 
 public:
+  /**
+   * @brief getter for commonAddress
+   * @return unique common address of this station
+   */
   std::uint_fast16_t getCommonAddress() const;
 
+  /**
+   * @brief getter for server
+   * @return shared pointer to the owning server instance, optional
+   */
   std::shared_ptr<Server> getServer();
 
+  /**
+   * @brief getter for connection
+   * @return shared pointer to the owning connection instance, optional
+   */
   std::shared_ptr<Remote::Connection> getConnection();
 
   /**
@@ -132,11 +159,30 @@ public:
            bool relatedInformationObjectAutoReturn = false,
            CommandTransmissionMode commandMode = DIRECT_COMMAND);
 
+  /**
+   * @brief test if this station belongs to a server instance and not a
+   * connection (client)
+   * @return if it has a server
+   */
   bool isLocal();
 
-  void sendEndOfInitialization(const CS101_CauseOfInitialization cause);
+  /**
+   * @brief Sends the end of initialization signal with the specified cause.
+   * @param cause The reason for the initialization end, as defined in
+   * CS101_CauseOfInitialization.
+   * @throws std::runtime_error if the station is not a server.
+   */
+  void sendEndOfInitialization(CS101_CauseOfInitialization cause);
 
-public:
+  /**
+   * @brief Generates a string representation of the Station object.
+   *
+   * This method provides a detailed description of the Station object,
+   * including its common address, the number of data points, and its memory
+   * address.
+   *
+   * @return A string representing the Station object.
+   */
   std::string toString() const {
     size_t len = 0;
     {
