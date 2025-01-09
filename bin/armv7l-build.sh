@@ -15,6 +15,7 @@ mv ./c104-*.whl /opt/c104/dist/ ; \
 sed -i \"s@#    \\\"cmake@    \\\"cmake@\" /opt/c104/pyproject.toml
 "
 
+docker run -it --rm -v "$DIR:/opt/c104" python:3.13-bullseye /bin/bash -c "$CMD1"
 docker run -it --rm -v "$DIR:/opt/c104" python:3.12-bullseye /bin/bash -c "$CMD1"
 docker run -it --rm -v "$DIR:/opt/c104" python:3.11-bullseye /bin/bash -c "$CMD1"
 docker run -it --rm -v "$DIR:/opt/c104" python:3.10-bullseye /bin/bash -c "$CMD1"

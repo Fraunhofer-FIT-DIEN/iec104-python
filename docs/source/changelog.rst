@@ -21,6 +21,7 @@ Features
 Dependencies
 ^^^^^^^^^^^^
 
+- Add python 3.13 support
 - Minor update of lib60870 to 2.3.3
 - Major update of Mbed TLS to 3.6.2, add support for TLS 1.3
 
@@ -36,7 +37,7 @@ Deprecations
 - Property **number_of_object** renamed to **number_of_objects** in class **IncomingMessage**
 
 Breaking Changes
-^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 - Dropped TLS 1.1 support
 
 v2.0.2
