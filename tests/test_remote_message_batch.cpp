@@ -40,7 +40,7 @@ TEST_CASE("Create batch", "[remote::message::batch]") {
   auto point5 = station->addPoint(15, IEC60870_5_TypeID::M_ME_NC_1);
 
   auto last = point1->getProcessedAt();
-  REQUIRE(last > std::chrono::system_clock::time_point::min());
+  REQUIRE(last.getTime() > std::chrono::system_clock::time_point::min());
 
   auto batch = Remote::Message::Batch::create(
       CS101_CauseOfTransmission::CS101_COT_SPONTANEOUS);

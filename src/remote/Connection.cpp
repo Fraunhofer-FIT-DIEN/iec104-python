@@ -856,6 +856,7 @@ bool Connection::counterInterrogation(
   return result;
 }
 
+// todo add DateTime argument?
 bool Connection::clockSync(std::uint_fast16_t commonAddress,
                            const bool wait_for_response) {
   Module::ScopedGilRelease const scoped("Connection.clockSync");
@@ -868,12 +869,13 @@ bool Connection::clockSync(std::uint_fast16_t commonAddress,
     prepareCommandSuccess(cmdId);
   }
 
-  sCP56Time2a time{};
-  from_time_point(&time, std::chrono::system_clock::now());
+  auto now = Object::DateTime::now();
+
+  // todo respect station timezone offset
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
-  bool const result =
-      CS104_Connection_sendClockSyncCommand(connection, commonAddress, &time);
+  bool const result = CS104_Connection_sendClockSyncCommand(
+      connection, commonAddress, now.getEncoded());
   lock.unlock();
 
   if (wait_for_response) {
@@ -899,12 +901,12 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
   }
 
   if (with_time) {
-    sCP56Time2a time{};
-    from_time_point(&time, std::chrono::system_clock::now());
+    auto now = Object::DateTime::now();
+    // todo respect station timezone offset
 
     std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
     bool const result = CS104_Connection_sendTestCommandWithTimestamp(
-        connection, commonAddress, testSequenceCounter++, &time);
+        connection, commonAddress, testSequenceCounter++, now.getEncoded());
     lock.unlock();
 
     if (wait_for_response) {

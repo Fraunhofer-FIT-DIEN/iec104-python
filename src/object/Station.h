@@ -100,6 +100,12 @@ private:
   std::unordered_map<std::uint_fast32_t, std::shared_ptr<DataPoint>>
       pointIoaMap{};
 
+  /// @brief timezone offset in seconds that point timestamps are recorded in
+  std::atomic<std::int_fast16_t> timezoneOffset{0};
+
+  /// @brief daylight saving time enabled?
+  std::atomic_bool summertime{false};
+
 public:
   /**
    * @brief getter for commonAddress
@@ -174,6 +180,14 @@ public:
    * @return if it has a server
    */
   bool isLocal();
+
+  [[nodiscard]] std::int_fast16_t getTimezoneOffset() const;
+
+  void setTimezoneOffset(std::int_fast16_t seconds);
+
+  [[nodiscard]] bool isSummertime() const;
+
+  void setSummertime(bool summertime);
 
   /**
    * @brief Sends the end of initialization signal with the specified cause.

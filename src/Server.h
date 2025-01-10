@@ -322,8 +322,7 @@ public:
    * response state.
    *
    * @param _ip The IP address of the client requesting clock synchronization.
-   * @param time The target synchronization time represented as a
-   * std::chrono::system_clock::time_point object.
+   * @param time The target synchronization time as Object::DateTime
    * @return CommandResponseState indicating the result of the synchronization
    * process. Possible values include:
    *         - RESPONSE_STATE_SUCCESS: The synchronization process was
@@ -331,8 +330,7 @@ public:
    *         - RESPONSE_STATE_FAILURE: The synchronization process failed.
    *         - RESPONSE_STATE_NONE: No specific response was generated.
    */
-  CommandResponseState onClockSync(std::string _ip,
-                                   std::chrono::system_clock::time_point time);
+  CommandResponseState onClockSync(std::string _ip, Object::DateTime time);
 
   /**
    * @brief set python callback that will be executed on unexpected incoming

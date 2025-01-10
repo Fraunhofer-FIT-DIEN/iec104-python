@@ -44,7 +44,7 @@ TEST_CASE("Create point", "[object::point]") {
   REQUIRE(std::get<Quality>(point->getQuality()) == Quality::None);
   REQUIRE(std::get<bool>(point->getInfo()->getValue()) == false);
   REQUIRE(std::get<bool>(point->getValue()) == false);
-  REQUIRE(point->getProcessedAt() >
+  REQUIRE(point->getProcessedAt().getTime() >
           std::chrono::system_clock::time_point::min());
   REQUIRE(point->getRecordedAt().has_value() == false);
 }
@@ -54,13 +54,13 @@ TEST_CASE("Set point value", "[object::point]") {
   auto station = server->addStation(10);
   auto point = station->addPoint(11, IEC60870_5_TypeID::M_ME_TE_1);
 
-  point->setInfo(
-      Object::ScaledInfo::create(LimitedInt16(334), Quality::Invalid,
-                                 std::chrono::system_clock::time_point(
-                                     std::chrono::milliseconds(1234567890))));
+  point->setInfo(Object::ScaledInfo::create(
+      LimitedInt16(334), Quality::Invalid,
+      Object::DateTime(std::chrono::system_clock::time_point(
+          std::chrono::milliseconds(1234567890)))));
   REQUIRE(std::get<LimitedInt16>(point->getValue()).get() ==
           LimitedInt16(334).get());
-  REQUIRE(point->getRecordedAt().value() ==
+  REQUIRE(point->getRecordedAt().value().getTime() ==
           std::chrono::system_clock::time_point(
               std::chrono::milliseconds(1234567890)));
   REQUIRE(std::get<Quality>(point->getQuality()) == Quality::Invalid);
@@ -82,8 +82,8 @@ TEST_CASE("Set point value via message", "[object::point]") {
   CS101_ASDU asdu = CS101_ASDU_create(
       &appLayerParameters, false, CS101_COT_ACTIVATION, 0, 14, false, false);
   CP56Time2a_createFromMsTimestamp(&time, 1680517666000);
-  InformationObject io = (InformationObject)DoubleCommandWithCP56Time2a_create(
-      nullptr, 14, 1, false, 0, &time);
+  InformationObject io = reinterpret_cast<InformationObject>(
+      DoubleCommandWithCP56Time2a_create(nullptr, 14, 1, false, 0, &time));
   CS101_ASDU_addInformationObject(asdu, io);
   auto message =
       Remote::Message::IncomingMessage::create(asdu, &appLayerParameters);
@@ -91,7 +91,7 @@ TEST_CASE("Set point value via message", "[object::point]") {
   point->onReceive(message);
   REQUIRE(std::get<DoublePointValue>(point->getValue()) ==
           IEC60870_DOUBLE_POINT_OFF);
-  REQUIRE(point->getRecordedAt() ==
+  REQUIRE(point->getRecordedAt()->getTime() ==
           std::chrono::system_clock::time_point(
               std::chrono::milliseconds(1680517666000)));
   REQUIRE(std::get<std::monostate>(point->getQuality()) == std::monostate{});
