@@ -2528,7 +2528,8 @@ Example
 )def",
           "callable"_a)
       .def(
-          "on_unexpected_message", &Server::setOnUnexpectedMessageCallback,
+          "on_unexpected_message",
+          &Remote::Connection::setOnUnexpectedMessageCallback,
           R"def(on_unexpected_message(self: c104.Connection, callable: collections.abc.Callable[[c104.Connection, c104.IncomingMessage, c104.Umc], None]) -> None
 
 set python callback that will be executed on unexpected incoming messages
@@ -2997,6 +2998,20 @@ Example
 )def",
            "cause"_a, py::return_value_policy::copy)
       .def("__repr__", &Object::DataPoint::toString);
+
+  py::class_<Object::DateTime, std::shared_ptr<Object::DateTime>>(
+      m, "DateTime",
+      "This class represents date time objects with additional flags")
+      .def_property_readonly(
+          "value", &Object::DateTime::toPyDateTime,
+          "datetime.datetime: timestamp with timezone (read-only)")
+      .def_property_readonly("substituted", &Object::DateTime::isSubstituted,
+                             "bool: timestamp is substituted (read-only)")
+      .def_property_readonly("invalid", &Object::DateTime::isInvalid,
+                             "bool: timestamp is invalid (read-only)")
+      .def_property_readonly("summertime", &Object::DateTime::isSummertime,
+                             "bool: timestamp is summertime (read-only)")
+      .def("__repr__", &Object::DateTime::toString);
 
   py::class_<Object::Information, std::shared_ptr<Object::Information>>(
       m, "Information",

@@ -61,28 +61,6 @@ std::string Byte32_toString(const Byte32 &byte) {
   return "0b" + bits.to_string();
 }
 
-std::string
-TimePoint_toString(const std::chrono::system_clock::time_point &time) {
-  using us_t = std::chrono::duration<int, std::micro>;
-  auto us = std::chrono::duration_cast<us_t>(time.time_since_epoch() %
-                                             std::chrono::seconds(1));
-  if (us.count() < 0) {
-    us += std::chrono::seconds(1);
-  }
-
-  std::time_t tt = std::chrono::system_clock::to_time_t(
-      std::chrono::time_point_cast<std::chrono::system_clock::duration>(time -
-                                                                        us));
-
-  std::tm local_tt = *std::localtime(&tt);
-
-  std::ostringstream oss;
-  oss << std::put_time(&local_tt, "%Y-%m-%dT%H:%M:%S");
-  oss << '.' << std::setw(3) << std::setfill('0') << us.count();
-  oss << std::put_time(&local_tt, "%z");
-  return oss.str();
-}
-
 std::string TimePoint_toString(
     const std::optional<std::chrono::system_clock::time_point> &time) {
   return time.has_value() ? TimePoint_toString(time.value()) : "None";
@@ -103,20 +81,6 @@ void Assert_Port(const int_fast64_t port) {
   if (port < 1 || port > 65534)
     throw std::invalid_argument("Port " + std::to_string(port) +
                                 " is invalid!");
-}
-
-std::chrono::system_clock::time_point to_time_point(const CP56Time2a time) {
-  return std::chrono::system_clock::time_point(
-      std::chrono::milliseconds(CP56Time2a_toMsTimestamp(time)));
-}
-
-void from_time_point(CP56Time2a time,
-                     const std::chrono::system_clock::time_point time_point) {
-  auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    time_point.time_since_epoch())
-                    .count();
-
-  CP56Time2a_createFromMsTimestamp(time, static_cast<uint64_t>(millis));
 }
 
 struct InfoValueToStringVisitor {
