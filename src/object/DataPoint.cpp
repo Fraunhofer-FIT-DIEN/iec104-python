@@ -1074,10 +1074,12 @@ void DataPoint::setReportInterval_ms(const std::uint_fast16_t interval_ms) {
                              "of server/client tickRate_ms (=" +
                              std::to_string(tickRate_ms) + ")");
     }
-    if (type > M_IT_TB_1) {
-      throw std::invalid_argument("Report interval option is only allowed for "
-                                  "monitoring types, but not for " +
-                                  std::string(TypeID_toString(type)));
+    // only monitoring points SP,DP,ST,ME,BO + IT
+    if (type > M_IT_TB_1 || (type > M_IT_NA_1 && type < M_SP_TB_1)) {
+      throw std::invalid_argument(
+          "Report interval option is only allowed for "
+          "monitoring types (excluding evens), but not for " +
+          std::string(TypeID_toString(type)));
     }
     if (!is_server) {
       throw std::invalid_argument(

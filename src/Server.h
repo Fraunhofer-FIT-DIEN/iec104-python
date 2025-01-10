@@ -435,25 +435,9 @@ public:
                                CS101_CauseOfInitialization cause);
 
   /**
-   * @brief Send full interrogation response or periodic measurement broadcasts
-   * @param cot cause of transmission: why this message should be send
-   * @param commonAddress send interrogation for a single station only
-   * identified via common address
-   * @param connection send to a single client identified via internal
-   * connection object
+   * @brief Send periodic measurement broadcasts
    */
-  void
-  sendInventory(CS101_CauseOfTransmission cot,
-                uint_fast16_t commonAddress = IEC60870_GLOBAL_COMMON_ADDRESS,
-                IMasterConnection connection = nullptr);
-  /*
-      void sendCounterInterrogationResponse(CS101_CauseOfTransmission cot,
-     uint_fast16_t commonAddress = IEC60870_GLOBAL_COMMON_ADDRESS,
-     IMasterConnection connection = nullptr);
-
-      void sendPeriodic(uint_fast16_t commonAddress =
-     IEC60870_GLOBAL_COMMON_ADDRESS, IMasterConnection connection = nullptr);
-  */
+  void sendPeriodicInventory();
 
   /**
    * @brief Schedules a periodic task to be executed at a specified interval.

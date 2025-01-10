@@ -316,7 +316,8 @@ public:
    * @brief send counter interrogation command
    * @param commonAddress station address
    * @param cause transmission reason
-   * @param qualifier parameter for counter interrogation
+   * @param qualifier targeted counters
+   * @param freeze counter behaviour
    * @param wait_for_response blocking or non-blocking
    * @return success information
    * @throws std::invalid_argument if qualifier is invalid
@@ -324,7 +325,10 @@ public:
   bool
   counterInterrogation(std::uint_fast16_t commonAddress,
                        CS101_CauseOfTransmission cause = CS101_COT_ACTIVATION,
-                       QualifierOfCIC qualifier = IEC60870_QCC_RQT_GENERAL,
+                       CS101_QualifierOfCounterInterrogation qualifier =
+                           CS101_QualifierOfCounterInterrogation::GENERAL,
+                       CS101_FreezeOfCounterInterrogation freeze =
+                           CS101_FreezeOfCounterInterrogation::READ,
                        bool wait_for_response = true);
 
   /**

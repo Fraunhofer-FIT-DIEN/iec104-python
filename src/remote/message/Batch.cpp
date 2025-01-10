@@ -128,8 +128,8 @@ Object::DataPointVector Batch::getPoints() const {
 
 bool Batch::isSequence() const {
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
-  if (pointMap.empty()) {
-    return true; // An empty map is trivially sequential
+  if (pointMap.size() < 2) {
+    return true; // cannot be a sequence without at least two elements
   }
 
   // Iterator-based traversal to test key sequences

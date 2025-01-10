@@ -17,6 +17,7 @@ Features
 - Add **TransportSecurity.set_renegotiation_time()** to configure the TLS renegotiation time.
 - Add **TransportSecurity.set_resumption_interval()** to define the session resumption interval.
 - Raise a ``ValueError`` when modifying a **TransportSecurity** object that is already assigned to a client or server, as changes have no effect.
+- Sending counter interrogation supports full Qualifier of Counter Interrogation (Rqt and Frz)
 
 Dependencies
 ^^^^^^^^^^^^

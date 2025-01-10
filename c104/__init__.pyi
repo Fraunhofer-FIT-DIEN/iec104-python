@@ -636,7 +636,7 @@ class Connection:
         -------
         >>> my_connection.connect()
         """
-    def counter_interrogation(self, common_address: int, cause: Cot = Cot.ACTIVATION, qualifier: Qoi = Qoi.STATION, wait_for_response: bool = True) -> bool:
+    def counter_interrogation(self, common_address: int, cause: Cot = Cot.ACTIVATION, qualifier: Rqt = Rqt.GENERAL, freeze: Frz = Frz.READ, wait_for_response: bool = True) -> bool:
         """
         send a counter interrogation command to the remote terminal unit (server)
 
@@ -646,24 +646,21 @@ class Connection:
             station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
         cause: c104.Cot
             cause of transmission
-        qualifier: c104.Qoi
-            qualifier of interrogation
+        qualifier: c104.Rqt
+            what counters are addressed
+        freeze: c104.Frz
+            counter behaviour
         wait_for_response: bool
-            block call until command success or failure reponse received?
+            block call until command success or failure response received?
 
         Returns
         -------
         bool
             True, if connection is Open, False otherwise
 
-        Raises
-        ------
-        ValueError
-            qualifier is invalid
-
         Example
         -------
-        >>> if not my_connection.counter_interrogation(common_address=47, cause=c104.Cot.ACTIVATION, qualifier=c104.Qoi.STATION):
+        >>> if not my_connection.counter_interrogation(common_address=47, cause=c104.Cot.ACTIVATION, qualifier=c104.Rqt.GENERAL, freeze=c104.Frz.COUNTER_RESET):
         >>>     raise ValueError("Cannot send counter interrogation command")
         """
     def disconnect(self) -> None:
@@ -1166,6 +1163,21 @@ class EventState:
     OFF: typing.ClassVar[EventState]
     ON: typing.ClassVar[EventState]
     __members__: typing.ClassVar[dict[str, EventState]]
+    @property
+    def name(self) -> str:
+        ...
+    @property
+    def value(self) -> int:
+        ...
+class Frz:
+    """
+    This enum contains all valid IEC60870 freeze behaviour for a counter interrogation command.
+    """
+    READ: typing.ClassVar[Frz]
+    FREEZE_WITHOUT_RESET: typing.ClassVar[Frz]
+    FREEZE_WITH_RESET: typing.ClassVar[Frz]
+    COUNTER_RESET: typing.ClassVar[Frz]
+    __members__: typing.ClassVar[dict[str, Frz]]
     @property
     def name(self) -> str:
         ...
@@ -2285,6 +2297,22 @@ class ResponseState:
     NONE: typing.ClassVar[ResponseState]
     SUCCESS: typing.ClassVar[ResponseState]
     __members__: typing.ClassVar[dict[str, ResponseState]]
+    @property
+    def name(self) -> str:
+        ...
+    @property
+    def value(self) -> int:
+        ...
+class Rqt:
+    """
+    This enum contains all valid IEC60870 qualifier for a counter interrogation command.
+    """
+    GENERAL: typing.ClassVar[Rqt]
+    GROUP_1: typing.ClassVar[Rqt]
+    GROUP_2: typing.ClassVar[Rqt]
+    GROUP_3: typing.ClassVar[Rqt]
+    GROUP_4: typing.ClassVar[Rqt]
+    __members__: typing.ClassVar[dict[str, Rqt]]
     @property
     def name(self) -> str:
         ...

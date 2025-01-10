@@ -491,6 +491,30 @@ PY_MODULE(m) {
       .value("GROUP_15", QOI_GROUP_15)
       .value("GROUP_16", QOI_GROUP_16);
 
+  py::enum_<CS101_QualifierOfCounterInterrogation>(
+      m, "Rqt",
+      "This enum contains all valid IEC60870 qualifier for a counter "
+      "interrogation "
+      "command.")
+      .value("GENERAL", CS101_QualifierOfCounterInterrogation::GENERAL)
+      .value("GROUP_1", CS101_QualifierOfCounterInterrogation::GROUP_1)
+      .value("GROUP_2", CS101_QualifierOfCounterInterrogation::GROUP_2)
+      .value("GROUP_3", CS101_QualifierOfCounterInterrogation::GROUP_3)
+      .value("GROUP_4", CS101_QualifierOfCounterInterrogation::GROUP_4);
+
+  py::enum_<CS101_FreezeOfCounterInterrogation>(
+      m, "Frz",
+      "This enum contains all valid IEC60870 freeze behaviour for a counter "
+      "interrogation "
+      "command.")
+      .value("READ", CS101_FreezeOfCounterInterrogation::READ)
+      .value("FREEZE_WITHOUT_RESET",
+             CS101_FreezeOfCounterInterrogation::FREEZE_WITHOUT_RESET)
+      .value("FREEZE_WITH_RESET",
+             CS101_FreezeOfCounterInterrogation::FREEZE_WITH_RESET)
+      .value("COUNTER_RESET",
+             CS101_FreezeOfCounterInterrogation::COUNTER_RESET);
+
   py::enum_<CS101_CauseOfInitialization>(
       m, "Coi",
       "This enum contains all valid IEC60870 cause of initialization values.")
@@ -2253,7 +2277,7 @@ Example
           py::return_value_policy::copy)
       .def(
           "counter_interrogation", &Remote::Connection::counterInterrogation,
-          R"def(counter_interrogation(self: c104.Connection, common_address: int, cause: c104.Cot = c104.Cot.ACTIVATION, qualifier: c104.Qoi = c104.Qoi.STATION, wait_for_response: bool = True) -> bool
+          R"def(counter_interrogation(self: c104.Connection, common_address: int, cause: c104.Cot = c104.Cot.ACTIVATION, qualifier: c104.Rqt = c104.Rqt.GENERAL, freeze: c104.Frz = c104.Frz.READ, wait_for_response: bool = True) -> bool
 
 send a counter interrogation command to the remote terminal unit (server)
 
@@ -2263,29 +2287,27 @@ common_address: int
     station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
 cause: c104.Cot
     cause of transmission
-qualifier: c104.Qoi
-    qualifier of interrogation
+qualifier: c104.Rqt
+    what counters are addressed
+freeze: c104.Frz
+    counter behaviour
 wait_for_response: bool
-    block call until command success or failure reponse received?
+    block call until command success or failure response received?
 
 Returns
 -------
 bool
     True, if connection is Open, False otherwise
 
-Raises
-------
-ValueError
-    qualifier is invalid
-
 Example
 -------
->>> if not my_connection.counter_interrogation(common_address=47, cause=c104.Cot.ACTIVATION, qualifier=c104.Qoi.STATION):
+>>> if not my_connection.counter_interrogation(common_address=47, cause=c104.Cot.ACTIVATION, qualifier=c104.Rqt.GENERAL, freeze=c104.Frz.COUNTER_RESET):
 >>>     raise ValueError("Cannot send counter interrogation command")
 )def",
           "common_address"_a, "cause"_a = CS101_COT_ACTIVATION,
-          "qualifier"_a = QOI_STATION, "wait_for_response"_a = true,
-          py::return_value_policy::copy)
+          "qualifier"_a = CS101_QualifierOfCounterInterrogation::GENERAL,
+          "freeze"_a = CS101_FreezeOfCounterInterrogation::READ,
+          "wait_for_response"_a = true, py::return_value_policy::copy)
       .def(
           "clock_sync", &Remote::Connection::clockSync,
           R"def(clock_sync(self: c104.Connection, common_address: int, wait_for_response: bool = True) -> bool
@@ -2298,7 +2320,7 @@ Parameters
 common_address: int
     station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
 wait_for_response: bool
-    block call until command success or failure reponse received?
+    block call until command success or failure response received?
 
 Returns
 -------

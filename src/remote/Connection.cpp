@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -655,27 +655,28 @@ bool Connection::interrogation(std::uint_fast16_t commonAddress,
   return result;
 }
 
-bool Connection::counterInterrogation(std::uint_fast16_t commonAddress,
-                                      CS101_CauseOfTransmission cause,
-                                      QualifierOfCIC qualifier,
-                                      const bool wait_for_response) {
+bool Connection::counterInterrogation(
+    const std::uint_fast16_t commonAddress,
+    const CS101_CauseOfTransmission cause,
+    const CS101_QualifierOfCounterInterrogation qualifier,
+    const CS101_FreezeOfCounterInterrogation freeze,
+    const bool wait_for_response) {
   Module::ScopedGilRelease const scoped("Connection.counterInterrogation");
 
   if (!isOpen())
     return false;
-
-  if (qualifier < IEC60870_QOI_STATION || qualifier > IEC60870_QOI_GROUP_16)
-    throw std::invalid_argument("Invalid qualifier " +
-                                std::to_string(qualifier));
 
   std::string const cmdId = std::to_string(commonAddress) + "-C_CI_NA_1-0";
   if (wait_for_response) {
     prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM);
   }
 
+  const auto qcc = static_cast<std::uint_fast8_t>(qualifier) |
+                   (static_cast<std::uint_fast8_t>(freeze) << 6);
+
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
   bool const result = CS104_Connection_sendCounterInterrogationCommand(
-      connection, cause, commonAddress, qualifier);
+      connection, cause, commonAddress, qcc);
   lock.unlock();
 
   if (wait_for_response) {

@@ -334,6 +334,27 @@ typedef enum {
 } CS101_QualifierOfInterrogation;
 
 /**
+ * @brief IEC60870 qualifier for counter interrogation commands
+ */
+enum class CS101_QualifierOfCounterInterrogation {
+  GROUP_1 = IEC60870_QCC_RQT_GROUP_1,
+  GROUP_2 = IEC60870_QCC_RQT_GROUP_2,
+  GROUP_3 = IEC60870_QCC_RQT_GROUP_3,
+  GROUP_4 = IEC60870_QCC_RQT_GROUP_4,
+  GENERAL = IEC60870_QCC_RQT_GENERAL
+};
+
+/**
+ * @brief IEC60870 freeze for counter interrogation commands
+ */
+enum class CS101_FreezeOfCounterInterrogation {
+  READ = 0,
+  FREEZE_WITHOUT_RESET = 1,
+  FREEZE_WITH_RESET = 2,
+  COUNTER_RESET = 3
+};
+
+/**
  * @brief IEC60870 qualifier for single, double or step commands
  */
 enum class CS101_QualifierOfCommand {

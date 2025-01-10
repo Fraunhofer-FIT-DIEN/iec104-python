@@ -325,7 +325,7 @@ public:
 
   /**
    * @brief handle remote point update, execute python callback
-   * @param message incoming messsage information
+   * @param message incoming message information
    * @return response handling information (success, failure or none)
    */
   CommandResponseState
