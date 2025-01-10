@@ -31,13 +31,175 @@
 
 #include "DateTime.h"
 #include "types.h"
+#include <pybind11/chrono.h>
+
+#include "module/ScopedGilAcquire.h"
+
+using namespace Object;
+
+DateTime DateTime::now() {
+  // todo mark auto-created DateTimes as substituted?
+  return DateTime(std::chrono::system_clock::now());
+}
+
+DateTime::DateTime(const DateTime &other) {
+  time = other.time.load();
+  timezoneOffset = other.timezoneOffset.load();
+  substituted = other.substituted.load();
+  invalid = other.invalid.load();
+  summertime = other.summertime.load();
+}
+
+DateTime::DateTime(const py::object &py_datetime)
+    : substituted(false), invalid(false), summertime(false) {
+  Module::ScopedGilAcquire scoped("DateTime.fromPy");
+
+  // Check whether it's a datetime.datetime object
+  if (!py::hasattr(py_datetime, "timestamp")) {
+    throw std::invalid_argument("Expected a datetime.datetime object");
+  }
+
+  // Retrieve the UNIX timestamp from the Python datetime object
+  const auto timestamp =
+      py_datetime.attr("timestamp")().cast<double>(); // Seconds since epoch
+
+  // Convert timestamp to system_clock::time_point and initialize `time`
+  const auto duration_since_epoch = std::chrono::duration<double>(timestamp);
+  time = std::chrono::system_clock::time_point{
+      std::chrono::duration_cast<std::chrono::system_clock::duration>(
+          duration_since_epoch)};
+
+  std::int64_t milliseconds = static_cast<std::int64_t>(timestamp * 1000);
+  CP56Time2a_setFromMsTimestamp(&cp56, milliseconds);
+
+  // tzinfo is present: store the offset in seconds
+  auto utcoffset = py_datetime.attr("utcoffset")();
+  if (!utcoffset.is_none()) {
+    timezoneOffset = utcoffset.attr("total_seconds")().cast<int>();
+  }
+}
 
 DateTime::DateTime(const std::chrono::system_clock::time_point t)
     : time(t), substituted(false), invalid(false), summertime(false) {}
 
-DateTime::DateTime(CP56Time2a t) {
-  time = to_time_point(t);
+DateTime::DateTime(const CP56Time2a t) {
+  time = std::chrono::system_clock::time_point(
+      std::chrono::milliseconds(CP56Time2a_toMsTimestamp(t)));
   invalid = CP56Time2a_isInvalid(t);
   substituted = CP56Time2a_isSubstituted(t);
   summertime = CP56Time2a_isSummerTime(t);
+}
+
+// Copy Assignment Operator
+DateTime &DateTime::operator=(const DateTime &other) {
+  if (this != &other) { // Protect against self-assignment
+    time = other.time.load();
+    timezoneOffset = other.timezoneOffset.load();
+    substituted = other.substituted.load();
+    invalid = other.invalid.load();
+    summertime = other.summertime.load();
+  }
+  return *this;
+}
+
+CP56Time2a DateTime::getEncoded() {
+  const auto milliseconds =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          time.load().time_since_epoch())
+          .count() +
+      timezoneOffset * 1000;
+
+  std::lock_guard<std::mutex> lock(cp56_mutex);
+  CP56Time2a_setFromMsTimestamp(&cp56, milliseconds);
+  CP56Time2a_setSubstituted(&cp56, substituted);
+  CP56Time2a_setInvalid(&cp56, invalid);
+  CP56Time2a_setSummerTime(&cp56, summertime);
+
+  return &cp56;
+}
+
+bool DateTime::isSubstituted() const { return substituted; }
+
+void DateTime::setSubstituted(const bool substituted) {
+  this->substituted = substituted;
+}
+
+bool DateTime::isInvalid() const { return invalid; }
+
+void DateTime::setInvalid(const bool invalid) { this->invalid = invalid; }
+
+bool DateTime::isSummertime() const { return summertime; }
+
+void DateTime::setSummertime(const bool summertime) {
+  this->summertime = summertime;
+}
+
+py::object DateTime::toPyDateTime() const {
+  Module::ScopedGilAcquire scoped("DateTime.toPy");
+
+  PyDateTime_IMPORT;
+
+  // pybind11/chrono.h caster code copy
+  if (!PyDateTimeAPI) {
+    PyDateTime_IMPORT;
+  }
+
+  const auto milliseconds_since_epoch =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          time.load().time_since_epoch())
+          .count();
+
+  const double timestamp = milliseconds_since_epoch /
+                           1000.0; // Convert milliseconds to seconds as double
+
+  // Prepare timezone offset in minutes
+  int timezone_offset_seconds = timezoneOffset.load();
+  py::object tzinfo = py::none();
+
+  // If there is a timezone offset specified, create a timezone using Python
+  // datetime.timezone
+  if (timezone_offset_seconds != 0) {
+    tzinfo = py::module::import("datetime")
+                 .attr("timezone")(
+                     py::module::import("datetime")
+                         .attr("timedelta")(0, timezone_offset_seconds));
+  }
+
+  // Use fromtimestamp to create the datetime object with fractional seconds
+  return py::module::import("datetime")
+      .attr("datetime")
+      .attr("fromtimestamp")(py::float_(timestamp), tzinfo);
+}
+
+std::string
+TimePoint_toString(const std::chrono::system_clock::time_point &time) {
+  using us_t = std::chrono::duration<int, std::micro>;
+  auto us = std::chrono::duration_cast<us_t>(time.time_since_epoch() %
+                                             std::chrono::seconds(1));
+  if (us.count() < 0) {
+    us += std::chrono::seconds(1);
+  }
+
+  std::time_t tt = std::chrono::system_clock::to_time_t(
+      std::chrono::time_point_cast<std::chrono::system_clock::duration>(time -
+                                                                        us));
+
+  std::tm local_tt = *std::localtime(&tt);
+
+  std::ostringstream oss;
+  oss << std::put_time(&local_tt, "%Y-%m-%dT%H:%M:%S");
+  oss << '.' << std::setw(3) << std::setfill('0') << us.count();
+  oss << std::put_time(&local_tt, "%z");
+  return oss.str();
+}
+
+std::string DateTime::toString() const {
+  std::ostringstream oss;
+  oss << "<c104.DateTime time=" << TimePoint_toString(time.load())
+      << ", offset=" << std::to_string(timezoneOffset) << "min"
+      << ", invalid=" << bool_toString(invalid)
+      << ", substituted=" << bool_toString(substituted)
+      << ", summertime=" << bool_toString(summertime) << " at " << std::hex
+      << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+  return oss.str();
 }

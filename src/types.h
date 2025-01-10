@@ -154,45 +154,6 @@ std::string bool_toString(const bool &val);
 std::string Byte32_toString(const Byte32 &byte);
 
 /**
- * @brief Converts a system_clock::time_point to a human-readable string format.
- * @param time A time_point object representing a point in time.
- * @return A string representation of the time in ISO 8601 format with
- * milliseconds and timezone offset.
- */
-std::string
-TimePoint_toString(const std::chrono::system_clock::time_point &time);
-
-/**
- * @brief Converts an optional system_clock::time_point to a human-readable
- * string format.
- * @param time An optional time_point object representing a point in time.
- * @return A string representation of the time in ISO 8601 format with
- * milliseconds and timezone offset if the value is present, or "None" if the
- * optional is empty.
- */
-std::string TimePoint_toString(
-    const std::optional<std::chrono::system_clock::time_point> &time);
-
-/**
- * @brief Converts a CP56Time2a timestamp to a
- * std::chrono::system_clock::time_point.
- * @param time The CP56Time2a timestamp to be converted.
- * @return A std::chrono::system_clock::time_point representing the given
- * CP56Time2a timestamp.
- */
-std::chrono::system_clock::time_point to_time_point(CP56Time2a time);
-
-/**
- * @brief Converts a system clock time point to a CP56Time2a timestamp.
- * @param time A pointer to the CP56Time2a structure where the converted time
- * will be stored.
- * @param time_point The std::chrono::system_clock::time_point representing the
- * input system time.
- */
-void from_time_point(CP56Time2a time,
-                     std::chrono::system_clock::time_point time_point);
-
-/**
  * @brief Represents a task with a name, description, and completion status.
  *
  * Provides functionality to manage and query the task's state, including

@@ -683,37 +683,13 @@ void Server::setOnClockSyncCallback(py::object &callable) {
   py_onClockSync.reset(callable);
 }
 
-CommandResponseState
-Server::onClockSync(const std::string _ip,
-                    const std::chrono::system_clock::time_point time) {
+CommandResponseState Server::onClockSync(const std::string _ip,
+                                         const Object::DateTime time) {
   if (py_onClockSync.is_set()) {
     DEBUG_PRINT(Debug::Server, "CALLBACK on_clock_sync");
     Module::ScopedGilAcquire const scoped("Server.on_clock_sync");
-    PyDateTime_IMPORT;
 
-    // pybind11/chrono.h caster code copy
-    if (!PyDateTimeAPI) {
-      PyDateTime_IMPORT;
-    }
-
-    using us_t = std::chrono::duration<int, std::micro>;
-    auto us = std::chrono::duration_cast<us_t>(time.time_since_epoch() %
-                                               std::chrono::seconds(1));
-    if (us.count() < 0) {
-      us += std::chrono::seconds(1);
-    }
-
-    std::time_t tt = std::chrono::system_clock::to_time_t(
-        std::chrono::time_point_cast<std::chrono::system_clock::duration>(time -
-                                                                          us));
-
-    std::tm localtime = *std::localtime(&tt);
-
-    PyObject *pydate = PyDateTime_FromDateAndTime(
-        localtime.tm_year + 1900, localtime.tm_mon + 1, localtime.tm_mday,
-        localtime.tm_hour, localtime.tm_min, localtime.tm_sec, us.count());
-
-    if (py_onClockSync.call(shared_from_this(), _ip, py::handle(pydate))) {
+    if (py_onClockSync.call(shared_from_this(), _ip, time.toPyDateTime())) {
       try {
         return py_onClockSync.getResult();
       } catch (const std::exception &e) {
@@ -1573,17 +1549,16 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
     // new clockSyncHandler
     if (message->getType() == C_CS_NA_1) {
       auto info = message->getInfo();
-      auto time_point = info->getRecordedAt().value_or(info->getProcessedAt());
+      auto time = info->getRecordedAt().value_or(info->getProcessedAt());
 
       char ipAddrStr[60];
       IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
       // execute python callback
-      responseState = instance->onClockSync(std::string(ipAddrStr), time_point);
+      responseState = instance->onClockSync(std::string(ipAddrStr), time);
 
       DEBUG_PRINT_CONDITION(debug, Debug::Server,
-                            "clock_sync_handler] TIME " +
-                                TimePoint_toString(time_point));
+                            "clock_sync_handler] TIME " + time.toString());
     } else {
       if (message->getType() >= C_SC_NA_1) {
         if (auto station = instance->getStation(message->getCommonAddress())) {

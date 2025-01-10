@@ -298,19 +298,19 @@ public:
    * @brief get timestamp bundled with value
    * @return milliseconds since unix-epoch
    */
-  std::optional<std::chrono::system_clock::time_point> getRecordedAt() const;
+  std::optional<DateTime> getRecordedAt() const;
 
   /**
    * @brief get timestamp of last local processing operation (receiving/sending)
    * @return milliseconds since unix-epoch
    */
-  std::chrono::system_clock::time_point getProcessedAt() const;
+  DateTime getProcessedAt() const;
 
   /**
    * @brief set timestamp of last local processing operation (receiving/sending)
    * @param val datetime of processing
    */
-  void setProcessedAt(std::chrono::system_clock::time_point val);
+  void setProcessedAt(DateTime val);
 
   /**
    * @brief get next timer event point

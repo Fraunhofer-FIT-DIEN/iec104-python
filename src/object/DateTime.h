@@ -32,31 +32,99 @@
 #ifndef C104_OBJECT_DATETIME_H
 #define C104_OBJECT_DATETIME_H
 
+#include <atomic>
 #include <chrono>
 #include <iec60870_common.h>
+#include <optional>
+#include <pybind11/pybind11.h>
+#include <string>
 
+namespace py = pybind11;
+
+namespace Object {
 class DateTime {
 public:
-  explicit DateTime(std::chrono::system_clock::time_point t =
-                        std::chrono::system_clock::now());
+  static DateTime now();
+  DateTime(const DateTime &other);
+  explicit DateTime(const py::object &py_datetime);
+
+  /**
+   * Constructs a DateTime object with a specified or default time point.
+   *
+   * @param t The time point to initialize the DateTime object.
+   *          If not provided, the current system clock time is used as the
+   * default.
+   * @return A DateTime object initialized with the specified or default time
+   * point.
+   */
+  explicit DateTime(std::chrono::system_clock::time_point t);
 
   explicit DateTime(CP56Time2a t);
+
+  ~DateTime() = default;
 
   [[nodiscard]] std::chrono::system_clock::time_point getTime() const {
     return time;
   }
 
-  [[nodiscard]] bool isSubstituted() const { return substituted; }
+  [[nodiscard]] bool isSubstituted() const;
 
-  [[nodiscard]] bool isInvalid() const { return invalid; }
+  void setSubstituted(bool substituted);
 
-  [[nodiscard]] bool isSummertime() const { return summertime; }
+  [[nodiscard]] bool isInvalid() const;
+
+  void setInvalid(bool invalid);
+
+  [[nodiscard]] bool isSummertime() const;
+
+  /**
+   * @brief getter for summertime
+   *
+   * Setting this property will affect the timezone offset
+   *
+   * @return indicate if this timestamp was recorded during summertime
+   */
+  void setSummertime(bool summertime);
+
+  CP56Time2a getEncoded();
+
+  DateTime &operator=(const DateTime &other);
+
+  std::string toString() const;
+
+  py::object toPyDateTime() const;
 
 protected:
-  std::chrono::system_clock::time_point time;
-  bool substituted;
-  bool invalid;
-  bool summertime;
+  /// @brief naive timestamp (timezone unaware)
+  std::atomic<std::chrono::system_clock::time_point> time;
+
+  /// @brief timezone offset in seconds that point timestamps are recorded in
+  std::atomic<std::int_fast16_t> timezoneOffset{0};
+
+  /// @brief encoded timestamp structure
+  sCP56Time2a cp56{0, 0, 0, 0, 0, 0, 0};
+  ;
+  std::mutex cp56_mutex;
+
+  /// @brief flag timestamp as substituted (not reported by original information
+  /// source)
+  std::atomic_bool substituted;
+
+  /// @brief flag timestamp as invalid
+  std::atomic_bool invalid;
+
+  /**
+   * @brief Indicates whether the timestamp was recorded during daylight savings
+   * time (summertime).
+   *
+   * The use of the summertime (SU) flag is optional but generally discouraged -
+   * use UTC instead. A timestamp with the SU flag set represents the identical
+   * time value as a timestamp with the SU flag unset, but with the displayed
+   * value shifted exactly one hour earlier. This may help in assigning the
+   * correct hour to information objects generated during the first hour after
+   * transitioning from daylight savings time (summertime) to standard time.
+   */
+  std::atomic_bool summertime;
   /*
 
    month
@@ -93,26 +161,8 @@ protected:
 
    century?te
 
-   Das Bit RES1 darf in Überwachungsrichtung benutzt werden, um anzugeben, ob
-  dem INFORMATIONSOBJEKT die Zeitmarke beim Empfang durch die
-  Fernwirkeinrichtung einer Unterstation (RTU) angehängt wurde (Echt- zeit) oder
-  die Zeitmarke durch Zwischeneinrichtungen wie Konzentratorstationen oder durch
-  die Zentral- station selbst ersetzt wurde (Ersatzzeit).
-
-  add to docs
-       „Das Bit SU für die Sommerzeit darf wahlweise benutzt werden, dies wird
-  aber nicht empfohlen. Eine Zeitmarke mit ge- setzter SU-Markierung zeigt
-  denselben Zeitwert wie eine Zeitmarke mit rückgesetzter SU-Markierung und
-  Anzeige eines um genau eine Stunde früheren Zeitwerts. Dies kann hilfreich
-  sein, um INFORMATIONSOBJEKTEN, die während der ersten Stunde nach der
-  Umstellung von Sommerzeit auf Normalzeit erzeugt werden, die korrekte Stunde
-  anzuzeigen.“
-
-   add to docs
-      Bei Systemen, die Zeitgrenzen überschreiten, wird für alle Zeitmarken die
-  Übernahme von UTC empfohlen.
-
    */
 };
 
+};     // namespace Object
 #endif // C104_OBJECT_DATETIME_H
