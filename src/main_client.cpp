@@ -66,11 +66,13 @@ void cl_dump(std::shared_ptr<Client> my_client,
                     << std::to_string(pt_iter->getInformationObjectAddress())
                     << " | " << std::setw(13)
                     << InfoValue_toString(pt_iter->getValue()) << " | "
-                    << std::setw(13)
-                    << TimePoint_toString(pt_iter->getProcessedAt()) << " | "
-                    << std::setw(13)
-                    << TimePoint_toString(pt_iter->getRecordedAt()) << " | "
-                    << InfoQuality_toString(pt_iter->getQuality()) << std::endl;
+                    << std::setw(13) << pt_iter->getProcessedAt().toString()
+                    << " | " << std::setw(13)
+                    << (pt_iter->getRecordedAt().has_value()
+                            ? pt_iter->getRecordedAt().value().toString()
+                            : "None")
+                    << " | " << InfoQuality_toString(pt_iter->getQuality())
+                    << std::endl;
         }
         std::cout << "             "
                      "|-----------|---------|---------------|---------------|--"
