@@ -847,6 +847,46 @@ class Connection:
         >>>
         >>> my_connection.on_state_change(callable=con_on_state_change)
         """
+    def on_unexpected_message(self, callable: collections.abc.Callable[[Connection, IncomingMessage, Umc], None]) -> None:
+        """
+        set python callback that will be executed on unexpected incoming messages
+
+        Parameters
+        ----------
+        callable: collections.abc.Callable[[c104.Connection, c104.IncomingMessage, c104.Umc], None]
+            callback function reference
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            callable signature does not match exactly
+
+        **Callable signature**
+
+        Callable Parameters
+        -------------------
+        connection: c104.Connection
+            connection instance
+        message: c104.IncomingMessage
+            incoming message
+        cause: c104.Umc
+            unexpected message cause
+
+        Callable Returns
+        ----------------
+        None
+
+        Example
+        -------
+        >>> def con_on_unexpected_message(connection: c104.Connection, message: c104.IncomingMessage, cause: c104.Umc) -> None:
+        >>>     print("->?| {1} from SERVER CA {0}".format(message.common_address, cause))
+        >>>
+        >>> my_connection.on_unexpected_message(callable=con_on_unexpected_message)
+        """
     def test(self, common_address: int, with_time: bool = True, wait_for_response: bool = True) -> bool:
         """
         send a test command to the remote terminal unit (server)

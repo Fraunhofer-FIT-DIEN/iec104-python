@@ -2527,6 +2527,49 @@ Example
 >>> my_connection.on_state_change(callable=con_on_state_change)
 )def",
           "callable"_a)
+      .def(
+          "on_unexpected_message", &Server::setOnUnexpectedMessageCallback,
+          R"def(on_unexpected_message(self: c104.Connection, callable: collections.abc.Callable[[c104.Connection, c104.IncomingMessage, c104.Umc], None]) -> None
+
+set python callback that will be executed on unexpected incoming messages
+
+Parameters
+----------
+callable: collections.abc.Callable[[c104.Connection, c104.IncomingMessage, c104.Umc], None]
+    callback function reference
+
+Returns
+-------
+None
+
+Raises
+------
+ValueError
+    callable signature does not match exactly
+
+**Callable signature**
+
+Callable Parameters
+-------------------
+connection: c104.Connection
+    connection instance
+message: c104.IncomingMessage
+    incoming message
+cause: c104.Umc
+    unexpected message cause
+
+Callable Returns
+----------------
+None
+
+Example
+-------
+>>> def con_on_unexpected_message(connection: c104.Connection, message: c104.IncomingMessage, cause: c104.Umc) -> None:
+>>>     print("->?| {1} from STATION CA {0}".format(message.common_address, cause))
+>>>
+>>> my_connection.on_unexpected_message(callable=con_on_unexpected_message)
+)def",
+          "callable"_a)
       .def("__repr__", &Remote::Connection::toString);
   ;
 

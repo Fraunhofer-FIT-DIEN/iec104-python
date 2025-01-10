@@ -10,6 +10,7 @@ Features
 - Serve type hints for all classes and methods as a ``.pyi`` file.
 - Add the property **Server.protocol_parameters** and **Connection.protocol_parameters** to enable reading and updating protocol parameters, such as window size and timeouts.
 - Introduce the **Client.on_station_initialized** callback to handle end-of-initialization messages.
+- Introduce the **Connection.on_unexpected_message()** callback to get informed about unsupported messages, or messages with type id conflicts
 - Add the **Station.signal_initialized(cause=...)** method to support sending end-of-initialization messages per station to all connected clients.
 - Send monitoring data formatted as sequences in periodic transmissions and interrogation responses, if possible.
 - Provide Batch Transmission support via the new **Batch** class, in combination with **Server.transmit_batch(...)**, for monitoring direction.

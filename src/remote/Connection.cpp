@@ -377,27 +377,30 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
         DEBUG_PRINT(Debug::Connection,
                     "await_command_success] Timeout " + cmdId);
         break; // timeout
-      } else {
-        auto const _it = expectedResponseMap.find(cmdId);
-        // is result still requested?
-        if (_it == expectedResponseMap.end()) {
-          success = false;
-          DEBUG_PRINT(Debug::Connection,
-                      "await_command_success] missing cmdId" + cmdId + ": " +
-                          std::to_string(success));
-          break; // failed -> result is not needed anymore
-        }
-        // has final result?
-        if (_it->second < COMMAND_AWAIT_CON) {
-          success = _it->second == COMMAND_SUCCESS;
-          DEBUG_PRINT(Debug::Connection, "await_command_success] Result " +
-                                             cmdId + ": " +
-                                             std::to_string(success));
-          break; // result
-        }
-        DEBUG_PRINT(Debug::Connection,
-                    "await_command_success] Non-topic " + cmdId);
       }
+
+      auto const _it = expectedResponseMap.find(cmdId);
+
+      // is result still requested?
+      if (_it == expectedResponseMap.end()) {
+        success = false;
+        DEBUG_PRINT(Debug::Connection, "await_command_success] missing cmdId" +
+                                           cmdId + ": " +
+                                           std::to_string(success));
+        break; // failed -> result is not needed anymore
+      }
+
+      // has final result?
+      if (_it->second < COMMAND_AWAIT_CON) {
+        success = _it->second == COMMAND_SUCCESS;
+        DEBUG_PRINT(Debug::Connection, "await_command_success] Result " +
+                                           cmdId + ": " +
+                                           std::to_string(success));
+        break; // result
+      }
+
+      DEBUG_PRINT(Debug::Connection,
+                  "await_command_success] Non-topic " + cmdId);
     }
 
     // delete cmd if still valid
@@ -597,6 +600,25 @@ void Connection::onSendRaw(unsigned char *msg, unsigned char msgSize) {
         this->py_onSendRaw.call(shared_from_this(), py::handle(pybytes));
 
         delete[] cp;
+      });
+    }
+  }
+}
+
+void Connection::setOnUnexpectedMessageCallback(py::object &callable) {
+  py_onUnexpectedMessage.reset(callable);
+}
+
+void Connection::onUnexpectedMessage(
+    std::shared_ptr<Message::IncomingMessage> message,
+    UnexpectedMessageCause cause) {
+  if (py_onUnexpectedMessage.is_set()) {
+    if (auto c = getClient()) {
+      c->scheduleTask([this, message, cause]() {
+        DEBUG_PRINT(Debug::Connection, "CALLBACK on_unexpected_message");
+        Module::ScopedGilAcquire const scoped(
+            "Connection.on_unexpected_message");
+        py_onUnexpectedMessage.call(shared_from_this(), message, cause);
       });
     }
   }
@@ -948,49 +970,59 @@ void Connection::connectionHandler(void *parameter, CS104_Connection connection,
 }
 
 bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
-  // NEEDS TO BE THREAD SAFE!
-  // DON'T DESTROY ASDUs! THEY WILL BE DESTROYED AUTOMATICALLY
-
   std::chrono::steady_clock::time_point begin, end;
   bool const debug = DEBUG_TEST(Debug::Connection);
   if (debug) {
     begin = std::chrono::steady_clock::now();
   }
+  bool handled = false;
 
   std::shared_ptr<Connection> instance{};
   try {
     instance = static_cast<Connection *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
-    DEBUG_PRINT(Debug::Connection, "asdu_handler] Connection removed");
-    return false;
-  }
 
-  auto client = instance->getClient();
-  if (!client || !client->isRunning()) {
-    DEBUG_PRINT_CONDITION(debug, Debug::Connection,
-                          "asdu_handler] Client stopped");
-    return false;
-  }
+    const auto client = instance->getClient();
+    if (!client || !client->isRunning()) {
+      throw std::runtime_error("Client not running");
+    }
 
-  if (!instance->isOpen()) {
-    // @todo handle invalid message??
-    DEBUG_PRINT_CONDITION(debug, Debug::Connection,
-                          "asdu_handler] Not connected to " +
-                              instance->getConnectionString());
-    return false;
-  }
+    if (!instance->isOpen()) {
+      throw std::runtime_error("Connection not OPEN to " +
+                               instance->getConnectionString());
+    }
 
-  auto parameters =
-      CS104_Connection_getAppLayerParameters(instance->connection);
+    const auto parameters =
+        CS104_Connection_getAppLayerParameters(instance->connection);
 
-  try {
-    auto message = Remote::Message::IncomingMessage::create(asdu, parameters);
+    const auto message =
+        Remote::Message::IncomingMessage::create(asdu, parameters);
+
+    if (!message->isValidCauseOfTransmission()) {
+      instance->onUnexpectedMessage(message, INVALID_COT);
+      throw std::domain_error("Invalid cause of transmission");
+    }
 
     IEC60870_5_TypeID const type = message->getType();
     CS101_CauseOfTransmission const cot = message->getCauseOfTransmission();
+    std::uint_fast16_t commonAddress = message->getCommonAddress();
+
+    std::shared_ptr<Object::Station> station{};
+
+    if (commonAddress != IEC60870_GLOBAL_COMMON_ADDRESS) {
+      station = instance->getStation(commonAddress);
+      if (!station) {
+        // accept station via callback?
+        client->onNewStation(instance, commonAddress);
+        station = instance->getStation(commonAddress);
+      }
+    }
 
     // monitoring message
     if (type < C_SC_NA_1) {
+      if (!station) {
+        instance->onUnexpectedMessage(message, UNKNOWN_CA);
+        throw std::domain_error("Unknown station");
+      }
 
       // read command success
       if (cot == CS101_COT_REQUEST) {
@@ -998,99 +1030,68 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
       }
 
       while (message->next()) {
-        auto station = instance->getStation(message->getCommonAddress());
-        if (!station) {
-          client->onNewStation(instance, message->getCommonAddress());
-          station = instance->getStation(message->getCommonAddress());
+        auto point = station->getPoint(message->getIOA());
+        if (!point) {
+          // accept point via callback?
+          client->onNewPoint(station, message->getIOA(), type);
+          point = station->getPoint(message->getIOA());
         }
-        if (station) {
-          auto point = station->getPoint(message->getIOA());
-          if (!point) {
-            // accept point via callback?
-            client->onNewPoint(station, message->getIOA(), message->getType());
-            point = station->getPoint(message->getIOA());
-          }
-          if (point) {
-            point->onReceive(message);
-          } else {
-            DEBUG_PRINT_CONDITION(debug, Debug::Connection,
-                                  "asdu_handler] Message ignored: Unknown IOA");
-          }
-        } else {
-          // @todo add error callback?
-          DEBUG_PRINT_CONDITION(debug, Debug::Connection,
-                                "asdu_handler] Message ignored: Unknown CA");
+        if (!point) {
+          // can only be reached if point was not added in on_new_point callback
+          instance->onUnexpectedMessage(message, UNKNOWN_IOA);
+          throw std::domain_error("Unknown point");
         }
+        if (point->getType() != type) {
+          instance->onUnexpectedMessage(message, MISMATCHED_TYPE_ID);
+          throw std::domain_error("Mismatched TypeID");
+        }
+        point->onReceive(message);
+        handled = true;
       }
-
-      if (debug) {
-        end = std::chrono::steady_clock::now();
-        DEBUG_PRINT_CONDITION(
-            true, Debug::Connection,
-            "asdu_handler] " +
-                std::string(TypeID_toString(message->getType())) +
-                " Report Stats"
-                " | CA " +
-                std::to_string(message->getCommonAddress()) + " | IOA " +
-                std::to_string(message->getIOA()) + " | TOTAL " +
-                TICTOC(begin, end));
-      }
-      return true;
     }
 
     // End of initialization
     if (M_EI_NA_1 == type) {
-      if (cot == CS101_COT_INITIALIZED) {
-        auto station = instance->getStation(message->getCommonAddress());
-        if (station) {
-          auto io = (EndOfInitialization)message->getInformationObject();
-          client->onEndOfInitialization(
-              station, static_cast<CS101_CauseOfInitialization>(
-                           EndOfInitialization_getCOI(io)));
-          return true;
-        } else {
-          DEBUG_PRINT_CONDITION(
-              debug, Debug::Connection,
-              "asdu_handler] M_EI_NA_1 Message ignored: Unknown CA");
-        }
+      if (!station) {
+        instance->onUnexpectedMessage(message, UNKNOWN_CA);
+        throw std::domain_error("Unknown station");
       }
-      return false;
+
+      const auto io = reinterpret_cast<EndOfInitialization>(
+          message->getInformationObject());
+      client->onEndOfInitialization(station,
+                                    static_cast<CS101_CauseOfInitialization>(
+                                        EndOfInitialization_getCOI(io)));
+      handled = true;
     }
 
     // command response
     if (type < P_ME_NA_1) {
       instance->setCommandSuccess(message);
+      handled = true;
+    }
 
-      if (debug) {
-        end = std::chrono::steady_clock::now();
-        DEBUG_PRINT_CONDITION(
-            true, Debug::Connection,
-            "asdu_handler] " +
-                std::string(TypeID_toString(message->getType())) +
-                " Response Stats" + " | CA " +
-                std::to_string(message->getCommonAddress()) + " | IOA " +
-                std::to_string(message->getIOA()) + " | TOTAL " +
-                TICTOC(begin, end));
-      }
-      return true;
+    if (!handled) {
+      instance->onUnexpectedMessage(message, INVALID_TYPE_ID);
     }
 
     if (debug) {
-      // @todo add python callback for unhandled messages
       end = std::chrono::steady_clock::now();
       DEBUG_PRINT_CONDITION(
           true, Debug::Connection,
-          "asduHandler] Unhandled " +
-              std::string(TypeID_toString(message->getType())) + " Stats" +
-              " | CA " + std::to_string(message->getCommonAddress()) +
-              " | IOA " + std::to_string(message->getIOA()) + " | TOTAL " +
-              TICTOC(begin, end));
+          "asduHandler] Report Stats | Handled " + bool_toString(handled) +
+              " | Type " + std::string(TypeID_toString(type)) + " | CA " +
+              std::to_string(commonAddress) + " | TOTAL " + TICTOC(begin, end));
     }
 
+  } catch (const std::bad_weak_ptr &e) {
+    DEBUG_PRINT_CONDITION(debug, Debug::Connection,
+                          "asdu_handler] Drop message: Connection removed");
   } catch (const std::exception &e) {
-    DEBUG_PRINT(Debug::Connection, "asdu_handler] Invalid message format: " +
-                                       std::string(e.what()));
+    DEBUG_PRINT_CONDITION(debug, Debug::Connection,
+                          "asdu_handler] Drop message: " +
+                              std::string(e.what()));
   }
 
-  return true;
+  return handled;
 }

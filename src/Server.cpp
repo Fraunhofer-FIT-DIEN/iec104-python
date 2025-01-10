@@ -1117,29 +1117,19 @@ Server::getValidMessage(IMasterConnection connection, CS101_ASDU asdu) {
     auto message =
         Remote::Message::IncomingMessage::create(asdu, appLayerParameters);
 
-    // @todo enabled advanced COT check
-    /*
+    // test COT
     if (!message->isValidCauseOfTransmission()) {
-        DEBUG_PRINT(Debug::Server, "Server.getValidMessage] Unknown cause of
-    transmission " +
-    std::string(CS101_CauseOfTransmission_toString(message->getCauseOfTransmission())));
+      if (message->requireConfirmation()) {
+        sendActivationConfirmation(connection, asdu, true);
+      }
 
-        if (message->requireConfirmation()) {
-            sendActivationConfirmation(connection, asdu, true);
-        }
+      onUnexpectedMessage(connection, message, INVALID_COT);
 
-        onUnexpectedMessage(connection, message.get(), INVALID_COT);
+      return {nullptr};
+    }
 
-        return {nullptr};
-    }*/
-
-    // test & message ip/ca mismatch
+    // test CA
     if (!hasStation(message->getCommonAddress())) {
-
-      DEBUG_PRINT(Debug::Server,
-                  "get_valid_message] Unknown commonAddress " +
-                      std::to_string(message->getCommonAddress()));
-
       if (message->requireConfirmation()) {
         sendActivationConfirmation(connection, asdu, true);
       }

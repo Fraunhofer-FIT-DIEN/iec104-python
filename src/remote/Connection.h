@@ -284,6 +284,27 @@ public:
   void setOnStateChangeCallback(py::object &callable);
 
   /**
+   * @brief set python callback that will be executed on unexpected incoming
+   * messages
+   * @throws std::invalid_argument if callable signature does not match
+   */
+  void setOnUnexpectedMessageCallback(py::object &callable);
+
+  /**
+   * @brief Execute configured callback handlers on receiving unexpected
+   * messages from a client
+   *
+   * @param connection The master connection from which the unexpected message
+   * was received.
+   * @param message A shared pointer to the incoming message that triggered the
+   * unexpected event.
+   * @param cause The reason why the message was classified as unexpected (e.g.,
+   * unknown type ID or invalid cause-of-transmission).
+   */
+  void onUnexpectedMessage(std::shared_ptr<Message::IncomingMessage> message,
+                           UnexpectedMessageCause cause);
+
+  /**
    * @brief getter for connectedAt
    * @return the time point the currently active connection was established,
    * optional
@@ -504,6 +525,13 @@ private:
   Module::Callback<void> py_onSendRaw{
       "Connection.on_send_raw",
       "(connection: c104.Connection, data: bytes) -> None"};
+
+  /// @brief python callback function pointer
+  Module::Callback<void> py_onUnexpectedMessage{
+      "Connection.on_unexpected_message",
+      "(connection: c104.Connection, message: c104.IncomingMessage, cause: "
+      "c104.Umc) "
+      "-> None"};
 
   /// @brief python callback function pointer
   Module::Callback<void> py_onStateChange{
