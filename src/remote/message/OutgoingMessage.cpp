@@ -63,7 +63,7 @@ OutgoingMessage::OutgoingMessage(
   commonAddress = _station->getCommonAddress();
 
   // updated locally processed timestamp before transmission
-  point->setProcessedAt(std::chrono::system_clock::now());
+  point->setProcessedAt(Object::DateTime::now());
 
   informationObjectAddress = point->getInformationObjectAddress();
   DEBUG_PRINT(Debug::Message,

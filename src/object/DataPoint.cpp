@@ -97,26 +97,24 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
         std::make_shared<SingleInfo>(false, Quality::None, std::nullopt, false);
     break;
   case M_SP_TB_1:
-    info = std::make_shared<SingleInfo>(
-        false, Quality::None, std::chrono::system_clock::now(), false);
+    info = std::make_shared<SingleInfo>(false, Quality::None, DateTime::now(),
+                                        false);
     break;
   case C_SC_NA_1:
     info = std::make_shared<SingleCmd>(
         false, false, CS101_QualifierOfCommand::NONE, std::nullopt, false);
     break;
   case C_SC_TA_1:
-    info = std::make_shared<SingleCmd>(false, false,
-                                       CS101_QualifierOfCommand::NONE,
-                                       std::chrono::system_clock::now(), false);
+    info = std::make_shared<SingleCmd>(
+        false, false, CS101_QualifierOfCommand::NONE, DateTime::now(), false);
     break;
   case M_DP_NA_1:
     info = std::make_shared<DoubleInfo>(IEC60870_DOUBLE_POINT_OFF,
                                         Quality::None, std::nullopt, false);
     break;
   case M_DP_TB_1:
-    info =
-        std::make_shared<DoubleInfo>(IEC60870_DOUBLE_POINT_OFF, Quality::None,
-                                     std::chrono::system_clock::now(), false);
+    info = std::make_shared<DoubleInfo>(IEC60870_DOUBLE_POINT_OFF,
+                                        Quality::None, DateTime::now(), false);
     break;
   case C_DC_NA_1:
     info = std::make_shared<DoubleCmd>(IEC60870_DOUBLE_POINT_OFF, false,
@@ -125,7 +123,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
   case C_DC_TA_1:
     info = std::make_shared<DoubleCmd>(IEC60870_DOUBLE_POINT_OFF, false,
                                        CS101_QualifierOfCommand::NONE,
-                                       std::chrono::system_clock::now(), false);
+                                       DateTime::now(), false);
     break;
   case M_ST_NA_1:
     info = std::make_shared<StepInfo>(LimitedInt7(0), false, Quality::None,
@@ -133,7 +131,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case M_ST_TB_1:
     info = std::make_shared<StepInfo>(LimitedInt7(0), false, Quality::None,
-                                      std::chrono::system_clock::now(), false);
+                                      DateTime::now(), false);
     break;
   case C_RC_NA_1:
     info = std::make_shared<StepCmd>(IEC60870_STEP_LOWER, false,
@@ -143,7 +141,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
   case C_RC_TA_1:
     info = std::make_shared<StepCmd>(IEC60870_STEP_LOWER, false,
                                      CS101_QualifierOfCommand::NONE,
-                                     std::chrono::system_clock::now(), false);
+                                     DateTime::now(), false);
     break;
   case M_ME_NA_1:
   case M_ME_ND_1:
@@ -152,8 +150,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case M_ME_TD_1:
     info = std::make_shared<NormalizedInfo>(NormalizedFloat(0), Quality::None,
-                                            std::chrono::system_clock::now(),
-                                            false);
+                                            DateTime::now(), false);
     break;
   case C_SE_NA_1:
     info = std::make_shared<NormalizedCmd>(
@@ -161,17 +158,15 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case C_SE_TA_1:
     info = std::make_shared<NormalizedCmd>(
-        NormalizedFloat(0), false, LimitedUInt7(0),
-        std::chrono::system_clock::now(), false);
+        NormalizedFloat(0), false, LimitedUInt7(0), DateTime::now(), false);
     break;
   case M_ME_NB_1:
     info = std::make_shared<ScaledInfo>(LimitedInt16(0), Quality::None,
                                         std::nullopt, false);
     break;
   case M_ME_TE_1:
-    info =
-        std::make_shared<ScaledInfo>(LimitedInt16(0), Quality::None,
-                                     std::chrono::system_clock::now(), false);
+    info = std::make_shared<ScaledInfo>(LimitedInt16(0), Quality::None,
+                                        DateTime::now(), false);
     break;
   case C_SE_NB_1:
     info = std::make_shared<ScaledCmd>(LimitedInt16(0), false, LimitedUInt7(0),
@@ -179,14 +174,14 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case C_SE_TB_1:
     info = std::make_shared<ScaledCmd>(LimitedInt16(0), false, LimitedUInt7(0),
-                                       std::chrono::system_clock::now(), false);
+                                       DateTime::now(), false);
     break;
   case M_ME_NC_1:
     info = std::make_shared<ShortInfo>(0.0, Quality::None, std::nullopt, false);
     break;
   case M_ME_TF_1:
-    info = std::make_shared<ShortInfo>(0.0, Quality::None,
-                                       std::chrono::system_clock::now(), false);
+    info =
+        std::make_shared<ShortInfo>(0.0, Quality::None, DateTime::now(), false);
     break;
   case C_SE_NC_1:
     info = std::make_shared<ShortCmd>(0.0, false, LimitedUInt7(0), std::nullopt,
@@ -194,22 +189,21 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case C_SE_TC_1:
     info = std::make_shared<ShortCmd>(0.0, false, LimitedUInt7(0),
-                                      std::chrono::system_clock::now(), false);
+                                      DateTime::now(), false);
     break;
   case M_BO_NA_1:
     info = std::make_shared<BinaryInfo>(Byte32(0), Quality::None, std::nullopt,
                                         false);
     break;
   case M_BO_TB_1:
-    info = std::make_shared<BinaryInfo>(
-        Byte32(0), Quality::None, std::chrono::system_clock::now(), false);
+    info = std::make_shared<BinaryInfo>(Byte32(0), Quality::None,
+                                        DateTime::now(), false);
     break;
   case C_BO_NA_1:
     info = std::make_shared<BinaryCmd>(Byte32(0), std::nullopt, false);
     break;
   case C_BO_TA_1:
-    info = std::make_shared<BinaryCmd>(Byte32(0),
-                                       std::chrono::system_clock::now(), false);
+    info = std::make_shared<BinaryCmd>(Byte32(0), DateTime::now(), false);
     break;
   case M_IT_NA_1:
     info = std::make_shared<BinaryCounterInfo>(
@@ -217,23 +211,22 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case M_IT_TB_1:
     info = std::make_shared<BinaryCounterInfo>(
-        0, LimitedUInt5(0), BinaryCounterQuality::None,
-        std::chrono::system_clock::now(), false);
+        0, LimitedUInt5(0), BinaryCounterQuality::None, DateTime::now(), false);
     break;
   case M_EP_TD_1:
     info = std::make_shared<ProtectionEquipmentEventInfo>(
         IEC60870_EVENTSTATE_OFF, LimitedUInt16(0), Quality::None,
-        std::chrono::system_clock::now(), false);
+        DateTime::now(), false);
     break;
   case M_EP_TE_1:
     info = std::make_shared<ProtectionEquipmentStartEventsInfo>(
-        StartEvents::None, LimitedUInt16(0), Quality::None,
-        std::chrono::system_clock::now(), false);
+        StartEvents::None, LimitedUInt16(0), Quality::None, DateTime::now(),
+        false);
     break;
   case M_EP_TF_1:
     info = std::make_shared<ProtectionEquipmentOutputCircuitInfo>(
-        OutputCircuits::None, LimitedUInt16(0), Quality::None,
-        std::chrono::system_clock::now(), false);
+        OutputCircuits::None, LimitedUInt16(0), Quality::None, DateTime::now(),
+        false);
     break;
   case M_PS_NA_1:
     info = std::make_shared<StatusWithChangeDetection>(
@@ -361,7 +354,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::SingleInfo>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -398,7 +391,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::SingleCmd>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -435,7 +428,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::DoubleInfo>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -472,7 +465,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::DoubleCmd>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -509,7 +502,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::StepInfo>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -545,7 +538,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::StepCmd>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -582,7 +575,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::NormalizedInfo>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -619,7 +612,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::NormalizedCmd>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -656,7 +649,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::ScaledInfo>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -693,7 +686,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::ScaledCmd>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -730,7 +723,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::ShortInfo>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -767,7 +760,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::ShortCmd>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -804,7 +797,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::BinaryInfo>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -841,7 +834,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::BinaryCmd>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -878,7 +871,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     auto i = std::dynamic_pointer_cast<Object::BinaryCounterInfo>(new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -898,7 +891,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
         new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -919,7 +912,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
             new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -940,7 +933,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
             new_info);
     if (i) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::chrono::system_clock::now());
+        i->setRecordedAt(Object::DateTime::now());
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -1004,7 +997,7 @@ void DataPoint::setValue(const InfoValue new_value) {
   case M_EP_TD_1:
   case M_EP_TE_1:
   case M_EP_TF_1:
-    info->setRecordedAt(std::chrono::system_clock::now());
+    info->setRecordedAt(Object::DateTime::now());
     DEBUG_PRINT(
         Debug::Point,
         "Injecting current local timestamp into information for [c104.Type." +
@@ -1037,7 +1030,7 @@ void DataPoint::setQuality(const InfoQuality new_quality) {
   case M_EP_TD_1:
   case M_EP_TE_1:
   case M_EP_TF_1:
-    info->setRecordedAt(std::chrono::system_clock::now());
+    info->setRecordedAt(Object::DateTime::now());
     DEBUG_PRINT(
         Debug::Point,
         "Injecting current local timestamp into information for [c104.Type." +
@@ -1047,17 +1040,13 @@ void DataPoint::setQuality(const InfoQuality new_quality) {
   }
 }
 
-std::optional<std::chrono::system_clock::time_point>
-DataPoint::getRecordedAt() const {
+std::optional<DateTime> DataPoint::getRecordedAt() const {
   return info->getRecordedAt();
 }
 
-std::chrono::system_clock::time_point DataPoint::getProcessedAt() const {
-  return info->getProcessedAt();
-}
+DateTime DataPoint::getProcessedAt() const { return info->getProcessedAt(); }
 
-void DataPoint::setProcessedAt(
-    const std::chrono::system_clock::time_point val) {
+void DataPoint::setProcessedAt(const DateTime val) {
   lastSentAt.store(std::chrono::steady_clock::now());
   info->setProcessedAt(val);
 }

@@ -30,19 +30,18 @@
  */
 
 #include "object/Information.h"
+#include "object/DateTime.h"
 
 using namespace Object;
 
-Information::Information(
-    const std::optional<std::chrono::system_clock::time_point> recorded_at,
-    const bool readonly)
-    : recorded_at(recorded_at), readonly(readonly) {
-  processed_at = std::chrono::system_clock::now();
+Information::Information(const std::optional<DateTime> &recorded_at,
+                         const bool readonly)
+    : readonly(readonly), processed_at(std::chrono::system_clock::now()) {
+  this->recorded_at = recorded_at;
 };
 
-Command::Command(
-    const std::optional<std::chrono::system_clock::time_point> recorded_at,
-    const bool readonly)
+Command::Command(const std::optional<DateTime> &recorded_at,
+                 const bool readonly)
     : Information(recorded_at, readonly){};
 
 InfoValue Information::getValueImpl() const { return std::monostate{}; }
@@ -105,8 +104,7 @@ void Information::setReadonly() {
   readonly = true;
 };
 
-void Information::setRecordedAt(
-    std::optional<std::chrono::system_clock::time_point> val) {
+void Information::setRecordedAt(const std::optional<DateTime> val) {
   if (readonly) {
     return;
   }
@@ -114,15 +112,16 @@ void Information::setRecordedAt(
   recorded_at = val;
 }
 
-void Information::setProcessedAt(std::chrono::system_clock::time_point val) {
+void Information::setProcessedAt(const DateTime &val) {
   std::lock_guard<std::mutex> lock(mtx);
   processed_at = val;
 }
 
 std::string Information::base_toString() const {
   std::ostringstream oss;
-  oss << "recorded_at=" << TimePoint_toString(recorded_at)
-      << ", processed_at=" << TimePoint_toString(processed_at)
+  oss << "recorded_at="
+      << (recorded_at.has_value() ? recorded_at.value().toString() : "None")
+      << ", processed_at=" << processed_at.toString()
       << ", readonly=" << bool_toString(readonly) << " at " << std::hex
       << std::showbase << reinterpret_cast<std::uintptr_t>(this);
   return oss.str();

@@ -131,6 +131,14 @@ std::shared_ptr<DataPoint> Station::addPoint(
 
 bool Station::isLocal() { return !server.expired(); }
 
+std::int_fast16_t Station::getTimezoneOffset() const {
+  return timezoneOffset.load();
+}
+
+void Station::setTimezoneOffset(const std::int_fast16_t seconds) {
+  timezoneOffset.store(seconds);
+}
+
 void Station::sendEndOfInitialization(const CS101_CauseOfInitialization cause) {
   if (auto sv = getServer()) {
     return sv->sendEndOfInitialization(commonAddress, cause);
