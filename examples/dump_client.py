@@ -88,8 +88,8 @@ def cl_dump():
                 print("             |----------------|---------|--------------------|----------------------------|----------------------------|-------------------")
                 for pt_iter in range(st_pt_count):
                     pt = st.points[pt_iter]
-                    print("             | %s | %7s | %18s | %26s | %26s | %s" % (pt.type, pt.io_address, pt.value, pt.processed_at.isoformat(),
-                                                                                 pt.recorded_at and pt.recorded_at.isoformat() or 'N. A.', pt.quality))
+                    print("             | %s | %7s | %18s | %26s | %26s | %s" % (pt.type, pt.io_address, pt.value, pt.processed_at.value.isoformat(),
+                                                                                 pt.recorded_at and pt.recorded_at.value.isoformat() or 'N. A.', pt.quality))
                     print("             |----------------|---------|--------------------|----------------------------|----------------------------|-------------------")
 
 
