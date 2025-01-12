@@ -37,9 +37,9 @@
 
 using namespace Object;
 
-DateTime DateTime::now() {
+DateTime DateTime::now(const bool readonly) {
   // todo mark auto-created DateTimes as substituted?
-  return DateTime(std::chrono::system_clock::now());
+  return DateTime(std::chrono::system_clock::now(), readonly);
 }
 
 DateTime::DateTime(const DateTime &other) {
@@ -48,10 +48,12 @@ DateTime::DateTime(const DateTime &other) {
   substituted = other.substituted.load();
   invalid = other.invalid.load();
   summertime = other.summertime.load();
+  readonly = other.readonly.load();
 }
 
-DateTime::DateTime(const py::object &py_datetime)
-    : substituted(false), invalid(false), summertime(false) {
+DateTime::DateTime(const py::object &py_datetime, const bool readonly)
+    : substituted(false), invalid(false), summertime(false),
+      readonly(readonly) {
   Module::ScopedGilAcquire scoped("DateTime.fromPy");
 
   // Check whether it's a datetime.datetime object
@@ -79,10 +81,13 @@ DateTime::DateTime(const py::object &py_datetime)
   }
 }
 
-DateTime::DateTime(const std::chrono::system_clock::time_point t)
-    : time(t), substituted(false), invalid(false), summertime(false) {}
+DateTime::DateTime(const std::chrono::system_clock::time_point t,
+                   const bool readonly)
+    : time(t), substituted(false), invalid(false), summertime(false),
+      readonly(readonly) {}
 
-DateTime::DateTime(const CP56Time2a t) {
+DateTime::DateTime(const CP56Time2a t, const bool readonly)
+    : readonly(readonly) {
   time = std::chrono::system_clock::time_point(
       std::chrono::milliseconds(CP56Time2a_toMsTimestamp(t)));
   invalid = CP56Time2a_isInvalid(t);
@@ -98,6 +103,7 @@ DateTime &DateTime::operator=(const DateTime &other) {
     substituted = other.substituted.load();
     invalid = other.invalid.load();
     summertime = other.summertime.load();
+    readonly = other.readonly.load();
   }
   return *this;
 }
@@ -121,17 +127,37 @@ CP56Time2a DateTime::getEncoded() {
 bool DateTime::isSubstituted() const { return substituted; }
 
 void DateTime::setSubstituted(const bool substituted) {
+  if (readonly) {
+    throw std::logic_error("DateTime is read-only!");
+  }
   this->substituted = substituted;
 }
 
 bool DateTime::isInvalid() const { return invalid; }
 
-void DateTime::setInvalid(const bool invalid) { this->invalid = invalid; }
+void DateTime::setInvalid(const bool invalid) {
+  if (readonly) {
+    throw std::logic_error("DateTime is read-only!");
+  }
+  this->invalid = invalid;
+}
 
 bool DateTime::isSummertime() const { return summertime; }
 
 void DateTime::setSummertime(const bool summertime) {
+  if (readonly) {
+    throw std::logic_error("DateTime is read-only!");
+  }
   this->summertime = summertime;
+}
+
+std::int_fast16_t DateTime::getTimezoneOffset() const { return timezoneOffset; }
+
+void DateTime::setTimezoneOffset(const std::int_fast16_t seconds) {
+  if (readonly) {
+    throw std::logic_error("DateTime is read-only!");
+  }
+  timezoneOffset = seconds;
 }
 
 py::object DateTime::toPyDateTime() const {
