@@ -70,11 +70,11 @@ public:
 
   [[nodiscard]] bool isSubstituted() const;
 
-  void setSubstituted(bool substituted);
+  void setSubstituted(bool enabled);
 
   [[nodiscard]] bool isInvalid() const;
 
-  void setInvalid(bool invalid);
+  void setInvalid(bool enabled);
 
   [[nodiscard]] bool isSummertime() const;
 
@@ -85,7 +85,7 @@ public:
    *
    * @return indicate if this timestamp was recorded during summertime
    */
-  void setSummertime(bool summertime);
+  void setSummertime(bool enabled);
 
   [[nodiscard]] std::int_fast16_t getTimezoneOffset() const;
 
