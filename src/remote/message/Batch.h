@@ -155,7 +155,7 @@ private:
   Batch(CS101_CauseOfTransmission cause,
         const std::optional<Object::DataPointVector> &points);
 
-  /// @brief child DataPoint objects (owned by this Station)
+  /// @brief contained DataPoint objects (non-owned)
   std::map<std::uint_fast16_t, std::weak_ptr<Object::DataPoint>> pointMap{};
 
   /// @brief mutex to lock member read/write access
