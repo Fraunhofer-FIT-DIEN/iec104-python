@@ -2635,6 +2635,24 @@ Example
       .def_property_readonly("is_local", &Object::Station::isLocal,
                              "bool: test if station is local (has sever) or "
                              "remote (has connection) one (read-only)")
+      .def_property(
+          "summertime", &Object::Station::isSummertime,
+          &Object::Station::setSummertime,
+          R"def(bool: if timestamps recorded at this station are in daylight saving time
+
+Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
+
+The summertime offset is already included in the timezone_offset property.
+
+The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+but with the displayed value shifted exactly one hour earlier.
+This may help in assigning the correct hour to information objects generated during the first hour after
+transitioning from daylight savings time (summertime) to standard time.
+)def")
+      .def_property("timezone_offset", &Object::Station::getTimezoneOffset,
+                    &Object::Station::setTimezoneOffset,
+                    "int: timezone offset in seconds for recorded timestamps")
       .def_property_readonly(
           "has_points", &Object::Station::hasPoints,
           "bool: test if station has at least one point (read-only)")
@@ -3067,16 +3085,33 @@ Example
 
   py::class_<Object::DateTime, std::shared_ptr<Object::DateTime>>(
       m, "DateTime",
-      "This class represents date time objects with additional flags")
+      "This class represents date time objects with additional flags.")
       .def_property_readonly(
           "value", &Object::DateTime::toPyDateTime,
           "datetime.datetime: timestamp with timezone (read-only)")
-      .def_property_readonly("substituted", &Object::DateTime::isSubstituted,
-                             "bool: timestamp is substituted (read-only)")
-      .def_property_readonly("invalid", &Object::DateTime::isInvalid,
-                             "bool: timestamp is invalid (read-only)")
-      .def_property_readonly("summertime", &Object::DateTime::isSummertime,
-                             "bool: timestamp is summertime (read-only)")
+      .def_property("substituted", &Object::DateTime::isSubstituted,
+                    &Object::DateTime::setSubstituted,
+                    "bool: timestamp is substituted")
+      .def_property("invalid", &Object::DateTime::isInvalid,
+                    &Object::DateTime::setInvalid, "bool: timestamp is invalid")
+      .def_property(
+          "summertime", &Object::DateTime::isSummertime,
+          &Object::DateTime::setSummertime,
+          R"def(bool: if timestamps recorded at this station are in daylight saving time
+
+Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
+
+The summertime offset is already included in the timezone_offset property.
+
+The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+but with the displayed value shifted exactly one hour earlier.
+This may help in assigning the correct hour to information objects generated during the first hour after
+transitioning from daylight savings time (summertime) to standard time.
+)def")
+      .def_property("timezone_offset", &Object::DateTime::getTimezoneOffset,
+                    &Object::DateTime::setTimezoneOffset,
+                    "int: timezone offset in seconds")
       .def("__repr__", &Object::DateTime::toString);
 
   py::class_<Object::Information, std::shared_ptr<Object::Information>>(

@@ -103,7 +103,16 @@ private:
   /// @brief timezone offset in seconds that point timestamps are recorded in
   std::atomic<std::int_fast16_t> timezoneOffset{0};
 
-  /// @brief daylight saving time enabled?
+  /**
+   * @brief timestamp are recorded during daylight savings time (summertime).
+   *
+   * The use of the summertime (SU) flag is optional but generally discouraged -
+   * use UTC instead. A timestamp with the SU flag set represents the identical
+   * time value as a timestamp with the SU flag unset, but with the displayed
+   * value shifted exactly one hour earlier. This may help in assigning the
+   * correct hour to information objects generated during the first hour after
+   * transitioning from daylight savings time (summertime) to standard time.
+   */
   std::atomic_bool summertime{false};
 
 public:
