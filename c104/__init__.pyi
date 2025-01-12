@@ -1091,6 +1091,112 @@ class Cot:
     @property
     def value(self) -> int:
         ...
+class DateTime:
+    """
+    This class represents date time objects with additional flags.
+    """
+    @property
+    def invalid(self) -> bool:
+        """
+        if this timestamp was flagged as invalid
+        """
+    @invalid.setter
+    def invalid(self, value: bool) -> None:
+        """
+        set if this timestamp was flagged as invalid
+
+        Parameters
+        ----------
+        value: bool
+            use invalid (IV) flag
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def substituted(self) -> bool:
+        """
+        if this timestamp was substituted
+        """
+    @substituted.setter
+    def substituted(self, value: bool) -> None:
+        """
+        set if this timestamp was substituted
+
+        Parameters
+        ----------
+        value: bool
+            use substituted (SB) flag
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def summertime(self) -> bool:
+        """
+        if this timestamp was recorded in daylight saving time
+
+        Changing this flag will modify the timezone_offset of the timestamp by +-3600 seconds!
+
+        The summertime offset is already included in the timezone_offset property.
+
+        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+        but with the displayed value shifted exactly one hour earlier.
+        This may help in assigning the correct hour to information objects generated during the first hour after
+        transitioning from daylight savings time (summertime) to standard time.
+        """
+    @summertime.setter
+    def summertime(self, value: bool) -> None:
+        """
+        set if this timestamp was recorded in daylight saving time
+
+        Changing this flag will modify the timezone_offset of the timestamp by +-3600 seconds!
+
+        The summertime offset is already included in the timezone_offset property.
+
+        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+        but with the displayed value shifted exactly one hour earlier.
+        This may help in assigning the correct hour to information objects generated during the first hour after
+        transitioning from daylight savings time (summertime) to standard time.
+
+        Parameters
+        ----------
+        value: bool
+            use summertime (SU) flag
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def timezone_offset(self) -> int:
+        """
+        timezone offset in seconds for this timestamp
+        """
+
+    @timezone_offset.setter
+    def timezone_offset(self, value: bool) -> None:
+        """
+        set timezone offset in seconds for this timestamp
+
+        Parameters
+        ----------
+        value: int
+            timezone offset in seconds
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def value(self) -> datetime.datetime:
+        """
+        timezone aware datetime object for this timestamp
+        """
 class Debug:
     """
     This enum contains all valid debug bits to interpret and manipulate debug mode.
@@ -3190,6 +3296,65 @@ class Station:
     def server(self) -> Server | None:
         """
         parent Server of local station
+        """
+    @property
+    def summertime(self) -> bool:
+        """
+        if timestamps recorded at this station are in daylight saving time
+
+        Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
+
+        The summertime offset is already included in the timezone_offset property.
+
+        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+        but with the displayed value shifted exactly one hour earlier.
+        This may help in assigning the correct hour to information objects generated during the first hour after
+        transitioning from daylight savings time (summertime) to standard time.
+        """
+    @summertime.setter
+    def summertime(self, value: bool) -> None:
+        """
+        set if timestamps recorded at this station are in daylight saving time
+
+        Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
+
+        The summertime offset is already included in the timezone_offset property.
+
+        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+        but with the displayed value shifted exactly one hour earlier.
+        This may help in assigning the correct hour to information objects generated during the first hour after
+        transitioning from daylight savings time (summertime) to standard time.
+
+        Parameters
+        ----------
+        value: bool
+            use summertime (SU) flag
+
+        Returns
+        -------
+        None
+        """
+    @property
+    def timezone_offset(self) -> int:
+        """
+        timezone offset in seconds for recorded timestamps
+        """
+
+    @timezone_offset.setter
+    def timezone_offset(self, value: bool) -> None:
+        """
+        set timezone offset in seconds for recorded timestamps
+
+        Parameters
+        ----------
+        value: int
+            timezone offset in seconds
+
+        Returns
+        -------
+        None
         """
 class StatusAndChanged(Information):
     """
