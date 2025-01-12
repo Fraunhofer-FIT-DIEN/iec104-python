@@ -44,9 +44,9 @@ namespace py = pybind11;
 namespace Object {
 class DateTime {
 public:
-  static DateTime now();
+  static DateTime now(bool readonly = false);
   DateTime(const DateTime &other);
-  explicit DateTime(const py::object &py_datetime);
+  explicit DateTime(const py::object &py_datetime, bool readonly = false);
 
   /**
    * Constructs a DateTime object with a specified or default time point.
@@ -57,9 +57,10 @@ public:
    * @return A DateTime object initialized with the specified or default time
    * point.
    */
-  explicit DateTime(std::chrono::system_clock::time_point t);
+  explicit DateTime(std::chrono::system_clock::time_point t,
+                    bool readonly = false);
 
-  explicit DateTime(CP56Time2a t);
+  explicit DateTime(CP56Time2a t, bool readonly = false);
 
   ~DateTime() = default;
 
@@ -86,6 +87,10 @@ public:
    */
   void setSummertime(bool summertime);
 
+  [[nodiscard]] std::int_fast16_t getTimezoneOffset() const;
+
+  void setTimezoneOffset(std::int_fast16_t seconds);
+
   CP56Time2a getEncoded();
 
   DateTime &operator=(const DateTime &other);
@@ -95,6 +100,9 @@ public:
   py::object toPyDateTime() const;
 
 protected:
+  /// @brief toggle, if modification is allowed or not
+  std::atomic_bool readonly;
+
   /// @brief naive timestamp (timezone unaware)
   std::atomic<std::chrono::system_clock::time_point> time;
 
