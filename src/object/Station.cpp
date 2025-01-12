@@ -157,6 +157,10 @@ bool Station::removePoint(const std::uint_fast32_t informationObjectAddress) {
 
 bool Station::isLocal() { return !server.expired(); }
 
+bool Station::isSummertime() const { return summertime.load(); }
+
+void Station::setSummertime(const bool enabled) { summertime.store(enabled); }
+
 std::int_fast16_t Station::getTimezoneOffset() const {
   return timezoneOffset.load();
 }

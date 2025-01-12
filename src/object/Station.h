@@ -190,13 +190,13 @@ public:
    */
   bool isLocal();
 
+  [[nodiscard]] bool isSummertime() const;
+
+  void setSummertime(bool enabled);
+
   [[nodiscard]] std::int_fast16_t getTimezoneOffset() const;
 
   void setTimezoneOffset(std::int_fast16_t seconds);
-
-  [[nodiscard]] bool isSummertime() const;
-
-  void setSummertime(bool summertime);
 
   /**
    * @brief Sends the end of initialization signal with the specified cause.
