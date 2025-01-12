@@ -131,6 +131,10 @@ std::shared_ptr<DataPoint> Station::addPoint(
 
 bool Station::isLocal() { return !server.expired(); }
 
+bool Station::isSummertime() const { return summertime.load(); }
+
+void Station::setSummertime(const bool enabled) { summertime.store(enabled); }
+
 std::int_fast16_t Station::getTimezoneOffset() const {
   return timezoneOffset.load();
 }
