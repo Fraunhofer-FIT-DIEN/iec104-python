@@ -126,29 +126,29 @@ CP56Time2a DateTime::getEncoded() {
 
 bool DateTime::isSubstituted() const { return substituted; }
 
-void DateTime::setSubstituted(const bool substituted) {
+void DateTime::setSubstituted(const bool enabled) {
   if (readonly) {
     throw std::logic_error("DateTime is read-only!");
   }
-  this->substituted = substituted;
+  substituted = enabled;
 }
 
 bool DateTime::isInvalid() const { return invalid; }
 
-void DateTime::setInvalid(const bool invalid) {
+void DateTime::setInvalid(const bool enabled) {
   if (readonly) {
     throw std::logic_error("DateTime is read-only!");
   }
-  this->invalid = invalid;
+  invalid = enabled;
 }
 
 bool DateTime::isSummertime() const { return summertime; }
 
-void DateTime::setSummertime(const bool summertime) {
+void DateTime::setSummertime(const bool enabled) {
   if (readonly) {
     throw std::logic_error("DateTime is read-only!");
   }
-  this->summertime = summertime;
+  summertime = enabled;
 }
 
 std::int_fast16_t DateTime::getTimezoneOffset() const { return timezoneOffset; }

@@ -1546,7 +1546,7 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
     CommandResponseState responseState = RESPONSE_STATE_FAILURE;
     UnexpectedMessageCause cause = NO_ERROR_CAUSE;
 
-    // new clockSyncHandler
+    // clock sync
     if (message->getType() == C_CS_NA_1) {
       auto info = message->getInfo();
       auto time = info->getRecordedAt().value_or(info->getProcessedAt());
