@@ -575,7 +575,7 @@ void Server::unselect(const Selection &selection) {
 CommandResponseState
 Server::execute(IMasterConnection connection,
                 std::shared_ptr<Remote::Message::IncomingMessage> message,
-                std::shared_ptr<Object::DataPoint> point) {
+                const std::shared_ptr<Object::DataPoint> &point) {
   bool selected = false;
   const uint16_t ca = message->getCommonAddress();
   const uint32_t ioa = message->getIOA();
@@ -1565,8 +1565,13 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                             "clock_sync_handler] TIME " + time.toString());
     } else {
       if (message->getType() >= C_SC_NA_1) {
-        if (auto station = instance->getStation(message->getCommonAddress())) {
-          if (auto point = station->getPoint(message->getIOA())) {
+        if (const auto station =
+                instance->getStation(message->getCommonAddress())) {
+          // inject station timezone into DateTime properties
+          message->getInfo()->injectTimeZone(station->getTimeZoneOffset(),
+                                             station->isSummerTime());
+
+          if (const auto point = station->getPoint(message->getIOA())) {
             if (point->getType() == message->getType()) {
 
               if (message->isSelectCommand()) {
