@@ -1565,7 +1565,7 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                 instance->getStation(message->getCommonAddress())) {
           // inject station timezone into DateTime properties
           message->getInfo()->injectTimeZone(station->getTimeZoneOffset(),
-                                             station->isSummerTime());
+                                             station->isDaylightSavingTime());
 
           if (const auto point = station->getPoint(message->getIOA())) {
             if (point->getType() == message->getType()) {

@@ -1071,15 +1071,7 @@ void DataPoint::setOnReceiveCallback(py::object &callable) {
 CommandResponseState DataPoint::onReceive(
     const std::shared_ptr<Remote::Message::IncomingMessage> &message) {
   auto prev = std::move(info);
-
-  // replace DateTime with timezone information from Station
-  const auto curr = message->getInfo();
-  const auto _station = getStation();
-  if (_station) {
-    curr->injectTimeZone(_station->getTimeZoneOffset(),
-                         _station->isSummerTime());
-  }
-  info = std::move(curr);
+  info = message->getInfo();
 
   if (py_onReceive.is_set()) {
     DEBUG_PRINT(Debug::Point, "CALLBACK on_receive at IOA " +
