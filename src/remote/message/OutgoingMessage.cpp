@@ -55,7 +55,7 @@ OutgoingMessage::OutgoingMessage(
 
   causeOfTransmission = CS101_COT_UNKNOWN_COT;
 
-  auto _station = point->getStation();
+  const auto _station = point->getStation();
   if (!_station) {
     throw std::invalid_argument("Cannot get station from point");
   }
@@ -63,7 +63,7 @@ OutgoingMessage::OutgoingMessage(
   commonAddress = _station->getCommonAddress();
 
   // updated locally processed timestamp before transmission
-  point->setProcessedAt(Object::DateTime::now());
+  point->setProcessedAt(Object::DateTime::now(_station, true));
 
   informationObjectAddress = point->getInformationObjectAddress();
   DEBUG_PRINT(Debug::Message,

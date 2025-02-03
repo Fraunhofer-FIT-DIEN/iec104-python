@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2024-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -115,6 +115,15 @@ void Information::setRecordedAt(const std::optional<DateTime> val) {
 void Information::setProcessedAt(const DateTime &val) {
   std::lock_guard<std::mutex> lock(mtx);
   processed_at = val;
+}
+
+void Information::injectTimeZone(const std::int_fast16_t offset,
+                                 const bool summerTime) {
+  std::lock_guard<std::mutex> lock(mtx);
+  processed_at.injectTimeZone(offset, summerTime, true);
+  if (recorded_at.has_value()) {
+    recorded_at.value().injectTimeZone(offset, summerTime);
+  }
 }
 
 std::string Information::base_toString() const {

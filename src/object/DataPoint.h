@@ -60,19 +60,19 @@ public:
    * @throws std::invalid_argument if type is invalid
    */
   [[nodiscard]] static std::shared_ptr<DataPoint>
-  create(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
-         std::shared_ptr<Station> dp_station,
-         std::uint_fast16_t dp_report_ms = 0,
-         std::optional<std::uint_fast32_t> dp_related_ioa = std::nullopt,
-         bool dp_related_auto_return = false,
-         CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND,
-         std::uint_fast16_t tick_rate_ms = 0) {
+  create(const std::uint_fast32_t dp_ioa, const IEC60870_5_TypeID dp_type,
+         const std::shared_ptr<Station> &dp_station,
+         const std::uint_fast16_t dp_report_ms = 0,
+         const std::optional<std::uint_fast32_t> dp_related_ioa = std::nullopt,
+         const bool dp_related_auto_return = false,
+         const CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND,
+         const std::uint_fast16_t tick_rate_ms = 0) {
     Module::ScopedGilAcquire scoped("DataPoint.create");
 
     // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<DataPoint>(new DataPoint(
-        dp_ioa, dp_type, std::move(dp_station), dp_report_ms, dp_related_ioa,
-        dp_related_auto_return, dp_cmd_mode, tick_rate_ms));
+    return std::shared_ptr<DataPoint>(
+        new DataPoint(dp_ioa, dp_type, dp_station, dp_report_ms, dp_related_ioa,
+                      dp_related_auto_return, dp_cmd_mode, tick_rate_ms));
   }
 
   /**
@@ -94,7 +94,7 @@ private:
    * @throws std::invalid_argument if arguments provided are not compatible
    */
   DataPoint(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
-            std::shared_ptr<Station> dp_station,
+            const std::shared_ptr<Station> &dp_station,
             std::uint_fast16_t dp_report_ms,
             std::optional<std::uint_fast32_t> dp_related_ioa,
             bool dp_related_auto_return, CommandTransmissionMode dp_cmd_mode,
@@ -131,7 +131,7 @@ private:
 
   /// @brief interval (in milliseconds) between periodic transmissions, 0 => no
   /// periodic transmission
-  std::atomic<std::uint_fast16_t> reportInterval_ms;
+  std::atomic<std::uint_fast16_t> reportInterval_ms{0};
 
   /// @brief interval (in milliseconds) between timer execution, 0 => no timer
   std::atomic<std::uint_fast16_t> timerInterval_ms{0};
@@ -161,7 +161,7 @@ public:
    * @brief Get the NetworkStation that owns this DataPoint
    * @return Pointer to NetworkStation or nullptr
    */
-  std::shared_ptr<Station> getStation();
+  std::shared_ptr<Station> getStation() const;
 
   /**
    * @brief Get the information object address
@@ -214,7 +214,7 @@ public:
    * @return client originator address or zero if no active selection lock
    * exists
    */
-  std::optional<std::uint_fast8_t> getSelectedByOriginatorAddress();
+  std::optional<std::uint_fast8_t> getSelectedByOriginatorAddress() const;
 
   /**
    * @brief Get the IEC60870-5-104 information type of the DataPoint.
@@ -265,14 +265,14 @@ public:
    * @return InfoValue containing the current value of the DataPoint, using a
    * variant type that can represent various data models
    */
-  InfoValue getValue();
+  InfoValue getValue() const;
 
   /**
    * @brief Sets a new value for the DataPoint instance
    * @param new_value The new value to be assigned to the Information object
    * related to this DataPoint
    */
-  void setValue(InfoValue new_value);
+  void setValue(const InfoValue &new_value) const;
 
   /**
    * @brief Retrieves the quality information associated with the DataPoint.
@@ -282,7 +282,7 @@ public:
    *
    * @return The quality information as an instance of InfoQuality.
    */
-  InfoQuality getQuality();
+  InfoQuality getQuality() const;
 
   /**
    * @brief Sets the quality of the DataPoint instance.
@@ -292,7 +292,7 @@ public:
    *
    * @param new_quality The new quality value to be set for the DataPoint.
    */
-  void setQuality(InfoQuality new_quality);
+  void setQuality(InfoQuality new_quality) const;
 
   /**
    * @brief get timestamp bundled with value
@@ -310,7 +310,7 @@ public:
    * @brief set timestamp of last local processing operation (receiving/sending)
    * @param val datetime of processing
    */
-  void setProcessedAt(DateTime val);
+  void setProcessedAt(const DateTime &val);
 
   /**
    * @brief get next timer event point
@@ -330,7 +330,7 @@ public:
    * @return response handling information (success, failure or none)
    */
   CommandResponseState
-  onReceive(std::shared_ptr<Remote::Message::IncomingMessage> message);
+  onReceive(const std::shared_ptr<Remote::Message::IncomingMessage> &message);
 
   /**
    * @brief set python callback that will be executed on every incoming message

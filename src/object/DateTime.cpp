@@ -33,27 +33,35 @@
 #include "types.h"
 #include <pybind11/chrono.h>
 
+#include "Station.h"
 #include "module/ScopedGilAcquire.h"
 
 using namespace Object;
 
-DateTime DateTime::now(const bool readonly) {
-  // todo mark auto-created DateTimes as substituted?
-  return DateTime(std::chrono::system_clock::now(), readonly);
+DateTime DateTime::now() { return DateTime(std::chrono::system_clock::now()); }
+
+DateTime DateTime::now(const std::shared_ptr<Station> &station,
+                       const bool readonly) {
+  auto dt = now();
+  if (station) {
+    dt.injectTimeZone(station->getTimeZoneOffset(), station->isSummerTime());
+    dt.setSubstituted(station->isAutoTimeSubstituted());
+  }
+  if (readonly) {
+    dt.setReadonly();
+  }
+  return dt;
 }
 
 DateTime::DateTime(const DateTime &other) {
   time = other.time.load();
-  timezoneOffset = other.timezoneOffset.load();
+  timeZoneOffset = other.timeZoneOffset.load();
   substituted = other.substituted.load();
   invalid = other.invalid.load();
-  summertime = other.summertime.load();
-  readonly = other.readonly.load();
+  summerTime = other.summerTime.load();
 }
 
-DateTime::DateTime(const py::object &py_datetime, const bool readonly)
-    : substituted(false), invalid(false), summertime(false),
-      readonly(readonly) {
+DateTime::DateTime(const py::object &py_datetime) {
   Module::ScopedGilAcquire scoped("DateTime.fromPy");
 
   // Check whether it's a datetime.datetime object
@@ -71,41 +79,47 @@ DateTime::DateTime(const py::object &py_datetime, const bool readonly)
       std::chrono::duration_cast<std::chrono::system_clock::duration>(
           duration_since_epoch)};
 
-  std::int64_t milliseconds = static_cast<std::int64_t>(timestamp * 1000);
+  const auto milliseconds = static_cast<std::int64_t>(timestamp * 1000);
   CP56Time2a_setFromMsTimestamp(&cp56, milliseconds);
 
   // tzinfo is present: store the offset in seconds
-  auto utcoffset = py_datetime.attr("utcoffset")();
+  const auto utcoffset = py_datetime.attr("utcoffset")();
   if (!utcoffset.is_none()) {
-    timezoneOffset = utcoffset.attr("total_seconds")().cast<int>();
+    timeZoneOffset = utcoffset.attr("total_seconds")().cast<int>();
   }
 }
 
-DateTime::DateTime(const std::chrono::system_clock::time_point t,
-                   const bool readonly)
-    : time(t), substituted(false), invalid(false), summertime(false),
-      readonly(readonly) {}
+DateTime::DateTime(const std::chrono::system_clock::time_point t) : time(t) {}
 
-DateTime::DateTime(const CP56Time2a t, const bool readonly)
-    : readonly(readonly) {
+DateTime::DateTime(const CP56Time2a t) {
   time = std::chrono::system_clock::time_point(
       std::chrono::milliseconds(CP56Time2a_toMsTimestamp(t)));
   invalid = CP56Time2a_isInvalid(t);
   substituted = CP56Time2a_isSubstituted(t);
-  summertime = CP56Time2a_isSummerTime(t);
+  summerTime = CP56Time2a_isSummerTime(t);
 }
 
 // Copy Assignment Operator
 DateTime &DateTime::operator=(const DateTime &other) {
-  if (this != &other) { // Protect against self-assignment
+  if (this != &other) {
+    // Protect against self-assignment
+    if (readonly) {
+      throw std::logic_error("DateTime is read-only!");
+    }
     time = other.time.load();
-    timezoneOffset = other.timezoneOffset.load();
+    timeZoneOffset = other.timeZoneOffset.load();
     substituted = other.substituted.load();
     invalid = other.invalid.load();
-    summertime = other.summertime.load();
-    readonly = other.readonly.load();
+    summerTime = other.summerTime.load();
   }
   return *this;
+}
+
+void DateTime::setReadonly() {
+  if (readonly) {
+    return;
+  }
+  readonly.store(true);
 }
 
 CP56Time2a DateTime::getEncoded() {
@@ -113,13 +127,13 @@ CP56Time2a DateTime::getEncoded() {
       std::chrono::duration_cast<std::chrono::milliseconds>(
           time.load().time_since_epoch())
           .count() +
-      timezoneOffset * 1000;
+      timeZoneOffset * 1000;
 
   std::lock_guard<std::mutex> lock(cp56_mutex);
   CP56Time2a_setFromMsTimestamp(&cp56, milliseconds);
   CP56Time2a_setSubstituted(&cp56, substituted);
   CP56Time2a_setInvalid(&cp56, invalid);
-  CP56Time2a_setSummerTime(&cp56, summertime);
+  CP56Time2a_setSummerTime(&cp56, summerTime);
 
   return &cp56;
 }
@@ -142,22 +156,43 @@ void DateTime::setInvalid(const bool enabled) {
   invalid = enabled;
 }
 
-bool DateTime::isSummertime() const { return summertime; }
+bool DateTime::isSummerTime() const { return summerTime; }
 
-void DateTime::setSummertime(const bool enabled) {
+void DateTime::setSummerTime(const bool enabled) {
   if (readonly) {
     throw std::logic_error("DateTime is read-only!");
   }
-  summertime = enabled;
+  const bool old = summerTime.load();
+  if (old != enabled) {
+    const std::int_fast16_t modifier = enabled ? 3600 : -3600;
+    summerTime.store(enabled);
+    timeZoneOffset.store(timeZoneOffset.load() + modifier);
+  }
 }
 
-std::int_fast16_t DateTime::getTimezoneOffset() const { return timezoneOffset; }
+std::int_fast16_t DateTime::getTimeZoneOffset() const {
+  return timeZoneOffset.load();
+}
 
-void DateTime::setTimezoneOffset(const std::int_fast16_t seconds) {
-  if (readonly) {
-    throw std::logic_error("DateTime is read-only!");
+void DateTime::injectTimeZone(const std::int_fast16_t offset,
+                              const bool isSummerTime,
+                              const bool overrideSummerTime) {
+  timeZoneOffset.store(offset);
+  if (overrideSummerTime) {
+    summerTime.store(isSummerTime);
+  } else {
+    const bool old = summerTime.load();
+    if (old != isSummerTime) {
+      const std::int_fast16_t modifier = isSummerTime ? 3600 : -3600;
+      std::cerr << "Different SummerTime flag in Message and Station | Station "
+                << bool_toString(isSummerTime) << " | Message "
+                << bool_toString(summerTime.load())
+                << " | timezone offset adapted " << std::to_string(modifier)
+                << "s" << std::endl;
+      summerTime.store(isSummerTime);
+      timeZoneOffset.store(timeZoneOffset.load() + modifier);
+    }
   }
-  timezoneOffset = seconds;
 }
 
 py::object DateTime::toPyDateTime() const {
@@ -175,11 +210,11 @@ py::object DateTime::toPyDateTime() const {
           time.load().time_since_epoch())
           .count();
 
-  const double timestamp = milliseconds_since_epoch /
-                           1000.0; // Convert milliseconds to seconds as double
+  const auto timestamp = static_cast<double>(milliseconds_since_epoch) / 1000.0;
+  // Convert milliseconds to seconds as double
 
   // Prepare timezone offset in minutes
-  int timezone_offset_seconds = timezoneOffset.load();
+  const auto timezone_offset_seconds = static_cast<int>(timeZoneOffset.load());
   py::object tzinfo = py::none();
 
   // If there is a timezone offset specified, create a timezone using Python
@@ -198,7 +233,8 @@ py::object DateTime::toPyDateTime() const {
 }
 
 std::string
-TimePoint_toString(const std::chrono::system_clock::time_point &time) {
+TimePoint_toString(const std::chrono::system_clock::time_point &time,
+                   const std::int_fast16_t offset = 0) {
   using us_t = std::chrono::duration<int, std::micro>;
   auto us = std::chrono::duration_cast<us_t>(time.time_since_epoch() %
                                              std::chrono::seconds(1));
@@ -206,26 +242,37 @@ TimePoint_toString(const std::chrono::system_clock::time_point &time) {
     us += std::chrono::seconds(1);
   }
 
-  std::time_t tt = std::chrono::system_clock::to_time_t(
-      std::chrono::time_point_cast<std::chrono::system_clock::duration>(time -
-                                                                        us));
+  // Adjust the time_point by the timezone offset
+  const auto adjusted_time = time + std::chrono::seconds(offset);
 
-  std::tm local_tt = *std::localtime(&tt);
+  const std::time_t tt = std::chrono::system_clock::to_time_t(
+      std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+          adjusted_time - us));
+
+  const std::tm local_tt = *std::localtime(&tt);
 
   std::ostringstream oss;
   oss << std::put_time(&local_tt, "%Y-%m-%dT%H:%M:%S");
   oss << '.' << std::setw(3) << std::setfill('0') << us.count();
   oss << std::put_time(&local_tt, "%z");
+
+  // Format the offset into the string (e.g. +HHMM or -HHMM)
+  int offset_hours = offset / 3600;
+  int offset_minutes = std::abs(offset % 3600) / 60;
+  oss << std::showpos << std::setw(2) << std::setfill('0') << offset_hours
+      << std::setw(2) << offset_minutes;
+
   return oss.str();
 }
 
 std::string DateTime::toString() const {
   std::ostringstream oss;
-  oss << "<c104.DateTime time=" << TimePoint_toString(time.load())
-      << ", offset=" << std::to_string(timezoneOffset) << "min"
+  oss << "<c104.DateTime time="
+      << TimePoint_toString(time.load(), timeZoneOffset.load())
+      << ", readonly=" << bool_toString(readonly)
       << ", invalid=" << bool_toString(invalid)
       << ", substituted=" << bool_toString(substituted)
-      << ", summertime=" << bool_toString(summertime) << " at " << std::hex
+      << ", summertime=" << bool_toString(summerTime) << " at " << std::hex
       << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
   return oss.str();
 }

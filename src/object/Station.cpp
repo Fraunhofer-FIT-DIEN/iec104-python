@@ -36,9 +36,9 @@
 
 using namespace Object;
 
-Station::Station(std::uint_fast16_t st_commonAddress,
-                 std::shared_ptr<Server> st_server,
-                 std::shared_ptr<Remote::Connection> st_connection)
+Station::Station(const std::uint_fast16_t st_commonAddress,
+                 const std::shared_ptr<Server> &st_server,
+                 const std::shared_ptr<Remote::Connection> &st_connection)
     : commonAddress(st_commonAddress), server(st_server),
       connection(st_connection) {
   DEBUG_PRINT(Debug::Station, "Created");
@@ -54,14 +54,14 @@ Station::~Station() {
 
 std::uint_fast16_t Station::getCommonAddress() const { return commonAddress; }
 
-std::shared_ptr<Server> Station::getServer() {
+std::shared_ptr<Server> Station::getServer() const {
   if (server.expired()) {
     return {nullptr};
   }
   return server.lock();
 }
 
-std::shared_ptr<Remote::Connection> Station::getConnection() {
+std::shared_ptr<Remote::Connection> Station::getConnection() const {
   if (connection.expired()) {
     return {nullptr};
   }
@@ -111,10 +111,10 @@ std::shared_ptr<DataPoint> Station::addPoint(
 
   // forward tickRate_ms
   uint_fast16_t tickRate_ms = 0;
-  if (auto sv = getServer()) {
+  if (const auto sv = getServer()) {
     tickRate_ms = sv->getTickRate_ms();
-  } else if (auto co = getConnection()) {
-    if (auto cl = co->getClient()) {
+  } else if (const auto co = getConnection()) {
+    if (const auto cl = co->getClient()) {
       tickRate_ms = cl->getTickRate_ms();
     }
   }
@@ -155,22 +155,38 @@ bool Station::removePoint(const std::uint_fast32_t informationObjectAddress) {
   return (points.size() < originalSize); // Success if the size decreased
 }
 
-bool Station::isLocal() { return !server.expired(); }
+bool Station::isLocal() const { return !server.expired(); }
 
-bool Station::isSummertime() const { return summertime.load(); }
-
-void Station::setSummertime(const bool enabled) { summertime.store(enabled); }
-
-std::int_fast16_t Station::getTimezoneOffset() const {
-  return timezoneOffset.load();
+std::int_fast16_t Station::getTimeZoneOffset() const {
+  return timeZoneOffset.load();
 }
 
-void Station::setTimezoneOffset(const std::int_fast16_t seconds) {
-  timezoneOffset.store(seconds);
+void Station::setTimeZoneOffset(const std::int_fast16_t seconds) {
+  timeZoneOffset.store(seconds);
 }
 
-void Station::sendEndOfInitialization(const CS101_CauseOfInitialization cause) {
-  if (auto sv = getServer()) {
+bool Station::isSummerTime() const { return summerTime.load(); }
+
+void Station::setSummerTime(const bool enabled) {
+  const bool old = summerTime.load();
+  if (old != enabled) {
+    const std::int_fast16_t modifier = enabled ? 3600 : -3600;
+    summerTime.store(enabled);
+    timeZoneOffset.store(timeZoneOffset.load() + modifier);
+  }
+}
+
+bool Station::isAutoTimeSubstituted() const {
+  return autoTimeSubstituted.load();
+}
+
+void Station::setAutoTimeSubstituted(const bool enabled) {
+  autoTimeSubstituted.store(enabled);
+}
+
+void Station::sendEndOfInitialization(
+    const CS101_CauseOfInitialization cause) const {
+  if (const auto sv = getServer()) {
     return sv->sendEndOfInitialization(commonAddress, cause);
   }
 
