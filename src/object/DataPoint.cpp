@@ -32,6 +32,7 @@
 #include "object/DataPoint.h"
 #include "Server.h"
 #include "module/ScopedGilAcquire.h"
+#include "object/DateTime.h"
 #include "object/Information.h"
 #include "object/Station.h"
 #include "remote/Connection.h"
@@ -41,16 +42,16 @@ using namespace Object;
 
 DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
                      const IEC60870_5_TypeID dp_type,
-                     std::shared_ptr<Station> dp_station,
+                     const std::shared_ptr<Station> &dp_station,
                      const std::uint_fast16_t dp_report_ms,
                      const std::optional<std::uint_fast32_t> dp_related_ioa,
                      const bool dp_related_auto_return,
                      const CommandTransmissionMode dp_cmd_mode,
                      const std::uint_fast16_t tick_rate_ms)
     : informationObjectAddress(dp_ioa), type(dp_type), station(dp_station),
-      timerNext(std::chrono::steady_clock::now()),
       relatedInformationObjectAutoReturn(dp_related_auto_return),
-      commandMode(dp_cmd_mode), tickRate_ms(tick_rate_ms) {
+      commandMode(dp_cmd_mode), tickRate_ms(tick_rate_ms),
+      timerNext(std::chrono::steady_clock::now()) {
   if (type >= M_EI_NA_1) {
     throw std::invalid_argument("Unsupported type " +
                                 std::string(TypeID_toString(type)));
@@ -97,8 +98,8 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
         std::make_shared<SingleInfo>(false, Quality::None, std::nullopt, false);
     break;
   case M_SP_TB_1:
-    info = std::make_shared<SingleInfo>(false, Quality::None, DateTime::now(),
-                                        false);
+    info = std::make_shared<SingleInfo>(
+        false, Quality::None, DateTime::now(getStation(), false), false);
     break;
   case C_SC_NA_1:
     info = std::make_shared<SingleCmd>(
@@ -106,32 +107,35 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case C_SC_TA_1:
     info = std::make_shared<SingleCmd>(
-        false, false, CS101_QualifierOfCommand::NONE, DateTime::now(), false);
+        false, false, CS101_QualifierOfCommand::NONE,
+        DateTime::now(getStation(), false), false);
     break;
   case M_DP_NA_1:
     info = std::make_shared<DoubleInfo>(IEC60870_DOUBLE_POINT_OFF,
                                         Quality::None, std::nullopt, false);
     break;
   case M_DP_TB_1:
-    info = std::make_shared<DoubleInfo>(IEC60870_DOUBLE_POINT_OFF,
-                                        Quality::None, DateTime::now(), false);
+    info =
+        std::make_shared<DoubleInfo>(IEC60870_DOUBLE_POINT_OFF, Quality::None,
+                                     DateTime::now(getStation(), false), false);
     break;
   case C_DC_NA_1:
     info = std::make_shared<DoubleCmd>(IEC60870_DOUBLE_POINT_OFF, false,
                                        CS101_QualifierOfCommand::NONE,
                                        std::nullopt, false);
   case C_DC_TA_1:
-    info = std::make_shared<DoubleCmd>(IEC60870_DOUBLE_POINT_OFF, false,
-                                       CS101_QualifierOfCommand::NONE,
-                                       DateTime::now(), false);
+    info = std::make_shared<DoubleCmd>(
+        IEC60870_DOUBLE_POINT_OFF, false, CS101_QualifierOfCommand::NONE,
+        DateTime::now(getStation(), false), false);
     break;
   case M_ST_NA_1:
     info = std::make_shared<StepInfo>(LimitedInt7(0), false, Quality::None,
                                       std::nullopt, false);
     break;
   case M_ST_TB_1:
-    info = std::make_shared<StepInfo>(LimitedInt7(0), false, Quality::None,
-                                      DateTime::now(), false);
+    info =
+        std::make_shared<StepInfo>(LimitedInt7(0), false, Quality::None,
+                                   DateTime::now(getStation(), false), false);
     break;
   case C_RC_NA_1:
     info = std::make_shared<StepCmd>(IEC60870_STEP_LOWER, false,
@@ -141,7 +145,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
   case C_RC_TA_1:
     info = std::make_shared<StepCmd>(IEC60870_STEP_LOWER, false,
                                      CS101_QualifierOfCommand::NONE,
-                                     DateTime::now(), false);
+                                     DateTime::now(getStation(), false), false);
     break;
   case M_ME_NA_1:
   case M_ME_ND_1:
@@ -150,7 +154,8 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case M_ME_TD_1:
     info = std::make_shared<NormalizedInfo>(NormalizedFloat(0), Quality::None,
-                                            DateTime::now(), false);
+                                            DateTime::now(getStation(), false),
+                                            false);
     break;
   case C_SE_NA_1:
     info = std::make_shared<NormalizedCmd>(
@@ -158,52 +163,56 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case C_SE_TA_1:
     info = std::make_shared<NormalizedCmd>(
-        NormalizedFloat(0), false, LimitedUInt7(0), DateTime::now(), false);
+        NormalizedFloat(0), false, LimitedUInt7(0),
+        DateTime::now(getStation(), false), false);
     break;
   case M_ME_NB_1:
     info = std::make_shared<ScaledInfo>(LimitedInt16(0), Quality::None,
                                         std::nullopt, false);
     break;
   case M_ME_TE_1:
-    info = std::make_shared<ScaledInfo>(LimitedInt16(0), Quality::None,
-                                        DateTime::now(), false);
+    info =
+        std::make_shared<ScaledInfo>(LimitedInt16(0), Quality::None,
+                                     DateTime::now(getStation(), false), false);
     break;
   case C_SE_NB_1:
     info = std::make_shared<ScaledCmd>(LimitedInt16(0), false, LimitedUInt7(0),
                                        std::nullopt, false);
     break;
   case C_SE_TB_1:
-    info = std::make_shared<ScaledCmd>(LimitedInt16(0), false, LimitedUInt7(0),
-                                       DateTime::now(), false);
+    info =
+        std::make_shared<ScaledCmd>(LimitedInt16(0), false, LimitedUInt7(0),
+                                    DateTime::now(getStation(), false), false);
     break;
   case M_ME_NC_1:
     info = std::make_shared<ShortInfo>(0.0, Quality::None, std::nullopt, false);
     break;
   case M_ME_TF_1:
-    info =
-        std::make_shared<ShortInfo>(0.0, Quality::None, DateTime::now(), false);
+    info = std::make_shared<ShortInfo>(
+        0.0, Quality::None, DateTime::now(getStation(), false), false);
     break;
   case C_SE_NC_1:
     info = std::make_shared<ShortCmd>(0.0, false, LimitedUInt7(0), std::nullopt,
                                       false);
     break;
   case C_SE_TC_1:
-    info = std::make_shared<ShortCmd>(0.0, false, LimitedUInt7(0),
-                                      DateTime::now(), false);
+    info = std::make_shared<ShortCmd>(
+        0.0, false, LimitedUInt7(0), DateTime::now(getStation(), false), false);
     break;
   case M_BO_NA_1:
     info = std::make_shared<BinaryInfo>(Byte32(0), Quality::None, std::nullopt,
                                         false);
     break;
   case M_BO_TB_1:
-    info = std::make_shared<BinaryInfo>(Byte32(0), Quality::None,
-                                        DateTime::now(), false);
+    info = std::make_shared<BinaryInfo>(
+        Byte32(0), Quality::None, DateTime::now(getStation(), false), false);
     break;
   case C_BO_NA_1:
     info = std::make_shared<BinaryCmd>(Byte32(0), std::nullopt, false);
     break;
   case C_BO_TA_1:
-    info = std::make_shared<BinaryCmd>(Byte32(0), DateTime::now(), false);
+    info = std::make_shared<BinaryCmd>(
+        Byte32(0), DateTime::now(getStation(), false), false);
     break;
   case M_IT_NA_1:
     info = std::make_shared<BinaryCounterInfo>(
@@ -211,26 +220,28 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     break;
   case M_IT_TB_1:
     info = std::make_shared<BinaryCounterInfo>(
-        0, LimitedUInt5(0), BinaryCounterQuality::None, DateTime::now(), false);
+        0, LimitedUInt5(0), BinaryCounterQuality::None,
+        DateTime::now(getStation(), false), false);
     break;
   case M_EP_TD_1:
     info = std::make_shared<ProtectionEquipmentEventInfo>(
         IEC60870_EVENTSTATE_OFF, LimitedUInt16(0), Quality::None,
-        DateTime::now(), false);
+        DateTime::now(getStation(), false), false);
     break;
   case M_EP_TE_1:
     info = std::make_shared<ProtectionEquipmentStartEventsInfo>(
-        StartEvents::None, LimitedUInt16(0), Quality::None, DateTime::now(),
-        false);
+        StartEvents::None, LimitedUInt16(0), Quality::None,
+        DateTime::now(getStation(), false), false);
     break;
   case M_EP_TF_1:
     info = std::make_shared<ProtectionEquipmentOutputCircuitInfo>(
-        OutputCircuits::None, LimitedUInt16(0), Quality::None, DateTime::now(),
-        false);
+        OutputCircuits::None, LimitedUInt16(0), Quality::None,
+        DateTime::now(getStation(), false), false);
     break;
   case M_PS_NA_1:
     info = std::make_shared<StatusWithChangeDetection>(
-        FieldSet16(0), FieldSet16(0), Quality::None, std::nullopt, false);
+        static_cast<FieldSet16>(0), static_cast<FieldSet16>(0), Quality::None,
+        std::nullopt, false);
     break;
   default:
     throw std::invalid_argument("Unsupported type " +
@@ -242,7 +253,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
 
 DataPoint::~DataPoint() { DEBUG_PRINT(Debug::Point, "Removed"); }
 
-std::shared_ptr<Station> DataPoint::getStation() {
+std::shared_ptr<Station> DataPoint::getStation() const {
   if (station.expired()) {
     return {nullptr};
   }
@@ -314,9 +325,10 @@ void DataPoint::setCommandMode(const CommandTransmissionMode mode) {
   commandMode.store(mode);
 }
 
-std::optional<std::uint_fast8_t> DataPoint::getSelectedByOriginatorAddress() {
-  if (auto st = getStation()) {
-    if (auto server = st->getServer()) {
+std::optional<std::uint_fast8_t>
+DataPoint::getSelectedByOriginatorAddress() const {
+  if (const auto st = getStation()) {
+    if (const auto server = st->getServer()) {
       return server->getSelector(st->getCommonAddress(),
                                  informationObjectAddress);
     }
@@ -328,13 +340,12 @@ IEC60870_5_TypeID DataPoint::getType() const { return type; }
 
 std::shared_ptr<Information> DataPoint::getInfo() const { return info; }
 
-void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
+void DataPoint::setInfo(std::shared_ptr<Information> new_info) {
   bool const debug = DEBUG_TEST(Debug::Point);
 
   switch (type) {
   case M_SP_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::SingleInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<SingleInfo>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -351,10 +362,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_SP_TB_1: {
-    auto i = std::dynamic_pointer_cast<Object::SingleInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<SingleInfo>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -370,8 +380,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_SC_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::SingleCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<SingleCmd>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -388,10 +397,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_SC_TA_1: {
-    auto i = std::dynamic_pointer_cast<Object::SingleCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<SingleCmd>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -407,8 +415,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_DP_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::DoubleInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<DoubleInfo>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -425,10 +432,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_DP_TB_1: {
-    auto i = std::dynamic_pointer_cast<Object::DoubleInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<DoubleInfo>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -444,8 +450,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_DC_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::DoubleCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<DoubleCmd>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -462,10 +467,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_DC_TA_1: {
-    auto i = std::dynamic_pointer_cast<Object::DoubleCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<DoubleCmd>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -481,8 +485,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_ST_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::StepInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<StepInfo>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -499,10 +502,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_ST_TB_1: {
-    auto i = std::dynamic_pointer_cast<Object::StepInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<StepInfo>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -518,8 +520,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_RC_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::StepCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<StepCmd>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -535,10 +536,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_RC_TA_1: {
-    auto i = std::dynamic_pointer_cast<Object::StepCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<StepCmd>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -554,8 +554,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
   } break;
   case M_ME_NA_1:
   case M_ME_ND_1: {
-    auto i = std::dynamic_pointer_cast<Object::NormalizedInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<NormalizedInfo>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -572,10 +571,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_ME_TD_1: {
-    auto i = std::dynamic_pointer_cast<Object::NormalizedInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<NormalizedInfo>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -591,8 +589,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_SE_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::NormalizedCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<NormalizedCmd>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -609,10 +606,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_SE_TA_1: {
-    auto i = std::dynamic_pointer_cast<Object::NormalizedCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<NormalizedCmd>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -628,8 +624,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_ME_NB_1: {
-    auto i = std::dynamic_pointer_cast<Object::ScaledInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<ScaledInfo>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -646,10 +641,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_ME_TE_1: {
-    auto i = std::dynamic_pointer_cast<Object::ScaledInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<ScaledInfo>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -665,8 +659,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_SE_NB_1: {
-    auto i = std::dynamic_pointer_cast<Object::ScaledCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<ScaledCmd>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -683,10 +676,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_SE_TB_1: {
-    auto i = std::dynamic_pointer_cast<Object::ScaledCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<ScaledCmd>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -702,8 +694,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_ME_NC_1: {
-    auto i = std::dynamic_pointer_cast<Object::ShortInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<ShortInfo>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -720,10 +711,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_ME_TF_1: {
-    auto i = std::dynamic_pointer_cast<Object::ShortInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<ShortInfo>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -739,8 +729,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_SE_NC_1: {
-    auto i = std::dynamic_pointer_cast<Object::ShortCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<ShortCmd>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -757,10 +746,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_SE_TC_1: {
-    auto i = std::dynamic_pointer_cast<Object::ShortCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<ShortCmd>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -776,8 +764,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_BO_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::BinaryInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<BinaryInfo>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -794,10 +781,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_BO_TB_1: {
-    auto i = std::dynamic_pointer_cast<Object::BinaryInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<BinaryInfo>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -813,8 +799,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_BO_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::BinaryCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<BinaryCmd>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -831,10 +816,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case C_BO_TA_1: {
-    auto i = std::dynamic_pointer_cast<Object::BinaryCmd>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<BinaryCmd>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -850,8 +834,7 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_IT_NA_1: {
-    auto i = std::dynamic_pointer_cast<Object::BinaryCounterInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<BinaryCounterInfo>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -868,10 +851,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_IT_TB_1: {
-    auto i = std::dynamic_pointer_cast<Object::BinaryCounterInfo>(new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<BinaryCounterInfo>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -887,11 +869,10 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_EP_TD_1: {
-    auto i = std::dynamic_pointer_cast<Object::ProtectionEquipmentEventInfo>(
-        new_info);
-    if (i) {
+    if (auto i =
+            std::dynamic_pointer_cast<ProtectionEquipmentEventInfo>(new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -907,12 +888,10 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_EP_TE_1: {
-    auto i =
-        std::dynamic_pointer_cast<Object::ProtectionEquipmentStartEventsInfo>(
-            new_info);
-    if (i) {
+    if (auto i = std::dynamic_pointer_cast<ProtectionEquipmentStartEventsInfo>(
+            new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -928,12 +907,11 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_EP_TF_1: {
-    auto i =
-        std::dynamic_pointer_cast<Object::ProtectionEquipmentOutputCircuitInfo>(
-            new_info);
-    if (i) {
+    if (auto i =
+            std::dynamic_pointer_cast<ProtectionEquipmentOutputCircuitInfo>(
+                new_info)) {
       if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(Object::DateTime::now());
+        i->setRecordedAt(DateTime::now(getStation(), false));
         DEBUG_PRINT_CONDITION(debug, Debug::Point,
                               "Injecting current local timestamp into "
                               "information for [c104.Type." +
@@ -949,9 +927,8 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     }
   } break;
   case M_PS_NA_1: {
-    auto i =
-        std::dynamic_pointer_cast<Object::StatusWithChangeDetection>(new_info);
-    if (i) {
+    if (auto i =
+            std::dynamic_pointer_cast<StatusWithChangeDetection>(new_info)) {
       if (i->getRecordedAt().has_value()) {
         i->setRecordedAt(std::nullopt);
         DEBUG_PRINT_CONDITION(
@@ -974,9 +951,9 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
   info = std::move(new_info);
 }
 
-InfoValue DataPoint::getValue() { return info->getValue(); }
+InfoValue DataPoint::getValue() const { return info->getValue(); }
 
-void DataPoint::setValue(const InfoValue new_value) {
+void DataPoint::setValue(const InfoValue &new_value) const {
   info->setValue(new_value);
   switch (type) {
   case M_SP_TB_1:
@@ -997,19 +974,21 @@ void DataPoint::setValue(const InfoValue new_value) {
   case M_EP_TD_1:
   case M_EP_TE_1:
   case M_EP_TF_1:
-    info->setRecordedAt(Object::DateTime::now());
+    info->setRecordedAt(DateTime::now(getStation(), false));
     DEBUG_PRINT(
         Debug::Point,
         "Injecting current local timestamp into information for [c104.Type." +
             std::string(TypeID_toString(type)) + "] at IOA " +
             std::to_string(informationObjectAddress));
     break;
+  default: {
+  }
   }
 }
 
-InfoQuality DataPoint::getQuality() { return info->getQuality(); }
+InfoQuality DataPoint::getQuality() const { return info->getQuality(); }
 
-void DataPoint::setQuality(const InfoQuality new_quality) {
+void DataPoint::setQuality(const InfoQuality new_quality) const {
   info->setQuality(new_quality);
   switch (type) {
   case M_SP_TB_1:
@@ -1030,13 +1009,15 @@ void DataPoint::setQuality(const InfoQuality new_quality) {
   case M_EP_TD_1:
   case M_EP_TE_1:
   case M_EP_TF_1:
-    info->setRecordedAt(Object::DateTime::now());
+    info->setRecordedAt(DateTime::now(getStation(), false));
     DEBUG_PRINT(
         Debug::Point,
         "Injecting current local timestamp into information for [c104.Type." +
             std::string(TypeID_toString(type)) + "] at IOA " +
             std::to_string(informationObjectAddress));
     break;
+  default: {
+  }
   }
 }
 
@@ -1046,7 +1027,7 @@ std::optional<DateTime> DataPoint::getRecordedAt() const {
 
 DateTime DataPoint::getProcessedAt() const { return info->getProcessedAt(); }
 
-void DataPoint::setProcessedAt(const DateTime val) {
+void DataPoint::setProcessedAt(const DateTime &val) {
   lastSentAt.store(std::chrono::steady_clock::now());
   info->setProcessedAt(val);
 }
@@ -1088,9 +1069,17 @@ void DataPoint::setOnReceiveCallback(py::object &callable) {
 }
 
 CommandResponseState DataPoint::onReceive(
-    std::shared_ptr<Remote::Message::IncomingMessage> message) {
+    const std::shared_ptr<Remote::Message::IncomingMessage> &message) {
   auto prev = std::move(info);
-  info = message->getInfo();
+
+  // replace DateTime with timezone information from Station
+  const auto curr = message->getInfo();
+  const auto _station = getStation();
+  if (_station) {
+    curr->injectTimeZone(_station->getTimeZoneOffset(),
+                         _station->isSummerTime());
+  }
+  info = std::move(curr);
 
   if (py_onReceive.is_set()) {
     DEBUG_PRINT(Debug::Point, "CALLBACK on_receive at IOA " +
@@ -1180,7 +1169,7 @@ void DataPoint::onTimer() {
 }
 
 bool DataPoint::read() {
-  auto _station = getStation();
+  const auto _station = getStation();
   if (!_station) {
     throw std::invalid_argument("Station reference deleted");
   }
@@ -1191,7 +1180,7 @@ bool DataPoint::read() {
   }
 
   // as client
-  auto _connection = _station->getConnection();
+  const auto _connection = _station->getConnection();
   if (!_connection) {
     throw std::invalid_argument("Connection reference deleted");
   }
@@ -1205,14 +1194,14 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause,
               "transmit_ex] " + std::string(TypeID_toString(type)) +
                   " at IOA " + std::to_string(informationObjectAddress));
 
-  auto _station = getStation();
+  const auto _station = getStation();
   if (!_station) {
     throw std::invalid_argument("Station reference deleted");
   }
 
   // as server
   if (_station->isLocal()) {
-    auto server = _station->getServer();
+    const auto server = _station->getServer();
     if (!server) {
       throw std::invalid_argument("Server reference deleted");
     }
@@ -1220,7 +1209,7 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause,
   }
 
   // as client
-  auto connection = _station->getConnection();
+  const auto connection = _station->getConnection();
   if (!connection) {
     throw std::invalid_argument("Client connection reference deleted");
   }

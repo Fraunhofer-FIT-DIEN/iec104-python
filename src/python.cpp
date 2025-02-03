@@ -2682,8 +2682,11 @@ This may help in assigning the correct hour to information objects generated dur
 transitioning from daylight savings time (summertime) to standard time.
 )def")
       .def_property("timezone_offset", &Object::Station::getTimezoneOffset,
-                    &Object::Station::setTimezoneOffset,
+                    &Object::Station::setTimeZoneOffset,
                     "int: timezone offset in seconds for recorded timestamps")
+      .def_property("auto_time_substituted", &Object::Station::getTimezoneOffset,
+                    &Object::Station::setAutoTimeSubstituted,
+                    "bool: automatically assigned reported at timestamps are flagged as substituted")
       .def_property_readonly(
           "has_points", &Object::Station::hasPoints,
           "bool: test if station has at least one point (read-only)")
@@ -3128,10 +3131,9 @@ Example
                     "bool: timestamp is substituted")
       .def_property("invalid", &Object::DateTime::isInvalid,
                     &Object::DateTime::setInvalid, "bool: timestamp is invalid")
-      .def_property(
-          "summertime", &Object::DateTime::isSummertime,
-          &Object::DateTime::setSummertime,
-          R"def(bool: if timestamps recorded at this station are in daylight saving time
+      .def_property("summertime", &Object::DateTime::isSummerTime,
+      &Object::DateTime::setSummerTime,
+R"def(bool: if timestamps recorded at this station are in daylight saving time
 
 Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
 
@@ -3143,9 +3145,8 @@ but with the displayed value shifted exactly one hour earlier.
 This may help in assigning the correct hour to information objects generated during the first hour after
 transitioning from daylight savings time (summertime) to standard time.
 )def")
-      .def_property("timezone_offset", &Object::DateTime::getTimezoneOffset,
-                    &Object::DateTime::setTimezoneOffset,
-                    "int: timezone offset in seconds")
+.def_property_readonly("timezone_offset", &Object::DateTime::getTimeZoneOffset,
+      "int: timezone offset in seconds")
       .def("__repr__", &Object::DateTime::toString);
 
   py::class_<Object::Information, std::shared_ptr<Object::Information>>(

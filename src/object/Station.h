@@ -60,12 +60,12 @@ public:
    * @return A shared pointer to the newly created Station instance.
    */
   [[nodiscard]] static std::shared_ptr<Station>
-  create(std::uint_fast16_t st_commonAddress,
-         std::shared_ptr<Server> st_server = nullptr,
-         std::shared_ptr<Remote::Connection> st_connection = nullptr) {
+  create(const std::uint_fast16_t st_commonAddress,
+         const std::shared_ptr<Server> &st_server = nullptr,
+         const std::shared_ptr<Remote::Connection> &st_connection = nullptr) {
     // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<Station>(new Station(
-        st_commonAddress, std::move(st_server), std::move(st_connection)));
+    return std::shared_ptr<Station>(
+        new Station(st_commonAddress, st_server, st_connection));
   }
 
   /**
@@ -77,8 +77,8 @@ public:
 
 private:
   explicit Station(std::uint_fast16_t st_commonAddress,
-                   std::shared_ptr<Server> st_server,
-                   std::shared_ptr<Remote::Connection> st_connection);
+                   const std::shared_ptr<Server> &st_server,
+                   const std::shared_ptr<Remote::Connection> &st_connection);
 
   /// @brief unique common address of this station
   const std::uint_fast16_t commonAddress{0};
@@ -101,19 +101,13 @@ private:
       pointIoaMap{};
 
   /// @brief timezone offset in seconds that point timestamps are recorded in
-  std::atomic<std::int_fast16_t> timezoneOffset{0};
+  std::atomic<std::int_fast16_t> timeZoneOffset{0};
 
-  /**
-   * @brief timestamp are recorded during daylight savings time (summertime).
-   *
-   * The use of the summertime (SU) flag is optional but generally discouraged -
-   * use UTC instead. A timestamp with the SU flag set represents the identical
-   * time value as a timestamp with the SU flag unset, but with the displayed
-   * value shifted exactly one hour earlier. This may help in assigning the
-   * correct hour to information objects generated during the first hour after
-   * transitioning from daylight savings time (summertime) to standard time.
-   */
-  std::atomic_bool summertime{false};
+  /// @brief daylight saving time enabled?
+  std::atomic_bool summerTime{false};
+
+  /// @brief set substituted flag for auto generated timestamps
+  std::atomic_bool autoTimeSubstituted{false};
 
 public:
   /**
@@ -126,13 +120,13 @@ public:
    * @brief getter for server
    * @return shared pointer to the owning server instance, optional
    */
-  std::shared_ptr<Server> getServer();
+  std::shared_ptr<Server> getServer() const;
 
   /**
    * @brief getter for connection
    * @return shared pointer to the owning connection instance, optional
    */
-  std::shared_ptr<Remote::Connection> getConnection();
+  std::shared_ptr<Remote::Connection> getConnection() const;
 
   /**
    * @brief Test if DataPoints exists at this NetworkStation
@@ -188,15 +182,19 @@ public:
    * connection (client)
    * @return if it has a server
    */
-  bool isLocal();
+  bool isLocal() const;
 
-  [[nodiscard]] bool isSummertime() const;
+  [[nodiscard]] std::int_fast16_t getTimeZoneOffset() const;
 
-  void setSummertime(bool enabled);
+  void setTimeZoneOffset(std::int_fast16_t seconds);
 
-  [[nodiscard]] std::int_fast16_t getTimezoneOffset() const;
+  [[nodiscard]] bool isSummerTime() const;
 
-  void setTimezoneOffset(std::int_fast16_t seconds);
+  void setSummerTime(bool enabled);
+
+  [[nodiscard]] bool isAutoTimeSubstituted() const;
+
+  void setAutoTimeSubstituted(bool enabled);
 
   /**
    * @brief Sends the end of initialization signal with the specified cause.
@@ -204,7 +202,7 @@ public:
    * CS101_CauseOfInitialization.
    * @throws std::runtime_error if the station is not a server.
    */
-  void sendEndOfInitialization(CS101_CauseOfInitialization cause);
+  void sendEndOfInitialization(CS101_CauseOfInitialization cause) const;
 
   /**
    * @brief Remove reference to station, do not call this method, this is called
@@ -229,10 +227,13 @@ public:
     }
     std::ostringstream oss;
     oss << "<104.Station common_address=" << std::to_string(commonAddress)
-        << ", #points=" << std::to_string(len) << " at " << std::hex
-        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+        << ", #points=" << std::to_string(len)
+        << ", summertime=" << bool_toString(summerTime)
+        << ", offset=" << std::to_string(timeZoneOffset) << "min"
+        << " at " << std::hex << std::showbase
+        << reinterpret_cast<std::uintptr_t>(this) << ">";
     return oss.str();
-  };
+  }
 };
 
 /**

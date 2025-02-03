@@ -32,10 +32,7 @@
 #ifndef C104_NUMBERS_H
 #define C104_NUMBERS_H
 
-#include <iostream>
-#include <limits>
 #include <stdexcept>
-#include <type_traits>
 
 /**
  * @brief integer representation with special restrictions in terms of size or
@@ -45,8 +42,12 @@ template <typename T> class LimitedInteger {
 public:
   // Constructor
   LimitedInteger() = default;
+  // Copy constructor
+  LimitedInteger(const LimitedInteger &other) { value = other.value; }
 
-  explicit LimitedInteger(int v) { throw std::domain_error("using base ctor"); }
+  explicit LimitedInteger(const int v) {
+    throw std::domain_error("using base ctor");
+  }
 
   // Destructor
   virtual ~LimitedInteger() = default;
@@ -114,7 +115,14 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this integer class
    */
-  void set(int v) { value = check_range(v); }
+  void set(const int v) { value = check_range(v); }
+
+  LimitedInteger &operator=(const LimitedInteger &other) {
+    if (this != &other) {
+      value = other.value;
+    }
+    return *this;
+  }
 
 protected:
   /// @brief the actual value
@@ -150,7 +158,7 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this integer class
    */
-  explicit LimitedUInt5(int v) { set(v); }
+  explicit LimitedUInt5(const int v) { set(v); }
 
   /**
    * @brief Retrieves the minimum value for the range of this integer
@@ -179,7 +187,7 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this integer class
    */
-  explicit LimitedUInt7(int v) { set(v); }
+  explicit LimitedUInt7(const int v) { set(v); }
 
   /**
    * @brief Retrieves the minimum value for the range of this integer
@@ -208,7 +216,7 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this integer class
    */
-  explicit LimitedUInt16(int v) { set(v); }
+  explicit LimitedUInt16(const int v) { set(v); }
 
   /**
    * @brief Retrieves the minimum value for the range of this integer
@@ -237,7 +245,7 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this integer class
    */
-  explicit LimitedInt7(int v) { set(v); }
+  explicit LimitedInt7(const int v) { set(v); }
 
   /**
    * @brief Retrieves the minimum value for the range of this integer
@@ -266,7 +274,7 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this integer class
    */
-  explicit LimitedInt16(int v) { set(v); }
+  explicit LimitedInt16(const int v) { set(v); }
 
   /**
    * @brief Retrieves the minimum value for the range of this integer
@@ -295,7 +303,7 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this floating point class
    */
-  explicit NormalizedFloat(int v) { set(v); }
+  explicit NormalizedFloat(const int v) { set(static_cast<float>(v)); }
 
   /**
    * @brief Constructs a NormalizedFloat object and initializes its value.
@@ -303,7 +311,7 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this floating point class
    */
-  explicit NormalizedFloat(float v) { set(v); }
+  explicit NormalizedFloat(const float v) { set(v); }
 
   /**
    * @brief Retrieves the minimum value for the range of this floating point
@@ -318,17 +326,23 @@ public:
   [[nodiscard]] float getMax() const { return 1.f; }
 
   // Overloading operators with different types
-  float operator+(const int &other) const { return value + other; }
+  float operator+(const int &other) const {
+    return value + static_cast<float>(other);
+  }
 
-  float operator-(const int &other) const { return value - other; }
+  float operator-(const int &other) const {
+    return value - static_cast<float>(other);
+  }
 
-  float operator*(const int &other) const { return value * other; }
+  float operator*(const int &other) const {
+    return value * static_cast<float>(other);
+  }
 
   float operator/(const int &other) const {
     if (other == 0) {
       throw std::runtime_error("Division by zero");
     }
-    return value / other;
+    return value / static_cast<float>(other);
   }
 
   float operator+(const float &other) const { return value + other; }
@@ -345,17 +359,17 @@ public:
   }
 
   NormalizedFloat &operator+=(const int &other) {
-    value = check_range(value + other);
+    value = check_range(value + static_cast<float>(other));
     return *this;
   }
 
   NormalizedFloat &operator-=(const int &other) {
-    value = check_range(value - other);
+    value = check_range(value - static_cast<float>(other));
     return *this;
   }
 
   NormalizedFloat &operator*=(const int &other) {
-    value = check_range(value * other);
+    value = check_range(value * static_cast<float>(other));
     return *this;
   }
 
@@ -363,7 +377,7 @@ public:
     if (other == 0) {
       throw std::runtime_error("Division by zero");
     }
-    value = check_range(value / other);
+    value = check_range(value / static_cast<float>(other));
     return *this;
   }
 
@@ -402,7 +416,7 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this floating point class
    */
-  void set(float v) { value = check_range(v); }
+  void set(const float v) { value = check_range(v); }
 
 protected:
   /// @brief the actual value
@@ -416,7 +430,7 @@ protected:
    * @throws std::out_of_range If the value is outside the range defined by
    * getMin() and getMax().
    */
-  [[nodiscard]] float check_range(float v) const {
+  [[nodiscard]] float check_range(const float v) const {
     if (v < getMin() || v > getMax()) {
       throw std::out_of_range("Value is out of range.");
     }
@@ -438,7 +452,7 @@ public:
    * @throws std::out_of_range If v is not compatible with the limitations of
    * this floating point class
    */
-  explicit Byte32(uint32_t v) : value(v) {}
+  explicit Byte32(const uint32_t v) : value(v) {}
 
   /**
    * @brief getter for value
@@ -450,7 +464,7 @@ public:
    * @brief setter for value
    * @param v The byte value to be set.
    */
-  void set(uint32_t v) { value = v; }
+  void set(const uint32_t v) { value = v; }
 
 private:
   /// @brief the actual value

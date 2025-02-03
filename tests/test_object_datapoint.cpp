@@ -54,10 +54,11 @@ TEST_CASE("Set point value", "[object::point]") {
   auto station = server->addStation(10);
   auto point = station->addPoint(11, IEC60870_5_TypeID::M_ME_TE_1);
 
-  point->setInfo(Object::ScaledInfo::create(
+  point->setInfo(std::make_shared<Object::ScaledInfo>(
       LimitedInt16(334), Quality::Invalid,
       Object::DateTime(std::chrono::system_clock::time_point(
-          std::chrono::milliseconds(1234567890)))));
+          std::chrono::milliseconds(1234567890))),
+      false));
   REQUIRE(std::get<LimitedInt16>(point->getValue()).get() ==
           LimitedInt16(334).get());
   REQUIRE(point->getRecordedAt().value().getTime() ==

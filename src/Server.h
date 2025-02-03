@@ -623,7 +623,7 @@ private:
   CommandResponseState
   execute(IMasterConnection connection,
           std::shared_ptr<Remote::Message::IncomingMessage> message,
-          std::shared_ptr<Object::DataPoint> point);
+          const std::shared_ptr<Object::DataPoint> &point);
 
   /// @brief IP address of remote server
   const std::string ip{};
