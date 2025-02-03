@@ -724,7 +724,7 @@ bool Connection::clockSync(std::uint_fast16_t commonAddress,
     prepareCommandSuccess(cmdId);
   }
 
-  auto now = Object::DateTime::now();
+  auto now = Object::DateTime::now(getStation(commonAddress), true);
 
   // todo respect station timezone offset
 
@@ -756,7 +756,7 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
   }
 
   if (with_time) {
-    auto now = Object::DateTime::now();
+    auto now = Object::DateTime::now(getStation(commonAddress), true);
     // todo respect station timezone offset
 
     std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
@@ -1032,6 +1032,10 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
       }
 
       while (message->next()) {
+        // inject station timezone into DateTime properties
+        message->getInfo()->injectTimeZone(station->getTimeZoneOffset(),
+                                           station->isSummerTime());
+
         auto point = station->getPoint(message->getIOA());
         if (!point) {
           // accept point via callback?
