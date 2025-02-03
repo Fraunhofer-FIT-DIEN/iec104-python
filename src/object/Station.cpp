@@ -165,15 +165,10 @@ void Station::setTimeZoneOffset(const std::int_fast16_t seconds) {
   timeZoneOffset.store(seconds);
 }
 
-bool Station::isSummerTime() const { return summerTime.load(); }
+bool Station::isDaylightSavingTime() const { return daylightSavingTime.load(); }
 
-void Station::setSummerTime(const bool enabled) {
-  const bool old = summerTime.load();
-  if (old != enabled) {
-    const std::int_fast16_t modifier = enabled ? 3600 : -3600;
-    summerTime.store(enabled);
-    timeZoneOffset.store(timeZoneOffset.load() + modifier);
-  }
+void Station::setDaylightSavingTime(const bool enabled) {
+  daylightSavingTime.store(enabled);
 }
 
 bool Station::isAutoTimeSubstituted() const {

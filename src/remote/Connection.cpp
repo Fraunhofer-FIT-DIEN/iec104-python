@@ -1179,7 +1179,7 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
       while (message->next()) {
         // inject station timezone into DateTime properties
         message->getInfo()->injectTimeZone(station->getTimeZoneOffset(),
-                                           station->isSummerTime());
+                                           station->isDaylightSavingTime());
 
         auto point = station->getPoint(message->getIOA());
         if (!point) {

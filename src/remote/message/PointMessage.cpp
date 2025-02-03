@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -19,7 +19,7 @@
  *  See LICENSE file for the complete license text.
  *
  *
- * @file PointInformation.cpp
+ * @file PointMessage.cpp
  * @brief create an outgoing from data point in monitoring direction
  *
  * @package iec104-python
@@ -52,11 +52,10 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_SP_TB_1: {
     auto i = std::dynamic_pointer_cast<Object::SingleInfo>(info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     io = (InformationObject)SinglePointWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->isOn(),
-        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), time);
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())),
+        reported_at.getEncoded());
   } break;
 
     // Valid cause of transmission: 2,3,5,11,12,20-36
@@ -70,11 +69,10 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_DP_TB_1: {
     auto i = std::dynamic_pointer_cast<Object::DoubleInfo>(info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     io = (InformationObject)DoublePointWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getState(),
-        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), time);
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())),
+        reported_at.getEncoded());
   } break;
 
     // Valid cause of transmission: 2,3,5,11,12,20-36
@@ -89,12 +87,11 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 2,3,5,11,12,20-36
   case M_ST_TB_1: {
     auto i = std::dynamic_pointer_cast<Object::StepInfo>(info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     io = (InformationObject)StepPositionWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getPosition().get(),
         i->isTransient(),
-        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), time);
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())),
+        reported_at.getEncoded());
   } break;
 
   case M_BO_NA_1: {
@@ -105,10 +102,9 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
 
   case M_BO_TB_1: {
     auto i = std::dynamic_pointer_cast<Object::BinaryInfo>(info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     io = (InformationObject)Bitstring32WithCP56Time2a_create(
-        nullptr, informationObjectAddress, i->getBlob().get(), time);
+        nullptr, informationObjectAddress, i->getBlob().get(),
+        reported_at.getEncoded());
   } break;
 
     // Valid cause of transmission: 1,2,3,5,20-36
@@ -122,11 +118,10 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_TD_1: {
     auto i = std::dynamic_pointer_cast<Object::NormalizedInfo>(info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     io = (InformationObject)MeasuredValueNormalizedWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getActual().get(),
-        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), time);
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())),
+        reported_at.getEncoded());
   } break;
 
     // Valid cause of transmission: 1,2,3,5,20-36
@@ -140,11 +135,10 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_TE_1: {
     auto i = std::dynamic_pointer_cast<Object::ScaledInfo>(info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     io = (InformationObject)MeasuredValueScaledWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getActual().get(),
-        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), time);
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())),
+        reported_at.getEncoded());
   } break;
 
     // Valid cause of transmission: 1,2,3,5,20-36
@@ -158,11 +152,10 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     // Valid cause of transmission: 1,2,3,5,20-36
   case M_ME_TF_1: {
     auto i = std::dynamic_pointer_cast<Object::ShortInfo>(info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     io = (InformationObject)MeasuredValueShortWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getActual(),
-        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), time);
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())),
+        reported_at.getEncoded());
   } break;
 
   case M_IT_NA_1: {
@@ -180,22 +173,18 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
   case M_IT_TB_1: {
     auto i = std::dynamic_pointer_cast<Object::BinaryCounterInfo>(info);
     auto q = std::get<BinaryCounterQuality>(i->getQuality());
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     BinaryCounterReading _value = BinaryCounterReading_create(
         nullptr, i->getCounter(), i->getSequence().get(),
         ::test(q, BinaryCounterQuality::Carry),
         ::test(q, BinaryCounterQuality::Adjusted),
         ::test(q, BinaryCounterQuality::Invalid));
     io = (InformationObject)IntegratedTotalsWithCP56Time2a_create(
-        nullptr, informationObjectAddress, _value, time);
+        nullptr, informationObjectAddress, _value, reported_at.getEncoded());
   } break;
 
   case M_EP_TD_1: {
     auto i =
         std::dynamic_pointer_cast<Object::ProtectionEquipmentEventInfo>(info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     sCP16Time2a elapsed{};
     CP16Time2a_setEplapsedTimeInMs(&elapsed, i->getElapsed_ms().get());
     tSingleEvent event =
@@ -203,15 +192,14 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
          (static_cast<uint8_t>(std::get<Quality>(i->getQuality())) &
           0b11111000));
     io = (InformationObject)EventOfProtectionEquipmentWithCP56Time2a_create(
-        nullptr, informationObjectAddress, &event, &elapsed, time);
+        nullptr, informationObjectAddress, &event, &elapsed,
+        reported_at.getEncoded());
   } break;
 
   case M_EP_TE_1: {
     auto i =
         std::dynamic_pointer_cast<Object::ProtectionEquipmentStartEventsInfo>(
             info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     sCP16Time2a elapsed{};
     CP16Time2a_setEplapsedTimeInMs(&elapsed, i->getRelayDuration_ms().get());
     io = (InformationObject)
@@ -219,22 +207,20 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
             nullptr, informationObjectAddress,
             static_cast<uint8_t>(i->getEvents()),
             static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &elapsed,
-            time);
+            reported_at.getEncoded());
   } break;
 
   case M_EP_TF_1: {
     auto i =
         std::dynamic_pointer_cast<Object::ProtectionEquipmentOutputCircuitInfo>(
             info);
-    CP56Time2a time =
-        i->getRecordedAt().value_or(i->getProcessedAt()).getEncoded();
     sCP16Time2a elapsed{};
     CP16Time2a_setEplapsedTimeInMs(&elapsed, i->getRelayOperating_ms().get());
     io = (InformationObject)PackedOutputCircuitInfoWithCP56Time2a_create(
         nullptr, informationObjectAddress,
         static_cast<uint8_t>(i->getCircuits()),
         static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &elapsed,
-        time);
+        reported_at.getEncoded());
   } break;
 
   case M_PS_NA_1: {

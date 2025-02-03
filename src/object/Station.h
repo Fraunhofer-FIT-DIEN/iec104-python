@@ -104,7 +104,7 @@ private:
   std::atomic<std::int_fast16_t> timeZoneOffset{0};
 
   /// @brief daylight saving time enabled?
-  std::atomic_bool summerTime{false};
+  std::atomic_bool daylightSavingTime{false};
 
   /// @brief set substituted flag for auto generated timestamps
   std::atomic_bool autoTimeSubstituted{false};
@@ -188,9 +188,9 @@ public:
 
   void setTimeZoneOffset(std::int_fast16_t seconds);
 
-  [[nodiscard]] bool isSummerTime() const;
+  [[nodiscard]] bool isDaylightSavingTime() const;
 
-  void setSummerTime(bool enabled);
+  void setDaylightSavingTime(bool enabled);
 
   [[nodiscard]] bool isAutoTimeSubstituted() const;
 
@@ -228,8 +228,8 @@ public:
     std::ostringstream oss;
     oss << "<104.Station common_address=" << std::to_string(commonAddress)
         << ", #points=" << std::to_string(len)
-        << ", summertime=" << bool_toString(summerTime)
-        << ", offset=" << std::to_string(timeZoneOffset) << "min"
+        << ", daylight_saving_time=" << bool_toString(daylightSavingTime)
+        << ", timezone_offset=" << std::to_string(timeZoneOffset) << "min"
         << " at " << std::hex << std::showbase
         << reinterpret_cast<std::uintptr_t>(this) << ">";
     return oss.str();
