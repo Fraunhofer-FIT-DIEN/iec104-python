@@ -34,6 +34,7 @@
 
 #include <mutex>
 #include <optional>
+#include <utility>
 #include <variant>
 
 #include <cs101_information_objects.h>
@@ -104,11 +105,13 @@ public:
 
   void setProcessedAt(const DateTime &val);
 
+  void injectTimeZone(std::int_fast16_t offset, bool summerTime);
+
   virtual void setReadonly();
   [[nodiscard]] bool isReadonly() const { return readonly; }
 
   /// @brief name of the Information type - must be implemented by child classes
-  [[nodiscard]] static std::string name() { return "Information"; }
+  [[nodiscard]] virtual std::string name() const { return "Information"; }
 
   /// @brief converts the current Information instance to a string
   /// representation
@@ -123,7 +126,7 @@ public:
   [[nodiscard]] virtual bool isSelectable() const { return false; }
   [[nodiscard]] virtual bool isSelect() const { return false; }
 
-  [[nodiscard]] static std::string name() { return "Command"; }
+  [[nodiscard]] std::string name() const override { return "Command"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -147,17 +150,17 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<SingleInfo>
   create(const bool on, const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<SingleInfo>(on, quality, recorded_at, false);
-  };
+  }
 
   SingleInfo(const bool on, const Quality quality,
-             const std::optional<DateTime> recorded_at, bool readonly)
-      : Information(recorded_at, readonly), on(on), quality(quality){};
+             const std::optional<DateTime> &recorded_at, const bool readonly)
+      : Information(recorded_at, readonly), on(on), quality(quality) {}
 
   [[nodiscard]] bool isOn() const { return on; }
 
-  [[nodiscard]] static std::string name() { return "SingleInfo"; }
+  [[nodiscard]] std::string name() const override { return "SingleInfo"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -182,16 +185,16 @@ public:
   [[nodiscard]] static std::shared_ptr<SingleCmd> create(
       const bool on,
       const CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE,
-      const std::optional<DateTime> recorded_at = std::nullopt) {
+      const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<SingleCmd>(on, false, qualifier, recorded_at,
                                        false);
-  };
+  }
 
   SingleCmd(const bool on, const bool select,
             const CS101_QualifierOfCommand qualifier,
-            const std::optional<DateTime> recorded_at, bool readonly)
+            const std::optional<DateTime> &recorded_at, const bool readonly)
       : Command(recorded_at, readonly), on(on), select(select),
-        qualifier(qualifier){};
+        qualifier(qualifier) {}
 
   [[nodiscard]] bool isOn() const { return on; }
 
@@ -203,7 +206,7 @@ public:
     return qualifier;
   }
 
-  [[nodiscard]] static std::string name() { return "SingleCmd"; }
+  [[nodiscard]] std::string name() const override { return "SingleCmd"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -227,17 +230,17 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<DoubleInfo>
   create(const DoublePointValue state, const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<DoubleInfo>(state, quality, recorded_at, false);
-  };
+  }
 
   DoubleInfo(const DoublePointValue state, const Quality quality,
-             const std::optional<DateTime> recorded_at, bool readonly)
-      : Information(recorded_at, readonly), state(state), quality(quality){};
+             const std::optional<DateTime> &recorded_at, const bool readonly)
+      : Information(recorded_at, readonly), state(state), quality(quality) {}
 
   [[nodiscard]] DoublePointValue getState() const { return state; }
 
-  [[nodiscard]] static std::string name() { return "DoubleInfo"; }
+  [[nodiscard]] std::string name() const override { return "DoubleInfo"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -262,16 +265,16 @@ public:
   [[nodiscard]] static std::shared_ptr<DoubleCmd> create(
       const DoublePointValue state,
       const CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE,
-      const std::optional<DateTime> recorded_at = std::nullopt) {
+      const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<DoubleCmd>(state, false, qualifier, recorded_at,
                                        false);
-  };
+  }
 
   DoubleCmd(const DoublePointValue state, const bool select,
             const CS101_QualifierOfCommand qualifier,
-            const std::optional<DateTime> recorded_at, bool readonly)
+            const std::optional<DateTime> &recorded_at, const bool readonly)
       : Command(recorded_at, readonly), state(state), select(select),
-        qualifier(qualifier){};
+        qualifier(qualifier) {}
 
   [[nodiscard]] DoublePointValue getState() const { return state; }
 
@@ -283,7 +286,7 @@ public:
     return qualifier;
   }
 
-  [[nodiscard]] static std::string name() { return "DoubleCmd"; }
+  [[nodiscard]] std::string name() const override { return "DoubleCmd"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -309,24 +312,23 @@ protected:
 
 public:
   [[nodiscard]] static std::shared_ptr<StepInfo>
-  create(const LimitedInt7 position, const bool transient = false,
+  create(const LimitedInt7 &position, const bool transient = false,
          const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<StepInfo>(position, transient, quality, recorded_at,
                                       false);
-  };
+  }
 
-  StepInfo(const LimitedInt7 position, const bool transient,
-           const Quality quality, const std::optional<DateTime> recorded_at,
-           bool readonly)
-      : Information(recorded_at, readonly), position(position),
-        transient(transient), quality(quality){};
+  StepInfo(LimitedInt7 position, const bool transient, const Quality quality,
+           const std::optional<DateTime> &recorded_at, const bool readonly)
+      : Information(recorded_at, readonly), position(std::move(position)),
+        transient(transient), quality(quality) {}
 
   [[nodiscard]] const LimitedInt7 &getPosition() const { return position; }
 
   [[nodiscard]] bool isTransient() const { return transient; }
 
-  [[nodiscard]] static std::string name() { return "StepInfo"; }
+  [[nodiscard]] std::string name() const override { return "StepInfo"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -351,16 +353,16 @@ public:
   [[nodiscard]] static std::shared_ptr<StepCmd> create(
       const StepCommandValue direction,
       const CS101_QualifierOfCommand qualifier = CS101_QualifierOfCommand::NONE,
-      const std::optional<DateTime> recorded_at = std::nullopt) {
+      const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<StepCmd>(direction, false, qualifier, recorded_at,
                                      false);
-  };
+  }
 
   StepCmd(const StepCommandValue direction, const bool select,
           const CS101_QualifierOfCommand qualifier,
-          const std::optional<DateTime> recorded_at, bool readonly)
+          const std::optional<DateTime> &recorded_at, const bool readonly)
       : Command(recorded_at, readonly), step(direction), select(select),
-        qualifier(qualifier){};
+        qualifier(qualifier) {}
 
   [[nodiscard]] StepCommandValue getStep() const { return step; }
 
@@ -372,7 +374,7 @@ public:
     return qualifier;
   }
 
-  [[nodiscard]] static std::string name() { return "StepCmd"; }
+  [[nodiscard]] std::string name() const override { return "StepCmd"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -396,17 +398,17 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<BinaryInfo>
   create(const Byte32 blob, const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<BinaryInfo>(blob, quality, recorded_at, false);
   }
 
   BinaryInfo(const Byte32 blob, const Quality quality,
-             const std::optional<DateTime> recorded_at, bool readonly)
-      : Information(recorded_at, readonly), blob(blob), quality(quality){};
+             const std::optional<DateTime> &recorded_at, const bool readonly)
+      : Information(recorded_at, readonly), blob(blob), quality(quality) {}
 
   [[nodiscard]] const Byte32 &getBlob() const { return blob; }
 
-  [[nodiscard]] static std::string name() { return "BinaryInfo"; }
+  [[nodiscard]] std::string name() const override { return "BinaryInfo"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -425,17 +427,17 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<BinaryCmd>
   create(const Byte32 blob,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<BinaryCmd>(blob, recorded_at, false);
-  };
+  }
 
-  BinaryCmd(const Byte32 blob, const std::optional<DateTime> recorded_at,
-            bool readonly)
-      : Command(recorded_at, readonly), blob(blob){};
+  BinaryCmd(const Byte32 blob, const std::optional<DateTime> &recorded_at,
+            const bool readonly)
+      : Command(recorded_at, readonly), blob(blob) {}
 
   [[nodiscard]] const Byte32 &getBlob() const { return blob; }
 
-  [[nodiscard]] static std::string name() { return "BinaryCmd"; }
+  [[nodiscard]] std::string name() const override { return "BinaryCmd"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -459,18 +461,19 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<NormalizedInfo>
   create(const NormalizedFloat actual, const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<NormalizedInfo>(actual, quality, recorded_at,
                                             false);
   }
 
   NormalizedInfo(const NormalizedFloat actual, const Quality quality,
-                 const std::optional<DateTime> recorded_at, bool readonly)
-      : Information(recorded_at, readonly), actual(actual), quality(quality){};
+                 const std::optional<DateTime> &recorded_at,
+                 const bool readonly)
+      : Information(recorded_at, readonly), actual(actual), quality(quality) {}
 
   [[nodiscard]] const NormalizedFloat &getActual() const { return actual; }
 
-  [[nodiscard]] static std::string name() { return "NormalizedInfo"; }
+  [[nodiscard]] std::string name() const override { return "NormalizedInfo"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -494,17 +497,17 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<NormalizedCmd>
   create(const NormalizedFloat target,
-         const LimitedUInt7 qualifier = LimitedUInt7{0},
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const LimitedUInt7 &qualifier = LimitedUInt7{0},
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<NormalizedCmd>(target, false, qualifier,
                                            recorded_at, false);
-  };
+  }
 
   NormalizedCmd(const NormalizedFloat target, const bool select,
-                const LimitedUInt7 qualifier,
-                const std::optional<DateTime> recorded_at, bool readonly)
+                LimitedUInt7 qualifier,
+                const std::optional<DateTime> &recorded_at, const bool readonly)
       : Command(recorded_at, readonly), target(target), select(select),
-        qualifier(qualifier){};
+        qualifier(std::move(qualifier)) {}
 
   [[nodiscard]] const NormalizedFloat &getTarget() const { return target; }
 
@@ -514,7 +517,7 @@ public:
 
   [[nodiscard]] const LimitedUInt7 &getQualifier() const { return qualifier; }
 
-  [[nodiscard]] static std::string name() { return "NormalizedCmd"; }
+  [[nodiscard]] std::string name() const override { return "NormalizedCmd"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -537,18 +540,19 @@ protected:
 
 public:
   [[nodiscard]] static std::shared_ptr<ScaledInfo>
-  create(const LimitedInt16 actual, const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+  create(const LimitedInt16 &actual, const Quality quality = Quality::None,
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<ScaledInfo>(actual, quality, recorded_at, false);
-  };
+  }
 
-  ScaledInfo(const LimitedInt16 actual, const Quality quality,
-             const std::optional<DateTime> recorded_at, bool readonly)
-      : Information(recorded_at, readonly), actual(actual), quality(quality){};
+  ScaledInfo(LimitedInt16 actual, const Quality quality,
+             const std::optional<DateTime> &recorded_at, const bool readonly)
+      : Information(recorded_at, readonly), actual(std::move(actual)),
+        quality(quality) {}
 
   [[nodiscard]] const LimitedInt16 &getActual() const { return actual; }
 
-  [[nodiscard]] static std::string name() { return "ScaledInfo"; }
+  [[nodiscard]] std::string name() const override { return "ScaledInfo"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -571,18 +575,17 @@ protected:
 
 public:
   [[nodiscard]] static std::shared_ptr<ScaledCmd>
-  create(const LimitedInt16 target,
-         const LimitedUInt7 qualifier = LimitedUInt7{0},
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+  create(const LimitedInt16 &target,
+         const LimitedUInt7 &qualifier = LimitedUInt7{0},
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<ScaledCmd>(target, false, qualifier, recorded_at,
                                        false);
-  };
+  }
 
-  ScaledCmd(const LimitedInt16 target, const bool select,
-            const LimitedUInt7 qualifier,
-            const std::optional<DateTime> recorded_at, bool readonly)
-      : Command(recorded_at, readonly), target(target), select(select),
-        qualifier(qualifier){};
+  ScaledCmd(LimitedInt16 target, const bool select, LimitedUInt7 qualifier,
+            const std::optional<DateTime> &recorded_at, const bool readonly)
+      : Command(recorded_at, readonly), target(std::move(target)),
+        select(select), qualifier(std::move(qualifier)) {}
 
   [[nodiscard]] const LimitedInt16 &getTarget() const { return target; }
 
@@ -592,7 +595,7 @@ public:
 
   [[nodiscard]] const LimitedUInt7 &getQualifier() const { return qualifier; }
 
-  [[nodiscard]] static std::string name() { return "ScaledCmd"; }
+  [[nodiscard]] std::string name() const override { return "ScaledCmd"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -616,17 +619,17 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<ShortInfo>
   create(const float actual, const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<ShortInfo>(actual, quality, recorded_at, false);
-  };
+  }
 
   ShortInfo(const float actual, const Quality quality,
-            const std::optional<DateTime> recorded_at, bool readonly)
-      : Information(recorded_at, readonly), actual(actual), quality(quality){};
+            const std::optional<DateTime> &recorded_at, const bool readonly)
+      : Information(recorded_at, readonly), actual(actual), quality(quality) {}
 
   [[nodiscard]] float getActual() const { return actual; }
 
-  [[nodiscard]] static std::string name() { return "ShortInfo"; }
+  [[nodiscard]] std::string name() const override { return "ShortInfo"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -649,16 +652,16 @@ protected:
 
 public:
   [[nodiscard]] static std::shared_ptr<ShortCmd>
-  create(const float target, const LimitedUInt7 qualifier = LimitedUInt7{0},
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+  create(const float target, const LimitedUInt7 &qualifier = LimitedUInt7{0},
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<ShortCmd>(target, false, qualifier, recorded_at,
                                       false);
-  };
+  }
 
-  ShortCmd(const float target, const bool select, const LimitedUInt7 qualifier,
-           const std::optional<DateTime> recorded_at, bool readonly)
+  ShortCmd(const float target, const bool select, LimitedUInt7 qualifier,
+           const std::optional<DateTime> &recorded_at, const bool readonly)
       : Command(recorded_at, readonly), target(target), select(select),
-        qualifier(qualifier){};
+        qualifier(std::move(qualifier)) {}
 
   [[nodiscard]] float getTarget() const { return target; }
 
@@ -668,7 +671,7 @@ public:
 
   [[nodiscard]] const LimitedUInt7 &getQualifier() const { return qualifier; }
 
-  [[nodiscard]] static std::string name() { return "ShortCmd"; }
+  [[nodiscard]] std::string name() const override { return "ShortCmd"; }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -694,24 +697,27 @@ protected:
 
 public:
   [[nodiscard]] static std::shared_ptr<BinaryCounterInfo>
-  create(const int32_t counter, const LimitedUInt5 sequence = LimitedUInt5{0},
+  create(const int32_t counter, const LimitedUInt5 &sequence = LimitedUInt5{0},
          const BinaryCounterQuality quality = BinaryCounterQuality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<BinaryCounterInfo>(counter, sequence, quality,
                                                recorded_at, false);
-  };
+  }
 
-  BinaryCounterInfo(const int32_t counter, const LimitedUInt5 sequence,
+  BinaryCounterInfo(const int32_t counter, LimitedUInt5 sequence,
                     const BinaryCounterQuality quality,
-                    const std::optional<DateTime> recorded_at, bool readonly)
+                    const std::optional<DateTime> &recorded_at,
+                    const bool readonly)
       : Information(recorded_at, readonly), counter(counter),
-        sequence(sequence), quality(quality){};
+        sequence(std::move(sequence)), quality(quality) {}
 
   [[nodiscard]] int32_t getCounter() const { return counter; }
 
   [[nodiscard]] const LimitedUInt5 &getSequence() const { return sequence; }
 
-  [[nodiscard]] static std::string name() { return "BinaryCounterInfo"; }
+  [[nodiscard]] std::string name() const override {
+    return "BinaryCounterInfo";
+  }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -738,26 +744,27 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<ProtectionEquipmentEventInfo>
   create(const EventState state,
-         const LimitedUInt16 elapsed_ms = LimitedUInt16{0},
+         const LimitedUInt16 &elapsed_ms = LimitedUInt16{0},
          const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<ProtectionEquipmentEventInfo>(
         state, elapsed_ms, quality, recorded_at, false);
-  };
+  }
 
-  ProtectionEquipmentEventInfo(const EventState state,
-                               const LimitedUInt16 elapsed_ms,
+  ProtectionEquipmentEventInfo(const EventState state, LimitedUInt16 elapsed_ms,
                                const Quality quality,
-                               const std::optional<DateTime> recorded_at,
-                               bool readonly)
+                               const std::optional<DateTime> &recorded_at,
+                               const bool readonly)
       : Information(recorded_at, readonly), state(state),
-        elapsed_ms(elapsed_ms), quality(quality){};
+        elapsed_ms(std::move(elapsed_ms)), quality(quality) {}
 
   [[nodiscard]] EventState getState() const { return state; }
 
   [[nodiscard]] LimitedUInt16 getElapsed_ms() const { return elapsed_ms; }
 
-  [[nodiscard]] static std::string name() { return "ProtectionEventInfo"; }
+  [[nodiscard]] std::string name() const override {
+    return "ProtectionEventInfo";
+  }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -784,20 +791,20 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<ProtectionEquipmentStartEventsInfo>
   create(const StartEvents events,
-         const LimitedUInt16 relay_duration_ms = LimitedUInt16{0},
+         const LimitedUInt16 &relay_duration_ms = LimitedUInt16{0},
          const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<ProtectionEquipmentStartEventsInfo>(
         events, relay_duration_ms, quality, recorded_at, false);
-  };
+  }
 
   ProtectionEquipmentStartEventsInfo(const StartEvents events,
-                                     const LimitedUInt16 relay_duration_ms,
+                                     LimitedUInt16 relay_duration_ms,
                                      const Quality quality,
-                                     const std::optional<DateTime> recorded_at,
-                                     bool readonly)
+                                     const std::optional<DateTime> &recorded_at,
+                                     const bool readonly)
       : Information(recorded_at, readonly), events(events),
-        relay_duration_ms(relay_duration_ms), quality(quality){};
+        relay_duration_ms(std::move(relay_duration_ms)), quality(quality) {}
 
   [[nodiscard]] StartEvents getEvents() const { return events; }
 
@@ -805,7 +812,9 @@ public:
     return relay_duration_ms;
   }
 
-  [[nodiscard]] static std::string name() { return "ProtectionStartInfo"; }
+  [[nodiscard]] std::string name() const override {
+    return "ProtectionStartInfo";
+  }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -832,19 +841,19 @@ protected:
 public:
   [[nodiscard]] static std::shared_ptr<ProtectionEquipmentOutputCircuitInfo>
   create(const OutputCircuits circuits,
-         const LimitedUInt16 relay_operating_ms = LimitedUInt16{0},
+         const LimitedUInt16 &relay_operating_ms = LimitedUInt16{0},
          const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<ProtectionEquipmentOutputCircuitInfo>(
         circuits, relay_operating_ms, quality, recorded_at, false);
-  };
+  }
 
   ProtectionEquipmentOutputCircuitInfo(
-      const OutputCircuits circuits, const LimitedUInt16 relay_operating_ms,
-      const Quality quality, const std::optional<DateTime> recorded_at,
-      bool readonly)
+      const OutputCircuits circuits, LimitedUInt16 relay_operating_ms,
+      const Quality quality, const std::optional<DateTime> &recorded_at,
+      const bool readonly)
       : Information(recorded_at, readonly), circuits(circuits),
-        relay_operating_ms(relay_operating_ms), quality(quality){};
+        relay_operating_ms(std::move(relay_operating_ms)), quality(quality) {}
 
   [[nodiscard]] OutputCircuits getCircuits() const { return circuits; }
 
@@ -852,7 +861,9 @@ public:
     return relay_operating_ms;
   }
 
-  [[nodiscard]] static std::string name() { return "ProtectionCircuitInfo"; }
+  [[nodiscard]] std::string name() const override {
+    return "ProtectionCircuitInfo";
+  }
 
   [[nodiscard]] std::string toString() const override;
 };
@@ -880,26 +891,26 @@ public:
   [[nodiscard]] static std::shared_ptr<StatusWithChangeDetection>
   create(const FieldSet16 status, const FieldSet16 changed = FieldSet16{},
          const Quality quality = Quality::None,
-         const std::optional<DateTime> recorded_at = std::nullopt) {
+         const std::optional<DateTime> &recorded_at = std::nullopt) {
     return std::make_shared<StatusWithChangeDetection>(status, changed, quality,
                                                        recorded_at, false);
-  };
+  }
 
   StatusWithChangeDetection(const FieldSet16 status, const FieldSet16 changed,
                             const Quality quality,
-                            const std::optional<DateTime> recorded_at,
-                            bool readonly)
+                            const std::optional<DateTime> &recorded_at,
+                            const bool readonly)
       : Information(recorded_at, readonly), status(status), changed(changed),
-        quality(quality){};
+        quality(quality) {}
 
   [[nodiscard]] FieldSet16 getStatus() const { return status; }
 
   [[nodiscard]] FieldSet16 getChanged() const { return changed; }
 
-  [[nodiscard]] static std::string name() { return "StatusAndChanged"; }
+  [[nodiscard]] std::string name() const override { return "StatusAndChanged"; }
 
   [[nodiscard]] std::string toString() const override;
 };
 
-};     // namespace Object
+} // namespace Object
 #endif // C104_OBJECT_INFORMATION_H

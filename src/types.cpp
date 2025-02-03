@@ -61,11 +61,6 @@ std::string Byte32_toString(const Byte32 &byte) {
   return "0b" + bits.to_string();
 }
 
-std::string TimePoint_toString(
-    const std::optional<std::chrono::system_clock::time_point> &time) {
-  return time.has_value() ? TimePoint_toString(time.value()) : "None";
-}
-
 void Assert_IPv4(const std::string &s) {
   if (s == "localhost" || s == "lo")
     return;

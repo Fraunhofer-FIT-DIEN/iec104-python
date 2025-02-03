@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -240,10 +240,11 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 
   std::this_thread::sleep_for(10s);
 
-  sv_measurement_point->setInfo(
-      Object::ShortInfo::create(1234, Quality::None,
-                                std::chrono::system_clock::time_point(
-                                    std::chrono::milliseconds(1711111111111))));
+  sv_measurement_point->setInfo(std::make_shared<Object::ShortInfo>(
+      1234, Quality::None,
+      Object::DateTime(std::chrono::system_clock::time_point(
+          std::chrono::milliseconds(1711111111111))),
+      false));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {
@@ -252,10 +253,11 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 
   std::this_thread::sleep_for(10s);
 
-  sv_measurement_point->setInfo(
-      Object::ShortInfo::create(-1234.56, Quality::Invalid,
-                                std::chrono::system_clock::time_point(
-                                    std::chrono::milliseconds(1711111111111))));
+  sv_measurement_point->setInfo(std::make_shared<Object::ShortInfo>(
+      -1234.56, Quality::Invalid,
+      Object::DateTime(std::chrono::system_clock::time_point(
+          std::chrono::milliseconds(1711111111111))),
+      false));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {

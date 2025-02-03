@@ -35,18 +35,22 @@
 #include <atomic>
 #include <chrono>
 #include <iec60870_common.h>
-#include <optional>
 #include <pybind11/pybind11.h>
 #include <string>
 
 namespace py = pybind11;
 
 namespace Object {
+class Station;
+
 class DateTime {
 public:
-  static DateTime now(bool readonly = false);
+  static DateTime now();
+  static DateTime now(const std::shared_ptr<Station> &station,
+                      bool readonly = false);
+
   DateTime(const DateTime &other);
-  explicit DateTime(const py::object &py_datetime, bool readonly = false);
+  explicit DateTime(const py::object &py_datetime);
 
   /**
    * Constructs a DateTime object with a specified or default time point.
@@ -57,10 +61,9 @@ public:
    * @return A DateTime object initialized with the specified or default time
    * point.
    */
-  explicit DateTime(std::chrono::system_clock::time_point t,
-                    bool readonly = false);
+  explicit DateTime(std::chrono::system_clock::time_point t);
 
-  explicit DateTime(CP56Time2a t, bool readonly = false);
+  explicit DateTime(CP56Time2a t);
 
   ~DateTime() = default;
 
@@ -76,38 +79,39 @@ public:
 
   void setInvalid(bool enabled);
 
-  [[nodiscard]] bool isSummertime() const;
+  [[nodiscard]] bool isSummerTime() const;
 
   /**
-   * @brief getter for summertime
+   * @brief getter for summerTime
    *
    * Setting this property will affect the timezone offset
    *
-   * @return indicate if this timestamp was recorded during summertime
+   * @return indicate if this timestamp was recorded during summerTime
    */
-  void setSummertime(bool enabled);
+  void setSummerTime(bool enabled);
 
-  [[nodiscard]] std::int_fast16_t getTimezoneOffset() const;
+  [[nodiscard]] std::int_fast16_t getTimeZoneOffset() const;
 
-  void setTimezoneOffset(std::int_fast16_t seconds);
+  void injectTimeZone(std::int_fast16_t offset, bool isSummerTime,
+                      bool overrideSummerTime = true);
+
+  void setReadonly();
+  [[nodiscard]] bool isReadonly() const { return readonly; }
 
   CP56Time2a getEncoded();
 
   DateTime &operator=(const DateTime &other);
 
-  std::string toString() const;
+  [[nodiscard]] py::object toPyDateTime() const;
 
-  py::object toPyDateTime() const;
+  [[nodiscard]] std::string toString() const;
 
 protected:
-  /// @brief toggle, if modification is allowed or not
-  std::atomic_bool readonly;
-
   /// @brief naive timestamp (timezone unaware)
   std::atomic<std::chrono::system_clock::time_point> time;
 
   /// @brief timezone offset in seconds that point timestamps are recorded in
-  std::atomic<std::int_fast16_t> timezoneOffset{0};
+  std::atomic<std::int_fast16_t> timeZoneOffset{0};
 
   /// @brief encoded timestamp structure
   sCP56Time2a cp56{0, 0, 0, 0, 0, 0, 0};
@@ -116,23 +120,28 @@ protected:
 
   /// @brief flag timestamp as substituted (not reported by original information
   /// source)
-  std::atomic_bool substituted;
+  std::atomic_bool substituted{false};
 
   /// @brief flag timestamp as invalid
-  std::atomic_bool invalid;
+  std::atomic_bool invalid{false};
 
   /**
    * @brief Indicates whether the timestamp was recorded during daylight savings
-   * time (summertime).
+   * time (summer time).
    *
-   * The use of the summertime (SU) flag is optional but generally discouraged -
-   * use UTC instead. A timestamp with the SU flag set represents the identical
-   * time value as a timestamp with the SU flag unset, but with the displayed
-   * value shifted exactly one hour earlier. This may help in assigning the
-   * correct hour to information objects generated during the first hour after
-   * transitioning from daylight savings time (summertime) to standard time.
+   * The use of the summer time (SU) flag is optional but generally discouraged
+   * - use UTC instead. A timestamp with the SU flag set represents the
+   * identical time value as a timestamp with the SU flag unset, but with the
+   * displayed value shifted exactly one hour earlier. This may help in
+   * assigning the correct hour to information objects generated during the
+   * first hour after transitioning from daylight savings time (summer time) to
+   * standard time.
    */
-  std::atomic_bool summertime;
+  std::atomic_bool summerTime{false};
+
+  /// @brief toggle, if modification is allowed or not
+  std::atomic_bool readonly{false};
+
   /*
 
    month
