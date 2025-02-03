@@ -79,21 +79,23 @@ public:
 
   void setInvalid(bool enabled);
 
-  [[nodiscard]] bool isSummerTime() const;
+  [[nodiscard]] bool isDaylightSavingTime() const;
 
   /**
-   * @brief getter for summerTime
+   * @brief getter for daylight_saving_time (aka summertime)
    *
-   * Setting this property will affect the timezone offset
+   * Setting this property will add one hour on top of timeZoneOffset
    *
-   * @return indicate if this timestamp was recorded during summerTime
+   * @return indicate if this timestamp was recorded during daylight_saving_time
    */
-  void setSummerTime(bool enabled);
+  void setDaylightSavingTime(bool enabled);
 
   [[nodiscard]] std::int_fast16_t getTimeZoneOffset() const;
 
-  void injectTimeZone(std::int_fast16_t offset, bool isSummerTime,
-                      bool overrideSummerTime = true);
+  void injectTimeZone(std::int_fast16_t offset, bool isDaylightSavingTime,
+                      bool overrideDST = true);
+
+  void convertTimeZone(std::int_fast16_t offset, bool isDaylightSavingTime);
 
   void setReadonly();
   [[nodiscard]] bool isReadonly() const { return readonly; }
@@ -112,6 +114,9 @@ protected:
 
   /// @brief timezone offset in seconds that point timestamps are recorded in
   std::atomic<std::int_fast16_t> timeZoneOffset{0};
+
+  /// @brief timezone injection can only be used once
+  std::atomic_bool timeZoneSet{false};
 
   /// @brief encoded timestamp structure
   sCP56Time2a cp56{0, 0, 0, 0, 0, 0, 0};
@@ -137,7 +142,7 @@ protected:
    * first hour after transitioning from daylight savings time (summer time) to
    * standard time.
    */
-  std::atomic_bool summerTime{false};
+  std::atomic_bool daylightSavingTime{false};
 
   /// @brief toggle, if modification is allowed or not
   std::atomic_bool readonly{false};
