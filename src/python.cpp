@@ -2636,13 +2636,13 @@ Example
                              "bool: test if station is local (has sever) or "
                              "remote (has connection) one (read-only)")
       .def_property(
-          "summertime", &Object::Station::isSummertime,
-          &Object::Station::setSummertime,
+          "daylight_saving_time", &Object::Station::isDaylightSavingTime,
+          &Object::Station::setDaylightSavingTime,
           R"def(bool: if timestamps recorded at this station are in daylight saving time
 
 Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
 
-The summertime offset is already included in the timezone_offset property.
+The daylight_saving_time (aka summertime flag) will add an additional hour on top of timezone_offset property.
 
 The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
 A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
@@ -2650,12 +2650,14 @@ but with the displayed value shifted exactly one hour earlier.
 This may help in assigning the correct hour to information objects generated during the first hour after
 transitioning from daylight savings time (summertime) to standard time.
 )def")
-      .def_property("timezone_offset", &Object::Station::getTimezoneOffset,
+      .def_property("timezone_offset", &Object::Station::getTimeZoneOffset,
                     &Object::Station::setTimeZoneOffset,
                     "int: timezone offset in seconds for recorded timestamps")
-      .def_property("auto_time_substituted", &Object::Station::getTimezoneOffset,
+      .def_property("auto_time_substituted",
+                    &Object::Station::isAutoTimeSubstituted,
                     &Object::Station::setAutoTimeSubstituted,
-                    "bool: automatically assigned reported at timestamps are flagged as substituted")
+                    "bool: automatically assigned reported at timestamps are "
+                    "flagged as substituted")
       .def_property_readonly(
           "has_points", &Object::Station::hasPoints,
           "bool: test if station has at least one point (read-only)")
@@ -3097,13 +3099,14 @@ Example
                     "bool: timestamp is substituted")
       .def_property("invalid", &Object::DateTime::isInvalid,
                     &Object::DateTime::setInvalid, "bool: timestamp is invalid")
-      .def_property("summertime", &Object::DateTime::isSummerTime,
-      &Object::DateTime::setSummerTime,
-R"def(bool: if timestamps recorded at this station are in daylight saving time
+      .def_property(
+          "daylight_saving_time", &Object::DateTime::isDaylightSavingTime,
+          &Object::DateTime::setDaylightSavingTime,
+          R"def(bool: if timestamps recorded at this station are in daylight saving time
 
-Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
+Changing this flag will modify the timestamp send by +1 hour!
 
-The summertime offset is already included in the timezone_offset property.
+The summertime offset will be added on top of timezone offset provided with the datetime.
 
 The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
 A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
@@ -3111,8 +3114,9 @@ but with the displayed value shifted exactly one hour earlier.
 This may help in assigning the correct hour to information objects generated during the first hour after
 transitioning from daylight savings time (summertime) to standard time.
 )def")
-.def_property_readonly("timezone_offset", &Object::DateTime::getTimeZoneOffset,
-      "int: timezone offset in seconds")
+      .def_property_readonly("timezone_offset",
+                             &Object::DateTime::getTimeZoneOffset,
+                             "int: timezone offset in seconds")
       .def("__repr__", &Object::DateTime::toString);
 
   py::class_<Object::Information, std::shared_ptr<Object::Information>>(

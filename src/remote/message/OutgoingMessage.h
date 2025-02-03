@@ -33,6 +33,7 @@
 #define C104_REMOTE_MESSAGE_OUTGOINGMESSAGE_H
 
 #include "IMessageInterface.h"
+#include "object/DateTime.h"
 
 namespace Remote {
 namespace Message {
@@ -76,6 +77,10 @@ protected:
    * invalid
    */
   explicit OutgoingMessage(const std::shared_ptr<Object::DataPoint> &point);
+
+  /// @brief reported at timestamp converted to stations timezone and DST
+  /// setting
+  Object::DateTime reported_at{Object::DateTime::now()};
 };
 
 } // namespace Message

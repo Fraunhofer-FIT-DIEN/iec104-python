@@ -62,8 +62,21 @@ OutgoingMessage::OutgoingMessage(
 
   commonAddress = _station->getCommonAddress();
 
+  const auto now = Object::DateTime::now(_station, true);
+
   // updated locally processed timestamp before transmission
-  point->setProcessedAt(Object::DateTime::now(_station, true));
+  point->setProcessedAt(now);
+
+  if (point->getRecordedAt().has_value()) {
+    // convert to station timezone and DST
+    Object::DateTime dt{point->getRecordedAt().value()};
+    dt.convertTimeZone(_station->getTimeZoneOffset(),
+                       _station->isDaylightSavingTime());
+    reported_at = dt;
+  } else {
+    // now is already in station timezone and DST
+    reported_at = now;
+  }
 
   informationObjectAddress = point->getInformationObjectAddress();
   DEBUG_PRINT(Debug::Message,

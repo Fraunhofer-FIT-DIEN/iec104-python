@@ -118,11 +118,11 @@ void Information::setProcessedAt(const DateTime &val) {
 }
 
 void Information::injectTimeZone(const std::int_fast16_t offset,
-                                 const bool summerTime) {
+                                 const bool daylightSavingTime) {
   std::lock_guard<std::mutex> lock(mtx);
-  processed_at.injectTimeZone(offset, summerTime, true);
+  processed_at.injectTimeZone(offset, daylightSavingTime, true);
   if (recorded_at.has_value()) {
-    recorded_at.value().injectTimeZone(offset, summerTime);
+    recorded_at.value().injectTimeZone(offset, daylightSavingTime);
   }
 }
 
