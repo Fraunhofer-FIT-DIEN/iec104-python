@@ -62,7 +62,10 @@ DateTime::DateTime(const DateTime &other) {
   daylightSavingTime = other.daylightSavingTime.load();
 }
 
-DateTime::DateTime(const py::object &py_datetime) {
+DateTime::DateTime(const py::object &py_datetime, const bool isSubstituted,
+                   const bool isInvalid, const bool isDaylightSavingTime)
+    : substituted(isSubstituted), invalid(isInvalid),
+      daylightSavingTime(isDaylightSavingTime) {
   Module::ScopedGilAcquire scoped("DateTime.fromPy");
 
   // Check whether it's a datetime.datetime object
@@ -80,13 +83,10 @@ DateTime::DateTime(const py::object &py_datetime) {
       std::chrono::duration_cast<std::chrono::system_clock::duration>(
           duration_since_epoch)};
 
-  const auto milliseconds = static_cast<std::int64_t>(timestamp * 1000);
-  CP56Time2a_setFromMsTimestamp(&cp56, milliseconds);
-
   // tzinfo is present: store the offset in seconds
   const auto utcoffset = py_datetime.attr("utcoffset")();
   if (!utcoffset.is_none()) {
-    timeZoneOffset = utcoffset.attr("total_seconds")().cast<int>();
+    timeZoneOffset.store(utcoffset.attr("total_seconds")().cast<float>());
   }
 }
 
@@ -127,8 +127,7 @@ CP56Time2a DateTime::getEncoded() {
   const auto milliseconds =
       std::chrono::duration_cast<std::chrono::milliseconds>(
           time.load().time_since_epoch())
-          .count() +
-      timeZoneOffset * 1000;
+          .count();
 
   std::lock_guard<std::mutex> lock(cp56_mutex);
   CP56Time2a_setFromMsTimestamp(&cp56, milliseconds);
@@ -220,7 +219,14 @@ void DateTime::convertTimeZone(const std::int_fast16_t offset,
     timeZoneOffset.store(offset + modifier);
   }
 
-  const auto modifier = std::chrono::seconds(timeZoneOffset.load() - offset);
+  const auto modifier = std::chrono::seconds(offset - timeZoneOffset.load());
+  DEBUG_PRINT_CONDITION(modifier != std::chrono::seconds(0), Debug::Point,
+                        "DateTime.convert] Different TimeZoneOffset in Info "
+                        "and Station | Station " +
+                            std::to_string(offset) + " | Info " +
+                            std::to_string(timeZoneOffset.load()) +
+                            " | timezone_offset modified by " +
+                            std::to_string(modifier.count()) + "s");
   time.store(time.load() + modifier);
   timeZoneOffset.store(offset);
 }
@@ -246,62 +252,52 @@ py::object DateTime::toPyDateTime() const {
   // Prepare timezone offset
   const auto timezone_offset_seconds = static_cast<int>(
       timeZoneOffset.load() + (daylightSavingTime.load() ? 3600 : 0));
+
+  const auto datetime = py::module::import("datetime");
   py::object tzinfo = py::none();
 
   // If there is a timezone offset specified, create a timezone using Python
   // datetime.timezone
-  if (timezone_offset_seconds != 0) {
-    tzinfo = py::module::import("datetime")
-                 .attr("timezone")(
-                     py::module::import("datetime")
-                         .attr("timedelta")(0, timezone_offset_seconds));
+  if (timezone_offset_seconds == 0) {
+    tzinfo = datetime.attr("timezone").attr("utc");
+  } else {
+    tzinfo = datetime.attr("timezone")(
+        datetime.attr("timedelta")(0, timezone_offset_seconds));
   }
 
   // Use fromtimestamp to create the datetime object with fractional seconds
-  return py::module::import("datetime")
-      .attr("datetime")
+  return datetime.attr("datetime")
       .attr("fromtimestamp")(py::float_(timestamp), tzinfo);
 }
 
-std::string
-TimePoint_toString(const std::chrono::system_clock::time_point &time,
-                   const std::int_fast16_t offset = 0) {
+std::string DateTime::toString() const {
+  std::ostringstream oss;
+
   using us_t = std::chrono::duration<int, std::micro>;
-  auto us = std::chrono::duration_cast<us_t>(time.time_since_epoch() %
+  auto us = std::chrono::duration_cast<us_t>(time.load().time_since_epoch() %
                                              std::chrono::seconds(1));
   if (us.count() < 0) {
     us += std::chrono::seconds(1);
   }
 
   // Adjust the time_point by the timezone offset
-  const auto adjusted_time = time + std::chrono::seconds(offset);
+  auto offset = timeZoneOffset.load() + (daylightSavingTime.load() ? 3600 : 0);
+  const auto adjusted_time = time.load() + std::chrono::seconds(offset);
 
   const std::time_t tt = std::chrono::system_clock::to_time_t(
       std::chrono::time_point_cast<std::chrono::system_clock::duration>(
           adjusted_time - us));
 
-  const std::tm local_tt = *std::localtime(&tt);
+  const std::tm gm_tm = *std::gmtime(&tt);
 
-  std::ostringstream oss;
-  oss << std::put_time(&local_tt, "%Y-%m-%dT%H:%M:%S");
-  oss << '.' << std::setw(3) << std::setfill('0') << us.count();
-  oss << std::put_time(&local_tt, "%z");
+  const int tz_hours = offset / 3600;
+  const int tz_minutes = (std::abs(offset) % 3600) / 60;
 
-  // Format the offset into the string (e.g. +HHMM or -HHMM)
-  int offset_hours = offset / 3600;
-  int offset_minutes = std::abs(offset % 3600) / 60;
-  oss << std::showpos << std::setw(2) << std::setfill('0') << offset_hours
-      << std::setw(2) << offset_minutes;
+  oss << "<c104.DateTime time=" << std::put_time(&gm_tm, "%Y-%m-%dT%H:%M:%S")
+      << '.' << std::setw(3) << std::setfill('0') << (us.count() / 1000)
+      << (tz_hours >= 0 ? "+" : "-") << std::setw(2) << std::setfill('0')
+      << tz_hours << ":" << std::setw(2) << std::setfill('0') << tz_minutes
 
-  return oss.str();
-}
-
-std::string DateTime::toString() const {
-  std::ostringstream oss;
-
-  auto offset = timeZoneOffset.load() + (daylightSavingTime.load() ? 3600 : 0);
-
-  oss << "<c104.DateTime time=" << TimePoint_toString(time.load(), offset)
       << ", readonly=" << bool_toString(readonly)
       << ", invalid=" << bool_toString(invalid)
       << ", substituted=" << bool_toString(substituted)

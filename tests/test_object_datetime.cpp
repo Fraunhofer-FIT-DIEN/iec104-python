@@ -127,7 +127,7 @@ TEST_CASE("Convert timezone of datetime", "[object::datetime]") {
     REQUIRE(dt1.isDaylightSavingTime() == false);
     dt1.convertTimeZone(7200, true);
     const auto diff1 = std::chrono::duration_cast<std::chrono::seconds>(
-                           dt1.getTime().time_since_epoch()) +
+                           dt1.getTime().time_since_epoch()) -
                        suDiff;
     REQUIRE((diff1 - now_epoch) < std::chrono::microseconds(1));
     REQUIRE(dt1.getTimeZoneOffset() == 7200);
@@ -172,7 +172,7 @@ TEST_CASE("Convert timezone of datetime", "[object::datetime]") {
     const auto p2 = std::chrono::duration_cast<std::chrono::seconds>(
         dt3.getTime().time_since_epoch());
     const auto diff3 = std::chrono::duration_cast<std::chrono::seconds>(
-                           dt3.getTime().time_since_epoch()) -
+                           dt3.getTime().time_since_epoch()) +
                        suDiff;
     REQUIRE((diff3 - now_epoch) < std::chrono::microseconds(1));
     REQUIRE(dt3.getTimeZoneOffset() == 7200);
@@ -192,14 +192,14 @@ TEST_CASE("Convert timezone of datetime", "[object::datetime]") {
     REQUIRE(dt4.isDaylightSavingTime() == true);
     dt4.convertTimeZone(7200, false);
     const auto diff4 = std::chrono::duration_cast<std::chrono::seconds>(
-                           dt4.getTime().time_since_epoch()) -
+                           dt4.getTime().time_since_epoch()) +
                        suDiff;
     REQUIRE((diff4 - now_epoch) < std::chrono::microseconds(1));
     REQUIRE(dt4.getTimeZoneOffset() == 7200);
     REQUIRE(dt4.isDaylightSavingTime() == false);
   }
 
-  // reduce offest
+  // reduce offset
   {
     const auto now = std::chrono::system_clock::now();
     auto dt5 = Object::DateTime::now(station, true);

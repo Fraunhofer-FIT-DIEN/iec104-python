@@ -122,8 +122,8 @@ def cl_dump():
                 print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
                 for pt_iter in range(st_pt_count):
                     pt = st.points[pt_iter]
-                    print("             | {0} | {1:7} | {2:13} | {3:17} | {4:13} | {5}".format(pt.type, pt.io_address, str(pt.value), pt.recorded_at or 'N. A.',
-                                                                                               pt.processed_at, pt.quality))
+                    print("             | {0} | {1:7} | {2:13} | {3:17} | {4:13} | {5}".format(pt.type, pt.io_address, str(pt.value), pt.recorded_at.value if pt.recored_at else 'N. A.',
+                                                                                               pt.processed_at.value, pt.quality))
                     print("             |----------------|---------|-------------------|---------------|---------------|-------------------")
 
 
