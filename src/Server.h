@@ -670,6 +670,9 @@ private:
   /// @brief vector of all selections
   std::vector<Selection> selectionVector{};
 
+  /// @brief number of active selections
+  std::atomic_uint_fast8_t activeSelections{0};
+
   /// @brief number of active connections
   std::atomic_uint_fast8_t activeConnections{0};
 

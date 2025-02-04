@@ -50,7 +50,8 @@ public:
                       bool readonly = false);
 
   DateTime(const DateTime &other);
-  explicit DateTime(const py::object &py_datetime);
+  explicit DateTime(const py::object &py_datetime, bool isSubstituted = false,
+                    bool isInvalid = false, bool isDaylightSavingTime = false);
 
   /**
    * Constructs a DateTime object with a specified or default time point.

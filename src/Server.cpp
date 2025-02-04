@@ -466,6 +466,9 @@ bool Server::removeStation(std::uint_fast16_t commonAddress) {
 }
 
 void Server::cleanupSelections() {
+  if (activeSelections.load() == 0)
+    return;
+
   auto now = std::chrono::steady_clock::now();
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
   selectionVector.erase(
@@ -479,6 +482,7 @@ void Server::cleanupSelections() {
                        }
                      }),
       selectionVector.end());
+  activeSelections.store(selectionVector.size());
 }
 
 void Server::dropConnectionSelections(IMasterConnection connection) {
@@ -491,21 +495,23 @@ void Server::dropConnectionSelections(IMasterConnection connection) {
                                          return s.connection == connection;
                                        }),
                         selectionVector.end());
+  activeSelections.store(selectionVector.size());
 }
 
 void Server::cleanupSelection(uint16_t ca, uint32_t ioa) {
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  selectionVector.erase(std::remove_if(selectionVector.begin(),
-                                       selectionVector.end(),
-                                       [this, ca, ioa](const Selection &s) {
-                                         if (s.ca == ca && s.ioa == ioa) {
-                                           unselect(s);
-                                           return true;
-                                         } else {
-                                           return false;
-                                         }
-                                       }),
-                        selectionVector.end());
+  selectionVector.erase(
+      std::remove_if(selectionVector.begin(), selectionVector.end(),
+                     [this, ca, ioa](const Selection &s) {
+                       if (s.ca == ca && s.ioa == ioa) {
+                         unselect(s);
+                         activeSelections.store(activeSelections.load() - 1);
+                         return true;
+                       } else {
+                         return false;
+                       }
+                     }),
+      selectionVector.end());
 }
 
 std::optional<uint8_t> Server::getSelector(const uint16_t ca,
@@ -545,6 +551,7 @@ bool Server::select(IMasterConnection connection,
   if (it == selectionVector.end()) {
     CS101_ASDU cp = CS101_ASDU_clone(message->getAsdu(), nullptr);
     selectionVector.emplace_back<Selection>({cp, oa, ca, ioa, connection, now});
+    activeSelections.store(activeSelections.load() + 1);
   }
   // selection found
   else {
