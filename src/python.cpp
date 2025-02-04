@@ -2077,13 +2077,13 @@ Example
           "callable"_a)
       .def(
           "on_clock_sync", &Server::setOnClockSyncCallback,
-          R"def(on_clock_sync(self: c104.Server, callable: collections.abc.Callable[[c104.Server, str, datetime.datetime], c104.ResponseState]) -> None
+          R"def(on_clock_sync(self: c104.Server, callable: collections.abc.Callable[[c104.Server, str, c104.DateTime], c104.ResponseState]) -> None
 
 set python callback that will be executed on incoming clock sync command
 
 Parameters
 ----------
-callable: collections.abc.Callable[[c104.Server, str, datetime.datetime], c104.ResponseState]
+callable: collections.abc.Callable[[c104.Server, str, c104.DateTime], c104.ResponseState]
     callback function reference
 
 Returns
@@ -2103,7 +2103,7 @@ server: c104.Server
     server instance
 ip: str
     client connection request ip
-date_time: datetime.datetime
+date_time: c104.DateTime
     clients current clock time
 
 Callable Returns
@@ -2115,7 +2115,7 @@ Example
 -------
 >>> import datetime
 >>>
->>> def sv_on_clock_sync(server: c104.Server, ip: str, date_time: datetime.datetime) -> c104.ResponseState:
+>>> def sv_on_clock_sync(server: c104.Server, ip: str, date_time: c104.DateTime) -> c104.ResponseState:
 >>>     print("->@| Time {0} from {1} | SERVER {2}:{3}".format(date_time, ip, server.ip, server.port))
 >>>     return c104.ResponseState.SUCCESS
 >>>
@@ -2786,12 +2786,12 @@ Example
           py::return_value_policy::copy)
       .def_property_readonly(
           "processed_at", &Object::DataPoint::getProcessedAt,
-          "datetime.datetime : timestamp with milliseconds of last local "
+          "c104.DateTime : timestamp with milliseconds of last local "
           "information processing "
           "(read-only)",
           py::return_value_policy::copy)
       .def_property_readonly("recorded_at", &Object::DataPoint::getRecordedAt,
-                             "datetime.datetime | None : timestamp with "
+                             "c104.DateTime | None : timestamp with "
                              "milliseconds transported with the "
                              "value "
                              "itself or None (read-only)",
@@ -3043,9 +3043,44 @@ Example
   py::class_<Object::DateTime, std::shared_ptr<Object::DateTime>>(
       m, "DateTime",
       "This class represents date time objects with additional flags.")
+      .def(
+          py::init<const py::object &, const bool, const bool, const bool>(),
+          R"def(__init__(self: c104.DateTime, value: datetime.datetime, substituted: bool = False, invalid: bool = False, daylight_saving_time: bool = False) -> None
+
+create a new DateTime
+
+Parameters
+----------
+value: datetime.datetime
+    datetime value with optional timezone information
+substituted: bool, optional
+    flag as to whether the datetime value is substituted
+invalid: bool, optional
+    flag as to whether the datetime value is invalid
+daylight_saving_time: bool, optional
+    flag as to whether the datetime value is daylight saving time, adds additional 1 hour to the datetime value
+
+Example
+-------
+>>> dt = c104.DateTime(datetime.datetime.now(datetime.timezone(datetime.timedelta(seconds=14400))), daylight_saving_time=True)
+)def",
+          "value"_a, "substituted"_a = false, "invalid"_a = false,
+          "daylight_saving_time"_a = false)
+      .def_static(
+          "now",
+          []() {
+            const auto datetime = py::module::import("datetime");
+            const auto now =
+                datetime.attr("datetime")
+                    .attr("now")(datetime.attr("timezone").attr("utc"));
+            return Object::DateTime(now, false, false, false);
+          },
+          R"def(now() -> c104.DateTime)def")
       .def_property_readonly(
           "value", &Object::DateTime::toPyDateTime,
           "datetime.datetime: timestamp with timezone (read-only)")
+      .def_property_readonly("readonly", &Object::DateTime::isReadonly,
+                             "bool: test if datetime is read-only (read-only)")
       .def_property("substituted", &Object::DateTime::isSubstituted,
                     &Object::DateTime::setSubstituted,
                     "bool: timestamp is substituted")
@@ -3087,11 +3122,11 @@ The setter is available via point.value=xyz)def")
 The setter is available via point.quality=xyz)def")
       .def_property_readonly(
           "processed_at", &Object::Information::getProcessedAt,
-          "datetime.datetime: timestamp with milliseconds of last local "
+          "c104.DateTime: timestamp with milliseconds of last local "
           "information processing "
           "(read-only)")
       .def_property_readonly("recorded_at", &Object::Information::getRecordedAt,
-                             "datetime.datetime | None : timestamp with "
+                             "c104.DateTime | None : timestamp with "
                              "milliseconds transported with the "
                              "value "
                              "itself or None (read-only)")
@@ -3104,7 +3139,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific single point information")
       .def(
           py::init(&Object::SingleInfo::create),
-          R"def(__init__(self: c104.SingleInfo, on: bool, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.SingleInfo, on: bool, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new single info
 
@@ -3114,7 +3149,7 @@ on: bool
     Single status value
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3140,7 +3175,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific single command information")
       .def(
           py::init(&Object::SingleCmd::create),
-          R"def(__init__(self: c104.SingleCmd, on: bool, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.SingleCmd, on: bool, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: c104.DateTime = None) -> None
 
 create a new single command
 
@@ -3150,7 +3185,7 @@ on: bool
     Single command value
 qualifier: c104.Qoc
     Qualifier of command
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3179,7 +3214,7 @@ The setter is available via point.value=xyz)def")
       "This class represents all specific double point information")
       .def(
           py::init(&Object::DoubleInfo::create),
-          R"def(__init__(self: c104.DoubleInfo, state: c104.Double, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.DoubleInfo, state: c104.Double, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new double info
 
@@ -3189,7 +3224,7 @@ state: c104.Double
     Double point status value
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3216,7 +3251,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific double command information")
       .def(
           py::init(&Object::DoubleCmd::create),
-          R"def(__init__(self: c104.DoubleCmd, state: c104.Double, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.DoubleCmd, state: c104.Double, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: c104.DateTime = None) -> None
 
 create a new double command
 
@@ -3226,7 +3261,7 @@ state: c104.Double
     Double command value
 qualifier: c104.Qoc
     Qualifier of command
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3256,7 +3291,7 @@ The setter is available via point.value=xyz)def")
       "This class represents all specific step point information")
       .def(
           py::init(&Object::StepInfo::create),
-          R"def(__init__(self: c104.StepInfo, position: c104.Int7, transient: bool, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.StepInfo, position: c104.Int7, transient: bool, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new step info
 
@@ -3268,7 +3303,7 @@ transient: bool
     Indicator, if transformer is currently in step change procedure
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3298,7 +3333,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific step command information")
       .def(
           py::init(&Object::StepCmd::create),
-          R"def(__init__(self: c104.StepCmd, direction: c104.Step, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.StepCmd, direction: c104.Step, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: c104.DateTime = None) -> None
 
 create a new step command
 
@@ -3308,7 +3343,7 @@ direction: c104.Step
     Step command direction value
 qualifier: c104.Qoc
     Qualifier of Command
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3338,7 +3373,7 @@ The setter is available via point.value=xyz)def")
       "This class represents all specific binary point information")
       .def(
           py::init(&Object::BinaryInfo::create),
-          R"def(__init__(self: c104.BinaryInfo, blob: c104.Byte32, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.BinaryInfo, blob: c104.Byte32, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new binary info
 
@@ -3348,7 +3383,7 @@ blob: c104.Byte32
     Binary status value
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3375,7 +3410,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific binary command information")
       .def(
           py::init(&Object::BinaryCmd::create),
-          R"def(__init__(self: c104.BinaryCmd, blob: c104.Byte32, recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.BinaryCmd, blob: c104.Byte32, recorded_at: c104.DateTime = None) -> None
 
 create a new binary command
 
@@ -3383,7 +3418,7 @@ Parameters
 ----------
 blob: c104.Byte32
     Binary command value
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3410,7 +3445,7 @@ The setter is available via point.value=xyz)def")
       "information")
       .def(
           py::init(&Object::NormalizedInfo::create),
-          R"def(__init__(self: c104.NormalizedInfo, actual: c104.NormalizedFloat, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.NormalizedInfo, actual: c104.NormalizedFloat, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new normalized measurement info
 
@@ -3420,7 +3455,7 @@ actual: c104.NormalizedFloat
     Actual measurement value [-1.f, 1.f]
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3448,7 +3483,7 @@ The setter is available via point.quality=xyz)def")
       "information")
       .def(
           py::init(&Object::NormalizedCmd::create),
-          R"def(__init__(self: c104.NormalizedCmd, target: c104.NormalizedFloat, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.NormalizedCmd, target: c104.NormalizedFloat, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: c104.DateTime = None) -> None
 
 create a new normalized set point command
 
@@ -3458,7 +3493,7 @@ target: c104.NormalizedFloat
     Target set-point value [-1.f, 1.f]
 qualifier: c104.UInt7
     Qualifier of set-point command
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3488,7 +3523,7 @@ The setter is available via point.value=xyz)def")
       "This class represents all specific scaled measurement point information")
       .def(
           py::init(&Object::ScaledInfo::create),
-          R"def(__init__(self: c104.ScaledInfo, actual: c104.Int16, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.ScaledInfo, actual: c104.Int16, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new scaled measurement info
 
@@ -3498,7 +3533,7 @@ actual: c104.Int16
     Actual measurement value [-32768, 32767]
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3525,7 +3560,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific scaled set point command information")
       .def(
           py::init(&Object::ScaledCmd::create),
-          R"def(__init__(self: c104.ScaledCmd, target: c104.Int16, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.ScaledCmd, target: c104.Int16, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: c104.DateTime = None) -> None
 
 create a new scaled set point command
 
@@ -3535,7 +3570,7 @@ target: c104.Int16
     Target set-point value [-32768, 32767]
 qualifier: c104.UInt7
     Qualifier of set-point command
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3565,7 +3600,7 @@ The setter is available via point.value=xyz)def")
       "This class represents all specific short measurement point information")
       .def(
           py::init(&Object::ShortInfo::create),
-          R"def(__init__(self: c104.ShortInfo, actual: float, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.ShortInfo, actual: float, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new short measurement info
 
@@ -3575,7 +3610,7 @@ actual: float
     Actual measurement value in 32-bit precision
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3602,7 +3637,7 @@ The setter is available via point.quality=xyz)def")
       "This class represents all specific short set point command information")
       .def(
           py::init(&Object::ShortCmd::create),
-          R"def(__init__(self: c104.ShortCmd, target: float, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.ShortCmd, target: float, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: c104.DateTime = None) -> None
 
 create a new short set point command
 
@@ -3612,7 +3647,7 @@ target: float
     Target set-point value in 32-bit precision
 qualifier: c104.UInt7
     Qualifier of set-point command
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3643,7 +3678,7 @@ The setter is available via point.value=xyz)def")
       "point information")
       .def(
           py::init(&Object::BinaryCounterInfo::create),
-          R"def(__init__(self: c104.BinaryCounterInfo, counter: int, sequence: c104.UInt5, quality: c104.BinaryCounterQuality = c104.BinaryCounterQuality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.BinaryCounterInfo, counter: int, sequence: c104.UInt5, quality: c104.BinaryCounterQuality = c104.BinaryCounterQuality(), recorded_at: c104.DateTime = None) -> None
 
 create a new short measurement info
 
@@ -3655,7 +3690,7 @@ sequence: c104.UInt5
     Counter info sequence number
 quality: c104.BinaryCounterQuality
     Binary counter quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3688,7 +3723,7 @@ The setter is available via point.quality=xyz)def")
       "point information")
       .def(
           py::init(&Object::ProtectionEquipmentEventInfo::create),
-          R"def(__init__(self: c104.ProtectionEventInfo, state: c104.EventState, elapsed_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.ProtectionEventInfo, state: c104.EventState, elapsed_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new event info raised by protection equipment
 
@@ -3700,7 +3735,7 @@ elapsed_ms: c104.UInt16
     Time in milliseconds elapsed
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3734,7 +3769,7 @@ The setter is available via point.quality=xyz)def")
       "events point information")
       .def(
           py::init(&Object::ProtectionEquipmentStartEventsInfo::create),
-          R"def(__init__(self: c104.ProtectionStartInfo, events: c104.StartEvents, relay_duration_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.ProtectionStartInfo, events: c104.StartEvents, relay_duration_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new packed event start info raised by protection equipment
 
@@ -3746,7 +3781,7 @@ relay_duration_ms: c104.UInt16
     Time in milliseconds of relay duration
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3781,7 +3816,7 @@ The setter is available via point.quality=xyz)def")
       "point information")
       .def(
           py::init(&Object::ProtectionEquipmentOutputCircuitInfo::create),
-          R"def(__init__(self: c104.ProtectionCircuitInfo, circuits: c104.OutputCircuits, relay_operating_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.ProtectionCircuitInfo, circuits: c104.OutputCircuits, relay_operating_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new output circuits info raised by protection equipment
 
@@ -3793,7 +3828,7 @@ relay_operating_ms: c104.UInt16
     Time in milliseconds of relay operation
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
@@ -3829,7 +3864,7 @@ The setter is available via point.quality=xyz)def")
       "change detection")
       .def(
           py::init(&Object::StatusWithChangeDetection::create),
-          R"def(__init__(self: c104.StatusAndChanged, status: c104.PackedSingle, changed: c104.PackedSingle, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
+          R"def(__init__(self: c104.StatusAndChanged, status: c104.PackedSingle, changed: c104.PackedSingle, quality: c104.Quality = c104.Quality(), recorded_at: c104.DateTime = None) -> None
 
 create a new event info raised by protection equipment
 
@@ -3841,7 +3876,7 @@ changed: c104.PackedSingle
     Set of changed single values
 quality: c104.Quality
     Quality information
-recorded_at: datetime.datetime, optional
+recorded_at: c104.DateTime, optional
     Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
 Example
