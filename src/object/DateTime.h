@@ -39,6 +39,7 @@
 #include <string>
 
 namespace py = pybind11;
+using namespace std::chrono_literals;
 
 namespace Object {
 class Station;
@@ -91,12 +92,12 @@ public:
    */
   void setDaylightSavingTime(bool enabled);
 
-  [[nodiscard]] std::int_fast16_t getTimeZoneOffset() const;
+  [[nodiscard]] std::chrono::seconds getTimeZoneOffset() const;
 
-  void injectTimeZone(std::int_fast16_t offset, bool isDaylightSavingTime,
+  void injectTimeZone(std::chrono::seconds offset, bool isDaylightSavingTime,
                       bool overrideDST = true);
 
-  void convertTimeZone(std::int_fast16_t offset, bool isDaylightSavingTime);
+  void convertTimeZone(std::chrono::seconds offset, bool isDaylightSavingTime);
 
   void setReadonly();
   [[nodiscard]] bool isReadonly() const { return readonly; }
@@ -114,7 +115,7 @@ protected:
   std::atomic<std::chrono::system_clock::time_point> time;
 
   /// @brief timezone offset in seconds that point timestamps are recorded in
-  std::atomic<std::int_fast16_t> timeZoneOffset{0};
+  std::atomic<std::chrono::seconds> timeZoneOffset{0s};
 
   /// @brief timezone injection can only be used once
   std::atomic_bool timeZoneSet{false};

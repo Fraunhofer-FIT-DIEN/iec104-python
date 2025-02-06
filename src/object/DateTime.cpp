@@ -86,7 +86,7 @@ DateTime::DateTime(const py::object &py_datetime, const bool isSubstituted,
   // tzinfo is present: store the offset in seconds
   const auto utcoffset = py_datetime.attr("utcoffset")();
   if (!utcoffset.is_none()) {
-    timeZoneOffset.store(utcoffset.attr("total_seconds")().cast<float>());
+    timeZoneOffset.store(utcoffset.cast<std::chrono::seconds>());
   }
 }
 
@@ -165,11 +165,11 @@ void DateTime::setDaylightSavingTime(const bool enabled) {
   daylightSavingTime.store(enabled);
 }
 
-std::int_fast16_t DateTime::getTimeZoneOffset() const {
+std::chrono::seconds DateTime::getTimeZoneOffset() const {
   return timeZoneOffset.load();
 }
 
-void DateTime::injectTimeZone(const std::int_fast16_t offset,
+void DateTime::injectTimeZone(const std::chrono::seconds offset,
                               const bool isDaylightSavingTime,
                               const bool overrideDST) {
   // only once
@@ -186,45 +186,45 @@ void DateTime::injectTimeZone(const std::int_fast16_t offset,
     if (old != isDaylightSavingTime) {
       // message received with different SU flag than configured in station ->
       // correct timeZoneOffset
-      const std::int_fast16_t modifier = old ? 3600 : -3600;
+      const std::chrono::seconds modifier = old ? 3600s : -3600s;
       DEBUG_PRINT(Debug::Point, "DateTime.inject] Different SummerTime (DST) "
                                 "flag in Info and Station | Station " +
                                     bool_toString(isDaylightSavingTime) +
                                     " | Info " +
                                     bool_toString(daylightSavingTime.load()) +
                                     " | timezone_offset modified by " +
-                                    std::to_string(modifier) + "s");
+                                    std::to_string(modifier.count()) + "s");
       daylightSavingTime.store(isDaylightSavingTime);
       timeZoneOffset.store(offset + modifier);
     }
   }
 }
 
-void DateTime::convertTimeZone(const std::int_fast16_t offset,
+void DateTime::convertTimeZone(const std::chrono::seconds offset,
                                const bool isDaylightSavingTime) {
   // correct DST first to end with desired offset
   const bool old = daylightSavingTime.load();
   if (old != isDaylightSavingTime) {
     // message received with different SU flag than configured in station ->
     // correct timeZoneOffset
-    const std::int_fast16_t modifier = old ? 3600 : -3600;
+    const std::chrono::seconds modifier = old ? 3600s : -3600s;
     DEBUG_PRINT(Debug::Point, "DateTime.convert] Different SummerTime (DST) "
                               "flag in Info and Station | Station " +
                                   bool_toString(isDaylightSavingTime) +
                                   " | Info " +
                                   bool_toString(daylightSavingTime.load()) +
                                   " | timezone_offset modified by " +
-                                  std::to_string(modifier) + "s");
+                                  std::to_string(modifier.count()) + "s");
     daylightSavingTime.store(isDaylightSavingTime);
     timeZoneOffset.store(offset + modifier);
   }
 
-  const auto modifier = std::chrono::seconds(offset - timeZoneOffset.load());
+  const auto modifier = offset - timeZoneOffset.load();
   DEBUG_PRINT_CONDITION(modifier != std::chrono::seconds(0), Debug::Point,
                         "DateTime.convert] Different TimeZoneOffset in Info "
                         "and Station | Station " +
-                            std::to_string(offset) + " | Info " +
-                            std::to_string(timeZoneOffset.load()) +
+                            std::to_string(offset.count()) + " | Info " +
+                            std::to_string(timeZoneOffset.load().count()) +
                             " | timezone_offset modified by " +
                             std::to_string(modifier.count()) + "s");
   time.store(time.load() + modifier);
@@ -250,8 +250,9 @@ py::object DateTime::toPyDateTime() const {
   // Convert milliseconds to seconds as double
 
   // Prepare timezone offset
-  const auto timezone_offset_seconds = static_cast<int>(
-      timeZoneOffset.load() + (daylightSavingTime.load() ? 3600 : 0));
+  const int timezone_offset_seconds =
+      (timeZoneOffset.load() + (daylightSavingTime.load() ? 3600s : 0s))
+          .count();
 
   const auto datetime = py::module::import("datetime");
   py::object tzinfo = py::none();
@@ -281,8 +282,9 @@ std::string DateTime::toString() const {
   }
 
   // Adjust the time_point by the timezone offset
-  auto offset = timeZoneOffset.load() + (daylightSavingTime.load() ? 3600 : 0);
-  const auto adjusted_time = time.load() + std::chrono::seconds(offset);
+  auto offset =
+      timeZoneOffset.load() + (daylightSavingTime.load() ? 3600s : 0s);
+  const auto adjusted_time = time.load() + offset;
 
   const std::time_t tt = std::chrono::system_clock::to_time_t(
       std::chrono::time_point_cast<std::chrono::system_clock::duration>(
@@ -290,8 +292,8 @@ std::string DateTime::toString() const {
 
   const std::tm gm_tm = *std::gmtime(&tt);
 
-  const int tz_hours = offset / 3600;
-  const int tz_minutes = (std::abs(offset) % 3600) / 60;
+  const int tz_hours = offset.count() / 3600;
+  const int tz_minutes = (std::abs(offset.count()) % 3600) / 60;
 
   oss << "<c104.DateTime time=" << std::put_time(&gm_tm, "%Y-%m-%dT%H:%M:%S")
       << '.' << std::setw(3) << std::setfill('0') << (us.count() / 1000)
