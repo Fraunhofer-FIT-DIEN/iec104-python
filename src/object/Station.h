@@ -101,7 +101,7 @@ private:
       pointIoaMap{};
 
   /// @brief timezone offset in seconds that point timestamps are recorded in
-  std::atomic<std::int_fast16_t> timeZoneOffset{0};
+  std::atomic<std::chrono::seconds> timeZoneOffset{0s};
 
   /// @brief daylight saving time enabled?
   std::atomic_bool daylightSavingTime{false};
@@ -184,9 +184,9 @@ public:
    */
   bool isLocal() const;
 
-  [[nodiscard]] std::int_fast16_t getTimeZoneOffset() const;
+  [[nodiscard]] std::chrono::seconds getTimeZoneOffset() const;
 
-  void setTimeZoneOffset(std::int_fast16_t seconds);
+  void setTimeZoneOffset(std::chrono::seconds offset);
 
   [[nodiscard]] bool isDaylightSavingTime() const;
 
@@ -229,7 +229,8 @@ public:
     oss << "<104.Station common_address=" << std::to_string(commonAddress)
         << ", #points=" << std::to_string(len)
         << ", daylight_saving_time=" << bool_toString(daylightSavingTime)
-        << ", timezone_offset=" << std::to_string(timeZoneOffset) << "min"
+        << ", timezone_offset=" << std::to_string(timeZoneOffset.load().count())
+        << "min"
         << " at " << std::hex << std::showbase
         << reinterpret_cast<std::uintptr_t>(this) << ">";
     return oss.str();
