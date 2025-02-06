@@ -2650,13 +2650,15 @@ but with the displayed value shifted exactly one hour earlier.
 This may help in assigning the correct hour to information objects generated during the first hour after
 transitioning from daylight savings time (summertime) to standard time.
 )def")
-      .def_property("timezone_offset", &Object::Station::getTimeZoneOffset,
-                    &Object::Station::setTimeZoneOffset,
-                    "int: timezone offset in seconds for recorded timestamps")
+      .def_property(
+          "timezone_offset", &Object::Station::getTimeZoneOffset,
+          &Object::Station::setTimeZoneOffset,
+          "datetime.timedelta: timezone offset for protocol timestamps")
       .def_property("auto_time_substituted",
                     &Object::Station::isAutoTimeSubstituted,
                     &Object::Station::setAutoTimeSubstituted,
-                    "bool: automatically assigned reported at timestamps are "
+                    "bool: flagging of auto-assigned reported_at timestamps as "
+                    "substituted"
                     "flagged as substituted")
       .def_property_readonly(
           "has_points", &Object::Station::hasPoints,
@@ -3123,21 +3125,34 @@ Example
                     .attr("now")(datetime.attr("timezone").attr("utc"));
             return Object::DateTime(now, false, false, false);
           },
-          R"def(now() -> c104.DateTime)def")
-      .def_property_readonly(
-          "value", &Object::DateTime::toPyDateTime,
-          "datetime.datetime: timestamp with timezone (read-only)")
+          R"def(now() -> c104.DateTime
+
+create a new DateTime object with current date and time
+
+Returns
+-------
+c104.DateTime
+    current date and time object
+
+Example
+-------
+>>> dt = c104.DateTime.now()
+)def")
+      .def_property_readonly("value", &Object::DateTime::toPyDateTime,
+                             "datetime.datetime: timezone aware datetime "
+                             "object for this timestamp (read-only)")
       .def_property_readonly("readonly", &Object::DateTime::isReadonly,
-                             "bool: test if datetime is read-only (read-only)")
+                             "bool: if this timestamp is readonly (read-only)")
       .def_property("substituted", &Object::DateTime::isSubstituted,
                     &Object::DateTime::setSubstituted,
-                    "bool: timestamp is substituted")
+                    "bool: if this timestamp was flagged as substituted")
       .def_property("invalid", &Object::DateTime::isInvalid,
-                    &Object::DateTime::setInvalid, "bool: timestamp is invalid")
+                    &Object::DateTime::setInvalid,
+                    "bool: if this timestamp was flagged as invalid")
       .def_property(
           "daylight_saving_time", &Object::DateTime::isDaylightSavingTime,
           &Object::DateTime::setDaylightSavingTime,
-          R"def(bool: if timestamps recorded at this station are in daylight saving time
+          R"def(bool: if this timestamp was recorded in daylight saving time
 
 Changing this flag will modify the timestamp send by +1 hour!
 
@@ -3151,7 +3166,7 @@ transitioning from daylight savings time (summertime) to standard time.
 )def")
       .def_property_readonly("timezone_offset",
                              &Object::DateTime::getTimeZoneOffset,
-                             "int: timezone offset in seconds")
+                             "datetime.timedelta: timezone offset")
       .def("__repr__", &Object::DateTime::toString);
 
   py::class_<Object::Information, std::shared_ptr<Object::Information>>(
