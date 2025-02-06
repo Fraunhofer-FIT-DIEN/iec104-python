@@ -1090,21 +1090,21 @@ convert to native bytes
                                     "This class is used to configure protocol "
                                     "parameters for server and client")
       .def_readwrite("send_window_size", &sCS104_APCIParameters::k,
-                     "int: Threshold of unconfirmed outgoing messages, before "
+                     "int: threshold of unconfirmed outgoing messages, before "
                      "waiting for acknowledgments (property name: k)")
       .def_readwrite("receive_window_size", &sCS104_APCIParameters::w,
-                     "int: Threshold of unconfirmed incoming messages to send "
+                     "int: threshold of unconfirmed incoming messages to send "
                      "acknowledgments (property name: w)")
       .def_readwrite("connection_timeout", &sCS104_APCIParameters::t0,
-                     "int: Socket connection timeout (ms) (property name: t0)")
+                     "int: socket connection timeout (ms) (property name: t0)")
       .def_readwrite("message_timeout", &sCS104_APCIParameters::t1,
-                     "int: Timeout for sent messages to be acknowledged by "
+                     "int: timeout for sent messages to be acknowledged by "
                      "counterparty (ms) (property name: t1)")
       .def_readwrite("confirm_interval", &sCS104_APCIParameters::t2,
-                     "int: Maximum interval to acknowledge received messages "
+                     "int: maximum interval to acknowledge received messages "
                      "(ms) (property name: t2)")
       .def_readwrite("keep_alive_interval", &sCS104_APCIParameters::t3,
-                     "int: Maximum interval without communication, send test "
+                     "int: maximum interval without communication, send test "
                      "frame message to prove liveness (ms) (property name: t3)")
       .def("__str__",
            [](const sCS104_APCIParameters parameters) {
@@ -1176,6 +1176,8 @@ None
 Raises
 ------
 ValueError
+    config is readonly and cannot be modified further
+ValueError
     failed to load the certificate file, the private key file or failed decrypting the private key
 
 Example
@@ -1201,6 +1203,8 @@ None
 
 Raises
 ------
+ValueError
+    config is readonly and cannot be modified further
 ValueError
     failed to load the certificate file
 
@@ -1229,6 +1233,8 @@ None
 
 Raises
 ------
+ValueError
+    config is readonly and cannot be modified further
 ValueError
     list is empty or contains invalid cipher suites
 
@@ -1287,7 +1293,7 @@ Example
       .def(
           "set_resumption_interval",
           &Remote::TransportSecurity::setResumptionInterval,
-          R"def(set_resumption_interval(self: c104.TransportSecurity, interval: datetime.timedelta | None = None) -> None:
+          R"def(set_resumption_interval(self: c104.TransportSecurity, interval: datetime.timedelta | None = None) -> None
 
 sets the session resumption interval for the TLS configuration.
 
@@ -1337,6 +1343,8 @@ None
 Raises
 ------
 ValueError
+    config is readonly and cannot be modified further
+ValueError
     failed to load the certificate file
 
 Example
@@ -1363,6 +1371,12 @@ max: c104.TlsVersion
 Returns
 -------
 None
+
+Raises
+------
+ValueError
+    config is readonly and cannot be modified further
+
 
 Example
 -------
@@ -1519,9 +1533,10 @@ Example
       .def_property_readonly(
           "has_open_connections", &Client::hasOpenConnections,
           "bool: test if client has open connections to servers (read-only)")
-      .def_property_readonly(
-          "open_connection_count", &Client::getOpenConnectionCount,
-          "int: get number of open connections to servers (read-only)")
+      .def_property_readonly("open_connection_count",
+                             &Client::getOpenConnectionCount,
+                             "int: represents the number of open connections "
+                             "to servers (read-only)")
       .def_property_readonly("has_active_connections",
                              &Client::hasActiveConnections,
                              "bool: test if client has active (open and not "
@@ -1536,7 +1551,7 @@ Example
           "(server) Connection objects (read-only)")
       .def_property("originator_address", &Client::getOriginatorAddress,
                     &Client::setOriginatorAddress,
-                    "int: primary originator address of this client (0-255)",
+                    "int: originator address of this client (0-255)",
                     py::return_value_policy::copy)
       .def("start", &Client::start, R"def(start(self: c104.Client) -> None
 
@@ -1822,9 +1837,10 @@ Example
       .def_property_readonly(
           "has_open_connections", &Server::hasOpenConnections,
           "bool: test if server has open connections to clients (read-only)")
-      .def_property_readonly(
-          "open_connection_count", &Server::getOpenConnectionCount,
-          "int: get number of open connections to clients (read-only)")
+      .def_property_readonly("open_connection_count",
+                             &Server::getOpenConnectionCount,
+                             "int: represents the number of open connections "
+                             "to clients (read-only)")
       .def_property_readonly("has_active_connections",
                              &Server::hasActiveConnections,
                              "bool: test if server has active (open and not "
@@ -2169,15 +2185,15 @@ Example
           "bool: test if remote server has at least one station (read-only)")
       .def_property_readonly(
           "stations", &Remote::Connection::getStations,
-          "list[c104.Station] list of all Station objects (read-only)")
+          "list[c104.Station]: list of all Station objects (read-only)")
       .def_property_readonly("is_connected", &Remote::Connection::isOpen,
                              "bool: test if connection is opened (read-only)")
       .def_property_readonly("is_muted", &Remote::Connection::isMuted,
                              "bool: test if connection is muted (read-only)")
-      .def_property(
-          "originator_address", &Remote::Connection::getOriginatorAddress,
-          &Remote::Connection::setOriginatorAddress,
-          "int: primary originator address of this connection (0-255)")
+      .def_property("originator_address",
+                    &Remote::Connection::getOriginatorAddress,
+                    &Remote::Connection::setOriginatorAddress,
+                    "int: originator address of this connection (0-255)")
       .def_property_readonly(
           "connected_at", &Remote::Connection::getConnectedAt,
           "datetime.datetime | None : datetime of last connection opening, if "
@@ -2255,7 +2271,7 @@ cause: c104.Cot
 qualifier: c104.Qoi
     qualifier of interrogation
 wait_for_response: bool
-    block call until command success or failure reponse received?
+    block call until command success or failure response received?
 
 Returns
 -------
@@ -2606,20 +2622,22 @@ but with the displayed value shifted exactly one hour earlier.
 This may help in assigning the correct hour to information objects generated during the first hour after
 transitioning from daylight savings time (summertime) to standard time.
 )def")
-      .def_property("timezone_offset", &Object::Station::getTimeZoneOffset,
-                    &Object::Station::setTimeZoneOffset,
-                    "int: timezone offset in seconds for recorded timestamps")
+      .def_property(
+          "timezone_offset", &Object::Station::getTimeZoneOffset,
+          &Object::Station::setTimeZoneOffset,
+          "datetime.timedelta: timezone offset for protocol timestamps")
       .def_property("auto_time_substituted",
                     &Object::Station::isAutoTimeSubstituted,
                     &Object::Station::setAutoTimeSubstituted,
-                    "bool: automatically assigned reported at timestamps are "
+                    "bool: flagging of auto-assigned reported_at timestamps as "
+                    "substituted"
                     "flagged as substituted")
       .def_property_readonly(
           "has_points", &Object::Station::hasPoints,
           "bool: test if station has at least one point (read-only)")
       .def_property_readonly(
           "points", &Object::Station::getPoints,
-          "list[c104.Point] list of all Point objects (read-only)")
+          "list[c104.Point]: list of all Point objects (read-only)")
       .def(
           "get_point", &Object::Station::getPoint,
           R"def(get_point(self: c104.Station, io_address: int) -> c104.Point | None
@@ -2730,11 +2748,12 @@ Example
           "related_io_autoreturn",
           &Object::DataPoint::getRelatedInformationObjectAutoReturn,
           &Object::DataPoint::setRelatedInformationObjectAutoReturn,
-          "bool: toggle automatic return info remote response on or off")
+          "bool: automatic transmission of return info remote messages for "
+          "related point on incoming client command (only for control points)")
       .def_property("command_mode", &Object::DataPoint::getCommandMode,
                     &Object::DataPoint::setCommandMode,
-                    "c104.CommandMode : set direct or select-and-execute "
-                    "command transmission mode",
+                    "c104.CommandMode : command transmission mode (direct or "
+                    "select-and-execute)",
                     py::return_value_policy::copy)
       .def_property_readonly("selected_by",
                              &Object::DataPoint::getSelectedByOriginatorAddress,
@@ -2749,21 +2768,22 @@ Example
                              "callbacks, 0 = no periodic transmission")
       .def_property("info", &Object::DataPoint::getInfo,
                     &Object::DataPoint::setInfo,
-                    "c104.Information : information object",
+                    "c104.Information : current information",
                     py::return_value_policy::automatic)
       .def_property(
           "value", &Object::DataPoint::getValue, &Object::DataPoint::setValue,
           "typing.Union[None, bool, c104.Double, c104.Step, c104.Int7, "
           "c104.Int16, int, c104.Byte32, c104.NormalizedFloat, float, "
           "c104.EventState, c104.StartEvents, c104.OutputCircuits, "
-          "c104.PackedSingle] : value (this is just a shortcut to "
+          "c104.PackedSingle] : the primary information value (this is just a "
+          "shortcut to "
           "point.info.value)",
           py::return_value_policy::copy)
       .def_property(
           "quality", &Object::DataPoint::getQuality,
           &Object::DataPoint::setQuality,
           "typing.Union[None, c104.Quality, c104.BinaryCounterQuality] : "
-          "Quality info object (this is just a shortcut to "
+          "the primary quality value (this is just a shortcut to "
           "point.info.quality)",
           py::return_value_policy::copy)
       .def_property_readonly(
@@ -3057,21 +3077,34 @@ Example
                     .attr("now")(datetime.attr("timezone").attr("utc"));
             return Object::DateTime(now, false, false, false);
           },
-          R"def(now() -> c104.DateTime)def")
-      .def_property_readonly(
-          "value", &Object::DateTime::toPyDateTime,
-          "datetime.datetime: timestamp with timezone (read-only)")
+          R"def(now() -> c104.DateTime
+
+create a new DateTime object with current date and time
+
+Returns
+-------
+c104.DateTime
+    current date and time object
+
+Example
+-------
+>>> dt = c104.DateTime.now()
+)def")
+      .def_property_readonly("value", &Object::DateTime::toPyDateTime,
+                             "datetime.datetime: timezone aware datetime "
+                             "object for this timestamp (read-only)")
       .def_property_readonly("readonly", &Object::DateTime::isReadonly,
-                             "bool: test if datetime is read-only (read-only)")
+                             "bool: if this timestamp is readonly (read-only)")
       .def_property("substituted", &Object::DateTime::isSubstituted,
                     &Object::DateTime::setSubstituted,
-                    "bool: timestamp is substituted")
+                    "bool: if this timestamp was flagged as substituted")
       .def_property("invalid", &Object::DateTime::isInvalid,
-                    &Object::DateTime::setInvalid, "bool: timestamp is invalid")
+                    &Object::DateTime::setInvalid,
+                    "bool: if this timestamp was flagged as invalid")
       .def_property(
           "daylight_saving_time", &Object::DateTime::isDaylightSavingTime,
           &Object::DateTime::setDaylightSavingTime,
-          R"def(bool: if timestamps recorded at this station are in daylight saving time
+          R"def(bool: if this timestamp was recorded in daylight saving time
 
 Changing this flag will modify the timestamp send by +1 hour!
 
@@ -3085,7 +3118,7 @@ transitioning from daylight savings time (summertime) to standard time.
 )def")
       .def_property_readonly("timezone_offset",
                              &Object::DateTime::getTimeZoneOffset,
-                             "int: timezone offset in seconds")
+                             "datetime.timedelta: timezone offset")
       .def("__repr__", &Object::DateTime::toString);
 
   py::class_<Object::Information, std::shared_ptr<Object::Information>>(
@@ -3932,13 +3965,15 @@ The setter is available via point.quality=xyz)def")
       .def_property_readonly(
           "number_of_object",
           &Remote::Message::IncomingMessage::getNumberOfObjects,
-          "int: number of information objects (read-only) (deprecated, use "
+          "int: represents the number of information objects (read-only) "
+          "(deprecated, use "
           "``number_of_objects`` instead)",
           py::return_value_policy::copy)
       .def_property_readonly(
           "number_of_objects",
           &Remote::Message::IncomingMessage::getNumberOfObjects,
-          "int: number of information objects (read-only)",
+          "int: represents the number of information objects contained in this "
+          "message (read-only)",
           py::return_value_policy::copy)
       .def_property_readonly("is_select_command",
                              &Remote::Message::IncomingMessage::isSelectCommand,
@@ -3968,7 +4003,8 @@ bool
 
   py::class_<Remote::Message::Batch, std::shared_ptr<Remote::Message::Batch>>(
       m, "Batch",
-      "This class represents a batch of outgoing messages of the same station "
+      "This class represents a batch of outgoing monitoring messages of the "
+      "same station "
       "and type")
       .def(
           py::init(&Remote::Message::Batch::create),
@@ -4015,29 +4051,33 @@ Example
                              "bool: test if sequence flag is set (read-only)")
       .def_property_readonly("is_negative", &Remote::Message::Batch::isNegative,
                              "bool: test if negative flag is set (read-only)")
-      .def_property_readonly("number_of_objects",
-                             &Remote::Message::Batch::getNumberOfObjects,
-                             "int: number of information objects (read-only)",
-                             py::return_value_policy::copy)
       .def_property_readonly(
-          "has_points", &Remote::Message::Batch::hasPoints,
-          "bool: test if station has at least one point (read-only)")
+          "number_of_objects", &Remote::Message::Batch::getNumberOfObjects,
+          "int: represents the number of information objects (read-only)",
+          py::return_value_policy::copy)
+      .def_property_readonly("has_points", &Remote::Message::Batch::hasPoints,
+                             "bool: test if batch contains points (read-only)")
       .def_property_readonly(
           "points", &Remote::Message::Batch::getPoints,
-          "list[c104.Point] list of all Point objects (read-only)")
+          "list[c104.Point]: get a list of contained points (read-only)")
       .def("add_point", &Remote::Message::Batch::addPoint,
-           R"def(add(self: c104.Batch, point: c104.Point) -> None
+           R"def(add_point(self: c104.Batch, point: c104.Point) -> None
 
-add a point to this Batch
+add a new point to this Batch
 
 Parameters
 ----------
 point: c104.Point
-    point object
+    to be added point
 
 Returns
 -------
 None
+
+Raises
+------
+ValueError
+    if point is not compatible with the batch or if it is already in the batch
 
 Example
 -------
