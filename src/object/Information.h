@@ -105,7 +105,7 @@ public:
 
   void setProcessedAt(const DateTime &val);
 
-  void injectTimeZone(std::int_fast16_t offset, bool daylightSavingTime);
+  void injectTimeZone(std::chrono::seconds offset, bool daylightSavingTime);
 
   virtual void setReadonly();
   [[nodiscard]] bool isReadonly() const { return readonly; }

@@ -157,12 +157,12 @@ bool Station::removePoint(const std::uint_fast32_t informationObjectAddress) {
 
 bool Station::isLocal() const { return !server.expired(); }
 
-std::int_fast16_t Station::getTimeZoneOffset() const {
+std::chrono::seconds Station::getTimeZoneOffset() const {
   return timeZoneOffset.load();
 }
 
-void Station::setTimeZoneOffset(const std::int_fast16_t seconds) {
-  timeZoneOffset.store(seconds);
+void Station::setTimeZoneOffset(const std::chrono::seconds offset) {
+  timeZoneOffset.store(offset);
 }
 
 bool Station::isDaylightSavingTime() const { return daylightSavingTime.load(); }

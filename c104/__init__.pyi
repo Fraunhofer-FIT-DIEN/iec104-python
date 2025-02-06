@@ -2,7 +2,7 @@ from __future__ import annotations
 import collections.abc
 import datetime
 import typing
-__all__ = ['Batch', 'BinaryCmd', 'BinaryCounterInfo', 'BinaryCounterQuality', 'BinaryInfo', 'Byte32', 'Client', 'Coi', 'CommandMode', 'Connection', 'ConnectionState', 'Cot', 'Debug', 'Double', 'DoubleCmd', 'DoubleInfo', 'EventState', 'Frz', 'IncomingMessage', 'Information', 'Init', 'Int16', 'Int7', 'NormalizedCmd', 'NormalizedFloat', 'NormalizedInfo', 'OutputCircuits', 'PackedSingle', 'Point', 'ProtectionCircuitInfo', 'ProtectionEventInfo', 'ProtectionStartInfo', 'ProtocolParameters', 'Qoc', 'Qoi', 'Quality', 'ResponseState', 'Rqt', 'ScaledCmd', 'ScaledInfo', 'Server', 'ShortCmd', 'ShortInfo', 'SingleCmd', 'SingleInfo', 'StartEvents', 'Station', 'StatusAndChanged', 'Step', 'StepCmd', 'StepInfo', 'TlsCipher', 'TlsVersion', 'TransportSecurity', 'Type', 'UInt16', 'UInt5', 'UInt7', 'Umc', 'disable_debug', 'enable_debug', 'explain_bytes', 'explain_bytes_dict', 'get_debug_mode', 'set_debug_mode']
+__all__ = ['Batch', 'BinaryCmd', 'BinaryCounterInfo', 'BinaryCounterQuality', 'BinaryInfo', 'Byte32', 'Client', 'Coi', 'CommandMode', 'Connection', 'ConnectionState', 'Cot', 'DateTime', 'Debug', 'Double', 'DoubleCmd', 'DoubleInfo', 'EventState', 'Frz', 'IncomingMessage', 'Information', 'Init', 'Int16', 'Int7', 'NormalizedCmd', 'NormalizedFloat', 'NormalizedInfo', 'OutputCircuits', 'PackedSingle', 'Point', 'ProtectionCircuitInfo', 'ProtectionEventInfo', 'ProtectionStartInfo', 'ProtocolParameters', 'Qoc', 'Qoi', 'Quality', 'ResponseState', 'Rqt', 'ScaledCmd', 'ScaledInfo', 'Server', 'ShortCmd', 'ShortInfo', 'SingleCmd', 'SingleInfo', 'StartEvents', 'Station', 'StatusAndChanged', 'Step', 'StepCmd', 'StepInfo', 'TlsCipher', 'TlsVersion', 'TransportSecurity', 'Type', 'UInt16', 'UInt5', 'UInt7', 'Umc', 'disable_debug', 'enable_debug', 'explain_bytes', 'explain_bytes_dict', 'get_debug_mode', 'set_debug_mode']
 class Batch:
     """
     This class represents a batch of outgoing monitoring messages of the same station and type
@@ -103,7 +103,7 @@ class BinaryCmd(Information):
     """
     This class represents all specific binary command information
     """
-    def __init__(self, blob: Byte32, recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, blob: Byte32, recorded_at: DateTime | None = None) -> None:
         """
         create a new binary command
 
@@ -111,7 +111,7 @@ class BinaryCmd(Information):
         ----------
         blob: c104.Byte32
             Binary command value
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -139,7 +139,7 @@ class BinaryCounterInfo(Information):
     """
     This class represents all specific integrated totals of binary counter point information
     """
-    def __init__(self, counter: int, sequence: UInt5, quality: BinaryCounterQuality = BinaryCounterQuality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, counter: int, sequence: UInt5, quality: BinaryCounterQuality = BinaryCounterQuality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new short measurement info
 
@@ -151,7 +151,7 @@ class BinaryCounterInfo(Information):
             Counter info sequence number
         quality: c104.BinaryCounterQuality
             Binary counter quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -186,11 +186,10 @@ class BinaryCounterQuality:
     """
     This enum contains all binary counter quality issue bits to interpret and manipulate counter quality.
     """
-    Adjusted: typing.ClassVar[BinaryCounterQuality]
-    Carry: typing.ClassVar[BinaryCounterQuality]
-    Invalid: typing.ClassVar[BinaryCounterQuality]
-    __members__: typing.ClassVar[dict[str, BinaryCounterQuality]]
-
+    Adjusted: typing.ClassVar[BinaryCounterQuality]  # value = BinaryCounterQuality set: { Adjusted }, is_good: False
+    Carry: typing.ClassVar[BinaryCounterQuality]  # value = BinaryCounterQuality set: { Carry }, is_good: False
+    Invalid: typing.ClassVar[BinaryCounterQuality]  # value = BinaryCounterQuality set: { Invalid }, is_good: False
+    __members__: typing.ClassVar[dict[str, BinaryCounterQuality]]  # value = {'Adjusted': BinaryCounterQuality set: { Adjusted }, is_good: False, 'Carry': BinaryCounterQuality set: { Carry }, is_good: False, 'Invalid': BinaryCounterQuality set: { Invalid }, is_good: False}
     def is_any(self) -> bool:
         """
         test if there are any bits set
@@ -208,7 +207,7 @@ class BinaryInfo(Information):
     """
     This class represents all specific binary point information
     """
-    def __init__(self, blob: Byte32, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, blob: Byte32, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new binary info
 
@@ -218,7 +217,7 @@ class BinaryInfo(Information):
             Binary status value
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -346,8 +345,9 @@ class Client:
 
         Example
         -------
-        >>> con = my_client.get_connection(ip="192.168.50.3", port=2406)
-        >>> con = my_client.get_connection(common_address=4711)
+        >>> conA = my_client.get_connection(ip="192.168.50.3")
+        >>> conB = my_client.get_connection(ip="192.168.50.3", port=2406)
+        >>> conC = my_client.get_connection(common_address=4711)
         """
     def on_new_point(self, callable: collections.abc.Callable[[Client, Station, int, Type], None]) -> None:
         """
@@ -565,10 +565,10 @@ class Coi:
     """
     This enum contains all valid IEC60870 cause of initialization values.
     """
-    LOCAL_MANUAL_RESET: typing.ClassVar[Coi]
-    LOCAL_POWER_ON: typing.ClassVar[Coi]
-    REMOTE_RESET: typing.ClassVar[Coi]
-    __members__: typing.ClassVar[dict[str, Coi]]
+    LOCAL_MANUAL_RESET: typing.ClassVar[Coi]  # value = <Coi.LOCAL_MANUAL_RESET: 1>
+    LOCAL_POWER_ON: typing.ClassVar[Coi]  # value = <Coi.LOCAL_POWER_ON: 0>
+    REMOTE_RESET: typing.ClassVar[Coi]  # value = <Coi.REMOTE_RESET: 2>
+    __members__: typing.ClassVar[dict[str, Coi]]  # value = {'LOCAL_POWER_ON': <Coi.LOCAL_POWER_ON: 0>, 'LOCAL_MANUAL_RESET': <Coi.LOCAL_MANUAL_RESET: 1>, 'REMOTE_RESET': <Coi.REMOTE_RESET: 2>}
     @property
     def name(self) -> str:
         ...
@@ -579,9 +579,9 @@ class CommandMode:
     """
     This enum contains all command transmission modes a clientmay use to send commands.
     """
-    DIRECT: typing.ClassVar[CommandMode]
-    SELECT_AND_EXECUTE: typing.ClassVar[CommandMode]
-    __members__: typing.ClassVar[dict[str, CommandMode]]
+    DIRECT: typing.ClassVar[CommandMode]  # value = <CommandMode.DIRECT: 0>
+    SELECT_AND_EXECUTE: typing.ClassVar[CommandMode]  # value = <CommandMode.SELECT_AND_EXECUTE: 1>
+    __members__: typing.ClassVar[dict[str, CommandMode]]  # value = {'DIRECT': <CommandMode.DIRECT: 0>, 'SELECT_AND_EXECUTE': <CommandMode.SELECT_AND_EXECUTE: 1>}
     @property
     def name(self) -> str:
         ...
@@ -1025,13 +1025,13 @@ class ConnectionState:
     """
     This enum contains all link states for connection state machine behaviour.
     """
-    CLOSED: typing.ClassVar[ConnectionState]
-    CLOSED_AWAIT_OPEN: typing.ClassVar[ConnectionState]
-    CLOSED_AWAIT_RECONNECT: typing.ClassVar[ConnectionState]
-    OPEN: typing.ClassVar[ConnectionState]
-    OPEN_AWAIT_CLOSED: typing.ClassVar[ConnectionState]
-    OPEN_MUTED: typing.ClassVar[ConnectionState]
-    __members__: typing.ClassVar[dict[str, ConnectionState]]
+    CLOSED: typing.ClassVar[ConnectionState]  # value = <ConnectionState.CLOSED: 0>
+    CLOSED_AWAIT_OPEN: typing.ClassVar[ConnectionState]  # value = <ConnectionState.CLOSED_AWAIT_OPEN: 1>
+    CLOSED_AWAIT_RECONNECT: typing.ClassVar[ConnectionState]  # value = <ConnectionState.CLOSED_AWAIT_RECONNECT: 2>
+    OPEN: typing.ClassVar[ConnectionState]  # value = <ConnectionState.OPEN: 4>
+    OPEN_AWAIT_CLOSED: typing.ClassVar[ConnectionState]  # value = <ConnectionState.OPEN_AWAIT_CLOSED: 5>
+    OPEN_MUTED: typing.ClassVar[ConnectionState]  # value = <ConnectionState.OPEN_MUTED: 3>
+    __members__: typing.ClassVar[dict[str, ConnectionState]]  # value = {'CLOSED': <ConnectionState.CLOSED: 0>, 'CLOSED_AWAIT_OPEN': <ConnectionState.CLOSED_AWAIT_OPEN: 1>, 'CLOSED_AWAIT_RECONNECT': <ConnectionState.CLOSED_AWAIT_RECONNECT: 2>, 'OPEN': <ConnectionState.OPEN: 4>, 'OPEN_MUTED': <ConnectionState.OPEN_MUTED: 3>, 'OPEN_AWAIT_CLOSED': <ConnectionState.OPEN_AWAIT_CLOSED: 5>}
     @property
     def name(self) -> str:
         ...
@@ -1042,49 +1042,49 @@ class Cot:
     """
     This enum contains all valid IEC60870 transmission cause identifier to interpret message context.
     """
-    ACTIVATION: typing.ClassVar[Cot]
-    ACTIVATION_CON: typing.ClassVar[Cot]
-    ACTIVATION_TERMINATION: typing.ClassVar[Cot]
-    AUTHENTICATION: typing.ClassVar[Cot]
-    BACKGROUND_SCAN: typing.ClassVar[Cot]
-    DEACTIVATION: typing.ClassVar[Cot]
-    DEACTIVATION_CON: typing.ClassVar[Cot]
-    FILE_TRANSFER: typing.ClassVar[Cot]
-    INITIALIZED: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_1: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_10: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_11: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_12: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_13: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_14: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_15: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_16: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_2: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_3: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_4: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_5: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_6: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_7: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_8: typing.ClassVar[Cot]
-    INTERROGATED_BY_GROUP_9: typing.ClassVar[Cot]
-    INTERROGATED_BY_STATION: typing.ClassVar[Cot]
-    MAINTENANCE_OF_AUTH_SESSION_KEY: typing.ClassVar[Cot]
-    MAINTENANCE_OF_USER_ROLE_AND_UPDATE_KEY: typing.ClassVar[Cot]
-    PERIODIC: typing.ClassVar[Cot]
-    REQUEST: typing.ClassVar[Cot]
-    REQUESTED_BY_GENERAL_COUNTER: typing.ClassVar[Cot]
-    REQUESTED_BY_GROUP_1_COUNTER: typing.ClassVar[Cot]
-    REQUESTED_BY_GROUP_2_COUNTER: typing.ClassVar[Cot]
-    REQUESTED_BY_GROUP_3_COUNTER: typing.ClassVar[Cot]
-    REQUESTED_BY_GROUP_4_COUNTER: typing.ClassVar[Cot]
-    RETURN_INFO_LOCAL: typing.ClassVar[Cot]
-    RETURN_INFO_REMOTE: typing.ClassVar[Cot]
-    SPONTANEOUS: typing.ClassVar[Cot]
-    UNKNOWN_CA: typing.ClassVar[Cot]
-    UNKNOWN_COT: typing.ClassVar[Cot]
-    UNKNOWN_IOA: typing.ClassVar[Cot]
-    UNKNOWN_TYPE_ID: typing.ClassVar[Cot]
-    __members__: typing.ClassVar[dict[str, Cot]]
+    ACTIVATION: typing.ClassVar[Cot]  # value = <Cot.ACTIVATION: 6>
+    ACTIVATION_CON: typing.ClassVar[Cot]  # value = <Cot.ACTIVATION_CON: 7>
+    ACTIVATION_TERMINATION: typing.ClassVar[Cot]  # value = <Cot.ACTIVATION_TERMINATION: 10>
+    AUTHENTICATION: typing.ClassVar[Cot]  # value = <Cot.AUTHENTICATION: 14>
+    BACKGROUND_SCAN: typing.ClassVar[Cot]  # value = <Cot.BACKGROUND_SCAN: 2>
+    DEACTIVATION: typing.ClassVar[Cot]  # value = <Cot.DEACTIVATION: 8>
+    DEACTIVATION_CON: typing.ClassVar[Cot]  # value = <Cot.DEACTIVATION_CON: 9>
+    FILE_TRANSFER: typing.ClassVar[Cot]  # value = <Cot.FILE_TRANSFER: 13>
+    INITIALIZED: typing.ClassVar[Cot]  # value = <Cot.INITIALIZED: 4>
+    INTERROGATED_BY_GROUP_1: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_1: 21>
+    INTERROGATED_BY_GROUP_10: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_10: 30>
+    INTERROGATED_BY_GROUP_11: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_11: 31>
+    INTERROGATED_BY_GROUP_12: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_12: 32>
+    INTERROGATED_BY_GROUP_13: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_13: 33>
+    INTERROGATED_BY_GROUP_14: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_14: 34>
+    INTERROGATED_BY_GROUP_15: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_15: 35>
+    INTERROGATED_BY_GROUP_16: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_16: 36>
+    INTERROGATED_BY_GROUP_2: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_2: 22>
+    INTERROGATED_BY_GROUP_3: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_3: 23>
+    INTERROGATED_BY_GROUP_4: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_4: 24>
+    INTERROGATED_BY_GROUP_5: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_5: 25>
+    INTERROGATED_BY_GROUP_6: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_6: 26>
+    INTERROGATED_BY_GROUP_7: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_7: 27>
+    INTERROGATED_BY_GROUP_8: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_8: 28>
+    INTERROGATED_BY_GROUP_9: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_GROUP_9: 29>
+    INTERROGATED_BY_STATION: typing.ClassVar[Cot]  # value = <Cot.INTERROGATED_BY_STATION: 20>
+    MAINTENANCE_OF_AUTH_SESSION_KEY: typing.ClassVar[Cot]  # value = <Cot.MAINTENANCE_OF_AUTH_SESSION_KEY: 15>
+    MAINTENANCE_OF_USER_ROLE_AND_UPDATE_KEY: typing.ClassVar[Cot]  # value = <Cot.MAINTENANCE_OF_USER_ROLE_AND_UPDATE_KEY: 16>
+    PERIODIC: typing.ClassVar[Cot]  # value = <Cot.PERIODIC: 1>
+    REQUEST: typing.ClassVar[Cot]  # value = <Cot.REQUEST: 5>
+    REQUESTED_BY_GENERAL_COUNTER: typing.ClassVar[Cot]  # value = <Cot.REQUESTED_BY_GENERAL_COUNTER: 37>
+    REQUESTED_BY_GROUP_1_COUNTER: typing.ClassVar[Cot]  # value = <Cot.REQUESTED_BY_GROUP_1_COUNTER: 38>
+    REQUESTED_BY_GROUP_2_COUNTER: typing.ClassVar[Cot]  # value = <Cot.REQUESTED_BY_GROUP_2_COUNTER: 39>
+    REQUESTED_BY_GROUP_3_COUNTER: typing.ClassVar[Cot]  # value = <Cot.REQUESTED_BY_GROUP_3_COUNTER: 40>
+    REQUESTED_BY_GROUP_4_COUNTER: typing.ClassVar[Cot]  # value = <Cot.REQUESTED_BY_GROUP_4_COUNTER: 41>
+    RETURN_INFO_LOCAL: typing.ClassVar[Cot]  # value = <Cot.RETURN_INFO_LOCAL: 12>
+    RETURN_INFO_REMOTE: typing.ClassVar[Cot]  # value = <Cot.RETURN_INFO_REMOTE: 11>
+    SPONTANEOUS: typing.ClassVar[Cot]  # value = <Cot.SPONTANEOUS: 3>
+    UNKNOWN_CA: typing.ClassVar[Cot]  # value = <Cot.UNKNOWN_CA: 46>
+    UNKNOWN_COT: typing.ClassVar[Cot]  # value = <Cot.UNKNOWN_COT: 45>
+    UNKNOWN_IOA: typing.ClassVar[Cot]  # value = <Cot.UNKNOWN_IOA: 47>
+    UNKNOWN_TYPE_ID: typing.ClassVar[Cot]  # value = <Cot.UNKNOWN_TYPE_ID: 44>
+    __members__: typing.ClassVar[dict[str, Cot]]  # value = {'PERIODIC': <Cot.PERIODIC: 1>, 'BACKGROUND_SCAN': <Cot.BACKGROUND_SCAN: 2>, 'SPONTANEOUS': <Cot.SPONTANEOUS: 3>, 'INITIALIZED': <Cot.INITIALIZED: 4>, 'REQUEST': <Cot.REQUEST: 5>, 'ACTIVATION': <Cot.ACTIVATION: 6>, 'ACTIVATION_CON': <Cot.ACTIVATION_CON: 7>, 'DEACTIVATION': <Cot.DEACTIVATION: 8>, 'DEACTIVATION_CON': <Cot.DEACTIVATION_CON: 9>, 'ACTIVATION_TERMINATION': <Cot.ACTIVATION_TERMINATION: 10>, 'RETURN_INFO_REMOTE': <Cot.RETURN_INFO_REMOTE: 11>, 'RETURN_INFO_LOCAL': <Cot.RETURN_INFO_LOCAL: 12>, 'FILE_TRANSFER': <Cot.FILE_TRANSFER: 13>, 'AUTHENTICATION': <Cot.AUTHENTICATION: 14>, 'MAINTENANCE_OF_AUTH_SESSION_KEY': <Cot.MAINTENANCE_OF_AUTH_SESSION_KEY: 15>, 'MAINTENANCE_OF_USER_ROLE_AND_UPDATE_KEY': <Cot.MAINTENANCE_OF_USER_ROLE_AND_UPDATE_KEY: 16>, 'INTERROGATED_BY_STATION': <Cot.INTERROGATED_BY_STATION: 20>, 'INTERROGATED_BY_GROUP_1': <Cot.INTERROGATED_BY_GROUP_1: 21>, 'INTERROGATED_BY_GROUP_2': <Cot.INTERROGATED_BY_GROUP_2: 22>, 'INTERROGATED_BY_GROUP_3': <Cot.INTERROGATED_BY_GROUP_3: 23>, 'INTERROGATED_BY_GROUP_4': <Cot.INTERROGATED_BY_GROUP_4: 24>, 'INTERROGATED_BY_GROUP_5': <Cot.INTERROGATED_BY_GROUP_5: 25>, 'INTERROGATED_BY_GROUP_6': <Cot.INTERROGATED_BY_GROUP_6: 26>, 'INTERROGATED_BY_GROUP_7': <Cot.INTERROGATED_BY_GROUP_7: 27>, 'INTERROGATED_BY_GROUP_8': <Cot.INTERROGATED_BY_GROUP_8: 28>, 'INTERROGATED_BY_GROUP_9': <Cot.INTERROGATED_BY_GROUP_9: 29>, 'INTERROGATED_BY_GROUP_10': <Cot.INTERROGATED_BY_GROUP_10: 30>, 'INTERROGATED_BY_GROUP_11': <Cot.INTERROGATED_BY_GROUP_11: 31>, 'INTERROGATED_BY_GROUP_12': <Cot.INTERROGATED_BY_GROUP_12: 32>, 'INTERROGATED_BY_GROUP_13': <Cot.INTERROGATED_BY_GROUP_13: 33>, 'INTERROGATED_BY_GROUP_14': <Cot.INTERROGATED_BY_GROUP_14: 34>, 'INTERROGATED_BY_GROUP_15': <Cot.INTERROGATED_BY_GROUP_15: 35>, 'INTERROGATED_BY_GROUP_16': <Cot.INTERROGATED_BY_GROUP_16: 36>, 'REQUESTED_BY_GENERAL_COUNTER': <Cot.REQUESTED_BY_GENERAL_COUNTER: 37>, 'REQUESTED_BY_GROUP_1_COUNTER': <Cot.REQUESTED_BY_GROUP_1_COUNTER: 38>, 'REQUESTED_BY_GROUP_2_COUNTER': <Cot.REQUESTED_BY_GROUP_2_COUNTER: 39>, 'REQUESTED_BY_GROUP_3_COUNTER': <Cot.REQUESTED_BY_GROUP_3_COUNTER: 40>, 'REQUESTED_BY_GROUP_4_COUNTER': <Cot.REQUESTED_BY_GROUP_4_COUNTER: 41>, 'UNKNOWN_TYPE_ID': <Cot.UNKNOWN_TYPE_ID: 44>, 'UNKNOWN_COT': <Cot.UNKNOWN_COT: 45>, 'UNKNOWN_CA': <Cot.UNKNOWN_CA: 46>, 'UNKNOWN_IOA': <Cot.UNKNOWN_IOA: 47>}
     @property
     def name(self) -> str:
         ...
@@ -1095,6 +1095,64 @@ class DateTime:
     """
     This class represents date time objects with additional flags.
     """
+    def __init__(self, value: datetime.datetime, substituted: bool = False, invalid: bool = False, daylight_saving_time: bool = False) -> None:
+        """
+        create a new DateTime
+
+        Parameters
+        ----------
+        value: datetime.datetime
+            datetime value with optional timezone information
+        substituted: bool, optional
+            flag as to whether the datetime value is substituted
+        invalid: bool, optional
+            flag as to whether the datetime value is invalid
+        daylight_saving_time: bool, optional
+            flag as to whether the datetime value is daylight saving time, adds additional 1 hour to the datetime value
+
+        Example
+        -------
+        >>> dt = c104.DateTime(datetime.datetime.now(datetime.timezone(datetime.timedelta(seconds=14400))), daylight_saving_time=True)
+        """
+    @property
+    def daylight_saving_time(self) -> bool:
+        """
+        if this timestamp was recorded in daylight saving time
+
+        Changing this flag will modify the timestamp send by +1 hour!
+
+        The summertime offset will be added on top of timezone offset provided with the datetime.
+
+        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+        but with the displayed value shifted exactly one hour earlier.
+        This may help in assigning the correct hour to information objects generated during the first hour after
+        transitioning from daylight savings time (summertime) to standard time.
+        """
+    @daylight_saving_time.setter
+    def daylight_saving_time(self, value: bool) -> None:
+        """
+        set if this timestamp was recorded in daylight saving time
+
+        Changing this flag will modify the timestamp send by +1 hour!
+
+        The summertime offset will be added on top of timezone offset provided with the datetime.
+
+        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+        but with the displayed value shifted exactly one hour earlier.
+        This may help in assigning the correct hour to information objects generated during the first hour after
+        transitioning from daylight savings time (summertime) to standard time.
+
+        Parameters
+        ----------
+        value: bool
+            use summertime (SU) flag
+
+        Returns
+        -------
+        None
+        """
     @property
     def invalid(self) -> bool:
         """
@@ -1114,15 +1172,34 @@ class DateTime:
         -------
         None
         """
+    @staticmethod
+    def now() -> DateTime:
+        """
+        create a new DateTime object with current date and time
+
+        Returns
+        -------
+        c104.DateTime
+            current date and time object
+
+        Example
+        -------
+        >>> dt = c104.DateTime.now()
+        """
+    @property
+    def readonly(self) -> bool:
+        """
+        if this timestamp is readonly
+        """
     @property
     def substituted(self) -> bool:
         """
-        if this timestamp was substituted
+        if this timestamp was flagged as substituted
         """
     @substituted.setter
     def substituted(self, value: bool) -> None:
         """
-        set if this timestamp was substituted
+        set if this timestamp was flagged as substituted
 
         Parameters
         ----------
@@ -1134,63 +1211,9 @@ class DateTime:
         None
         """
     @property
-    def summertime(self) -> bool:
+    def timezone_offset(self) -> datetime.timedelta:
         """
-        if this timestamp was recorded in daylight saving time
-
-        Changing this flag will modify the timezone_offset of the timestamp by +-3600 seconds!
-
-        The summertime offset is already included in the timezone_offset property.
-
-        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
-        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
-        but with the displayed value shifted exactly one hour earlier.
-        This may help in assigning the correct hour to information objects generated during the first hour after
-        transitioning from daylight savings time (summertime) to standard time.
-        """
-    @summertime.setter
-    def summertime(self, value: bool) -> None:
-        """
-        set if this timestamp was recorded in daylight saving time
-
-        Changing this flag will modify the timezone_offset of the timestamp by +-3600 seconds!
-
-        The summertime offset is already included in the timezone_offset property.
-
-        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
-        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
-        but with the displayed value shifted exactly one hour earlier.
-        This may help in assigning the correct hour to information objects generated during the first hour after
-        transitioning from daylight savings time (summertime) to standard time.
-
-        Parameters
-        ----------
-        value: bool
-            use summertime (SU) flag
-
-        Returns
-        -------
-        None
-        """
-    @property
-    def timezone_offset(self) -> int:
-        """
-        timezone offset in seconds for this timestamp
-        """
-
-    @timezone_offset.setter
-    def timezone_offset(self, value: bool) -> None:
-        """
-        set timezone offset in seconds for this timestamp
-
-        Parameters
-        ----------
-        value: int
-            timezone offset in seconds
-
-        Returns
-        -------
-        None
+        timezone offset
         """
     @property
     def value(self) -> datetime.datetime:
@@ -1201,16 +1224,16 @@ class Debug:
     """
     This enum contains all valid debug bits to interpret and manipulate debug mode.
     """
-    All: typing.ClassVar[Debug]
-    Callback: typing.ClassVar[Debug]
-    Client: typing.ClassVar[Debug]
-    Connection: typing.ClassVar[Debug]
-    Gil: typing.ClassVar[Debug]
-    Message: typing.ClassVar[Debug]
-    Point: typing.ClassVar[Debug]
-    Server: typing.ClassVar[Debug]
-    Station: typing.ClassVar[Debug]
-    __members__: typing.ClassVar[dict[str, Debug]]
+    All: typing.ClassVar[Debug]  # value = Debug set: { Server | Client | Connection | Station | Point | Message | Callback | Gil }, is_none: False
+    Callback: typing.ClassVar[Debug]  # value = Debug set: { Callback }, is_none: False
+    Client: typing.ClassVar[Debug]  # value = Debug set: { Client }, is_none: False
+    Connection: typing.ClassVar[Debug]  # value = Debug set: { Connection }, is_none: False
+    Gil: typing.ClassVar[Debug]  # value = Debug set: { Gil }, is_none: False
+    Message: typing.ClassVar[Debug]  # value = Debug set: { Message }, is_none: False
+    Point: typing.ClassVar[Debug]  # value = Debug set: { Point }, is_none: False
+    Server: typing.ClassVar[Debug]  # value = Debug set: { Server }, is_none: False
+    Station: typing.ClassVar[Debug]  # value = Debug set: { Station }, is_none: False
+    __members__: typing.ClassVar[dict[str, Debug]]  # value = {'Server': Debug set: { Server }, is_none: False, 'Client': Debug set: { Client }, is_none: False, 'Connection': Debug set: { Connection }, is_none: False, 'Station': Debug set: { Station }, is_none: False, 'Point': Debug set: { Point }, is_none: False, 'Message': Debug set: { Message }, is_none: False, 'Callback': Debug set: { Callback }, is_none: False, 'Gil': Debug set: { Gil }, is_none: False, 'All': Debug set: { Server | Client | Connection | Station | Point | Message | Callback | Gil }, is_none: False}
     def is_any(self) -> bool:
         """
         test if there are any bits set
@@ -1228,11 +1251,11 @@ class Double:
     """
     This enum contains all valid IEC60870 step command values to identify and send step commands.
     """
-    INDETERMINATE: typing.ClassVar[Double]
-    INTERMEDIATE: typing.ClassVar[Double]
-    OFF: typing.ClassVar[Double]
-    ON: typing.ClassVar[Double]
-    __members__: typing.ClassVar[dict[str, Double]]
+    INDETERMINATE: typing.ClassVar[Double]  # value = <Double.INDETERMINATE: 3>
+    INTERMEDIATE: typing.ClassVar[Double]  # value = <Double.INTERMEDIATE: 0>
+    OFF: typing.ClassVar[Double]  # value = <Double.OFF: 1>
+    ON: typing.ClassVar[Double]  # value = <Double.ON: 2>
+    __members__: typing.ClassVar[dict[str, Double]]  # value = {'INTERMEDIATE': <Double.INTERMEDIATE: 0>, 'OFF': <Double.OFF: 1>, 'ON': <Double.ON: 2>, 'INDETERMINATE': <Double.INDETERMINATE: 3>}
     @property
     def name(self) -> str:
         ...
@@ -1243,7 +1266,7 @@ class DoubleCmd(Information):
     """
     This class represents all specific double command information
     """
-    def __init__(self, state: Double, qualifier: Qoc = Qoc.NONE, recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, state: Double, qualifier: Qoc = Qoc.NONE, recorded_at: DateTime | None = None) -> None:
         """
         create a new double command
 
@@ -1253,7 +1276,7 @@ class DoubleCmd(Information):
             Double command value
         qualifier: c104.Qoc
             Qualifier of command
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -1286,7 +1309,7 @@ class DoubleInfo(Information):
     """
     This class represents all specific double point information
     """
-    def __init__(self, state: Double, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, state: Double, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new double info
 
@@ -1296,7 +1319,7 @@ class DoubleInfo(Information):
             Double point status value
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -1326,11 +1349,11 @@ class EventState:
     """
     This enum contains all valid IEC60870 event states to interpret and send event messages.
     """
-    INDETERMINATE: typing.ClassVar[EventState]
-    INTERMEDIATE: typing.ClassVar[EventState]
-    OFF: typing.ClassVar[EventState]
-    ON: typing.ClassVar[EventState]
-    __members__: typing.ClassVar[dict[str, EventState]]
+    INDETERMINATE: typing.ClassVar[EventState]  # value = <EventState.INDETERMINATE: 3>
+    INTERMEDIATE: typing.ClassVar[EventState]  # value = <EventState.INTERMEDIATE: 0>
+    OFF: typing.ClassVar[EventState]  # value = <EventState.OFF: 1>
+    ON: typing.ClassVar[EventState]  # value = <EventState.ON: 2>
+    __members__: typing.ClassVar[dict[str, EventState]]  # value = {'INTERMEDIATE': <EventState.INTERMEDIATE: 0>, 'OFF': <EventState.OFF: 1>, 'ON': <EventState.ON: 2>, 'INDETERMINATE': <EventState.INDETERMINATE: 3>}
     @property
     def name(self) -> str:
         ...
@@ -1341,11 +1364,11 @@ class Frz:
     """
     This enum contains all valid IEC60870 freeze behaviour for a counter interrogation command.
     """
-    READ: typing.ClassVar[Frz]
-    FREEZE_WITHOUT_RESET: typing.ClassVar[Frz]
-    FREEZE_WITH_RESET: typing.ClassVar[Frz]
-    COUNTER_RESET: typing.ClassVar[Frz]
-    __members__: typing.ClassVar[dict[str, Frz]]
+    COUNTER_RESET: typing.ClassVar[Frz]  # value = <Frz.COUNTER_RESET: 3>
+    FREEZE_WITHOUT_RESET: typing.ClassVar[Frz]  # value = <Frz.FREEZE_WITHOUT_RESET: 1>
+    FREEZE_WITH_RESET: typing.ClassVar[Frz]  # value = <Frz.FREEZE_WITH_RESET: 2>
+    READ: typing.ClassVar[Frz]  # value = <Frz.READ: 0>
+    __members__: typing.ClassVar[dict[str, Frz]]  # value = {'READ': <Frz.READ: 0>, 'FREEZE_WITHOUT_RESET': <Frz.FREEZE_WITHOUT_RESET: 1>, 'FREEZE_WITH_RESET': <Frz.FREEZE_WITH_RESET: 2>, 'COUNTER_RESET': <Frz.COUNTER_RESET: 3>}
     @property
     def name(self) -> str:
         ...
@@ -1456,7 +1479,7 @@ class Information:
         test if the information is read-only
         """
     @property
-    def processed_at(self) -> datetime.datetime:
+    def processed_at(self) -> DateTime:
         """
         timestamp with milliseconds of last local information processing
         """
@@ -1468,7 +1491,7 @@ class Information:
         The setter is available via point.quality=xyz
         """
     @property
-    def recorded_at(self) -> datetime.datetime | None:
+    def recorded_at(self) -> DateTime | None:
         """
         timestamp with milliseconds transported with the value itself or None
         """
@@ -1483,12 +1506,12 @@ class Init:
     """
     This enum contains all connection init command options. Everytime the connection is established the client will behave as follows:
     """
-    ALL: typing.ClassVar[Init]
-    CLOCK_SYNC: typing.ClassVar[Init]
-    INTERROGATION: typing.ClassVar[Init]
-    MUTED: typing.ClassVar[Init]
-    NONE: typing.ClassVar[Init]
-    __members__: typing.ClassVar[dict[str, Init]]
+    ALL: typing.ClassVar[Init]  # value = <Init.ALL: 0>
+    CLOCK_SYNC: typing.ClassVar[Init]  # value = <Init.CLOCK_SYNC: 2>
+    INTERROGATION: typing.ClassVar[Init]  # value = <Init.INTERROGATION: 1>
+    MUTED: typing.ClassVar[Init]  # value = <Init.MUTED: 3>
+    NONE: typing.ClassVar[Init]  # value = <Init.NONE: 4>
+    __members__: typing.ClassVar[dict[str, Init]]  # value = {'ALL': <Init.ALL: 0>, 'INTERROGATION': <Init.INTERROGATION: 1>, 'CLOCK_SYNC': <Init.CLOCK_SYNC: 2>, 'NONE': <Init.NONE: 4>, 'MUTED': <Init.MUTED: 3>}
     @property
     def name(self) -> str:
         ...
@@ -1549,7 +1572,7 @@ class NormalizedCmd(Information):
     """
     This class represents all specific normalized set point command information
     """
-    def __init__(self, target: NormalizedFloat, qualifier: UInt7 = UInt7(0), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, target: NormalizedFloat, qualifier: UInt7 = UInt7(0), recorded_at: DateTime | None = None) -> None:
         """
         create a new normalized set point command
 
@@ -1559,7 +1582,7 @@ class NormalizedCmd(Information):
             Target set-point value [-1.f, 1.f]
         qualifier: c104.UInt7
             Qualifier of set-point command
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -1617,7 +1640,7 @@ class NormalizedInfo(Information):
     """
     This class represents all specific normalized measurement point information
     """
-    def __init__(self, actual: NormalizedFloat, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, actual: NormalizedFloat, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new normalized measurement info
 
@@ -1627,7 +1650,7 @@ class NormalizedInfo(Information):
             Actual measurement value [-1.f, 1.f]
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -1657,11 +1680,11 @@ class OutputCircuits:
     """
     This enum contains all Output Circuit bits to interpret and manipulate protection equipment messages.
     """
-    General: typing.ClassVar[OutputCircuits]
-    PhaseL1: typing.ClassVar[OutputCircuits]
-    PhaseL2: typing.ClassVar[OutputCircuits]
-    PhaseL3: typing.ClassVar[OutputCircuits]
-    __members__: typing.ClassVar[dict[str, OutputCircuits]]
+    General: typing.ClassVar[OutputCircuits]  # value = OutputCircuit set: { General }
+    PhaseL1: typing.ClassVar[OutputCircuits]  # value = OutputCircuit set: { PhaseL1 }
+    PhaseL2: typing.ClassVar[OutputCircuits]  # value = OutputCircuit set: { PhaseL2 }
+    PhaseL3: typing.ClassVar[OutputCircuits]  # value = OutputCircuit set: { PhaseL3 }
+    __members__: typing.ClassVar[dict[str, OutputCircuits]]  # value = {'General': OutputCircuit set: { General }, 'PhaseL1': OutputCircuit set: { PhaseL1 }, 'PhaseL2': OutputCircuit set: { PhaseL2 }, 'PhaseL3': OutputCircuit set: { PhaseL3 }}
     def is_any(self) -> bool:
         """
         test if there are any bits set
@@ -1679,23 +1702,23 @@ class PackedSingle:
     """
     This enum contains all State bits to interpret and manipulate status with change detection messages.
     """
-    I0: typing.ClassVar[PackedSingle]
-    I1: typing.ClassVar[PackedSingle]
-    I10: typing.ClassVar[PackedSingle]
-    I11: typing.ClassVar[PackedSingle]
-    I12: typing.ClassVar[PackedSingle]
-    I13: typing.ClassVar[PackedSingle]
-    I14: typing.ClassVar[PackedSingle]
-    I15: typing.ClassVar[PackedSingle]
-    I2: typing.ClassVar[PackedSingle]
-    I3: typing.ClassVar[PackedSingle]
-    I4: typing.ClassVar[PackedSingle]
-    I5: typing.ClassVar[PackedSingle]
-    I6: typing.ClassVar[PackedSingle]
-    I7: typing.ClassVar[PackedSingle]
-    I8: typing.ClassVar[PackedSingle]
-    I9: typing.ClassVar[PackedSingle]
-    __members__: typing.ClassVar[dict[str, PackedSingle]]
+    I0: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I0 }
+    I1: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I1 }
+    I10: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I10 }
+    I11: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I11 }
+    I12: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I12 }
+    I13: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I13 }
+    I14: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I14 }
+    I15: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I15 }
+    I2: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I2 }
+    I3: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I3 }
+    I4: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I4 }
+    I5: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I5 }
+    I6: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I6 }
+    I7: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I7 }
+    I8: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I8 }
+    I9: typing.ClassVar[PackedSingle]  # value = PackedSingle set: { I9 }
+    __members__: typing.ClassVar[dict[str, PackedSingle]]  # value = {'I0': PackedSingle set: { I0 }, 'I1': PackedSingle set: { I1 }, 'I2': PackedSingle set: { I2 }, 'I3': PackedSingle set: { I3 }, 'I4': PackedSingle set: { I4 }, 'I5': PackedSingle set: { I5 }, 'I6': PackedSingle set: { I6 }, 'I7': PackedSingle set: { I7 }, 'I8': PackedSingle set: { I8 }, 'I9': PackedSingle set: { I9 }, 'I10': PackedSingle set: { I10 }, 'I11': PackedSingle set: { I11 }, 'I12': PackedSingle set: { I12 }, 'I13': PackedSingle set: { I13 }, 'I14': PackedSingle set: { I14 }, 'I15': PackedSingle set: { I15 }}
     def is_any(self) -> bool:
         """
         test if there are any bits set
@@ -1987,7 +2010,7 @@ class Point:
         information object address
         """
     @property
-    def processed_at(self) -> datetime.datetime:
+    def processed_at(self) -> DateTime:
         """
         timestamp with milliseconds of last local information processing
         """
@@ -2018,7 +2041,7 @@ class Point:
             new quality type does not match current quality type
         """
     @property
-    def recorded_at(self) -> datetime.datetime | None:
+    def recorded_at(self) -> DateTime | None:
         """
         timestamp with milliseconds transported with the value itself or None
         """
@@ -2145,7 +2168,7 @@ class ProtectionCircuitInfo(Information):
     """
     This class represents all specific protection equipment output circuit point information
     """
-    def __init__(self, circuits: OutputCircuits, relay_operating_ms: UInt16, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, circuits: OutputCircuits, relay_operating_ms: UInt16, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new output circuits info raised by protection equipment
 
@@ -2157,7 +2180,7 @@ class ProtectionCircuitInfo(Information):
             Time in milliseconds of relay operation
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -2192,7 +2215,7 @@ class ProtectionEventInfo(Information):
     """
     This class represents all specific protection equipment single event point information
     """
-    def __init__(self, state: EventState, elapsed_ms: UInt16, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, state: EventState, elapsed_ms: UInt16, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new event info raised by protection equipment
 
@@ -2204,7 +2227,7 @@ class ProtectionEventInfo(Information):
             Time in milliseconds elapsed
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -2239,7 +2262,7 @@ class ProtectionStartInfo(Information):
     """
     This class represents all specific protection equipment packed start events point information
     """
-    def __init__(self, events: StartEvents, relay_duration_ms: UInt16, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, events: StartEvents, relay_duration_ms: UInt16, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new packed event start info raised by protection equipment
 
@@ -2251,7 +2274,7 @@ class ProtectionStartInfo(Information):
             Time in milliseconds of relay duration
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -2404,11 +2427,11 @@ class Qoc:
     """
     This enum contains all valid IEC60870 qualifier of command duration options.
     """
-    LONG_PULSE: typing.ClassVar[Qoc]
-    NONE: typing.ClassVar[Qoc]
-    PERSISTENT: typing.ClassVar[Qoc]
-    SHORT_PULSE: typing.ClassVar[Qoc]
-    __members__: typing.ClassVar[dict[str, Qoc]]
+    LONG_PULSE: typing.ClassVar[Qoc]  # value = <Qoc.LONG_PULSE: 2>
+    NONE: typing.ClassVar[Qoc]  # value = <Qoc.NONE: 0>
+    PERSISTENT: typing.ClassVar[Qoc]  # value = <Qoc.PERSISTENT: 3>
+    SHORT_PULSE: typing.ClassVar[Qoc]  # value = <Qoc.SHORT_PULSE: 1>
+    __members__: typing.ClassVar[dict[str, Qoc]]  # value = {'NONE': <Qoc.NONE: 0>, 'SHORT_PULSE': <Qoc.SHORT_PULSE: 1>, 'LONG_PULSE': <Qoc.LONG_PULSE: 2>, 'PERSISTENT': <Qoc.PERSISTENT: 3>}
     @property
     def name(self) -> str:
         ...
@@ -2419,24 +2442,24 @@ class Qoi:
     """
     This enum contains all valid IEC60870 qualifier for an interrogation command.
     """
-    GROUP_1: typing.ClassVar[Qoi]
-    GROUP_10: typing.ClassVar[Qoi]
-    GROUP_11: typing.ClassVar[Qoi]
-    GROUP_12: typing.ClassVar[Qoi]
-    GROUP_13: typing.ClassVar[Qoi]
-    GROUP_14: typing.ClassVar[Qoi]
-    GROUP_15: typing.ClassVar[Qoi]
-    GROUP_16: typing.ClassVar[Qoi]
-    GROUP_2: typing.ClassVar[Qoi]
-    GROUP_3: typing.ClassVar[Qoi]
-    GROUP_4: typing.ClassVar[Qoi]
-    GROUP_5: typing.ClassVar[Qoi]
-    GROUP_6: typing.ClassVar[Qoi]
-    GROUP_7: typing.ClassVar[Qoi]
-    GROUP_8: typing.ClassVar[Qoi]
-    GROUP_9: typing.ClassVar[Qoi]
-    STATION: typing.ClassVar[Qoi]
-    __members__: typing.ClassVar[dict[str, Qoi]]
+    GROUP_1: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_1: 21>
+    GROUP_10: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_10: 30>
+    GROUP_11: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_11: 31>
+    GROUP_12: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_12: 32>
+    GROUP_13: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_13: 33>
+    GROUP_14: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_14: 34>
+    GROUP_15: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_15: 35>
+    GROUP_16: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_16: 36>
+    GROUP_2: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_2: 22>
+    GROUP_3: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_3: 23>
+    GROUP_4: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_4: 24>
+    GROUP_5: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_5: 25>
+    GROUP_6: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_6: 26>
+    GROUP_7: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_7: 27>
+    GROUP_8: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_8: 28>
+    GROUP_9: typing.ClassVar[Qoi]  # value = <Qoi.GROUP_9: 29>
+    STATION: typing.ClassVar[Qoi]  # value = <Qoi.STATION: 20>
+    __members__: typing.ClassVar[dict[str, Qoi]]  # value = {'STATION': <Qoi.STATION: 20>, 'GROUP_1': <Qoi.GROUP_1: 21>, 'GROUP_2': <Qoi.GROUP_2: 22>, 'GROUP_3': <Qoi.GROUP_3: 23>, 'GROUP_4': <Qoi.GROUP_4: 24>, 'GROUP_5': <Qoi.GROUP_5: 25>, 'GROUP_6': <Qoi.GROUP_6: 26>, 'GROUP_7': <Qoi.GROUP_7: 27>, 'GROUP_8': <Qoi.GROUP_8: 28>, 'GROUP_9': <Qoi.GROUP_9: 29>, 'GROUP_10': <Qoi.GROUP_10: 30>, 'GROUP_11': <Qoi.GROUP_11: 31>, 'GROUP_12': <Qoi.GROUP_12: 32>, 'GROUP_13': <Qoi.GROUP_13: 33>, 'GROUP_14': <Qoi.GROUP_14: 34>, 'GROUP_15': <Qoi.GROUP_15: 35>, 'GROUP_16': <Qoi.GROUP_16: 36>}
     @property
     def name(self) -> str:
         ...
@@ -2447,13 +2470,13 @@ class Quality:
     """
     This enum contains all quality issue bits to interpret and manipulate measurement quality.
     """
-    Blocked: typing.ClassVar[Quality]
-    ElapsedTimeInvalid: typing.ClassVar[Quality]
-    Invalid: typing.ClassVar[Quality]
-    NonTopical: typing.ClassVar[Quality]
-    Overflow: typing.ClassVar[Quality]
-    Substituted: typing.ClassVar[Quality]
-    __members__: typing.ClassVar[dict[str, Quality]]
+    Blocked: typing.ClassVar[Quality]  # value = Quality set: { Blocked }, is_good: False
+    ElapsedTimeInvalid: typing.ClassVar[Quality]  # value = Quality set: { ElapsedTimeInvalid }, is_good: False
+    Invalid: typing.ClassVar[Quality]  # value = Quality set: { Invalid }, is_good: False
+    NonTopical: typing.ClassVar[Quality]  # value = Quality set: { NonTopical }, is_good: False
+    Overflow: typing.ClassVar[Quality]  # value = Quality set: { Overflow }, is_good: False
+    Substituted: typing.ClassVar[Quality]  # value = Quality set: { Substituted }, is_good: False
+    __members__: typing.ClassVar[dict[str, Quality]]  # value = {'Overflow': Quality set: { Overflow }, is_good: False, 'ElapsedTimeInvalid': Quality set: { ElapsedTimeInvalid }, is_good: False, 'Blocked': Quality set: { Blocked }, is_good: False, 'Substituted': Quality set: { Substituted }, is_good: False, 'NonTopical': Quality set: { NonTopical }, is_good: False, 'Invalid': Quality set: { Invalid }, is_good: False}
     def is_any(self) -> bool:
         """
         test if there are any flags set
@@ -2471,10 +2494,10 @@ class ResponseState:
     """
     This enum contains all command response states, that add the ability to control the servers command response behaviour via python callbacks return value.
     """
-    FAILURE: typing.ClassVar[ResponseState]
-    NONE: typing.ClassVar[ResponseState]
-    SUCCESS: typing.ClassVar[ResponseState]
-    __members__: typing.ClassVar[dict[str, ResponseState]]
+    FAILURE: typing.ClassVar[ResponseState]  # value = <ResponseState.FAILURE: 0>
+    NONE: typing.ClassVar[ResponseState]  # value = <ResponseState.NONE: 2>
+    SUCCESS: typing.ClassVar[ResponseState]  # value = <ResponseState.SUCCESS: 1>
+    __members__: typing.ClassVar[dict[str, ResponseState]]  # value = {'FAILURE': <ResponseState.FAILURE: 0>, 'SUCCESS': <ResponseState.SUCCESS: 1>, 'NONE': <ResponseState.NONE: 2>}
     @property
     def name(self) -> str:
         ...
@@ -2485,12 +2508,12 @@ class Rqt:
     """
     This enum contains all valid IEC60870 qualifier for a counter interrogation command.
     """
-    GENERAL: typing.ClassVar[Rqt]
-    GROUP_1: typing.ClassVar[Rqt]
-    GROUP_2: typing.ClassVar[Rqt]
-    GROUP_3: typing.ClassVar[Rqt]
-    GROUP_4: typing.ClassVar[Rqt]
-    __members__: typing.ClassVar[dict[str, Rqt]]
+    GENERAL: typing.ClassVar[Rqt]  # value = <Rqt.GENERAL: 5>
+    GROUP_1: typing.ClassVar[Rqt]  # value = <Rqt.GROUP_1: 1>
+    GROUP_2: typing.ClassVar[Rqt]  # value = <Rqt.GROUP_2: 2>
+    GROUP_3: typing.ClassVar[Rqt]  # value = <Rqt.GROUP_3: 3>
+    GROUP_4: typing.ClassVar[Rqt]  # value = <Rqt.GROUP_4: 4>
+    __members__: typing.ClassVar[dict[str, Rqt]]  # value = {'GENERAL': <Rqt.GENERAL: 5>, 'GROUP_1': <Rqt.GROUP_1: 1>, 'GROUP_2': <Rqt.GROUP_2: 2>, 'GROUP_3': <Rqt.GROUP_3: 3>, 'GROUP_4': <Rqt.GROUP_4: 4>}
     @property
     def name(self) -> str:
         ...
@@ -2501,7 +2524,7 @@ class ScaledCmd(Information):
     """
     This class represents all specific scaled set point command information
     """
-    def __init__(self, target: Int16, qualifier: UInt7 = UInt7(0), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, target: Int16, qualifier: UInt7 = UInt7(0), recorded_at: DateTime | None = None) -> None:
         """
         create a new scaled set point command
 
@@ -2511,7 +2534,7 @@ class ScaledCmd(Information):
             Target set-point value [-32768, 32767]
         qualifier: c104.UInt7
             Qualifier of set-point command
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -2544,7 +2567,7 @@ class ScaledInfo(Information):
     """
     This class represents all specific scaled measurement point information
     """
-    def __init__(self, actual: Int16, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, actual: Int16, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new scaled measurement info
 
@@ -2554,7 +2577,7 @@ class ScaledInfo(Information):
             Actual measurement value [-32768, 32767]
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -2643,13 +2666,13 @@ class Server:
         -------
         >>> station_2 = my_server.get_connection(common_address=14)
         """
-    def on_clock_sync(self, callable: collections.abc.Callable[[Server, str, datetime.datetime], ResponseState]) -> None:
+    def on_clock_sync(self, callable: collections.abc.Callable[[Server, str, DateTime], ResponseState]) -> None:
         """
         set python callback that will be executed on incoming clock sync command
 
         Parameters
         ----------
-        callable: collections.abc.Callable[[c104.Server, str, datetime.datetime], c104.ResponseState]
+        callable: collections.abc.Callable[[c104.Server, str, c104.DateTime], c104.ResponseState]
             callback function reference
 
         Returns
@@ -2669,7 +2692,7 @@ class Server:
             server instance
         ip: str
             client connection request ip
-        date_time: datetime.datetime
+        date_time: c104.DateTime
             clients current clock time
 
         Callable Returns
@@ -2681,7 +2704,7 @@ class Server:
         -------
         >>> import datetime
         >>>
-        >>> def sv_on_clock_sync(server: c104.Server, ip: str, date_time: datetime.datetime) -> c104.ResponseState:
+        >>> def sv_on_clock_sync(server: c104.Server, ip: str, date_time: c104.DateTime) -> c104.ResponseState:
         >>>     print("->@| Time {0} from {1} | SERVER {2}:{3}".format(date_time, ip, server.ip, server.port))
         >>>     return c104.ResponseState.SUCCESS
         >>>
@@ -2983,7 +3006,7 @@ class ShortCmd(Information):
     """
     This class represents all specific short set point command information
     """
-    def __init__(self, target: float, qualifier: UInt7 = UInt7(0), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, target: float, qualifier: UInt7 = UInt7(0), recorded_at: DateTime | None = None) -> None:
         """
         create a new short set point command
 
@@ -2993,7 +3016,7 @@ class ShortCmd(Information):
             Target set-point value in 32-bit precision
         qualifier: c104.UInt7
             Qualifier of set-point command
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -3026,7 +3049,7 @@ class ShortInfo(Information):
     """
     This class represents all specific short measurement point information
     """
-    def __init__(self, actual: float, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, actual: float, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new short measurement info
 
@@ -3036,7 +3059,7 @@ class ShortInfo(Information):
             Actual measurement value in 32-bit precision
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -3066,7 +3089,7 @@ class SingleCmd(Information):
     """
     This class represents all specific single command information
     """
-    def __init__(self, on: bool, qualifier: Qoc = Qoc.NONE, recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, on: bool, qualifier: Qoc = Qoc.NONE, recorded_at: DateTime | None = None) -> None:
         """
         create a new single command
 
@@ -3076,7 +3099,7 @@ class SingleCmd(Information):
             Single command value
         qualifier: c104.Qoc
             Qualifier of command
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -3109,7 +3132,7 @@ class SingleInfo(Information):
     """
     This class represents all specific single point information
     """
-    def __init__(self, on: bool, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, on: bool, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new single info
 
@@ -3119,7 +3142,7 @@ class SingleInfo(Information):
             Single status value
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -3149,13 +3172,13 @@ class StartEvents:
     """
     This enum contains all StartEvents issue bits to interpret and manipulate protection equipment messages.
     """
-    General: typing.ClassVar[StartEvents]
-    InEarthCurrent: typing.ClassVar[StartEvents]
-    PhaseL1: typing.ClassVar[StartEvents]
-    PhaseL2: typing.ClassVar[StartEvents]
-    PhaseL3: typing.ClassVar[StartEvents]
-    ReverseDirection: typing.ClassVar[StartEvents]
-    __members__: typing.ClassVar[dict[str, StartEvents]]
+    General: typing.ClassVar[StartEvents]  # value = StartEvents set: { General }
+    InEarthCurrent: typing.ClassVar[StartEvents]  # value = StartEvents set: { InEarthCurrent }
+    PhaseL1: typing.ClassVar[StartEvents]  # value = StartEvents set: { PhaseL1 }
+    PhaseL2: typing.ClassVar[StartEvents]  # value = StartEvents set: { PhaseL2 }
+    PhaseL3: typing.ClassVar[StartEvents]  # value = StartEvents set: { PhaseL3 }
+    ReverseDirection: typing.ClassVar[StartEvents]  # value = StartEvents set: { ReverseDirection }
+    __members__: typing.ClassVar[dict[str, StartEvents]]  # value = {'General': StartEvents set: { General }, 'PhaseL1': StartEvents set: { PhaseL1 }, 'PhaseL2': StartEvents set: { PhaseL2 }, 'PhaseL3': StartEvents set: { PhaseL3 }, 'InEarthCurrent': StartEvents set: { InEarthCurrent }, 'ReverseDirection': StartEvents set: { ReverseDirection }}
     def is_any(self) -> bool:
         """
         test if there are any bits set
@@ -3268,6 +3291,25 @@ class Station:
         >>> my_station.signal_initialized(cause=c104.Coi.REMOTE_RESET)
         """
     @property
+    def auto_time_substituted(self) -> bool:
+        """
+        flagging of auto-assigned reported_at timestamps as substituted
+        """
+    @auto_time_substituted.setter
+    def auto_time_substituted(self, value: bool) -> None:
+        """
+        enabled or disable flagging of auto-assigned reported_at timestamps as substituted
+
+        Parameters
+        ----------
+        value: bool
+            new value for substituted flagging
+
+        Returns
+        -------
+        None
+        """
+    @property
     def common_address(self) -> int:
         """
         common address of this station (1-65534)
@@ -3276,6 +3318,45 @@ class Station:
     def connection(self) -> Connection | None:
         """
         parent Connection of non-local station
+        """
+    @property
+    def daylight_saving_time(self) -> bool:
+        """
+        if timestamps recorded at this station are in daylight saving time
+
+        Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
+
+        The daylight_saving_time (aka summertime flag) will add an additional hour on top of timezone_offset property.
+
+        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+        but with the displayed value shifted exactly one hour earlier.
+        This may help in assigning the correct hour to information objects generated during the first hour after
+        transitioning from daylight savings time (summertime) to standard time.
+        """
+    @daylight_saving_time.setter
+    def daylight_saving_time(self, value: bool) -> None:
+        """
+        set if timestamps recorded at this station are in daylight saving time
+
+        Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
+
+        The daylight_saving_time (aka summertime flag) will add an additional hour on top of timezone_offset property.
+
+        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
+        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
+        but with the displayed value shifted exactly one hour earlier.
+        This may help in assigning the correct hour to information objects generated during the first hour after
+        transitioning from daylight savings time (summertime) to standard time.
+
+        Parameters
+        ----------
+        value: bool
+            use summertime (SU) flag
+
+        Returns
+        -------
+        None
         """
     @property
     def has_points(self) -> bool:
@@ -3298,59 +3379,19 @@ class Station:
         parent Server of local station
         """
     @property
-    def summertime(self) -> bool:
+    def timezone_offset(self) -> datetime.timedelta:
         """
-        if timestamps recorded at this station are in daylight saving time
-
-        Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
-
-        The summertime offset is already included in the timezone_offset property.
-
-        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
-        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
-        but with the displayed value shifted exactly one hour earlier.
-        This may help in assigning the correct hour to information objects generated during the first hour after
-        transitioning from daylight savings time (summertime) to standard time.
+        timezone offset for protocol timestamps
         """
-    @summertime.setter
-    def summertime(self, value: bool) -> None:
-        """
-        set if timestamps recorded at this station are in daylight saving time
-
-        Changing this flag will modify the timezone_offset of the station by +-3600 seconds!
-
-        The summertime offset is already included in the timezone_offset property.
-
-        The use of the summertime (SU) flag is optional but generally discouraged - use UTC instead.
-        A timestamp with the SU flag set represents the identical time value as a timestamp with the SU flag unset,
-        but with the displayed value shifted exactly one hour earlier.
-        This may help in assigning the correct hour to information objects generated during the first hour after
-        transitioning from daylight savings time (summertime) to standard time.
-
-        Parameters
-        ----------
-        value: bool
-            use summertime (SU) flag
-
-        Returns
-        -------
-        None
-        """
-    @property
-    def timezone_offset(self) -> int:
-        """
-        timezone offset in seconds for recorded timestamps
-        """
-
     @timezone_offset.setter
-    def timezone_offset(self, value: bool) -> None:
+    def timezone_offset(self, value: datetime.timedelta) -> None:
         """
-        set timezone offset in seconds for recorded timestamps
+        set timezone offset for protocol timestamps
 
         Parameters
         ----------
-        value: int
-            timezone offset in seconds
+        value: datetime.timedelta
+            new value for timezone_offset
 
         Returns
         -------
@@ -3360,7 +3401,7 @@ class StatusAndChanged(Information):
     """
     This class represents all specific packed status point information with change detection
     """
-    def __init__(self, status: PackedSingle, changed: PackedSingle, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, status: PackedSingle, changed: PackedSingle, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new event info raised by protection equipment
 
@@ -3372,7 +3413,7 @@ class StatusAndChanged(Information):
             Set of changed single values
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -3407,11 +3448,11 @@ class Step:
     """
     This enum contains all valid IEC60870 step command values to interpret and send step commands.
     """
-    HIGHER: typing.ClassVar[Step]
-    INVALID_0: typing.ClassVar[Step]
-    INVALID_3: typing.ClassVar[Step]
-    LOWER: typing.ClassVar[Step]
-    __members__: typing.ClassVar[dict[str, Step]]
+    HIGHER: typing.ClassVar[Step]  # value = <Step.HIGHER: 2>
+    INVALID_0: typing.ClassVar[Step]  # value = <Step.INVALID_0: 0>
+    INVALID_3: typing.ClassVar[Step]  # value = <Step.INVALID_3: 3>
+    LOWER: typing.ClassVar[Step]  # value = <Step.LOWER: 1>
+    __members__: typing.ClassVar[dict[str, Step]]  # value = {'INVALID_0': <Step.INVALID_0: 0>, 'LOWER': <Step.LOWER: 1>, 'HIGHER': <Step.HIGHER: 2>, 'INVALID_3': <Step.INVALID_3: 3>}
     @property
     def name(self) -> str:
         ...
@@ -3422,7 +3463,7 @@ class StepCmd(Information):
     """
     This class represents all specific step command information
     """
-    def __init__(self, direction: Step, qualifier: Qoc = Qoc.NONE, recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, direction: Step, qualifier: Qoc = Qoc.NONE, recorded_at: DateTime | None = None) -> None:
         """
         create a new step command
 
@@ -3432,7 +3473,7 @@ class StepCmd(Information):
             Step command direction value
         qualifier: c104.Qoc
             Qualifier of Command
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -3465,7 +3506,7 @@ class StepInfo(Information):
     """
     This class represents all specific step point information
     """
-    def __init__(self, position: Int7, transient: bool, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
+    def __init__(self, position: Int7, transient: bool, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new step info
 
@@ -3477,7 +3518,7 @@ class StepInfo(Information):
             Indicator, if transformer is currently in step change procedure
         quality: c104.Quality
             Quality information
-        recorded_at: datetime.datetime, optional
+        recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
 
         Example
@@ -3512,197 +3553,197 @@ class TlsCipher:
     """
     This enum contains all supported TLS ciphersuites.
     """
-    RSA_WITH_NULL_MD5: typing.ClassVar[TlsCipher]
-    RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
-    PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    RSA_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_256_CBC_SHA256: typing.ClassVar[TlsCipher]
-    RSA_WITH_CAMELLIA_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_CAMELLIA_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_256_CBC_SHA256: typing.ClassVar[TlsCipher]
-    RSA_WITH_CAMELLIA_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_CAMELLIA_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
-    PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]
-    RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    RSA_WITH_CAMELLIA_256_CBC_SHA256: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]
-    RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    PSK_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    PSK_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    PSK_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    PSK_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
-    RSA_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
-    PSK_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]
-    ECJPAKE_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]
-    ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
-    DHE_RSA_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
-    PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
-    ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
-    DHE_PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
-    RSA_PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
-    TLS1_3_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]
-    TLS1_3_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]
-    TLS1_3_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]
-    TLS1_3_AES_128_CCM_SHA256: typing.ClassVar[TlsCipher]
-    TLS1_3_AES_128_CCM_8_SHA256: typing.ClassVar[TlsCipher]
-    __members__: typing.ClassVar[dict[str, TlsCipher]]
+    DHE_PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_128_CBC_SHA: 144>
+    DHE_PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_128_CBC_SHA256: 178>
+    DHE_PSK_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_128_CCM: 49318>
+    DHE_PSK_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_128_CCM_8: 49322>
+    DHE_PSK_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_128_GCM_SHA256: 170>
+    DHE_PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_256_CBC_SHA: 145>
+    DHE_PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_256_CBC_SHA384: 179>
+    DHE_PSK_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_256_CCM: 49319>
+    DHE_PSK_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_256_CCM_8: 49323>
+    DHE_PSK_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_AES_256_GCM_SHA384: 171>
+    DHE_PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_ARIA_128_CBC_SHA256: 49254>
+    DHE_PSK_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_ARIA_128_GCM_SHA256: 49260>
+    DHE_PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_ARIA_256_CBC_SHA384: 49255>
+    DHE_PSK_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_ARIA_256_GCM_SHA384: 49261>
+    DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: 49302>
+    DHE_PSK_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_CAMELLIA_128_GCM_SHA256: 49296>
+    DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: 49303>
+    DHE_PSK_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_CAMELLIA_256_GCM_SHA384: 49297>
+    DHE_PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_CHACHA20_POLY1305_SHA256: 52397>
+    DHE_PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_NULL_SHA: 45>
+    DHE_PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_NULL_SHA256: 180>
+    DHE_PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_PSK_WITH_NULL_SHA384: 181>
+    DHE_RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_128_CBC_SHA: 51>
+    DHE_RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_128_CBC_SHA256: 103>
+    DHE_RSA_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_128_CCM: 49310>
+    DHE_RSA_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_128_CCM_8: 49314>
+    DHE_RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_128_GCM_SHA256: 158>
+    DHE_RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_256_CBC_SHA: 57>
+    DHE_RSA_WITH_AES_256_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_256_CBC_SHA256: 107>
+    DHE_RSA_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_256_CCM: 49311>
+    DHE_RSA_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_256_CCM_8: 49315>
+    DHE_RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_AES_256_GCM_SHA384: 159>
+    DHE_RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_ARIA_128_CBC_SHA256: 49220>
+    DHE_RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_ARIA_128_GCM_SHA256: 49234>
+    DHE_RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_ARIA_256_CBC_SHA384: 49221>
+    DHE_RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_ARIA_256_GCM_SHA384: 49235>
+    DHE_RSA_WITH_CAMELLIA_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_CAMELLIA_128_CBC_SHA: 69>
+    DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: 190>
+    DHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: 49276>
+    DHE_RSA_WITH_CAMELLIA_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_CAMELLIA_256_CBC_SHA: 136>
+    DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256: 196>
+    DHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: 49277>
+    DHE_RSA_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.DHE_RSA_WITH_CHACHA20_POLY1305_SHA256: 52394>
+    ECDHE_ECDSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_128_CBC_SHA: 49161>
+    ECDHE_ECDSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_128_CBC_SHA256: 49187>
+    ECDHE_ECDSA_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_128_CCM: 49324>
+    ECDHE_ECDSA_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_128_CCM_8: 49326>
+    ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: 49195>
+    ECDHE_ECDSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_256_CBC_SHA: 49162>
+    ECDHE_ECDSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_256_CBC_SHA384: 49188>
+    ECDHE_ECDSA_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_256_CCM: 49325>
+    ECDHE_ECDSA_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_256_CCM_8: 49327>
+    ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: 49196>
+    ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256: 49224>
+    ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256: 49244>
+    ECDHE_ECDSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_ARIA_256_CBC_SHA384: 49225>
+    ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384: 49245>
+    ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: 49266>
+    ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: 49286>
+    ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: 49267>
+    ECDHE_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: 49287>
+    ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: 52393>
+    ECDHE_ECDSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_ECDSA_WITH_NULL_SHA: 49158>
+    ECDHE_PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_AES_128_CBC_SHA: 49205>
+    ECDHE_PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_AES_128_CBC_SHA256: 49207>
+    ECDHE_PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_AES_256_CBC_SHA: 49206>
+    ECDHE_PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_AES_256_CBC_SHA384: 49208>
+    ECDHE_PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_ARIA_128_CBC_SHA256: 49264>
+    ECDHE_PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_ARIA_256_CBC_SHA384: 49265>
+    ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: 49306>
+    ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: 49307>
+    ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256: 52396>
+    ECDHE_PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_NULL_SHA: 49209>
+    ECDHE_PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_NULL_SHA256: 49210>
+    ECDHE_PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_PSK_WITH_NULL_SHA384: 49211>
+    ECDHE_RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_AES_128_CBC_SHA: 49171>
+    ECDHE_RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_AES_128_CBC_SHA256: 49191>
+    ECDHE_RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_AES_128_GCM_SHA256: 49199>
+    ECDHE_RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_AES_256_CBC_SHA: 49172>
+    ECDHE_RSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_AES_256_CBC_SHA384: 49192>
+    ECDHE_RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_AES_256_GCM_SHA384: 49200>
+    ECDHE_RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_ARIA_128_CBC_SHA256: 49228>
+    ECDHE_RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_ARIA_128_GCM_SHA256: 49248>
+    ECDHE_RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_ARIA_256_CBC_SHA384: 49229>
+    ECDHE_RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_ARIA_256_GCM_SHA384: 49249>
+    ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: 49270>
+    ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: 49290>
+    ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384: 49271>
+    ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: 49291>
+    ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: 52392>
+    ECDHE_RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDHE_RSA_WITH_NULL_SHA: 49168>
+    ECDH_ECDSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_AES_128_CBC_SHA: 49156>
+    ECDH_ECDSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_AES_128_CBC_SHA256: 49189>
+    ECDH_ECDSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_AES_128_GCM_SHA256: 49197>
+    ECDH_ECDSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_AES_256_CBC_SHA: 49157>
+    ECDH_ECDSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_AES_256_CBC_SHA384: 49190>
+    ECDH_ECDSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_AES_256_GCM_SHA384: 49198>
+    ECDH_ECDSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_ARIA_128_CBC_SHA256: 49226>
+    ECDH_ECDSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_ARIA_128_GCM_SHA256: 49246>
+    ECDH_ECDSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_ARIA_256_CBC_SHA384: 49227>
+    ECDH_ECDSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_ARIA_256_GCM_SHA384: 49247>
+    ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: 49268>
+    ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: 49288>
+    ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: 49269>
+    ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: 49289>
+    ECDH_ECDSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_ECDSA_WITH_NULL_SHA: 49153>
+    ECDH_RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_AES_128_CBC_SHA: 49166>
+    ECDH_RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_AES_128_CBC_SHA256: 49193>
+    ECDH_RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_AES_128_GCM_SHA256: 49201>
+    ECDH_RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_AES_256_CBC_SHA: 49167>
+    ECDH_RSA_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_AES_256_CBC_SHA384: 49194>
+    ECDH_RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_AES_256_GCM_SHA384: 49202>
+    ECDH_RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_ARIA_128_CBC_SHA256: 49230>
+    ECDH_RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_ARIA_128_GCM_SHA256: 49250>
+    ECDH_RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_ARIA_256_CBC_SHA384: 49231>
+    ECDH_RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_ARIA_256_GCM_SHA384: 49251>
+    ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256: 49272>
+    ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256: 49292>
+    ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384: 49273>
+    ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384: 49293>
+    ECDH_RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECDH_RSA_WITH_NULL_SHA: 49163>
+    ECJPAKE_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.ECJPAKE_WITH_AES_128_CCM_8: 49407>
+    PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_128_CBC_SHA: 140>
+    PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_128_CBC_SHA256: 174>
+    PSK_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_128_CCM: 49316>
+    PSK_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_128_CCM_8: 49320>
+    PSK_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_128_GCM_SHA256: 168>
+    PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_256_CBC_SHA: 141>
+    PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_256_CBC_SHA384: 175>
+    PSK_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_256_CCM: 49317>
+    PSK_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_256_CCM_8: 49321>
+    PSK_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_AES_256_GCM_SHA384: 169>
+    PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_ARIA_128_CBC_SHA256: 49252>
+    PSK_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_ARIA_128_GCM_SHA256: 49258>
+    PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_ARIA_256_CBC_SHA384: 49253>
+    PSK_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_ARIA_256_GCM_SHA384: 49259>
+    PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_CAMELLIA_128_CBC_SHA256: 49300>
+    PSK_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_CAMELLIA_128_GCM_SHA256: 49294>
+    PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_CAMELLIA_256_CBC_SHA384: 49301>
+    PSK_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_CAMELLIA_256_GCM_SHA384: 49295>
+    PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_CHACHA20_POLY1305_SHA256: 52395>
+    PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_NULL_SHA: 44>
+    PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_NULL_SHA256: 176>
+    PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.PSK_WITH_NULL_SHA384: 177>
+    RSA_PSK_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_AES_128_CBC_SHA: 148>
+    RSA_PSK_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_AES_128_CBC_SHA256: 182>
+    RSA_PSK_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_AES_128_GCM_SHA256: 172>
+    RSA_PSK_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_AES_256_CBC_SHA: 149>
+    RSA_PSK_WITH_AES_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_AES_256_CBC_SHA384: 183>
+    RSA_PSK_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_AES_256_GCM_SHA384: 173>
+    RSA_PSK_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_ARIA_128_CBC_SHA256: 49256>
+    RSA_PSK_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_ARIA_128_GCM_SHA256: 49262>
+    RSA_PSK_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_ARIA_256_CBC_SHA384: 49257>
+    RSA_PSK_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_ARIA_256_GCM_SHA384: 49263>
+    RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256: 49304>
+    RSA_PSK_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_CAMELLIA_128_GCM_SHA256: 49298>
+    RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384: 49305>
+    RSA_PSK_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_CAMELLIA_256_GCM_SHA384: 49299>
+    RSA_PSK_WITH_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_CHACHA20_POLY1305_SHA256: 52398>
+    RSA_PSK_WITH_NULL_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_NULL_SHA: 46>
+    RSA_PSK_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_NULL_SHA256: 184>
+    RSA_PSK_WITH_NULL_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_PSK_WITH_NULL_SHA384: 185>
+    RSA_WITH_AES_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_128_CBC_SHA: 47>
+    RSA_WITH_AES_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_128_CBC_SHA256: 60>
+    RSA_WITH_AES_128_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_128_CCM: 49308>
+    RSA_WITH_AES_128_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_128_CCM_8: 49312>
+    RSA_WITH_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_128_GCM_SHA256: 156>
+    RSA_WITH_AES_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_256_CBC_SHA: 53>
+    RSA_WITH_AES_256_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_256_CBC_SHA256: 61>
+    RSA_WITH_AES_256_CCM: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_256_CCM: 49309>
+    RSA_WITH_AES_256_CCM_8: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_256_CCM_8: 49313>
+    RSA_WITH_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_AES_256_GCM_SHA384: 157>
+    RSA_WITH_ARIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_ARIA_128_CBC_SHA256: 49212>
+    RSA_WITH_ARIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_ARIA_128_GCM_SHA256: 49232>
+    RSA_WITH_ARIA_256_CBC_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_ARIA_256_CBC_SHA384: 49213>
+    RSA_WITH_ARIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_ARIA_256_GCM_SHA384: 49233>
+    RSA_WITH_CAMELLIA_128_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_CAMELLIA_128_CBC_SHA: 65>
+    RSA_WITH_CAMELLIA_128_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_CAMELLIA_128_CBC_SHA256: 186>
+    RSA_WITH_CAMELLIA_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_CAMELLIA_128_GCM_SHA256: 49274>
+    RSA_WITH_CAMELLIA_256_CBC_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_CAMELLIA_256_CBC_SHA: 132>
+    RSA_WITH_CAMELLIA_256_CBC_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_CAMELLIA_256_CBC_SHA256: 192>
+    RSA_WITH_CAMELLIA_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_CAMELLIA_256_GCM_SHA384: 49275>
+    RSA_WITH_NULL_MD5: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_NULL_MD5: 1>
+    RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_NULL_SHA: 2>
+    RSA_WITH_NULL_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.RSA_WITH_NULL_SHA256: 59>
+    TLS1_3_AES_128_CCM_8_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.TLS1_3_AES_128_CCM_8_SHA256: 4869>
+    TLS1_3_AES_128_CCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.TLS1_3_AES_128_CCM_SHA256: 4868>
+    TLS1_3_AES_128_GCM_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.TLS1_3_AES_128_GCM_SHA256: 4865>
+    TLS1_3_AES_256_GCM_SHA384: typing.ClassVar[TlsCipher]  # value = <TlsCipher.TLS1_3_AES_256_GCM_SHA384: 4866>
+    TLS1_3_CHACHA20_POLY1305_SHA256: typing.ClassVar[TlsCipher]  # value = <TlsCipher.TLS1_3_CHACHA20_POLY1305_SHA256: 4867>
+    __members__: typing.ClassVar[dict[str, TlsCipher]]  # value = {'RSA_WITH_NULL_MD5': <TlsCipher.RSA_WITH_NULL_MD5: 1>, 'RSA_WITH_NULL_SHA': <TlsCipher.RSA_WITH_NULL_SHA: 2>, 'PSK_WITH_NULL_SHA': <TlsCipher.PSK_WITH_NULL_SHA: 44>, 'DHE_PSK_WITH_NULL_SHA': <TlsCipher.DHE_PSK_WITH_NULL_SHA: 45>, 'RSA_PSK_WITH_NULL_SHA': <TlsCipher.RSA_PSK_WITH_NULL_SHA: 46>, 'RSA_WITH_AES_128_CBC_SHA': <TlsCipher.RSA_WITH_AES_128_CBC_SHA: 47>, 'DHE_RSA_WITH_AES_128_CBC_SHA': <TlsCipher.DHE_RSA_WITH_AES_128_CBC_SHA: 51>, 'RSA_WITH_AES_256_CBC_SHA': <TlsCipher.RSA_WITH_AES_256_CBC_SHA: 53>, 'DHE_RSA_WITH_AES_256_CBC_SHA': <TlsCipher.DHE_RSA_WITH_AES_256_CBC_SHA: 57>, 'RSA_WITH_NULL_SHA256': <TlsCipher.RSA_WITH_NULL_SHA256: 59>, 'RSA_WITH_AES_128_CBC_SHA256': <TlsCipher.RSA_WITH_AES_128_CBC_SHA256: 60>, 'RSA_WITH_AES_256_CBC_SHA256': <TlsCipher.RSA_WITH_AES_256_CBC_SHA256: 61>, 'RSA_WITH_CAMELLIA_128_CBC_SHA': <TlsCipher.RSA_WITH_CAMELLIA_128_CBC_SHA: 65>, 'DHE_RSA_WITH_CAMELLIA_128_CBC_SHA': <TlsCipher.DHE_RSA_WITH_CAMELLIA_128_CBC_SHA: 69>, 'DHE_RSA_WITH_AES_128_CBC_SHA256': <TlsCipher.DHE_RSA_WITH_AES_128_CBC_SHA256: 103>, 'DHE_RSA_WITH_AES_256_CBC_SHA256': <TlsCipher.DHE_RSA_WITH_AES_256_CBC_SHA256: 107>, 'RSA_WITH_CAMELLIA_256_CBC_SHA': <TlsCipher.RSA_WITH_CAMELLIA_256_CBC_SHA: 132>, 'DHE_RSA_WITH_CAMELLIA_256_CBC_SHA': <TlsCipher.DHE_RSA_WITH_CAMELLIA_256_CBC_SHA: 136>, 'PSK_WITH_AES_128_CBC_SHA': <TlsCipher.PSK_WITH_AES_128_CBC_SHA: 140>, 'PSK_WITH_AES_256_CBC_SHA': <TlsCipher.PSK_WITH_AES_256_CBC_SHA: 141>, 'DHE_PSK_WITH_AES_128_CBC_SHA': <TlsCipher.DHE_PSK_WITH_AES_128_CBC_SHA: 144>, 'DHE_PSK_WITH_AES_256_CBC_SHA': <TlsCipher.DHE_PSK_WITH_AES_256_CBC_SHA: 145>, 'RSA_PSK_WITH_AES_128_CBC_SHA': <TlsCipher.RSA_PSK_WITH_AES_128_CBC_SHA: 148>, 'RSA_PSK_WITH_AES_256_CBC_SHA': <TlsCipher.RSA_PSK_WITH_AES_256_CBC_SHA: 149>, 'RSA_WITH_AES_128_GCM_SHA256': <TlsCipher.RSA_WITH_AES_128_GCM_SHA256: 156>, 'RSA_WITH_AES_256_GCM_SHA384': <TlsCipher.RSA_WITH_AES_256_GCM_SHA384: 157>, 'DHE_RSA_WITH_AES_128_GCM_SHA256': <TlsCipher.DHE_RSA_WITH_AES_128_GCM_SHA256: 158>, 'DHE_RSA_WITH_AES_256_GCM_SHA384': <TlsCipher.DHE_RSA_WITH_AES_256_GCM_SHA384: 159>, 'PSK_WITH_AES_128_GCM_SHA256': <TlsCipher.PSK_WITH_AES_128_GCM_SHA256: 168>, 'PSK_WITH_AES_256_GCM_SHA384': <TlsCipher.PSK_WITH_AES_256_GCM_SHA384: 169>, 'DHE_PSK_WITH_AES_128_GCM_SHA256': <TlsCipher.DHE_PSK_WITH_AES_128_GCM_SHA256: 170>, 'DHE_PSK_WITH_AES_256_GCM_SHA384': <TlsCipher.DHE_PSK_WITH_AES_256_GCM_SHA384: 171>, 'RSA_PSK_WITH_AES_128_GCM_SHA256': <TlsCipher.RSA_PSK_WITH_AES_128_GCM_SHA256: 172>, 'RSA_PSK_WITH_AES_256_GCM_SHA384': <TlsCipher.RSA_PSK_WITH_AES_256_GCM_SHA384: 173>, 'PSK_WITH_AES_128_CBC_SHA256': <TlsCipher.PSK_WITH_AES_128_CBC_SHA256: 174>, 'PSK_WITH_AES_256_CBC_SHA384': <TlsCipher.PSK_WITH_AES_256_CBC_SHA384: 175>, 'PSK_WITH_NULL_SHA256': <TlsCipher.PSK_WITH_NULL_SHA256: 176>, 'PSK_WITH_NULL_SHA384': <TlsCipher.PSK_WITH_NULL_SHA384: 177>, 'DHE_PSK_WITH_AES_128_CBC_SHA256': <TlsCipher.DHE_PSK_WITH_AES_128_CBC_SHA256: 178>, 'DHE_PSK_WITH_AES_256_CBC_SHA384': <TlsCipher.DHE_PSK_WITH_AES_256_CBC_SHA384: 179>, 'DHE_PSK_WITH_NULL_SHA256': <TlsCipher.DHE_PSK_WITH_NULL_SHA256: 180>, 'DHE_PSK_WITH_NULL_SHA384': <TlsCipher.DHE_PSK_WITH_NULL_SHA384: 181>, 'RSA_PSK_WITH_AES_128_CBC_SHA256': <TlsCipher.RSA_PSK_WITH_AES_128_CBC_SHA256: 182>, 'RSA_PSK_WITH_AES_256_CBC_SHA384': <TlsCipher.RSA_PSK_WITH_AES_256_CBC_SHA384: 183>, 'RSA_PSK_WITH_NULL_SHA256': <TlsCipher.RSA_PSK_WITH_NULL_SHA256: 184>, 'RSA_PSK_WITH_NULL_SHA384': <TlsCipher.RSA_PSK_WITH_NULL_SHA384: 185>, 'RSA_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.RSA_WITH_CAMELLIA_128_CBC_SHA256: 186>, 'DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: 190>, 'RSA_WITH_CAMELLIA_256_CBC_SHA256': <TlsCipher.RSA_WITH_CAMELLIA_256_CBC_SHA256: 192>, 'DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256': <TlsCipher.DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256: 196>, 'ECDH_ECDSA_WITH_NULL_SHA': <TlsCipher.ECDH_ECDSA_WITH_NULL_SHA: 49153>, 'ECDH_ECDSA_WITH_AES_128_CBC_SHA': <TlsCipher.ECDH_ECDSA_WITH_AES_128_CBC_SHA: 49156>, 'ECDH_ECDSA_WITH_AES_256_CBC_SHA': <TlsCipher.ECDH_ECDSA_WITH_AES_256_CBC_SHA: 49157>, 'ECDHE_ECDSA_WITH_NULL_SHA': <TlsCipher.ECDHE_ECDSA_WITH_NULL_SHA: 49158>, 'ECDHE_ECDSA_WITH_AES_128_CBC_SHA': <TlsCipher.ECDHE_ECDSA_WITH_AES_128_CBC_SHA: 49161>, 'ECDHE_ECDSA_WITH_AES_256_CBC_SHA': <TlsCipher.ECDHE_ECDSA_WITH_AES_256_CBC_SHA: 49162>, 'ECDH_RSA_WITH_NULL_SHA': <TlsCipher.ECDH_RSA_WITH_NULL_SHA: 49163>, 'ECDH_RSA_WITH_AES_128_CBC_SHA': <TlsCipher.ECDH_RSA_WITH_AES_128_CBC_SHA: 49166>, 'ECDH_RSA_WITH_AES_256_CBC_SHA': <TlsCipher.ECDH_RSA_WITH_AES_256_CBC_SHA: 49167>, 'ECDHE_RSA_WITH_NULL_SHA': <TlsCipher.ECDHE_RSA_WITH_NULL_SHA: 49168>, 'ECDHE_RSA_WITH_AES_128_CBC_SHA': <TlsCipher.ECDHE_RSA_WITH_AES_128_CBC_SHA: 49171>, 'ECDHE_RSA_WITH_AES_256_CBC_SHA': <TlsCipher.ECDHE_RSA_WITH_AES_256_CBC_SHA: 49172>, 'ECDHE_ECDSA_WITH_AES_128_CBC_SHA256': <TlsCipher.ECDHE_ECDSA_WITH_AES_128_CBC_SHA256: 49187>, 'ECDHE_ECDSA_WITH_AES_256_CBC_SHA384': <TlsCipher.ECDHE_ECDSA_WITH_AES_256_CBC_SHA384: 49188>, 'ECDH_ECDSA_WITH_AES_128_CBC_SHA256': <TlsCipher.ECDH_ECDSA_WITH_AES_128_CBC_SHA256: 49189>, 'ECDH_ECDSA_WITH_AES_256_CBC_SHA384': <TlsCipher.ECDH_ECDSA_WITH_AES_256_CBC_SHA384: 49190>, 'ECDHE_RSA_WITH_AES_128_CBC_SHA256': <TlsCipher.ECDHE_RSA_WITH_AES_128_CBC_SHA256: 49191>, 'ECDHE_RSA_WITH_AES_256_CBC_SHA384': <TlsCipher.ECDHE_RSA_WITH_AES_256_CBC_SHA384: 49192>, 'ECDH_RSA_WITH_AES_128_CBC_SHA256': <TlsCipher.ECDH_RSA_WITH_AES_128_CBC_SHA256: 49193>, 'ECDH_RSA_WITH_AES_256_CBC_SHA384': <TlsCipher.ECDH_RSA_WITH_AES_256_CBC_SHA384: 49194>, 'ECDHE_ECDSA_WITH_AES_128_GCM_SHA256': <TlsCipher.ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: 49195>, 'ECDHE_ECDSA_WITH_AES_256_GCM_SHA384': <TlsCipher.ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: 49196>, 'ECDH_ECDSA_WITH_AES_128_GCM_SHA256': <TlsCipher.ECDH_ECDSA_WITH_AES_128_GCM_SHA256: 49197>, 'ECDH_ECDSA_WITH_AES_256_GCM_SHA384': <TlsCipher.ECDH_ECDSA_WITH_AES_256_GCM_SHA384: 49198>, 'ECDHE_RSA_WITH_AES_128_GCM_SHA256': <TlsCipher.ECDHE_RSA_WITH_AES_128_GCM_SHA256: 49199>, 'ECDHE_RSA_WITH_AES_256_GCM_SHA384': <TlsCipher.ECDHE_RSA_WITH_AES_256_GCM_SHA384: 49200>, 'ECDH_RSA_WITH_AES_128_GCM_SHA256': <TlsCipher.ECDH_RSA_WITH_AES_128_GCM_SHA256: 49201>, 'ECDH_RSA_WITH_AES_256_GCM_SHA384': <TlsCipher.ECDH_RSA_WITH_AES_256_GCM_SHA384: 49202>, 'ECDHE_PSK_WITH_AES_128_CBC_SHA': <TlsCipher.ECDHE_PSK_WITH_AES_128_CBC_SHA: 49205>, 'ECDHE_PSK_WITH_AES_256_CBC_SHA': <TlsCipher.ECDHE_PSK_WITH_AES_256_CBC_SHA: 49206>, 'ECDHE_PSK_WITH_AES_128_CBC_SHA256': <TlsCipher.ECDHE_PSK_WITH_AES_128_CBC_SHA256: 49207>, 'ECDHE_PSK_WITH_AES_256_CBC_SHA384': <TlsCipher.ECDHE_PSK_WITH_AES_256_CBC_SHA384: 49208>, 'ECDHE_PSK_WITH_NULL_SHA': <TlsCipher.ECDHE_PSK_WITH_NULL_SHA: 49209>, 'ECDHE_PSK_WITH_NULL_SHA256': <TlsCipher.ECDHE_PSK_WITH_NULL_SHA256: 49210>, 'ECDHE_PSK_WITH_NULL_SHA384': <TlsCipher.ECDHE_PSK_WITH_NULL_SHA384: 49211>, 'RSA_WITH_ARIA_128_CBC_SHA256': <TlsCipher.RSA_WITH_ARIA_128_CBC_SHA256: 49212>, 'RSA_WITH_ARIA_256_CBC_SHA384': <TlsCipher.RSA_WITH_ARIA_256_CBC_SHA384: 49213>, 'DHE_RSA_WITH_ARIA_128_CBC_SHA256': <TlsCipher.DHE_RSA_WITH_ARIA_128_CBC_SHA256: 49220>, 'DHE_RSA_WITH_ARIA_256_CBC_SHA384': <TlsCipher.DHE_RSA_WITH_ARIA_256_CBC_SHA384: 49221>, 'ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256': <TlsCipher.ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256: 49224>, 'ECDHE_ECDSA_WITH_ARIA_256_CBC_SHA384': <TlsCipher.ECDHE_ECDSA_WITH_ARIA_256_CBC_SHA384: 49225>, 'ECDH_ECDSA_WITH_ARIA_128_CBC_SHA256': <TlsCipher.ECDH_ECDSA_WITH_ARIA_128_CBC_SHA256: 49226>, 'ECDH_ECDSA_WITH_ARIA_256_CBC_SHA384': <TlsCipher.ECDH_ECDSA_WITH_ARIA_256_CBC_SHA384: 49227>, 'ECDHE_RSA_WITH_ARIA_128_CBC_SHA256': <TlsCipher.ECDHE_RSA_WITH_ARIA_128_CBC_SHA256: 49228>, 'ECDHE_RSA_WITH_ARIA_256_CBC_SHA384': <TlsCipher.ECDHE_RSA_WITH_ARIA_256_CBC_SHA384: 49229>, 'ECDH_RSA_WITH_ARIA_128_CBC_SHA256': <TlsCipher.ECDH_RSA_WITH_ARIA_128_CBC_SHA256: 49230>, 'ECDH_RSA_WITH_ARIA_256_CBC_SHA384': <TlsCipher.ECDH_RSA_WITH_ARIA_256_CBC_SHA384: 49231>, 'RSA_WITH_ARIA_128_GCM_SHA256': <TlsCipher.RSA_WITH_ARIA_128_GCM_SHA256: 49232>, 'RSA_WITH_ARIA_256_GCM_SHA384': <TlsCipher.RSA_WITH_ARIA_256_GCM_SHA384: 49233>, 'DHE_RSA_WITH_ARIA_128_GCM_SHA256': <TlsCipher.DHE_RSA_WITH_ARIA_128_GCM_SHA256: 49234>, 'DHE_RSA_WITH_ARIA_256_GCM_SHA384': <TlsCipher.DHE_RSA_WITH_ARIA_256_GCM_SHA384: 49235>, 'ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256': <TlsCipher.ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256: 49244>, 'ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384': <TlsCipher.ECDHE_ECDSA_WITH_ARIA_256_GCM_SHA384: 49245>, 'ECDH_ECDSA_WITH_ARIA_128_GCM_SHA256': <TlsCipher.ECDH_ECDSA_WITH_ARIA_128_GCM_SHA256: 49246>, 'ECDH_ECDSA_WITH_ARIA_256_GCM_SHA384': <TlsCipher.ECDH_ECDSA_WITH_ARIA_256_GCM_SHA384: 49247>, 'ECDHE_RSA_WITH_ARIA_128_GCM_SHA256': <TlsCipher.ECDHE_RSA_WITH_ARIA_128_GCM_SHA256: 49248>, 'ECDHE_RSA_WITH_ARIA_256_GCM_SHA384': <TlsCipher.ECDHE_RSA_WITH_ARIA_256_GCM_SHA384: 49249>, 'ECDH_RSA_WITH_ARIA_128_GCM_SHA256': <TlsCipher.ECDH_RSA_WITH_ARIA_128_GCM_SHA256: 49250>, 'ECDH_RSA_WITH_ARIA_256_GCM_SHA384': <TlsCipher.ECDH_RSA_WITH_ARIA_256_GCM_SHA384: 49251>, 'PSK_WITH_ARIA_128_CBC_SHA256': <TlsCipher.PSK_WITH_ARIA_128_CBC_SHA256: 49252>, 'PSK_WITH_ARIA_256_CBC_SHA384': <TlsCipher.PSK_WITH_ARIA_256_CBC_SHA384: 49253>, 'DHE_PSK_WITH_ARIA_128_CBC_SHA256': <TlsCipher.DHE_PSK_WITH_ARIA_128_CBC_SHA256: 49254>, 'DHE_PSK_WITH_ARIA_256_CBC_SHA384': <TlsCipher.DHE_PSK_WITH_ARIA_256_CBC_SHA384: 49255>, 'RSA_PSK_WITH_ARIA_128_CBC_SHA256': <TlsCipher.RSA_PSK_WITH_ARIA_128_CBC_SHA256: 49256>, 'RSA_PSK_WITH_ARIA_256_CBC_SHA384': <TlsCipher.RSA_PSK_WITH_ARIA_256_CBC_SHA384: 49257>, 'PSK_WITH_ARIA_128_GCM_SHA256': <TlsCipher.PSK_WITH_ARIA_128_GCM_SHA256: 49258>, 'PSK_WITH_ARIA_256_GCM_SHA384': <TlsCipher.PSK_WITH_ARIA_256_GCM_SHA384: 49259>, 'DHE_PSK_WITH_ARIA_128_GCM_SHA256': <TlsCipher.DHE_PSK_WITH_ARIA_128_GCM_SHA256: 49260>, 'DHE_PSK_WITH_ARIA_256_GCM_SHA384': <TlsCipher.DHE_PSK_WITH_ARIA_256_GCM_SHA384: 49261>, 'RSA_PSK_WITH_ARIA_128_GCM_SHA256': <TlsCipher.RSA_PSK_WITH_ARIA_128_GCM_SHA256: 49262>, 'RSA_PSK_WITH_ARIA_256_GCM_SHA384': <TlsCipher.RSA_PSK_WITH_ARIA_256_GCM_SHA384: 49263>, 'ECDHE_PSK_WITH_ARIA_128_CBC_SHA256': <TlsCipher.ECDHE_PSK_WITH_ARIA_128_CBC_SHA256: 49264>, 'ECDHE_PSK_WITH_ARIA_256_CBC_SHA384': <TlsCipher.ECDHE_PSK_WITH_ARIA_256_CBC_SHA384: 49265>, 'ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: 49266>, 'ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384': <TlsCipher.ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: 49267>, 'ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256: 49268>, 'ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384': <TlsCipher.ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384: 49269>, 'ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256: 49270>, 'ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384': <TlsCipher.ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384: 49271>, 'ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256: 49272>, 'ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384': <TlsCipher.ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384: 49273>, 'RSA_WITH_CAMELLIA_128_GCM_SHA256': <TlsCipher.RSA_WITH_CAMELLIA_128_GCM_SHA256: 49274>, 'RSA_WITH_CAMELLIA_256_GCM_SHA384': <TlsCipher.RSA_WITH_CAMELLIA_256_GCM_SHA384: 49275>, 'DHE_RSA_WITH_CAMELLIA_128_GCM_SHA256': <TlsCipher.DHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: 49276>, 'DHE_RSA_WITH_CAMELLIA_256_GCM_SHA384': <TlsCipher.DHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: 49277>, 'ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256': <TlsCipher.ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: 49286>, 'ECDHE_ECDSA_WITH_CAMELLIA_256_GCM_SHA384': <TlsCipher.ECDHE_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: 49287>, 'ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256': <TlsCipher.ECDH_ECDSA_WITH_CAMELLIA_128_GCM_SHA256: 49288>, 'ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384': <TlsCipher.ECDH_ECDSA_WITH_CAMELLIA_256_GCM_SHA384: 49289>, 'ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256': <TlsCipher.ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256: 49290>, 'ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384': <TlsCipher.ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384: 49291>, 'ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256': <TlsCipher.ECDH_RSA_WITH_CAMELLIA_128_GCM_SHA256: 49292>, 'ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384': <TlsCipher.ECDH_RSA_WITH_CAMELLIA_256_GCM_SHA384: 49293>, 'PSK_WITH_CAMELLIA_128_GCM_SHA256': <TlsCipher.PSK_WITH_CAMELLIA_128_GCM_SHA256: 49294>, 'PSK_WITH_CAMELLIA_256_GCM_SHA384': <TlsCipher.PSK_WITH_CAMELLIA_256_GCM_SHA384: 49295>, 'DHE_PSK_WITH_CAMELLIA_128_GCM_SHA256': <TlsCipher.DHE_PSK_WITH_CAMELLIA_128_GCM_SHA256: 49296>, 'DHE_PSK_WITH_CAMELLIA_256_GCM_SHA384': <TlsCipher.DHE_PSK_WITH_CAMELLIA_256_GCM_SHA384: 49297>, 'RSA_PSK_WITH_CAMELLIA_128_GCM_SHA256': <TlsCipher.RSA_PSK_WITH_CAMELLIA_128_GCM_SHA256: 49298>, 'RSA_PSK_WITH_CAMELLIA_256_GCM_SHA384': <TlsCipher.RSA_PSK_WITH_CAMELLIA_256_GCM_SHA384: 49299>, 'PSK_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.PSK_WITH_CAMELLIA_128_CBC_SHA256: 49300>, 'PSK_WITH_CAMELLIA_256_CBC_SHA384': <TlsCipher.PSK_WITH_CAMELLIA_256_CBC_SHA384: 49301>, 'DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: 49302>, 'DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384': <TlsCipher.DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: 49303>, 'RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256: 49304>, 'RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384': <TlsCipher.RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384: 49305>, 'ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256': <TlsCipher.ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256: 49306>, 'ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384': <TlsCipher.ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384: 49307>, 'RSA_WITH_AES_128_CCM': <TlsCipher.RSA_WITH_AES_128_CCM: 49308>, 'RSA_WITH_AES_256_CCM': <TlsCipher.RSA_WITH_AES_256_CCM: 49309>, 'DHE_RSA_WITH_AES_128_CCM': <TlsCipher.DHE_RSA_WITH_AES_128_CCM: 49310>, 'DHE_RSA_WITH_AES_256_CCM': <TlsCipher.DHE_RSA_WITH_AES_256_CCM: 49311>, 'RSA_WITH_AES_128_CCM_8': <TlsCipher.RSA_WITH_AES_128_CCM_8: 49312>, 'RSA_WITH_AES_256_CCM_8': <TlsCipher.RSA_WITH_AES_256_CCM_8: 49313>, 'DHE_RSA_WITH_AES_128_CCM_8': <TlsCipher.DHE_RSA_WITH_AES_128_CCM_8: 49314>, 'DHE_RSA_WITH_AES_256_CCM_8': <TlsCipher.DHE_RSA_WITH_AES_256_CCM_8: 49315>, 'PSK_WITH_AES_128_CCM': <TlsCipher.PSK_WITH_AES_128_CCM: 49316>, 'PSK_WITH_AES_256_CCM': <TlsCipher.PSK_WITH_AES_256_CCM: 49317>, 'DHE_PSK_WITH_AES_128_CCM': <TlsCipher.DHE_PSK_WITH_AES_128_CCM: 49318>, 'DHE_PSK_WITH_AES_256_CCM': <TlsCipher.DHE_PSK_WITH_AES_256_CCM: 49319>, 'PSK_WITH_AES_128_CCM_8': <TlsCipher.PSK_WITH_AES_128_CCM_8: 49320>, 'PSK_WITH_AES_256_CCM_8': <TlsCipher.PSK_WITH_AES_256_CCM_8: 49321>, 'DHE_PSK_WITH_AES_128_CCM_8': <TlsCipher.DHE_PSK_WITH_AES_128_CCM_8: 49322>, 'DHE_PSK_WITH_AES_256_CCM_8': <TlsCipher.DHE_PSK_WITH_AES_256_CCM_8: 49323>, 'ECDHE_ECDSA_WITH_AES_128_CCM': <TlsCipher.ECDHE_ECDSA_WITH_AES_128_CCM: 49324>, 'ECDHE_ECDSA_WITH_AES_256_CCM': <TlsCipher.ECDHE_ECDSA_WITH_AES_256_CCM: 49325>, 'ECDHE_ECDSA_WITH_AES_128_CCM_8': <TlsCipher.ECDHE_ECDSA_WITH_AES_128_CCM_8: 49326>, 'ECDHE_ECDSA_WITH_AES_256_CCM_8': <TlsCipher.ECDHE_ECDSA_WITH_AES_256_CCM_8: 49327>, 'ECJPAKE_WITH_AES_128_CCM_8': <TlsCipher.ECJPAKE_WITH_AES_128_CCM_8: 49407>, 'ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256': <TlsCipher.ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: 52392>, 'ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256': <TlsCipher.ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: 52393>, 'DHE_RSA_WITH_CHACHA20_POLY1305_SHA256': <TlsCipher.DHE_RSA_WITH_CHACHA20_POLY1305_SHA256: 52394>, 'PSK_WITH_CHACHA20_POLY1305_SHA256': <TlsCipher.PSK_WITH_CHACHA20_POLY1305_SHA256: 52395>, 'ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256': <TlsCipher.ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256: 52396>, 'DHE_PSK_WITH_CHACHA20_POLY1305_SHA256': <TlsCipher.DHE_PSK_WITH_CHACHA20_POLY1305_SHA256: 52397>, 'RSA_PSK_WITH_CHACHA20_POLY1305_SHA256': <TlsCipher.RSA_PSK_WITH_CHACHA20_POLY1305_SHA256: 52398>, 'TLS1_3_AES_128_GCM_SHA256': <TlsCipher.TLS1_3_AES_128_GCM_SHA256: 4865>, 'TLS1_3_AES_256_GCM_SHA384': <TlsCipher.TLS1_3_AES_256_GCM_SHA384: 4866>, 'TLS1_3_CHACHA20_POLY1305_SHA256': <TlsCipher.TLS1_3_CHACHA20_POLY1305_SHA256: 4867>, 'TLS1_3_AES_128_CCM_SHA256': <TlsCipher.TLS1_3_AES_128_CCM_SHA256: 4868>, 'TLS1_3_AES_128_CCM_8_SHA256': <TlsCipher.TLS1_3_AES_128_CCM_8_SHA256: 4869>}
     @property
     def name(self) -> str:
         ...
@@ -3713,13 +3754,13 @@ class TlsVersion:
     """
     This enum contains all supported TLS versions.
     """
-    NOT_SELECTED: typing.ClassVar[TlsVersion]
-    SSL_3_0: typing.ClassVar[TlsVersion]
-    TLS_1_0: typing.ClassVar[TlsVersion]
-    TLS_1_1: typing.ClassVar[TlsVersion]
-    TLS_1_2: typing.ClassVar[TlsVersion]
-    TLS_1_3: typing.ClassVar[TlsVersion]
-    __members__: typing.ClassVar[dict[str, TlsVersion]]
+    NOT_SELECTED: typing.ClassVar[TlsVersion]  # value = <TlsVersion.NOT_SELECTED: 0>
+    SSL_3_0: typing.ClassVar[TlsVersion]  # value = <TlsVersion.SSL_3_0: 3>
+    TLS_1_0: typing.ClassVar[TlsVersion]  # value = <TlsVersion.TLS_1_0: 4>
+    TLS_1_1: typing.ClassVar[TlsVersion]  # value = <TlsVersion.TLS_1_1: 5>
+    TLS_1_2: typing.ClassVar[TlsVersion]  # value = <TlsVersion.TLS_1_2: 6>
+    TLS_1_3: typing.ClassVar[TlsVersion]  # value = <TlsVersion.TLS_1_3: 7>
+    __members__: typing.ClassVar[dict[str, TlsVersion]]  # value = {'NOT_SELECTED': <TlsVersion.NOT_SELECTED: 0>, 'SSL_3_0': <TlsVersion.SSL_3_0: 3>, 'TLS_1_0': <TlsVersion.TLS_1_0: 4>, 'TLS_1_1': <TlsVersion.TLS_1_1: 5>, 'TLS_1_2': <TlsVersion.TLS_1_2: 6>, 'TLS_1_3': <TlsVersion.TLS_1_3: 7>}
     @property
     def name(self) -> str:
         ...
@@ -3956,62 +3997,62 @@ class Type:
     """
     This enum contains all valid IEC60870 message types to interpret or create points.
     """
-    C_BO_NA_1: typing.ClassVar[Type]
-    C_BO_TA_1: typing.ClassVar[Type]
-    C_CD_NA_1: typing.ClassVar[Type]
-    C_CI_NA_1: typing.ClassVar[Type]
-    C_CS_NA_1: typing.ClassVar[Type]
-    C_DC_NA_1: typing.ClassVar[Type]
-    C_DC_TA_1: typing.ClassVar[Type]
-    C_IC_NA_1: typing.ClassVar[Type]
-    C_RC_NA_1: typing.ClassVar[Type]
-    C_RC_TA_1: typing.ClassVar[Type]
-    C_RD_NA_1: typing.ClassVar[Type]
-    C_RP_NA_1: typing.ClassVar[Type]
-    C_SC_NA_1: typing.ClassVar[Type]
-    C_SC_TA_1: typing.ClassVar[Type]
-    C_SE_NA_1: typing.ClassVar[Type]
-    C_SE_NB_1: typing.ClassVar[Type]
-    C_SE_NC_1: typing.ClassVar[Type]
-    C_SE_TA_1: typing.ClassVar[Type]
-    C_SE_TB_1: typing.ClassVar[Type]
-    C_SE_TC_1: typing.ClassVar[Type]
-    C_TS_NA_1: typing.ClassVar[Type]
-    C_TS_TA_1: typing.ClassVar[Type]
-    M_BO_NA_1: typing.ClassVar[Type]
-    M_BO_TA_1: typing.ClassVar[Type]
-    M_BO_TB_1: typing.ClassVar[Type]
-    M_DP_NA_1: typing.ClassVar[Type]
-    M_DP_TA_1: typing.ClassVar[Type]
-    M_DP_TB_1: typing.ClassVar[Type]
-    M_EI_NA_1: typing.ClassVar[Type]
-    M_EP_TA_1: typing.ClassVar[Type]
-    M_EP_TB_1: typing.ClassVar[Type]
-    M_EP_TC_1: typing.ClassVar[Type]
-    M_EP_TD_1: typing.ClassVar[Type]
-    M_EP_TE_1: typing.ClassVar[Type]
-    M_EP_TF_1: typing.ClassVar[Type]
-    M_IT_NA_1: typing.ClassVar[Type]
-    M_IT_TA_1: typing.ClassVar[Type]
-    M_IT_TB_1: typing.ClassVar[Type]
-    M_ME_NA_1: typing.ClassVar[Type]
-    M_ME_NB_1: typing.ClassVar[Type]
-    M_ME_NC_1: typing.ClassVar[Type]
-    M_ME_ND_1: typing.ClassVar[Type]
-    M_ME_TA_1: typing.ClassVar[Type]
-    M_ME_TB_1: typing.ClassVar[Type]
-    M_ME_TC_1: typing.ClassVar[Type]
-    M_ME_TD_1: typing.ClassVar[Type]
-    M_ME_TE_1: typing.ClassVar[Type]
-    M_ME_TF_1: typing.ClassVar[Type]
-    M_PS_NA_1: typing.ClassVar[Type]
-    M_SP_NA_1: typing.ClassVar[Type]
-    M_SP_TA_1: typing.ClassVar[Type]
-    M_SP_TB_1: typing.ClassVar[Type]
-    M_ST_NA_1: typing.ClassVar[Type]
-    M_ST_TA_1: typing.ClassVar[Type]
-    M_ST_TB_1: typing.ClassVar[Type]
-    __members__: typing.ClassVar[dict[str, Type]]
+    C_BO_NA_1: typing.ClassVar[Type]  # value = <Type.C_BO_NA_1: 51>
+    C_BO_TA_1: typing.ClassVar[Type]  # value = <Type.C_BO_TA_1: 64>
+    C_CD_NA_1: typing.ClassVar[Type]  # value = <Type.C_CD_NA_1: 106>
+    C_CI_NA_1: typing.ClassVar[Type]  # value = <Type.C_CI_NA_1: 101>
+    C_CS_NA_1: typing.ClassVar[Type]  # value = <Type.C_CS_NA_1: 103>
+    C_DC_NA_1: typing.ClassVar[Type]  # value = <Type.C_DC_NA_1: 46>
+    C_DC_TA_1: typing.ClassVar[Type]  # value = <Type.C_DC_TA_1: 59>
+    C_IC_NA_1: typing.ClassVar[Type]  # value = <Type.C_IC_NA_1: 100>
+    C_RC_NA_1: typing.ClassVar[Type]  # value = <Type.C_RC_NA_1: 47>
+    C_RC_TA_1: typing.ClassVar[Type]  # value = <Type.C_RC_TA_1: 60>
+    C_RD_NA_1: typing.ClassVar[Type]  # value = <Type.C_RD_NA_1: 102>
+    C_RP_NA_1: typing.ClassVar[Type]  # value = <Type.C_RP_NA_1: 105>
+    C_SC_NA_1: typing.ClassVar[Type]  # value = <Type.C_SC_NA_1: 45>
+    C_SC_TA_1: typing.ClassVar[Type]  # value = <Type.C_SC_TA_1: 58>
+    C_SE_NA_1: typing.ClassVar[Type]  # value = <Type.C_SE_NA_1: 48>
+    C_SE_NB_1: typing.ClassVar[Type]  # value = <Type.C_SE_NB_1: 49>
+    C_SE_NC_1: typing.ClassVar[Type]  # value = <Type.C_SE_NC_1: 50>
+    C_SE_TA_1: typing.ClassVar[Type]  # value = <Type.C_SE_TA_1: 61>
+    C_SE_TB_1: typing.ClassVar[Type]  # value = <Type.C_SE_TB_1: 62>
+    C_SE_TC_1: typing.ClassVar[Type]  # value = <Type.C_SE_TC_1: 63>
+    C_TS_NA_1: typing.ClassVar[Type]  # value = <Type.C_TS_NA_1: 104>
+    C_TS_TA_1: typing.ClassVar[Type]  # value = <Type.C_TS_TA_1: 107>
+    M_BO_NA_1: typing.ClassVar[Type]  # value = <Type.M_BO_NA_1: 7>
+    M_BO_TA_1: typing.ClassVar[Type]  # value = <Type.M_BO_TA_1: 8>
+    M_BO_TB_1: typing.ClassVar[Type]  # value = <Type.M_BO_TB_1: 33>
+    M_DP_NA_1: typing.ClassVar[Type]  # value = <Type.M_DP_NA_1: 3>
+    M_DP_TA_1: typing.ClassVar[Type]  # value = <Type.M_DP_TA_1: 4>
+    M_DP_TB_1: typing.ClassVar[Type]  # value = <Type.M_DP_TB_1: 31>
+    M_EI_NA_1: typing.ClassVar[Type]  # value = <Type.M_EI_NA_1: 70>
+    M_EP_TA_1: typing.ClassVar[Type]  # value = <Type.M_EP_TA_1: 17>
+    M_EP_TB_1: typing.ClassVar[Type]  # value = <Type.M_EP_TB_1: 18>
+    M_EP_TC_1: typing.ClassVar[Type]  # value = <Type.M_EP_TC_1: 19>
+    M_EP_TD_1: typing.ClassVar[Type]  # value = <Type.M_EP_TD_1: 38>
+    M_EP_TE_1: typing.ClassVar[Type]  # value = <Type.M_EP_TE_1: 39>
+    M_EP_TF_1: typing.ClassVar[Type]  # value = <Type.M_EP_TF_1: 40>
+    M_IT_NA_1: typing.ClassVar[Type]  # value = <Type.M_IT_NA_1: 15>
+    M_IT_TA_1: typing.ClassVar[Type]  # value = <Type.M_IT_TA_1: 16>
+    M_IT_TB_1: typing.ClassVar[Type]  # value = <Type.M_IT_TB_1: 37>
+    M_ME_NA_1: typing.ClassVar[Type]  # value = <Type.M_ME_NA_1: 9>
+    M_ME_NB_1: typing.ClassVar[Type]  # value = <Type.M_ME_NB_1: 11>
+    M_ME_NC_1: typing.ClassVar[Type]  # value = <Type.M_ME_NC_1: 13>
+    M_ME_ND_1: typing.ClassVar[Type]  # value = <Type.M_ME_ND_1: 21>
+    M_ME_TA_1: typing.ClassVar[Type]  # value = <Type.M_ME_TA_1: 10>
+    M_ME_TB_1: typing.ClassVar[Type]  # value = <Type.M_ME_TB_1: 12>
+    M_ME_TC_1: typing.ClassVar[Type]  # value = <Type.M_ME_TC_1: 14>
+    M_ME_TD_1: typing.ClassVar[Type]  # value = <Type.M_ME_TD_1: 34>
+    M_ME_TE_1: typing.ClassVar[Type]  # value = <Type.M_ME_TE_1: 35>
+    M_ME_TF_1: typing.ClassVar[Type]  # value = <Type.M_ME_TF_1: 36>
+    M_PS_NA_1: typing.ClassVar[Type]  # value = <Type.M_PS_NA_1: 20>
+    M_SP_NA_1: typing.ClassVar[Type]  # value = <Type.M_SP_NA_1: 1>
+    M_SP_TA_1: typing.ClassVar[Type]  # value = <Type.M_SP_TA_1: 2>
+    M_SP_TB_1: typing.ClassVar[Type]  # value = <Type.M_SP_TB_1: 30>
+    M_ST_NA_1: typing.ClassVar[Type]  # value = <Type.M_ST_NA_1: 5>
+    M_ST_TA_1: typing.ClassVar[Type]  # value = <Type.M_ST_TA_1: 6>
+    M_ST_TB_1: typing.ClassVar[Type]  # value = <Type.M_ST_TB_1: 32>
+    __members__: typing.ClassVar[dict[str, Type]]  # value = {'M_SP_NA_1': <Type.M_SP_NA_1: 1>, 'M_SP_TA_1': <Type.M_SP_TA_1: 2>, 'M_DP_NA_1': <Type.M_DP_NA_1: 3>, 'M_DP_TA_1': <Type.M_DP_TA_1: 4>, 'M_ST_NA_1': <Type.M_ST_NA_1: 5>, 'M_ST_TA_1': <Type.M_ST_TA_1: 6>, 'M_BO_NA_1': <Type.M_BO_NA_1: 7>, 'M_BO_TA_1': <Type.M_BO_TA_1: 8>, 'M_ME_NA_1': <Type.M_ME_NA_1: 9>, 'M_ME_TA_1': <Type.M_ME_TA_1: 10>, 'M_ME_NB_1': <Type.M_ME_NB_1: 11>, 'M_ME_TB_1': <Type.M_ME_TB_1: 12>, 'M_ME_NC_1': <Type.M_ME_NC_1: 13>, 'M_ME_TC_1': <Type.M_ME_TC_1: 14>, 'M_IT_NA_1': <Type.M_IT_NA_1: 15>, 'M_IT_TA_1': <Type.M_IT_TA_1: 16>, 'M_EP_TA_1': <Type.M_EP_TA_1: 17>, 'M_EP_TB_1': <Type.M_EP_TB_1: 18>, 'M_EP_TC_1': <Type.M_EP_TC_1: 19>, 'M_PS_NA_1': <Type.M_PS_NA_1: 20>, 'M_ME_ND_1': <Type.M_ME_ND_1: 21>, 'M_SP_TB_1': <Type.M_SP_TB_1: 30>, 'M_DP_TB_1': <Type.M_DP_TB_1: 31>, 'M_ST_TB_1': <Type.M_ST_TB_1: 32>, 'M_BO_TB_1': <Type.M_BO_TB_1: 33>, 'M_ME_TD_1': <Type.M_ME_TD_1: 34>, 'M_ME_TE_1': <Type.M_ME_TE_1: 35>, 'M_ME_TF_1': <Type.M_ME_TF_1: 36>, 'M_IT_TB_1': <Type.M_IT_TB_1: 37>, 'M_EP_TD_1': <Type.M_EP_TD_1: 38>, 'M_EP_TE_1': <Type.M_EP_TE_1: 39>, 'M_EP_TF_1': <Type.M_EP_TF_1: 40>, 'C_SC_NA_1': <Type.C_SC_NA_1: 45>, 'C_DC_NA_1': <Type.C_DC_NA_1: 46>, 'C_RC_NA_1': <Type.C_RC_NA_1: 47>, 'C_SE_NA_1': <Type.C_SE_NA_1: 48>, 'C_SE_NB_1': <Type.C_SE_NB_1: 49>, 'C_SE_NC_1': <Type.C_SE_NC_1: 50>, 'C_BO_NA_1': <Type.C_BO_NA_1: 51>, 'C_SC_TA_1': <Type.C_SC_TA_1: 58>, 'C_DC_TA_1': <Type.C_DC_TA_1: 59>, 'C_RC_TA_1': <Type.C_RC_TA_1: 60>, 'C_SE_TA_1': <Type.C_SE_TA_1: 61>, 'C_SE_TB_1': <Type.C_SE_TB_1: 62>, 'C_SE_TC_1': <Type.C_SE_TC_1: 63>, 'C_BO_TA_1': <Type.C_BO_TA_1: 64>, 'M_EI_NA_1': <Type.M_EI_NA_1: 70>, 'C_IC_NA_1': <Type.C_IC_NA_1: 100>, 'C_CI_NA_1': <Type.C_CI_NA_1: 101>, 'C_RD_NA_1': <Type.C_RD_NA_1: 102>, 'C_CS_NA_1': <Type.C_CS_NA_1: 103>, 'C_TS_NA_1': <Type.C_TS_NA_1: 104>, 'C_RP_NA_1': <Type.C_RP_NA_1: 105>, 'C_CD_NA_1': <Type.C_CD_NA_1: 106>, 'C_TS_TA_1': <Type.C_TS_TA_1: 107>}
     @property
     def name(self) -> str:
         ...
@@ -4097,16 +4138,16 @@ class Umc:
     """
     This enum contains all unexpected message cause identifier to interpret error context.
     """
-    INVALID_COT: typing.ClassVar[Umc]
-    INVALID_TYPE_ID: typing.ClassVar[Umc]
-    MISMATCHED_TYPE_ID: typing.ClassVar[Umc]
-    NO_ERROR_CAUSE: typing.ClassVar[Umc]
-    UNIMPLEMENTED_GROUP: typing.ClassVar[Umc]
-    UNKNOWN_CA: typing.ClassVar[Umc]
-    UNKNOWN_COT: typing.ClassVar[Umc]
-    UNKNOWN_IOA: typing.ClassVar[Umc]
-    UNKNOWN_TYPE_ID: typing.ClassVar[Umc]
-    __members__: typing.ClassVar[dict[str, Umc]]
+    INVALID_COT: typing.ClassVar[Umc]  # value = <Umc.INVALID_COT: 5>
+    INVALID_TYPE_ID: typing.ClassVar[Umc]  # value = <Umc.INVALID_TYPE_ID: 6>
+    MISMATCHED_TYPE_ID: typing.ClassVar[Umc]  # value = <Umc.MISMATCHED_TYPE_ID: 7>
+    NO_ERROR_CAUSE: typing.ClassVar[Umc]  # value = <Umc.NO_ERROR_CAUSE: 0>
+    UNIMPLEMENTED_GROUP: typing.ClassVar[Umc]  # value = <Umc.UNIMPLEMENTED_GROUP: 8>
+    UNKNOWN_CA: typing.ClassVar[Umc]  # value = <Umc.UNKNOWN_CA: 3>
+    UNKNOWN_COT: typing.ClassVar[Umc]  # value = <Umc.UNKNOWN_COT: 2>
+    UNKNOWN_IOA: typing.ClassVar[Umc]  # value = <Umc.UNKNOWN_IOA: 4>
+    UNKNOWN_TYPE_ID: typing.ClassVar[Umc]  # value = <Umc.UNKNOWN_TYPE_ID: 1>
+    __members__: typing.ClassVar[dict[str, Umc]]  # value = {'NO_ERROR_CAUSE': <Umc.NO_ERROR_CAUSE: 0>, 'UNKNOWN_TYPE_ID': <Umc.UNKNOWN_TYPE_ID: 1>, 'UNKNOWN_COT': <Umc.UNKNOWN_COT: 2>, 'UNKNOWN_CA': <Umc.UNKNOWN_CA: 3>, 'UNKNOWN_IOA': <Umc.UNKNOWN_IOA: 4>, 'INVALID_COT': <Umc.INVALID_COT: 5>, 'INVALID_TYPE_ID': <Umc.INVALID_TYPE_ID: 6>, 'MISMATCHED_TYPE_ID': <Umc.MISMATCHED_TYPE_ID: 7>, 'UNIMPLEMENTED_GROUP': <Umc.UNIMPLEMENTED_GROUP: 8>}
     @property
     def name(self) -> str:
         ...
