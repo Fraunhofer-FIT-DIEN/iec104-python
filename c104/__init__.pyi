@@ -610,7 +610,7 @@ class Connection:
         -------
         >>> station = my_connection.add_station(common_address=15)
         """
-    def clock_sync(self, common_address: int, wait_for_response: bool = True) -> bool:
+    def clock_sync(self, common_address: int, date_time: DateTime = DateTime.now(), wait_for_response: bool = True) -> bool:
         """
         send a clock synchronization command to the remote terminal unit (server)
         the clients OS time is used
@@ -619,6 +619,8 @@ class Connection:
         ----------
         common_address: int
             station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
+        date_time: c104.DateTime
+            to be sent timestamp
         wait_for_response: bool
             block call until command success or failure response received?
 

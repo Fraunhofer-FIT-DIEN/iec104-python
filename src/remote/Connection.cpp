@@ -287,7 +287,8 @@ void Connection::setMuted(bool value) {
 
               self->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
                                   CS101_COT_ACTIVATION, QOI_STATION, true);
-              self->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+              self->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS,
+                              Object::DateTime::now(), true);
               self->setState(OPEN);
             },
             -1);
@@ -320,7 +321,8 @@ void Connection::setMuted(bool value) {
               if (!self)
                 return; // Prevent running if `this` was destroyed
 
-              self->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+              self->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS,
+                              Object::DateTime::now(), true);
               self->setState(OPEN);
             },
             -1);
@@ -856,8 +858,8 @@ bool Connection::counterInterrogation(
   return result;
 }
 
-// todo add DateTime argument?
 bool Connection::clockSync(std::uint_fast16_t commonAddress,
+                           Object::DateTime date_time,
                            const bool wait_for_response) {
   Module::ScopedGilRelease const scoped("Connection.clockSync");
 
@@ -869,14 +871,49 @@ bool Connection::clockSync(std::uint_fast16_t commonAddress,
     prepareCommandSuccess(cmdId);
   }
 
-  auto now = Object::DateTime::now(getStation(commonAddress), true);
-
-  // todo respect station timezone offset
+  // convert to station timezone offset
+  const auto station = getStation(commonAddress);
+  date_time.convertTimeZone(station->getTimeZoneOffset(),
+                            station->isDaylightSavingTime());
 
   std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
   bool const result = CS104_Connection_sendClockSyncCommand(
-      connection, commonAddress, now.getEncoded());
+      connection, commonAddress, date_time.getEncoded());
   lock.unlock();
+
+  if (wait_for_response) {
+    if (result) {
+      return awaitCommandSuccess(cmdId);
+    }
+    // result not required anymore, because no message was sent
+    cancelCommandSuccess(cmdId);
+  }
+  return result;
+}
+
+bool Connection::resetProcess(const std::uint_fast16_t commonAddress,
+                              const std::uint_fast32_t informationObjectAddress,
+                              const QualifierOfRPC qualifier,
+                              const bool wait_for_response) {
+  Module::ScopedGilRelease const scoped("Connection.resetProcess");
+
+  if (!isOpen())
+    return false;
+
+  std::string const cmdId = std::to_string(commonAddress) + "-C_RP_NA_1-0";
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId);
+  }
+
+  auto io =
+      ResetProcessCommand_create(nullptr, informationObjectAddress, qualifier);
+
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  bool const result = CS104_Connection_sendProcessCommandEx(
+      connection, CS101_COT_ACTIVATION, commonAddress, (InformationObject)io);
+  lock.unlock();
+
+  ResetProcessCommand_destroy(io);
 
   if (wait_for_response) {
     if (result) {
