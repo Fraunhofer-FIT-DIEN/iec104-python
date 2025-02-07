@@ -1074,6 +1074,7 @@ void DataPoint::setReportInterval_ms(const std::uint_fast16_t interval_ms) {
                              "of server/client tickRate_ms (=" +
                              std::to_string(tickRate_ms) + ")");
     }
+
     // only monitoring points SP,DP,ST,ME,BO + IT
     if (type > M_IT_TB_1 || (type > M_IT_NA_1 && type < M_SP_TB_1)) {
       throw std::invalid_argument(

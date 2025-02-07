@@ -2,10 +2,10 @@ from __future__ import annotations
 import collections.abc
 import datetime
 import typing
-__all__ = ['BinaryCmd', 'BinaryCounterInfo', 'BinaryCounterQuality', 'BinaryInfo', 'Byte32', 'Client', 'Coi', 'CommandMode', 'Connection', 'ConnectionState', 'Cot', 'Debug', 'Double', 'DoubleCmd', 'DoubleInfo', 'EventState', 'IncomingMessage', 'Information', 'Init', 'Int16', 'Int7', 'NormalizedCmd', 'NormalizedFloat', 'NormalizedInfo', 'OutputCircuits', 'PackedSingle', 'Point', 'ProtectionCircuitInfo', 'ProtectionEventInfo', 'ProtectionStartInfo', 'ProtocolParameters', 'Qoc', 'Qoi', 'Quality', 'ResponseState', 'ScaledCmd', 'ScaledInfo', 'Server', 'ShortCmd', 'ShortInfo', 'SingleCmd', 'SingleInfo', 'StartEvents', 'Station', 'StatusAndChanged', 'Step', 'StepCmd', 'StepInfo', 'TlsVersion', 'TransportSecurity', 'Type', 'UInt16', 'UInt5', 'UInt7', 'Umc', 'disable_debug', 'enable_debug', 'explain_bytes', 'explain_bytes_dict', 'get_debug_mode', 'set_debug_mode']
+__all__ = ['Batch', 'BinaryCmd', 'BinaryCounterInfo', 'BinaryCounterQuality', 'BinaryInfo', 'Byte32', 'Client', 'Coi', 'CommandMode', 'Connection', 'ConnectionState', 'Cot', 'Debug', 'Double', 'DoubleCmd', 'DoubleInfo', 'EventState', 'Frz', 'IncomingMessage', 'Information', 'Init', 'Int16', 'Int7', 'NormalizedCmd', 'NormalizedFloat', 'NormalizedInfo', 'OutputCircuits', 'PackedSingle', 'Point', 'ProtectionCircuitInfo', 'ProtectionEventInfo', 'ProtectionStartInfo', 'ProtocolParameters', 'Qoc', 'Qoi', 'Quality', 'ResponseState', 'Rqt', 'ScaledCmd', 'ScaledInfo', 'Server', 'ShortCmd', 'ShortInfo', 'SingleCmd', 'SingleInfo', 'StartEvents', 'Station', 'StatusAndChanged', 'Step', 'StepCmd', 'StepInfo', 'TlsCipher', 'TlsVersion', 'TransportSecurity', 'Type', 'UInt16', 'UInt5', 'UInt7', 'Umc', 'disable_debug', 'enable_debug', 'explain_bytes', 'explain_bytes_dict', 'get_debug_mode', 'set_debug_mode']
 class Batch:
     """
-    This class represents a batch of outgoing monitoring messages
+    This class represents a batch of outgoing monitoring messages of the same station and type
     """
     def __init__(self, cause: Cot, points: list[Point] | None = None) -> None:
         """
@@ -29,7 +29,7 @@ class Batch:
         """
     def add_point(self, point: Point) -> None:
         """
-        add a new point to the batch of the same station and the same type
+        add a new point to this Batch
 
         Parameters
         ----------
@@ -44,6 +44,10 @@ class Batch:
         ------
         ValueError
             if point is not compatible with the batch or if it is already in the batch
+
+        Example
+        -------
+        >>> my_batch.add_point(my_point)
         """
     @property
     def common_address(self) -> int:
@@ -88,7 +92,7 @@ class Batch:
     @property
     def points(self) -> list[Point]:
         """
-        get a list of points
+        get a list of contained points
         """
     @property
     def type(self) -> Type:
@@ -242,7 +246,7 @@ class BinaryInfo(Information):
         """
 class Byte32:
     """
-    This object is compatible to native bytes and ensures that the length of the bytes is exactly 32 bit
+    This object is compatible to native bytes and ensures that the length of the bytes is exactly 32 bit.
     """
     def __bytes__(self) -> bytes:
         """
@@ -465,7 +469,7 @@ class Client:
         Example
         -------
         >>> def cl_on_station_initialized(client: c104.Client, station: c104.Station, cause: c104.Coi) -> None:
-            >>>     print("STATION {0} INITIALIZED due to {1} | CLIENT OA {2}".format(station.common_address, cause, client.originator_address))
+        >>>     print("STATION {0} INITIALIZED due to {1} | CLIENT OA {2}".format(station.common_address, cause, client.originator_address))
         >>>
         >>> my_client.on_station_initialized(callable=cl_on_station_initialized)
         """
@@ -526,17 +530,17 @@ class Client:
     @property
     def open_connection_count(self) -> int:
         """
-        get number of open connections to servers
+        represents the number of open connections to servers
         """
     @property
     def originator_address(self) -> int:
         """
-        primary originator address of this client (0-255)
+        originator address of this client (0-255)
         """
     @originator_address.setter
     def originator_address(self, value: int) -> None:
         """
-        set primary originator address of this client (0-255)
+        assign the originator address of this client (0-255)
 
         Parameters
         ----------
@@ -616,7 +620,7 @@ class Connection:
         common_address: int
             station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
         wait_for_response: bool
-            block call until command success or failure reponse received?
+            block call until command success or failure response received?
 
         Returns
         -------
@@ -702,7 +706,7 @@ class Connection:
         qualifier: c104.Qoi
             qualifier of interrogation
         wait_for_response: bool
-            block call until command success or failure reponse received?
+            block call until command success or failure response received?
 
         Returns
         -------
@@ -883,7 +887,7 @@ class Connection:
         Example
         -------
         >>> def con_on_unexpected_message(connection: c104.Connection, message: c104.IncomingMessage, cause: c104.Umc) -> None:
-        >>>     print("->?| {1} from SERVER CA {0}".format(message.common_address, cause))
+        >>>     print("->?| {1} from STATION CA {0}".format(message.common_address, cause))
         >>>
         >>> my_connection.on_unexpected_message(callable=con_on_unexpected_message)
         """
@@ -963,7 +967,7 @@ class Connection:
     @originator_address.setter
     def originator_address(self, value: int) -> None:
         """
-        assign an originator address
+        assign an originator address for this connection
 
         Parameters
         ----------
@@ -1288,7 +1292,7 @@ class IncomingMessage:
     @property
     def number_of_object(self) -> int:
         """
-        number of information objects
+        represents the number of information objects
 
         Deprecated: This property is deprecated and will be removed in version 3.0.0.
         Use ``number_of_objects`` instead.
@@ -1342,7 +1346,7 @@ class Information:
     @property
     def value(self) -> None | bool | Double | Step | Int7 | Int16 | int | Byte32 | NormalizedFloat | float | EventState | StartEvents | OutputCircuits | PackedSingle:
         """
-        mapped value property
+        the mapped primary information value property
 
         The setter is available via point.value=xyz
         """
@@ -1462,7 +1466,7 @@ class NormalizedFloat:
 
         Parameters
         ----------
-        value: int
+        value: int | float
             the value
 
         Raises
@@ -1808,12 +1812,12 @@ class Point:
     @property
     def command_mode(self) -> CommandMode:
         """
-        current command transmission mode
+        command transmission mode (direct or select-and-execute)
         """
     @command_mode.setter
     def command_mode(self, value: CommandMode) -> None:
         """
-        set direct or select-and-execute command transmission mode
+        set command transmission mode (direct or select-and-execute)
 
         Parameters
         ----------
@@ -1895,13 +1899,13 @@ class Point:
         io_address of a related monitoring point or None
         """
     @related_io_address.setter
-    def related_io_address(self, value: int) -> None:
+    def related_io_address(self, value: int | None) -> None:
         """
         assign new related point identified by its information object address
 
         Parameters
         ----------
-        value: int
+        value: int | None
             information object address of related point
 
         Returns
@@ -1916,17 +1920,17 @@ class Point:
     @property
     def related_io_autoreturn(self) -> bool:
         """
-        send automatic info response for related point
+        automatic transmission of return info remote messages for related point on incoming client command (only for control points)
         """
     @related_io_autoreturn.setter
     def related_io_autoreturn(self, value: bool) -> None:
         """
-        enabled or disable automatic info response for related point
+        enabled or disable automatic transmission of return info remote messages for related point on incoming client command (only for control points)
 
         Parameters
         ----------
         value: bool
-            state of automatic info response
+            state of automatic related response
 
         Returns
         -------
@@ -1935,7 +1939,9 @@ class Point:
     @property
     def report_ms(self) -> int:
         """
-        interval in milliseconds between periodic transmission, 0 = no periodic transmission
+        interval in milliseconds between periodic transmission
+
+        0 = no periodic transmission
         """
     @report_ms.setter
     def report_ms(self, value: int) -> None:
@@ -1976,7 +1982,7 @@ class Point:
         interval in milliseconds between timer callbacks, 0 = no periodic transmission
         """
     @property
-    def type(self):
+    def type(self) -> Type:
         """
         data related IEC60870 message type identifier
         """
@@ -2032,7 +2038,7 @@ class ProtectionCircuitInfo(Information):
     @property
     def circuits(self) -> OutputCircuits:
         """
-         the started events
+        the started events
         """
     @property
     def quality(self) -> Quality:
@@ -2148,10 +2154,13 @@ class ProtectionStartInfo(Information):
         The setter is available via point.value=xyz
         """
 class ProtocolParameters:
+    """
+    This class is used to configure protocol parameters for server and client
+    """
     @property
     def confirm_interval(self) -> int:
         """
-        Maximum interval to acknowledge received messages (ms) (property name: t2)
+        maximum interval to acknowledge received messages (ms) (property name: t2)
         """
     @confirm_interval.setter
     def confirm_interval(self, value: int) -> None:
@@ -2170,7 +2179,7 @@ class ProtocolParameters:
     @property
     def connection_timeout(self) -> int:
         """
-        Socket connection timeout (ms) (property name: t0)
+        socket connection timeout (ms) (property name: t0)
         """
     @connection_timeout.setter
     def connection_timeout(self, value: int) -> None:
@@ -2189,7 +2198,7 @@ class ProtocolParameters:
     @property
     def keep_alive_interval(self) -> int:
         """
-        Maximum interval without communication, send test frame message to prove liveness (ms) (property name: t3)
+        maximum interval without communication, send test frame message to prove liveness (ms) (property name: t3)
         """
     @keep_alive_interval.setter
     def keep_alive_interval(self, value: int) -> None:
@@ -2208,7 +2217,7 @@ class ProtocolParameters:
     @property
     def message_timeout(self) -> int:
         """
-        Timeout for sent messages to be acknowledged by counterparty (ms) (property name: t1)
+        timeout for sent messages to be acknowledged by counterparty (ms) (property name: t1)
         """
     @message_timeout.setter
     def message_timeout(self, value: int) -> None:
@@ -2227,7 +2236,7 @@ class ProtocolParameters:
     @property
     def receive_window_size(self) -> int:
         """
-        Threshold of unconfirmed incoming messages to send acknowledgments (property name: w)
+        threshold of unconfirmed incoming messages to send acknowledgments (property name: w)
         """
     @receive_window_size.setter
     def receive_window_size(self, value: int) -> None:
@@ -2246,7 +2255,7 @@ class ProtocolParameters:
     @property
     def send_window_size(self) -> int:
         """
-        Threshold of unconfirmed outgoing messages, before waiting for acknowledgments (property name: k)
+        threshold of unconfirmed outgoing messages, before waiting for acknowledgments (property name: k)
         """
     @send_window_size.setter
     def send_window_size(self, value: int) -> None:
@@ -2728,16 +2737,21 @@ class Server:
         """
     def transmit_batch(self, batch: Batch) -> bool:
         """
-        send a batch of messages to all connected clients
+        transmit a batch object
 
         Parameters
         ----------
         batch: c104.Batch
-            a batch of outgoing monitoring points
+            batch object to transmit
+
+        Returns
+        -------
+        bool
+            send success
 
         Example
         -------
-        >>> my_server.transmit_batch(c104.Batch([point1, point2, point3]))
+        >>> success = my_server.transmit_batch(c104.Batch([point1, point2, point3]))
         """
     @property
     def active_connection_count(self) -> int:
@@ -2796,7 +2810,7 @@ class Server:
     @property
     def open_connection_count(self) -> int:
         """
-        get number of open connections to clients
+        represents the number of open connections to clients
         """
     @property
     def port(self) -> int:
@@ -3012,7 +3026,7 @@ class Station:
     """
     This class represents local or remote stations and provides access to meta information and containing points
     """
-    def add_point(self, io_address: int, type: Type, report_ms: int = 0, related_io_address: int | None = None, related_io_autoreturn: bool = False, command_mode: CommandMode = ...) -> Point | None:
+    def add_point(self, io_address: int, type: Type, report_ms: int = 0, related_io_address: int | None = None, related_io_autoreturn: bool = False, command_mode: CommandMode = CommandMode.DIRECT) -> Point | None:
         """
         add a new point to this station and return the new point object
 
@@ -3500,7 +3514,7 @@ class TransportSecurity:
         Parameters
         ----------
         validate: bool
-            validate certificates of communication partners
+            validate certificates of communication partners (chain and time)
         only_known: bool
             accept communication only from partners with certificate added to the list of allowed remote certificates
 
@@ -3607,7 +3621,7 @@ class TransportSecurity:
         ValueError
             config is readonly and cannot be modified further
         ValueError
-            list is empty or contains invalid ciphersuites
+            list is empty or contains invalid cipher suites
 
         Example
         -------
@@ -3702,6 +3716,12 @@ class TransportSecurity:
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            config is readonly and cannot be modified further
+
 
         Example
         -------
@@ -3840,14 +3860,14 @@ class UInt7:
             cannot convert value to 7 bit unsigned integer
         """
     @property
-    def max(self):
+    def max(self) -> int:
         """
-        int: maximum value
+        maximum value
         """
     @property
-    def min(self):
+    def min(self) -> int:
         """
-        int: minimum value
+        minimum value
         """
 class Umc:
     """

@@ -3,10 +3,21 @@ import random
 import time
 
 
+def con_on_unexpected_message(connection: c104.Connection, message: c104.IncomingMessage, cause: c104.Umc) -> None:
+    if cause == c104.Umc.MISMATCHED_TYPE_ID :
+        station = connection.get_station(message.common_address)
+        if station:
+            point = station.get_point(message.io_address)
+            if point:
+                print("CL] <-in-- CONFLICT | SERVER CA {0} reports IOA {1} type as {2}, but is already registered as {3}".format(message.common_address, message.io_address, message.type, point.type))
+                return
+    print("CL] <-in-- REJECTED | {1} from SERVER CA {0}".format(message.common_address, cause))
+
 def main():
     # client, connection and station preparation
     client = c104.Client()
     connection = client.add_connection(ip="127.0.0.1", port=2404, init=c104.Init.ALL)
+    connection.on_unexpected_message(callable=con_on_unexpected_message)
     station = connection.add_station(common_address=47)
 
     # monitoring point preparation
