@@ -36,9 +36,8 @@ using namespace Object;
 
 Information::Information(const std::optional<DateTime> &recorded_at,
                          const bool readonly)
-    : readonly(readonly), processed_at(std::chrono::system_clock::now()) {
-  this->recorded_at = recorded_at;
-};
+    : recorded_at(recorded_at), readonly(readonly),
+      processed_at(std::chrono::system_clock::now()){};
 
 Command::Command(const std::optional<DateTime> &recorded_at,
                  const bool readonly)

@@ -377,11 +377,17 @@ public:
   /**
    * @brief send clock synchronization command
    * @param commonAddress station address
+   * @param date_time timestamp to be sent
    * @param wait_for_response blocking or non-blocking
    * @return success information
    */
   bool clockSync(std::uint_fast16_t commonAddress,
+                 Object::DateTime date_time = Object::DateTime::now(),
                  bool wait_for_response = true);
+
+  bool resetProcess(std::uint_fast16_t commonAddress,
+                    std::uint_fast32_t informationObjectAddress,
+                    QualifierOfRPC qualifier, bool wait_for_response = true);
 
   /**
    * @brief send test command
