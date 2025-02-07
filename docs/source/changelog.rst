@@ -24,7 +24,7 @@ Dependencies
 ^^^^^^^^^^^^
 
 - Add python 3.13 support
-- Minor update of lib60870 to 2.3.3
+- Minor update of lib60870 to 2.3.4
 - Major update of Mbed TLS to 3.6.2, add support for TLS 1.3
 
 Fixes

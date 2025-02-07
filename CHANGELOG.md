@@ -19,7 +19,7 @@
 - Raise a `ValueError` when modifying a **TransportSecurity** object that is already assigned to a client or server, as changes have no effect.
 
 ### Dependencies
-- Minor update of lib60870 to 2.3.3
+- Minor update of lib60870 to 2.3.4
 - Major update of Mbed TLS to 3.6.2, add support for TLS 1.3
 
 ### Deprecations
