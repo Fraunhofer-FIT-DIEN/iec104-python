@@ -1570,6 +1570,19 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
 
       DEBUG_PRINT_CONDITION(debug, Debug::Server,
                             "clock_sync_handler] TIME " + time.toString());
+    }
+    // process reset
+    else if (message->getType() == C_RP_NA_1) {
+      // todo test for COT activation
+      auto info = message->getInfo();
+      char ipAddrStr[60];
+      IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
+
+      // todo not implemented
+      // execute python callback
+      // responseState = instance->onProcessReset(std::string(ipAddrStr), ...);
+      DEBUG_PRINT_CONDITION(debug, Debug::Server,
+                            "reset_process_handler] Not implemented");
     } else {
       if (message->getType() >= C_SC_NA_1) {
         if (const auto station =
