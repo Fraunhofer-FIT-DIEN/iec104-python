@@ -2333,7 +2333,7 @@ Example
           "wait_for_response"_a = true, py::return_value_policy::copy)
       .def(
           "clock_sync", &Remote::Connection::clockSync,
-          R"def(clock_sync(self: c104.Connection, common_address: int, wait_for_response: bool = True) -> bool
+          R"def(clock_sync(self: c104.Connection, common_address: int, date_time: c104.DateTime, wait_for_response: bool = True) -> bool
 
 send a clock synchronization command to the remote terminal unit (server)
 the clients OS time is used
@@ -2342,6 +2342,8 @@ Parameters
 ----------
 common_address: int
     station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
+date_time: c104.DateTime
+    to be sent timestamp
 wait_for_response: bool
     block call until command success or failure response received?
 
@@ -2355,8 +2357,8 @@ Example
 >>> if not my_connection.clock_sync(common_address=47):
 >>>     raise ValueError("Cannot send clock sync command")
 )def",
-          "common_address"_a, "wait_for_response"_a = true,
-          py::return_value_policy::copy)
+          "common_address"_a, "date_time"_a = Object::DateTime::now(),
+          "wait_for_response"_a = true, py::return_value_policy::copy)
       .def(
           "test", &Remote::Connection::test,
           R"def(test(self: c104.Connection, common_address: int, with_time: bool = True, wait_for_response: bool = True) -> bool
