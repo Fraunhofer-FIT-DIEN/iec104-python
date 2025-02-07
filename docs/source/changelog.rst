@@ -1,6 +1,24 @@
 Change log
 ==========
 
+v3.0.0
+-------
+
+Features
+^^^^^^^^
+
+- Improve type hints for all classes and methods as a ``.pyi`` file.
+- Add DateTime to support timezones and time flags
+- Add argument date_time to **Connection.clock_sync()** method to modify the to be sent timestamp, defaults to now() as before
+
+Breaking Changes
+^^^^^^^^^^^^^^^^
+- **Information.recorded_at** returns c104.DateTime instead of datetime.datetime, the native python datetime is available via **Information.recorded_at.value**
+- **Information.processed_at** returns c104.DateTime instead of datetime.datetime, the native python datetime is available via **Information.processed_at.value**
+- **Point.recorded_at** returns c104.DateTime instead of datetime.datetime, the native python datetime is available via **Point.recorded_at.value**
+- **Point.processed_at** returns c104.DateTime instead of datetime.datetime, the native python datetime is available via **Point.processed_at.value**
+- **Server.on_clock_sync** callback argument date_time changed from datetime.datetime to c104.DateTime
+
 v2.1.0
 -------
 
@@ -19,13 +37,12 @@ Features
 - Add **TransportSecurity.set_resumption_interval()** to define the session resumption interval.
 - Raise a ``ValueError`` when modifying a **TransportSecurity** object that is already assigned to a client or server, as changes have no effect.
 - Sending counter interrogation supports full Qualifier of Counter Interrogation (Rqt and Frz)
-- Add DateTime to support timezones and time flags
 
 Dependencies
 ^^^^^^^^^^^^
 
 - Add python 3.13 support
-- Minor update of lib60870 to 2.3.3
+- Minor update of lib60870 to 2.3.4
 - Major update of Mbed TLS to 3.6.2, add support for TLS 1.3
 
 Fixes
