@@ -710,7 +710,7 @@ private:
   /// @brief python callback function pointer
   Module::Callback<CommandResponseState> py_onClockSync{
       "Server.on_clock_sync", "(server: c104.Server, ip: str, date_time: "
-                              "datetime.datetime) -> c104.ResponseState"};
+                              "c104.DateTime) -> c104.ResponseState"};
 
   /// @brief python callback function pointer
   Module::Callback<void> py_onUnexpectedMessage{
