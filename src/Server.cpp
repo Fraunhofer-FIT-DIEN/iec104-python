@@ -696,7 +696,7 @@ CommandResponseState Server::onClockSync(const std::string _ip,
     DEBUG_PRINT(Debug::Server, "CALLBACK on_clock_sync");
     Module::ScopedGilAcquire const scoped("Server.on_clock_sync");
 
-    if (py_onClockSync.call(shared_from_this(), _ip, time.toPyDateTime())) {
+    if (py_onClockSync.call(shared_from_this(), _ip, time)) {
       try {
         return py_onClockSync.getResult();
       } catch (const std::exception &e) {
