@@ -226,4 +226,4 @@ Read more about the **Classes** and their **Properties** in our [read the docs d
 
 ## Change log
 
-Track all changes in our [CHANGELOG](https://github.com/Fraunhofer-FIT-DIEN/iec104-python/blob/main/CHANGELOG.md) documentation.
+Track all changes in our [CHANGELOG](https://iec104-python.readthedocs.io/latest/changelog.html) documentation.
