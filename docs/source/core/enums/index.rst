@@ -27,4 +27,5 @@ List
    commandresponsestate
    commandprocessstate
    commandtransmissionmode
+   tlsciphersuite
    tlsversion
