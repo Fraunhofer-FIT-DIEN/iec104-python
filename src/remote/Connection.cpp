@@ -999,7 +999,9 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
 
     if (!message->isValidCauseOfTransmission()) {
       instance->onUnexpectedMessage(message, INVALID_COT);
-      throw std::domain_error("Invalid cause of transmission");
+      // accept invalid COT for compatibility reason
+      // todo evaluate future behavior
+      // throw std::domain_error("Invalid cause of transmission");
     }
 
     IEC60870_5_TypeID const type = message->getType();
