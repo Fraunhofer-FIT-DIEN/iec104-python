@@ -10,11 +10,14 @@ Enums
    cot
    double
    eventstate
+   frz
    init
    qoc
    qoi
    responsestate
+   rqt
    step
+   tlscipher
    tlsversion
    type
    umc

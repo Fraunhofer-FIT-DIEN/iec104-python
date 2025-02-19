@@ -8,7 +8,9 @@ List
 
    iec608705typeid
    cs101causeofinitialization
+   cs101freezeofcounterinterrogation
    cs101qualifierofcommand
+   cs101qualifierofcounterinterrogation
    cs101qualifierofinterrogation
    unexpectedmessagecause
    debug

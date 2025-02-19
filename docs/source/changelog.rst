@@ -9,16 +9,16 @@ Features
 
 - Serve type hints for all classes and methods as a ``.pyi`` file.
 - Add the property **Server.protocol_parameters** and **Connection.protocol_parameters** to enable reading and updating protocol parameters, such as window size and timeouts.
-- Introduce the **Client.on_station_initialized** callback to handle end-of-initialization messages.
+- Provide Batch Transmission support via the new **Batch** class, in combination with **Server.transmit_batch(...)**, for monitoring direction.
+- Sending **Connection.counter_interrogation()** supports full Qualifier of Counter Interrogation (Rqt and Frz)
 - Introduce the **Connection.on_unexpected_message()** callback to get informed about unsupported messages, or messages with type id conflicts
 - Add the **Station.signal_initialized(cause=...)** method to support sending end-of-initialization messages per station to all connected clients.
+- Introduce the **Client.on_station_initialized** callback to handle end-of-initialization messages.
 - Send monitoring data formatted as sequences in periodic transmissions and interrogation responses, if possible.
-- Provide Batch Transmission support via the new **Batch** class, in combination with **Server.transmit_batch(...)**, for monitoring direction.
 - Add **TransportSecurity.set_ciphers()** to specify a list of supported cipher suites.
 - Add **TransportSecurity.set_renegotiation_time()** to configure the TLS renegotiation time.
 - Add **TransportSecurity.set_resumption_interval()** to define the session resumption interval.
 - Raise a ``ValueError`` when modifying a **TransportSecurity** object that is already assigned to a client or server, as changes have no effect.
-- Sending counter interrogation supports full Qualifier of Counter Interrogation (Rqt and Frz)
 
 Dependencies
 ^^^^^^^^^^^^
