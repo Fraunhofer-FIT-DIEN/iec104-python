@@ -3986,4 +3986,4 @@ def set_debug_mode(mode: Debug) -> None:
     -------
     >>> c104.set_debug_mode(mode=c104.Debug.Client|c104.Debug.Connection)
     """
-__version__: str = '2.1.0'
+__version__: str = '2.1.1'

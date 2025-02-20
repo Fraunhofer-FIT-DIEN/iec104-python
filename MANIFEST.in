@@ -19,6 +19,7 @@ exclude src/main_client.cpp
 exclude src/main_server.cpp
 
 graft c104
+exclude c104/__pycache__
 
 global-exclude **/.*
 prune **/tests

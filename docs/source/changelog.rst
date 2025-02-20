@@ -1,6 +1,14 @@
 Change log
 ==========
 
+v2.1.1
+-------
+
+Fixes
+^^^^^^
+
+- Fixed an issue where the source distribution erroneously included a ``__pycache__`` folder.
+
 v2.1.0
 -------
 
