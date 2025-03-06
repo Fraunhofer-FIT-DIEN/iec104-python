@@ -931,47 +931,55 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
       point->onBeforeRead();
     }
 
-    auto message = Remote::Message::PointMessage::create(point);
+    try {
+      // catch exception in create, if point was detached in meanwhile
+      auto message = Remote::Message::PointMessage::create(point);
 
-    // not added
-    if (!CS101_ASDU_addInformationObject(asdu,
-                                         message->getInformationObject())) {
-      if (CS101_ASDU_getNumberOfElements(asdu) < 0x7f) {
-        DEBUG_PRINT(Debug::Server,
-                    "Message for inventory cannot be added: Mismatching "
-                    "TypeID or invalid sequence" +
-                        std::to_string(message->getIOA()));
-        continue;
-      }
-
-      // ASDU packet size exceeded => send ASDU and create a new one
-      // @todo high vs low priority messages
-      if (!connection ||
-          CS101_COT_PERIODIC == batch->getCauseOfTransmission() ||
-          CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission())
-        // low priority
-        CS104_Slave_enqueueASDU(slave, asdu);
-      else {
-        // high priority
-        IMasterConnection_sendASDU(connection, asdu);
-      }
-
-      // recreate new asdu
-      CS101_ASDU_destroy(asdu);
-      asdu = CS101_ASDU_create(
-          appLayerParameters, batch->isSequence(),
-          batch->getCauseOfTransmission(), batch->getOriginatorAddress(),
-          batch->getCommonAddress(), batch->isTest(), batch->isNegative());
-
-      // add message to new asdu
+      // not added
       if (!CS101_ASDU_addInformationObject(asdu,
                                            message->getInformationObject())) {
-        DEBUG_PRINT(Debug::Server, "Dropped message for inventory, "
-                                   "cannot be added to new ASDU: " +
-                                       std::to_string(message->getIOA()));
+        if (CS101_ASDU_getNumberOfElements(asdu) < 0x7f) {
+          DEBUG_PRINT(Debug::Server,
+                      "Message for inventory cannot be added: Mismatching "
+                      "TypeID or invalid sequence" +
+                          std::to_string(message->getIOA()));
+          continue;
+        }
+
+        // ASDU packet size exceeded => send ASDU and create a new one
+        // @todo high vs low priority messages
+        if (!connection ||
+            CS101_COT_PERIODIC == batch->getCauseOfTransmission() ||
+            CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission())
+          // low priority
+          CS104_Slave_enqueueASDU(slave, asdu);
+        else {
+          // high priority
+          IMasterConnection_sendASDU(connection, asdu);
+        }
+
+        // recreate new asdu
+        CS101_ASDU_destroy(asdu);
+        asdu = CS101_ASDU_create(
+            appLayerParameters, batch->isSequence(),
+            batch->getCauseOfTransmission(), batch->getOriginatorAddress(),
+            batch->getCommonAddress(), batch->isTest(), batch->isNegative());
+
+        // add message to new asdu
+        if (!CS101_ASDU_addInformationObject(asdu,
+                                             message->getInformationObject())) {
+          DEBUG_PRINT(Debug::Server, "Dropped message for inventory, "
+                                     "cannot be added to new ASDU: " +
+                                         std::to_string(message->getIOA()));
+        }
       }
+
+    } catch (const std::exception &e) {
+      DEBUG_PRINT(Debug::Server,
+                  "Skip invalid point (ioa: " +
+                      std::to_string(point->getInformationObjectAddress()) +
+                      ") in Batch: " + std::string(e.what()));
     }
-    // std::cout << c.str() << std::endl;
   }
 
   // if ASDU is not empty, send ASDU
