@@ -13,8 +13,8 @@ project = "iec104-python"
 copyright = "2020-2025, Fraunhofer Institute for Applied Information Technology FIT"
 author = "Martin Unkel <martin.unkel@fit.fraunhofer.de>"
 
-release = "2.1"
-version = "2.1.1"
+release = "2.2"
+version = "2.2.0"
 
 
 # -- General configuration ---------------------------------------------------

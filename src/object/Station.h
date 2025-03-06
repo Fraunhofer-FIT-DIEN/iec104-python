@@ -84,10 +84,10 @@ private:
   const std::uint_fast16_t commonAddress{0};
 
   /// @brief server object reference (only local station)
-  const std::weak_ptr<Server> server;
+  std::weak_ptr<Server> server;
 
   /// @brief remote connection object reference (only remote station)
-  const std::weak_ptr<Remote::Connection> connection;
+  std::weak_ptr<Remote::Connection> connection;
 
   /// @brief child DataPoint objects (owned by this Station)
   DataPointVector points{};
@@ -160,6 +160,15 @@ public:
            CommandTransmissionMode commandMode = DIRECT_COMMAND);
 
   /**
+   * @brief Removes an existing DataPoint from this Station.
+   * @param informationObjectAddress The address of the information object to be
+   * removed.
+   * @return True if the DataPoint was successfully found and removed, otherwise
+   * false.
+   */
+  bool removePoint(std::uint_fast32_t informationObjectAddress);
+
+  /**
    * @brief test if this station belongs to a server instance and not a
    * connection (client)
    * @return if it has a server
@@ -173,6 +182,12 @@ public:
    * @throws std::runtime_error if the station is not a server.
    */
   void sendEndOfInitialization(CS101_CauseOfInitialization cause);
+
+  /**
+   * @brief Remove reference to station, do not call this method, this is called
+   * by Station::removePoint
+   */
+  void detach();
 
   /**
    * @brief Generates a string representation of the Station object.

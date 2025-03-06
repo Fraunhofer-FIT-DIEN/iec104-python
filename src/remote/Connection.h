@@ -232,15 +232,29 @@ public:
   getStation(std::uint_fast16_t commonAddress) const;
 
   /**
-   * @brief Test if Stations exists at this NetworkStation
-   * @return information on availability of child Station objects
+   * @brief Checks whether a remote Station with the given common address exists
+   * on this client Connection.
+   * @param commonAddress The common address (CA) used to identify the Station.
+   * @return True if a Station with the specified common address exists,
+   * otherwise false.
    */
   bool hasStation(std::uint_fast16_t commonAddress) const;
 
   /**
-   * @brief Add a Station to this Station
+   * @brief Adds a new remote Station to this client Connection.
+   * @param commonAddress The common address (CA) that uniquely identifies the
+   * new Station.
+   * @return A shared pointer to the newly added Station.
    */
   std::shared_ptr<Object::Station> addStation(std::uint_fast16_t commonAddress);
+
+  /**
+   * @brief Removes an existing remote Station from this client Connection.
+   *
+   * @param commonAddress The common address (CA) of the Station to be removed.
+   * @return True if the Station was successfully removed, otherwise false.
+   */
+  bool removeStation(std::uint_fast16_t commonAddress);
 
   /**
    * @brief Get a reference to the protocol parameters to be able to read and

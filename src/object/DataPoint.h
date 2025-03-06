@@ -109,7 +109,7 @@ private:
   const IEC60870_5_TypeID type;
 
   /// @brief parent Station object (not owning pointer)
-  const std::weak_ptr<Station> station;
+  std::weak_ptr<Station> station;
 
   /// @brief IEC60870-5 remote address of a related measurement DataPoint
   std::atomic_uint_fast32_t relatedInformationObjectAddress{0};
@@ -392,6 +392,12 @@ public:
    * invalid
    */
   bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT);
+
+  /**
+   * @brief Remove reference to station, do not call this method, this is called
+   * by Station::removePoint
+   */
+  void detach();
 
   /**
    * @brief Converts the current DataPoint object to a string representation,

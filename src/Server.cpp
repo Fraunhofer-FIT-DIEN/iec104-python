@@ -384,6 +384,30 @@ Server::addStation(std::uint_fast16_t commonAddress) {
   return station;
 }
 
+bool Server::removeStation(std::uint_fast16_t commonAddress) {
+  std::lock_guard<Module::GilAwareMutex> const lock(station_mutex);
+
+  DEBUG_PRINT(Debug::Server,
+              "remove_station] CA " + std::to_string(commonAddress));
+
+  size_t originalSize = stations.size();
+
+  stations.erase(
+      std::remove_if(
+          stations.begin(), stations.end(),
+          [commonAddress](const std::shared_ptr<Object::Station> &station) {
+            // Check if the current DataPoint matches the provided address
+            if (station->getCommonAddress() == commonAddress) {
+              station->detach();
+              return true;
+            }
+            return false;
+          }),
+      stations.end());
+
+  return (stations.size() < originalSize); // Success if the size decreased
+}
+
 void Server::cleanupSelections() {
   auto now = std::chrono::steady_clock::now();
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);

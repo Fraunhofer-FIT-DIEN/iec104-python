@@ -1,6 +1,15 @@
 Change log
 ==========
 
+v2.2.0
+-------
+
+Features
+^^^^^^^^
+
+- Add **Server.remove_station(common_address: int)** and **Connection.remove_station(common_address: int)**- methods to enable the removal of stations.
+- Add **Station.remove_point(io_address: int)** method to allow the removal of points and facilitate reassigning the ``io_address`` to another point type.
+
 v2.1.1
 -------
 

@@ -1236,3 +1236,5 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
   }
   return connection->transmit(shared_from_this(), cause);
 }
+
+void DataPoint::detach() { station.reset(); }

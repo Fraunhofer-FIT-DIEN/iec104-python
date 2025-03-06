@@ -891,6 +891,24 @@ class Connection:
         >>>
         >>> my_connection.on_unexpected_message(callable=con_on_unexpected_message)
         """
+    def remove_station(self, common_address: int) -> bool:
+        """
+        removes an existing station from this connection
+
+        Parameters
+        ----------
+        common_address: int
+            station common address (value between 1 and 65534)
+
+        Returns
+        -------
+        bool
+            True if the station was successfully removed, otherwise False.
+
+        Example
+        -------
+        >>> my_connection.remove_station(common_address=12)
+        """
     def test(self, common_address: int, with_time: bool = True, wait_for_response: bool = True) -> bool:
         """
         send a test command to the remote terminal unit (server)
@@ -2714,6 +2732,24 @@ class Server:
         >>>
         >>> my_server.on_unexpected_message(callable=sv_on_unexpected_message)
         """
+    def remove_station(self, common_address: int) -> bool:
+        """
+        removes an existing station from this server
+
+        Parameters
+        ----------
+        common_address: int
+            station common address (value between 1 and 65534)
+
+        Returns
+        -------
+        bool
+            True if the station was successfully removed, otherwise False.
+
+        Example
+        -------
+        >>> station_3.remove_station(common_address=12)
+        """
     def start(self) -> None:
         """
         open local server socket for incoming connections
@@ -3084,6 +3120,24 @@ class Station:
         Example
         -------
         >>> point_11 = my_station.get_point(io_address=11)
+        """
+    def remove_point(self, io_address: int) -> bool:
+        """
+        remove an existing point from this station
+
+        Parameters
+        ----------
+        io_address: int
+            point information object address (value between 0 and 16777215)
+
+        Returns
+        -------
+        bool
+            information, if point was removed
+
+        Example
+        -------
+        >>> sv_station_1.remove_point(io_address=34566)
         """
     def signal_initialized(self, cause: Coi) -> None:
         """
@@ -3986,4 +4040,4 @@ def set_debug_mode(mode: Debug) -> None:
     -------
     >>> c104.set_debug_mode(mode=c104.Debug.Client|c104.Debug.Connection)
     """
-__version__: str = '2.1.1'
+__version__: str = '2.2.0'

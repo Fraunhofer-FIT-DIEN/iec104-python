@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -129,6 +129,32 @@ std::shared_ptr<DataPoint> Station::addPoint(
   return point;
 }
 
+bool Station::removePoint(const std::uint_fast32_t informationObjectAddress) {
+  std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
+
+  DEBUG_PRINT(Debug::Station,
+              "remove_point] IOA " + std::to_string(informationObjectAddress));
+
+  size_t originalSize = points.size();
+
+  // Use std::remove_if to find and remove the entry
+  points.erase(std::remove_if(points.begin(), points.end(),
+                              [informationObjectAddress](
+                                  const std::shared_ptr<DataPoint> &point) {
+                                // Check if the current DataPoint matches the
+                                // provided address
+                                if (point->getInformationObjectAddress() ==
+                                    informationObjectAddress) {
+                                  point->detach();
+                                  return true;
+                                }
+                                return false;
+                              }),
+               points.end());
+
+  return (points.size() < originalSize); // Success if the size decreased
+}
+
 bool Station::isLocal() { return !server.expired(); }
 
 void Station::sendEndOfInitialization(const CS101_CauseOfInitialization cause) {
@@ -136,6 +162,11 @@ void Station::sendEndOfInitialization(const CS101_CauseOfInitialization cause) {
     return sv->sendEndOfInitialization(commonAddress, cause);
   }
 
-  throw new std::runtime_error(
+  throw std::runtime_error(
       "Cannot send end of initialization: not a server station");
+}
+
+void Station::detach() {
+  server.reset();
+  connection.reset();
 }

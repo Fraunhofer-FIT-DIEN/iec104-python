@@ -551,6 +551,31 @@ Connection::addStation(std::uint_fast16_t commonAddress) {
   return station;
 }
 
+bool Connection::removeStation(std::uint_fast16_t commonAddress) {
+  std::lock_guard<Module::GilAwareMutex> const lock(stations_mutex);
+
+  DEBUG_PRINT(Debug::Connection,
+              "remove_station] CA " + std::to_string(commonAddress));
+
+  size_t originalSize = stations.size();
+
+  // Use std::remove_if to find and remove the entry
+  stations.erase(
+      std::remove_if(
+          stations.begin(), stations.end(),
+          [commonAddress](const std::shared_ptr<Object::Station> &station) {
+            // Check if the current DataPoint matches the provided address
+            if (station->getCommonAddress() == commonAddress) {
+              station->detach();
+              return true;
+            }
+            return false;
+          }),
+      stations.end());
+
+  return (stations.size() < originalSize); // Success if the size decreased
+}
+
 void Connection::setOnReceiveRawCallback(py::object &callable) {
   py_onReceiveRaw.reset(callable);
 }

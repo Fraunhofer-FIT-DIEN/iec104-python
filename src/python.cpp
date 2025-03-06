@@ -1926,6 +1926,26 @@ Example
 >>> station_2 = my_server.get_connection(common_address=14)
 )def",
           "common_address"_a)
+      .def("remove_station", &Server::removeStation,
+           R"def(remove_station(self: c104.Server, common_address: int) -> bool
+
+removes an existing station from this server
+
+Parameters
+----------
+common_address: int
+    station common address (value between 1 and 65534)
+
+Returns
+-------
+bool
+    True if the station was successfully removed, otherwise False.
+
+Example
+-------
+>>> station_3.remove_station(common_address=12)
+)def",
+           "common_address"_a)
       .def(
           "transmit_batch",
           [](Server &server, std::shared_ptr<Remote::Message::Batch> batch) {
@@ -2379,6 +2399,27 @@ Example
           "common_address"_a, "with_time"_a = true,
           "wait_for_response"_a = true, py::return_value_policy::copy)
       .def(
+          "add_station", &Remote::Connection::addStation,
+          R"def(add_station(self: c104.Connection, common_address: int) -> c104.Station | None
+
+add a new station to this connection and return the new station object
+
+Parameters
+----------
+common_address: int
+    station common address (value between 1 and 65534)
+
+Returns
+-------
+c104.Station, optional
+    station object, if station was added, else None
+
+Example
+-------
+>>> station_1 = my_connection.add_station(common_address=15)
+)def",
+          "common_address"_a)
+      .def(
           "get_station", &Remote::Connection::getStation,
           R"def(get_station(self: c104.Connection, common_address: int) -> c104.Station | None
 
@@ -2400,10 +2441,10 @@ Example
 )def",
           "common_address"_a)
       .def(
-          "add_station", &Remote::Connection::addStation,
-          R"def(add_station(self: c104.Connection, common_address: int) -> c104.Station | None
+          "remove_station", &Remote::Connection::removeStation,
+          R"def(remove_station(self: c104.Connection, common_address: int) -> bool
 
-add a new station to this connection and return the new station object
+removes an existing station from this connection
 
 Parameters
 ----------
@@ -2412,12 +2453,12 @@ common_address: int
 
 Returns
 -------
-c104.Station, optional
-    station object, if station was added, else None
+bool
+    True if the station was successfully removed, otherwise False.
 
 Example
 -------
->>> station = my_connection.add_station(common_address=15)
+>>> my_connection.remove_station(common_address=12)
 )def",
           "common_address"_a)
       .def(
@@ -2680,6 +2721,26 @@ Example
           "io_address"_a, "type"_a, "report_ms"_a = 0,
           "related_io_address"_a = std::nullopt,
           "related_io_autoreturn"_a = false, "command_mode"_a = DIRECT_COMMAND)
+      .def("remove_point", &Object::Station::removePoint,
+           R"def(remove_point(self: c104.Station, io_address: int) -> bool
+
+remove an existing point from this station
+
+Parameters
+----------
+io_address: int
+    point information object address (value between 0 and 16777215)
+
+Returns
+-------
+bool
+    True if the point was successfully removed, otherwise False.
+
+Example
+-------
+>>> sv_station_1.remove_point(io_address=17)
+)def",
+           "io_address"_a)
       .def("signal_initialized", &Object::Station::sendEndOfInitialization,
            R"def(signal_initialized(self: c104.Station, cause: c104.Coi) -> None
 
