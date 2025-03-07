@@ -1095,17 +1095,19 @@ convert to native bytes
       .def_readwrite("receive_window_size", &sCS104_APCIParameters::w,
                      "int: threshold of unconfirmed incoming messages to send "
                      "acknowledgments (property name: w)")
-      .def_readwrite("connection_timeout", &sCS104_APCIParameters::t0,
-                     "int: socket connection timeout (ms) (property name: t0)")
+      .def_readwrite(
+          "connection_timeout", &sCS104_APCIParameters::t0,
+          "int: socket connection timeout (seconds) (property name: t0)")
       .def_readwrite("message_timeout", &sCS104_APCIParameters::t1,
                      "int: timeout for sent messages to be acknowledged by "
-                     "counterparty (ms) (property name: t1)")
+                     "counterparty (seconds) (property name: t1)")
       .def_readwrite("confirm_interval", &sCS104_APCIParameters::t2,
                      "int: maximum interval to acknowledge received messages "
-                     "(ms) (property name: t2)")
-      .def_readwrite("keep_alive_interval", &sCS104_APCIParameters::t3,
-                     "int: maximum interval without communication, send test "
-                     "frame message to prove liveness (ms) (property name: t3)")
+                     "(seconds) (property name: t2)")
+      .def_readwrite(
+          "keep_alive_interval", &sCS104_APCIParameters::t3,
+          "int: maximum interval without communication, send test "
+          "frame message to prove liveness (seconds) (property name: t3)")
       .def("__str__",
            [](const sCS104_APCIParameters parameters) {
              std::ostringstream oss;

@@ -1,6 +1,14 @@
 Change log
 ==========
 
+v2.2.1 (draft)
+-------
+
+Fixes
+^^^^^^
+
+- fix docstring for c104.ProtocolParameters timings: unit is seconds not milliseconds
+
 v2.2.0
 -------
 

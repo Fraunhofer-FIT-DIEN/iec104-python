@@ -2178,17 +2178,17 @@ class ProtocolParameters:
     @property
     def confirm_interval(self) -> int:
         """
-        maximum interval to acknowledge received messages (ms) (property name: t2)
+        maximum interval to acknowledge received messages (seconds) (property name: t2)
         """
     @confirm_interval.setter
     def confirm_interval(self, value: int) -> None:
         """
-        set send acknowledge timeout (ms) (property name: t2)
+        set send acknowledge timeout (property name: t2)
 
         Parameters
         ----------
         value: int
-            new timeout
+            new timeout in seconds
 
         Returns
         -------
@@ -2197,17 +2197,17 @@ class ProtocolParameters:
     @property
     def connection_timeout(self) -> int:
         """
-        socket connection timeout (ms) (property name: t0)
+        socket connection timeout (seconds) (property name: t0)
         """
     @connection_timeout.setter
     def connection_timeout(self, value: int) -> None:
         """
-        set socket connection timeout (ms) (property name: t0)
+        set socket connection timeout (property name: t0)
 
         Parameters
         ----------
         value: int
-            new timeout
+            new timeout in seconds
 
         Returns
         -------
@@ -2216,17 +2216,17 @@ class ProtocolParameters:
     @property
     def keep_alive_interval(self) -> int:
         """
-        maximum interval without communication, send test frame message to prove liveness (ms) (property name: t3)
+        maximum interval without communication, send test frame message to prove liveness (seconds) (property name: t3)
         """
     @keep_alive_interval.setter
     def keep_alive_interval(self, value: int) -> None:
         """
-        set timeout to send test frame message to prove liveness (ms), if connection silent (property name: t3)
+        set timeout to send test frame message to prove liveness, if connection silent (property name: t3)
 
         Parameters
         ----------
         value: int
-            new timeout
+            new timeout in seconds
 
         Returns
         -------
@@ -2235,17 +2235,17 @@ class ProtocolParameters:
     @property
     def message_timeout(self) -> int:
         """
-        timeout for sent messages to be acknowledged by counterparty (ms) (property name: t1)
+        timeout for sent messages to be acknowledged by counterparty (seconds) (property name: t1)
         """
     @message_timeout.setter
     def message_timeout(self, value: int) -> None:
         """
-        set timeout for sent messages to be acknowledged by counterparty (ms) (property name: t1)
+        set timeout for sent messages to be acknowledged by counterparty (property name: t1)
 
         Parameters
         ----------
         value: int
-            new timeout
+            new timeout in seconds
 
         Returns
         -------
