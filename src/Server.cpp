@@ -171,11 +171,26 @@ void Server::start() {
   }
 
   // Schedule periodics based on tickRate
-  schedulePeriodicTask([this]() { sendPeriodicInventory(); }, tickRate_ms);
+  std::weak_ptr<Server> weakSelf =
+      shared_from_this(); // Weak reference to `this`
   schedulePeriodicTask(
-      [this]() {
-        cleanupSelections();
-        scheduleDataPointTimer();
+      [weakSelf]() {
+        auto self = weakSelf.lock();
+        if (!self)
+          return; // Prevent running if `this` was destroyed
+
+        self->sendPeriodicInventory();
+      },
+      tickRate_ms);
+
+  schedulePeriodicTask(
+      [weakSelf]() {
+        auto self = weakSelf.lock();
+        if (!self)
+          return; // Prevent running if `this` was destroyed
+
+        self->cleanupSelections();
+        self->scheduleDataPointTimer();
       },
       tickRate_ms);
 }
@@ -190,7 +205,18 @@ void Server::scheduleDataPointTimer() {
     for (const auto &point : station->getPoints()) {
       auto next = point->nextTimerAt();
       if (next.has_value() && next.value() < now) {
-        scheduleTask([point]() { point->onTimer(); }, counter++);
+
+        std::weak_ptr<Object::DataPoint> weakPoint =
+            point; // Weak reference to `point`
+        scheduleTask(
+            [weakPoint]() {
+              auto self = weakPoint.lock();
+              if (!self)
+                return; // Prevent running if `point` was destroyed
+
+              self->onTimer();
+            },
+            counter++);
       }
     }
   }
@@ -203,10 +229,22 @@ void Server::schedulePeriodicTask(const std::function<void()> &task,
       throw std::out_of_range(
           "The interval for periodic tasks must be 1000ms at minimum.");
     }
-    auto periodic = std::make_shared<std::function<void()>>([]() {});
-    *periodic = [this, task, interval, periodic]() {
+    auto periodic = std::make_shared<std::function<void()>>(
+        []() {}); // Empty function initially
+    std::weak_ptr<std::function<void()>> weakPeriodic =
+        periodic; // Weak reference
+    std::weak_ptr<Server> weakSelf =
+        shared_from_this(); // Weak reference to `this`
+
+    *periodic = [weakSelf, task, interval, weakPeriodic]() {
+      auto self = weakSelf.lock();
+      if (!self)
+        return; // Prevent running if `this` was destroyed
+
       // Schedule next execution
-      scheduleTask(*periodic, interval);
+      if (auto periodicLock = weakPeriodic.lock()) { // Try to lock weak_ptr
+        self->scheduleTask(*periodicLock, interval);
+      }
       task();
     };
     // Schedule first execution
@@ -242,10 +280,11 @@ void Server::thread_run() {
         runThread_wait.wait(lock);
         continue;
       }
+      const auto top = tasks.top();
 
       auto now = std::chrono::steady_clock::now();
-      if (now >= tasks.top().schedule_time) {
-        auto delay = now - tasks.top().schedule_time;
+      if (now >= top.schedule_time) {
+        auto delay = now - top.schedule_time;
         if (delay > TASK_DELAY_THRESHOLD) {
           DEBUG_PRINT_CONDITION(
               debug, Debug::Server,
@@ -256,10 +295,10 @@ void Server::thread_run() {
                           .count()) +
                   " ms");
         }
-        task = tasks.top().function;
+        task = top.function;
         tasks.pop();
       } else {
-        runThread_wait.wait_until(lock, tasks.top().schedule_time);
+        runThread_wait.wait_until(lock, top.schedule_time);
         continue;
       }
     }
@@ -271,12 +310,15 @@ void Server::thread_run() {
                 << std::endl;
     }
   }
-  if (!tasks.empty()) {
-    DEBUG_PRINT_CONDITION(debug, Debug::Server,
-                          "loop] Tasks dropped due to stop: " +
-                              std::to_string(tasks.size()));
-    std::priority_queue<Task> empty;
-    std::swap(tasks, empty);
+  {
+    std::unique_lock<std::mutex> lock(runThread_mutex);
+    if (!tasks.empty()) {
+      DEBUG_PRINT_CONDITION(debug, Debug::Server,
+                            "loop] Tasks dropped due to stop: " +
+                                std::to_string(tasks.size()));
+      std::priority_queue<Task> empty;
+      std::swap(tasks, empty);
+    }
   }
   running.store(false);
 }
@@ -502,8 +544,15 @@ bool Server::select(IMasterConnection connection,
 }
 
 void Server::unselect(const Selection &selection) {
-  scheduleTask([this, selection]() {
-    sendActivationTermination(selection.connection, selection.asdu);
+  std::weak_ptr<Server> weakSelf =
+      shared_from_this(); // Weak reference to `this`
+
+  scheduleTask([weakSelf, selection]() {
+    auto self = weakSelf.lock();
+    if (self) {
+      // Prevent running if `this` was destroyed
+      self->sendActivationTermination(selection.connection, selection.asdu);
+    }
     CS101_ASDU_destroy(selection.asdu);
   });
 }
@@ -539,7 +588,17 @@ Server::execute(IMasterConnection connection,
   auto res = point->onReceive(std::move(message));
 
   if (selected) {
-    scheduleTask([this, ca, ioa]() { cleanupSelection(ca, ioa); }, 1);
+    std::weak_ptr<Server> weakSelf =
+        shared_from_this(); // Weak reference to Server
+    scheduleTask(
+        [weakSelf, ca, ioa]() {
+          auto self = weakSelf.lock();
+          if (!self)
+            return; // Prevent running if `this` was destroyed
+
+          self->cleanupSelection(ca, ioa);
+        },
+        1);
   }
 
   return res;
@@ -556,19 +615,23 @@ void Server::setOnReceiveRawCallback(py::object &callable) {
 void Server::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
   if (py_onReceiveRaw.is_set()) {
     // create a copy
-    auto *cp = new char[msgSize];
-    memcpy(cp, msg, msgSize);
+    auto cp = std::shared_ptr<char[]>(new char[msgSize]);
+    memcpy(cp.get(), msg, msgSize);
 
-    scheduleTask([this, cp, msgSize]() {
+    std::weak_ptr<Server> weakSelf =
+        shared_from_this(); // Weak reference to Server
+    scheduleTask([weakSelf, cp, msgSize]() {
+      auto self = weakSelf.lock();
+      if (!self)
+        return; // Prevent running if `this` was destroyed
+
       DEBUG_PRINT(Debug::Server, "CALLBACK on_receive_raw");
       Module::ScopedGilAcquire const scoped("Server.on_receive_raw");
       PyObject *pymemview =
-          PyMemoryView_FromMemory((char *)cp, msgSize, PyBUF_READ);
+          PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
       PyObject *pybytes = PyBytes_FromObject(pymemview);
 
-      py_onReceiveRaw.call(shared_from_this(), py::handle(pybytes));
-
-      delete[] cp;
+      self->py_onReceiveRaw.call(self, py::handle(pybytes));
     });
   }
 }
@@ -580,19 +643,23 @@ void Server::setOnSendRawCallback(py::object &callable) {
 void Server::onSendRaw(unsigned char *msg, unsigned char msgSize) {
   if (py_onSendRaw.is_set()) {
     // create a copy
-    auto *cp = new char[msgSize];
-    memcpy(cp, msg, msgSize);
+    auto cp = std::shared_ptr<char[]>(new char[msgSize]);
+    memcpy(cp.get(), msg, msgSize);
 
-    scheduleTask([this, cp, msgSize]() {
+    std::weak_ptr<Server> weakSelf =
+        shared_from_this(); // Weak reference to Server
+    scheduleTask([weakSelf, cp, msgSize]() {
+      auto self = weakSelf.lock();
+      if (!self)
+        return; // Prevent running if `this` was destroyed
+
       DEBUG_PRINT(Debug::Server, "CALLBACK on_send_raw");
       Module::ScopedGilAcquire const scoped("Server.on_send_raw");
       PyObject *pymemview =
-          PyMemoryView_FromMemory((char *)cp, msgSize, PyBUF_READ);
+          PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
       PyObject *pybytes = PyBytes_FromObject(pymemview);
 
-      py_onSendRaw.call(shared_from_this(), py::handle(pybytes));
-
-      delete[] cp;
+      self->py_onSendRaw.call(self, py::handle(pybytes));
     });
   }
 }
@@ -694,10 +761,16 @@ void Server::onUnexpectedMessage(
   }
 
   if (py_onUnexpectedMessage.is_set()) {
-    scheduleTask([this, message, cause]() {
+    std::weak_ptr<Server> weakSelf =
+        shared_from_this(); // Weak reference to Server
+    scheduleTask([weakSelf, message, cause]() {
+      auto self = weakSelf.lock();
+      if (!self)
+        return; // Prevent running if `this` was destroyed
+
       DEBUG_PRINT(Debug::Server, "CALLBACK on_unexpected_message");
       Module::ScopedGilAcquire const scoped("Server.on_unexpected_message");
-      py_onUnexpectedMessage.call(shared_from_this(), message, cause);
+      self->py_onUnexpectedMessage.call(self, message, cause);
     });
   }
 }
@@ -783,8 +856,14 @@ void Server::connectionEventHandler(void *parameter,
         instance->connectionMap.erase(it);
       }
       // remove selections
-      instance->scheduleTask([instance, connection]() {
-        instance->dropConnectionSelections(connection);
+
+      std::weak_ptr<Server> weakSelf = instance; // Weak reference to Server
+      instance->scheduleTask([weakSelf, connection]() {
+        auto self = weakSelf.lock();
+        if (!self)
+          return; // Prevent running if `this` was destroyed
+
+        self->dropConnectionSelections(connection);
       });
     } else if (event == CS104_CON_EVENT_ACTIVATED) {
       // set as valid receiver
@@ -1539,18 +1618,32 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                   // send related point info in case of auto return
                   if (related_ioa.has_value()) {
                     auto related_point = station->getPoint(related_ioa.value());
+
+                    std::weak_ptr<Server> weakSelf =
+                        instance; // Weak reference to Server
+                    std::weak_ptr<Object::DataPoint> weakPoint =
+                        related_point; // Weak reference to Point
                     instance->scheduleTask(
-                        [instance, related_point]() {
+                        [weakSelf, weakPoint]() {
+                          auto self = weakSelf.lock();
+                          if (!self)
+                            return; // Prevent running if `this` was destroyed
+
+                          auto related = weakPoint.lock();
+                          if (!related)
+                            return; // Prevent running if `related_point` was
+                                    // destroyed
+
                           try {
-                            instance->transmit(related_point,
-                                               CS101_COT_RETURN_INFO_REMOTE);
+                            self->transmit(related,
+                                           CS101_COT_RETURN_INFO_REMOTE);
                           } catch (const std::exception &e) {
                             std::cerr
                                 << "[c104.Server] asdu_handler] Auto transmit "
                                    "related point failed for "
-                                << TypeID_toString(related_point->getType())
+                                << TypeID_toString(related->getType())
                                 << " at IOA "
-                                << related_point->getInformationObjectAddress()
+                                << related->getInformationObjectAddress()
                                 << ": " << e.what() << std::endl;
                           }
                         },

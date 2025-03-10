@@ -102,10 +102,16 @@ void Connection::setState(ConnectionState connectionState) {
     state.store(connectionState);
     if (py_onStateChange.is_set()) {
       if (auto c = getClient()) {
-        c->scheduleTask([this, connectionState]() {
+        std::weak_ptr<Connection> weakSelf =
+            shared_from_this(); // Weak reference to `this`
+        c->scheduleTask([weakSelf, connectionState]() {
+          auto self = weakSelf.lock();
+          if (!self)
+            return; // Prevent running if `this` was destroyed
+
           DEBUG_PRINT(Debug::Connection, "CALLBACK on_state_change");
           Module::ScopedGilAcquire const scoped("Connection.on_state_change");
-          this->py_onStateChange.call(shared_from_this(), connectionState);
+          self->py_onStateChange.call(self, connectionState);
         });
       }
     }
@@ -249,33 +255,52 @@ void Connection::setMuted(bool value) {
     switch (init) {
     case INIT_ALL:
       if (auto c = getClient()) {
+
+        std::weak_ptr<Connection> weakSelf =
+            shared_from_this(); // Weak reference to `this`
         c->scheduleTask(
-            [this]() {
-              this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
+            [weakSelf]() {
+              auto self = weakSelf.lock();
+              if (!self)
+                return; // Prevent running if `this` was destroyed
+
+              self->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
                                   CS101_COT_ACTIVATION, QOI_STATION, true);
-              this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
-              setState(OPEN);
+              self->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+              self->setState(OPEN);
             },
             -1);
       }
       break;
     case INIT_INTERROGATION:
       if (auto c = getClient()) {
+        std::weak_ptr<Connection> weakSelf =
+            shared_from_this(); // Weak reference to `this`
         c->scheduleTask(
-            [this]() {
-              this->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
+            [weakSelf]() {
+              auto self = weakSelf.lock();
+              if (!self)
+                return; // Prevent running if `this` was destroyed
+
+              self->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
                                   CS101_COT_ACTIVATION, QOI_STATION, true);
-              setState(OPEN);
+              self->setState(OPEN);
             },
             -1);
       }
       break;
     case INIT_CLOCK_SYNC:
       if (auto c = getClient()) {
+        std::weak_ptr<Connection> weakSelf =
+            shared_from_this(); // Weak reference to `this`
         c->scheduleTask(
-            [this]() {
-              this->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
-              setState(OPEN);
+            [weakSelf]() {
+              auto self = weakSelf.lock();
+              if (!self)
+                return; // Prevent running if `this` was destroyed
+
+              self->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+              self->setState(OPEN);
             },
             -1);
       }
@@ -299,14 +324,34 @@ void Connection::setOpen() {
 
   if (OPEN_AWAIT_CLOSED == current) {
     if (auto c = getClient()) {
-      c->scheduleTask([this]() { this->disconnect(); }, -1);
+      std::weak_ptr<Connection> weakSelf =
+          shared_from_this(); // Weak reference to `this`
+      c->scheduleTask(
+          [weakSelf]() {
+            auto self = weakSelf.lock();
+            if (!self)
+              return; // Prevent running if `this` was destroyed
+
+            self->disconnect();
+          },
+          -1);
     }
     return;
   }
 
   if (INIT_MUTED != init) {
     if (auto c = getClient()) {
-      c->scheduleTask([this]() { this->unmute(); }, -1);
+      std::weak_ptr<Connection> weakSelf =
+          shared_from_this(); // Weak reference to `this`
+      c->scheduleTask(
+          [weakSelf]() {
+            auto self = weakSelf.lock();
+            if (!self)
+              return; // Prevent running if `this` was destroyed
+
+            self->unmute();
+          },
+          -1);
     }
   }
   connectionCount++;
@@ -339,7 +384,18 @@ void Connection::setClosed() {
   } else {
     setState(CLOSED_AWAIT_RECONNECT);
     if (auto c = getClient()) {
-      c->scheduleTask([this]() { this->connect(); }, 1000);
+
+      std::weak_ptr<Connection> weakSelf =
+          shared_from_this(); // Weak reference to `this`
+      c->scheduleTask(
+          [weakSelf]() {
+            auto self = weakSelf.lock();
+            if (!self)
+              return; // Prevent running if `this` was destroyed
+
+            self->connect();
+          },
+          1000);
     }
   }
 
@@ -588,18 +644,23 @@ void Connection::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
   if (py_onReceiveRaw.is_set()) {
     if (auto c = getClient()) {
       // create a copy
-      auto *cp = new char[msgSize];
-      memcpy(cp, msg, msgSize);
+      auto cp = std::shared_ptr<char[]>(new char[msgSize]);
+      memcpy(cp.get(), msg, msgSize);
 
-      c->scheduleTask([this, cp, msgSize]() {
+      std::weak_ptr<Connection> weakSelf =
+          shared_from_this(); // Weak reference to `this`
+      c->scheduleTask([weakSelf, cp, msgSize]() {
+        auto self = weakSelf.lock();
+        if (!self)
+          return; // Prevent running if `this` was destroyed
+
         DEBUG_PRINT(Debug::Connection, "CALLBACK on_receive_raw");
         Module::ScopedGilAcquire const scoped("Connection.on_receive_raw");
-        PyObject *pymemview = PyMemoryView_FromMemory(cp, msgSize, PyBUF_READ);
+        PyObject *pymemview =
+            PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
         PyObject *pybytes = PyBytes_FromObject(pymemview);
 
-        this->py_onReceiveRaw.call(shared_from_this(), py::handle(pybytes));
-
-        delete[] cp;
+        self->py_onReceiveRaw.call(self, py::handle(pybytes));
       });
     }
   }
@@ -613,18 +674,23 @@ void Connection::onSendRaw(unsigned char *msg, unsigned char msgSize) {
   if (py_onSendRaw.is_set()) {
     if (auto c = getClient()) {
       // create a copy
-      auto *cp = new char[msgSize];
-      memcpy(cp, msg, msgSize);
+      auto cp = std::shared_ptr<char[]>(new char[msgSize]);
+      memcpy(cp.get(), msg, msgSize);
 
-      c->scheduleTask([this, cp, msgSize]() {
+      std::weak_ptr<Connection> weakSelf =
+          shared_from_this(); // Weak reference to `this`
+      c->scheduleTask([weakSelf, cp, msgSize]() {
+        auto self = weakSelf.lock();
+        if (!self)
+          return; // Prevent running if `this` was destroyed
+
         DEBUG_PRINT(Debug::Connection, "CALLBACK on_send_raw");
         Module::ScopedGilAcquire const scoped("Connection.on_send_raw");
-        PyObject *pymemview = PyMemoryView_FromMemory(cp, msgSize, PyBUF_READ);
+        PyObject *pymemview =
+            PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
         PyObject *pybytes = PyBytes_FromObject(pymemview);
 
-        this->py_onSendRaw.call(shared_from_this(), py::handle(pybytes));
-
-        delete[] cp;
+        self->py_onSendRaw.call(self, py::handle(pybytes));
       });
     }
   }
@@ -639,11 +705,18 @@ void Connection::onUnexpectedMessage(
     UnexpectedMessageCause cause) {
   if (py_onUnexpectedMessage.is_set()) {
     if (auto c = getClient()) {
-      c->scheduleTask([this, message, cause]() {
+
+      std::weak_ptr<Connection> weakSelf =
+          shared_from_this(); // Weak reference to `this`
+      c->scheduleTask([weakSelf, message, cause]() {
+        auto self = weakSelf.lock();
+        if (!self)
+          return; // Prevent running if `this` was destroyed
+
         DEBUG_PRINT(Debug::Connection, "CALLBACK on_unexpected_message");
         Module::ScopedGilAcquire const scoped(
             "Connection.on_unexpected_message");
-        py_onUnexpectedMessage.call(shared_from_this(), message, cause);
+        self->py_onUnexpectedMessage.call(self, message, cause);
       });
     }
   }

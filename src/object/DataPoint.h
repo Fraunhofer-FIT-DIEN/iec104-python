@@ -134,7 +134,7 @@ private:
   std::atomic<std::uint_fast16_t> reportInterval_ms;
 
   /// @brief interval (in milliseconds) between timer execution, 0 => no timer
-  std::atomic<std::uint_fast16_t> timerInterval_ms;
+  std::atomic<std::uint_fast16_t> timerInterval_ms{0};
 
   std::atomic<std::chrono::steady_clock::time_point> timerNext{};
 

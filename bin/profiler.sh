@@ -16,25 +16,29 @@ fi
 
 # generate make scripts, build application and install to bin folder
 cmake . -Bcmake-build-debug -DCMAKE_BUILD_TYPE=Debug "$ARGS"
+cmake . -Bcmake-build-debug -DCMAKE_BUILD_TYPE=Debug -DC104_VERSION_INFO=2.2.2 "$ARGS"
 cd cmake-build-debug || exit 1
-make c104
+make -j"$(nproc+1)" _c104
 cd .. || exit 1
 
+rm ./c104/_c104*.so
+
 # copy libraries for python package
-cp cmake-build-debug/c104.so tests/
+cp ./cmake-build-debug/_c104*.so ./c104/
 
 echo ""
 echo "BUILD DONE!"
 echo ""
 
-cd tests || exit 1
+export PYTHONPATH="$DIR:$PYTHONPATH"
+export PYTHONUNBUFFERED=1
 
 echo ""
 echo "+----------------------------------------------------------+"
 echo "| PROFILER: VALGRIND                                       |"
 echo "+----------------------------------------------------------+"
 #valgrind --leak-check=full --leak-resolution=med --track-origins=yes --read-inline-info=yes --suppressions=valgrind-python.supp python3 -E -tt ./test.py
-valgrind --tool=memcheck --dsymutil=yes --track-origins=yes --show-leak-kinds=all --trace-children=yes --leak-resolution=high --suppressions=valgrind-python.supp python3 -X showrefcount ./test.py > valgrind.log 2>&1
+valgrind --tool=memcheck --dsymutil=yes --leak-check=full --track-origins=yes --show-leak-kinds=all --leak-resolution=high --suppressions=./tests/valgrind-python.supp python3 -X showrefcount ./tests/test.py > valgrind.log 2>&1
 
 echo ""
 echo "+----------------------------------------------------------+"

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -74,7 +74,17 @@ void Client::start() {
     runThread = new std::thread(&Client::thread_run, this);
   }
 
-  schedulePeriodicTask([this]() { scheduleDataPointTimer(); }, tickRate_ms);
+  std::weak_ptr<Client> weakSelf =
+      shared_from_this(); // Weak reference to `this`
+  schedulePeriodicTask(
+      [weakSelf]() {
+        auto self = weakSelf.lock();
+        if (!self)
+          return; // Prevent running if `this` was destroyed
+
+        self->scheduleDataPointTimer();
+      },
+      tickRate_ms);
 
   {
     std::lock_guard<Module::GilAwareMutex> const con_lock(connections_mutex);
@@ -331,7 +341,18 @@ void Client::scheduleDataPointTimer() {
         for (const auto &point : station->getPoints()) {
           auto next = point->nextTimerAt();
           if (next.has_value() && next.value() < now) {
-            scheduleTask([point]() { point->onTimer(); }, counter++);
+
+            std::weak_ptr<Object::DataPoint> weakPoint =
+                point; // Weak reference to `point`
+            scheduleTask(
+                [weakPoint]() {
+                  auto self = weakPoint.lock();
+                  if (!self)
+                    return; // Prevent running if `point` was destroyed
+
+                  self->onTimer();
+                },
+                counter++);
           }
         }
       }
@@ -346,10 +367,22 @@ void Client::schedulePeriodicTask(const std::function<void()> &task,
       throw std::out_of_range(
           "The interval for periodic tasks must be 1000ms at minimum.");
     }
-    auto periodic = std::make_shared<std::function<void()>>([]() {});
-    *periodic = [this, task, interval, periodic]() {
+    auto periodic = std::make_shared<std::function<void()>>(
+        []() {}); // Empty function initially
+    std::weak_ptr<std::function<void()>> weakPeriodic =
+        periodic; // Weak reference
+    std::weak_ptr<Client> weakSelf =
+        shared_from_this(); // Weak reference to `this`
+
+    *periodic = [weakSelf, task, interval, weakPeriodic]() {
+      auto self = weakSelf.lock();
+      if (!self)
+        return; // Prevent running if `this` was destroyed
+
       // Schedule next execution
-      scheduleTask(*periodic, interval);
+      if (auto periodicLock = weakPeriodic.lock()) { // Try to lock weak_ptr
+        self->scheduleTask(*periodicLock, interval);
+      }
       task();
     };
     // Schedule first execution
@@ -385,10 +418,11 @@ void Client::thread_run() {
         runThread_wait.wait(lock);
         continue;
       }
+      const auto top = tasks.top();
 
       auto now = std::chrono::steady_clock::now();
-      if (now >= tasks.top().schedule_time) {
-        auto delay = now - tasks.top().schedule_time;
+      if (now >= top.schedule_time) {
+        auto delay = now - top.schedule_time;
         if (delay > TASK_DELAY_THRESHOLD) {
           DEBUG_PRINT_CONDITION(
               debug, Debug::Client,
@@ -399,10 +433,10 @@ void Client::thread_run() {
                           .count()) +
                   " ms");
         }
-        task = tasks.top().function;
+        task = top.function;
         tasks.pop();
       } else {
-        runThread_wait.wait_until(lock, tasks.top().schedule_time);
+        runThread_wait.wait_until(lock, top.schedule_time);
         continue;
       }
     }
@@ -414,12 +448,15 @@ void Client::thread_run() {
                 << std::endl;
     }
   }
-  if (!tasks.empty()) {
-    DEBUG_PRINT_CONDITION(debug, Debug::Client,
-                          "loop] Tasks dropped due to stop: " +
-                              std::to_string(tasks.size()));
-    std::priority_queue<Task> empty;
-    std::swap(tasks, empty);
+  {
+    std::unique_lock<std::mutex> lock(runThread_mutex);
+    if (!tasks.empty()) {
+      DEBUG_PRINT_CONDITION(debug, Debug::Client,
+                            "loop] Tasks dropped due to stop: " +
+                                std::to_string(tasks.size()));
+      std::priority_queue<Task> empty;
+      std::swap(tasks, empty);
+    }
   }
   running.store(false);
 }
