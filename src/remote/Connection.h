@@ -69,9 +69,17 @@ public:
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr,
       const uint_fast8_t originator_address = 0) {
     // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<Connection>(
+    auto connection = std::shared_ptr<Connection>(
         new Connection(std::move(client), ip, port, command_timeout_ms, init,
                        std::move(transport_security), originator_address));
+
+    // track reference as weak pointer for safe static callbacks
+    void *key =
+        static_cast<void *>(connection.get()); // Use `this` as a unique key
+    std::lock_guard<std::mutex> lock(instanceMapMutex);
+    instanceMap[key] = connection;
+
+    return connection;
   }
 
   /**
@@ -420,6 +428,24 @@ public:
             bool wait_for_response = true);
 
   /**
+   * Retrieves the shared instance of the Connection associated with the given
+   * key.
+   *
+   * This function is a thread-safe method to access Connection instances stored
+   * in an internal instance map. A weak reference is used for storage, and the
+   * function returns a shared pointer to the associated Connection instance. If
+   * the key is not found in the map or the associated weak reference has
+   * expired, a null shared pointer is returned.
+   *
+   * @param key A pointer serving as the unique identifier for the desired
+   * Connection instance.
+   * @return A shared pointer to the Connection instance associated with the
+   * given key, or a null shared pointer if the key is not found or the instance
+   * has been deallocated.
+   */
+  static std::shared_ptr<Connection> getInstance(void *key);
+
+  /**
    * @brief Callback for logging incoming and outgoing byteStreams
    * @param parameter reference to custom bound connection data
    * @param msg pointer to first character of message
@@ -529,6 +555,12 @@ private:
 
   /// @brief sequence counter number
   std::atomic_uint_fast64_t testSequenceCounter{0};
+
+  /// @brief instance weak pointer list for safe static callbacks
+  static std::unordered_map<void *, std::weak_ptr<Connection>> instanceMap;
+
+  /// @brief mutex to lock instanceMap read/write access
+  static std::mutex instanceMapMutex;
 
   /// @brief python callback function pointer
   Module::Callback<void> py_onReceiveRaw{

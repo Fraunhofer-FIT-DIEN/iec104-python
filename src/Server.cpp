@@ -63,6 +63,10 @@ bool areKeysSequential(const std::map<uint_fast16_t, T> &inputMap) {
   return true; // All keys are sequential
 }
 
+// Define static members
+std::unordered_map<void *, std::weak_ptr<Server>> Server::instanceMap;
+std::mutex Server::instanceMapMutex;
+
 Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
                const std::uint_fast16_t tick_rate_ms,
                const std::uint_fast16_t select_timeout_ms,
@@ -103,18 +107,18 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
   param->t2 = 1; // acknowledgement interval
 
   // Function pointers for custom handler functions
+  void *key = static_cast<void *>(this);
   CS104_Slave_setConnectionRequestHandler(
-      slave, &Server::connectionRequestHandler, this);
+      slave, &Server::connectionRequestHandler, key);
   CS104_Slave_setConnectionEventHandler(slave, &Server::connectionEventHandler,
-                                        this);
-  CS104_Slave_setRawMessageHandler(slave, &Server::rawMessageHandler, this);
+                                        key);
+  CS104_Slave_setRawMessageHandler(slave, &Server::rawMessageHandler, key);
   CS104_Slave_setInterrogationHandler(slave, &Server::interrogationHandler,
-                                      this);
+                                      key);
   CS104_Slave_setCounterInterrogationHandler(
-      slave, &Server::counterInterrogationHandler, this);
-  // CS104_Slave_setClockSyncHandler(slave, &Server::clockSyncHandler, this);
-  CS104_Slave_setReadHandler(slave, &Server::readHandler, this);
-  CS104_Slave_setASDUHandler(slave, &Server::asduHandler, this);
+      slave, &Server::counterInterrogationHandler, key);
+  CS104_Slave_setReadHandler(slave, &Server::readHandler, key);
+  CS104_Slave_setASDUHandler(slave, &Server::asduHandler, key);
 
   DEBUG_PRINT(Debug::Server, "Created");
 }
@@ -122,14 +126,30 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
 Server::~Server() {
   // stops and destroys the slave
   stop();
-  CS104_Slave_destroy(slave);
 
   {
     std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
     stations.clear();
   }
 
+  {
+    std::lock_guard<std::mutex> lock(instanceMapMutex);
+    instanceMap.erase(
+        static_cast<void *>(this)); // Remove from map on destruction
+  }
+
+  CS104_Slave_destroy(slave);
+
   DEBUG_PRINT(Debug::Server, "Removed");
+}
+
+std::shared_ptr<Server> Server::getInstance(void *key) {
+  std::lock_guard<std::mutex> lock(instanceMapMutex);
+  auto it = instanceMap.find(key);
+  if (it != instanceMap.end()) {
+    return it->second.lock();
+  }
+  return {nullptr};
 }
 
 std::string Server::getIP() const { return ip; }
@@ -782,11 +802,8 @@ void Server::setOnConnectCallback(py::object &callable) {
 std::uint_fast16_t Server::getTickRate_ms() const { return tickRate_ms; }
 
 bool Server::connectionRequestHandler(void *parameter, const char *ipAddress) {
-  std::shared_ptr<Server> instance{};
-
-  try {
-    instance = static_cast<Server *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
+  const auto instance = getInstance(parameter);
+  if (!instance) {
     DEBUG_PRINT(Debug::Server, "Reject connection request in shutdown");
     return false;
   }
@@ -818,11 +835,8 @@ void Server::connectionEventHandler(void *parameter,
     begin = std::chrono::steady_clock::now();
   }
 
-  std::shared_ptr<Server> instance{};
-
-  try {
-    instance = static_cast<Server *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
+  const auto instance = getInstance(parameter);
+  if (!instance) {
     DEBUG_PRINT(Debug::Server, "Ignore connection event " +
                                    PeerConnectionEvent_toString(event) +
                                    " in shutdown");
@@ -1259,11 +1273,8 @@ Server::getValidMessage(IMasterConnection connection, CS101_ASDU asdu) {
 
 void Server::rawMessageHandler(void *parameter, IMasterConnection connection,
                                uint_fast8_t *msg, int msgSize, bool sent) {
-  std::shared_ptr<Server> instance{};
-
-  try {
-    instance = static_cast<Server *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
+  const auto instance = getInstance(parameter);
+  if (!instance) {
     DEBUG_PRINT(Debug::Server, "Ignore raw message in shutdown");
     return;
   }
@@ -1284,11 +1295,8 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  std::shared_ptr<Server> instance{};
-
-  try {
-    instance = static_cast<Server *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
+  const auto instance = getInstance(parameter);
+  if (!instance) {
     DEBUG_PRINT(Debug::Server, "Reject interrogation command in shutdown");
     return false;
   }
@@ -1381,11 +1389,8 @@ bool Server::counterInterrogationHandler(void *parameter,
     begin = std::chrono::steady_clock::now();
   }
 
-  std::shared_ptr<Server> instance{};
-
-  try {
-    instance = static_cast<Server *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
+  const auto instance = getInstance(parameter);
+  if (!instance) {
     DEBUG_PRINT(Debug::Server,
                 "Reject counter interrogation command in shutdown");
     return false;
@@ -1482,11 +1487,8 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  std::shared_ptr<Server> instance{};
-
-  try {
-    instance = static_cast<Server *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
+  const auto instance = getInstance(parameter);
+  if (!instance) {
     DEBUG_PRINT(Debug::Server, "Reject read command in shutdown");
     return false;
   }
@@ -1562,11 +1564,8 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  std::shared_ptr<Server> instance{};
-
-  try {
-    instance = static_cast<Server *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
+  const auto instance = getInstance(parameter);
+  if (!instance) {
     DEBUG_PRINT(Debug::Server, "Reject asdu in shutdown");
     return false;
   }

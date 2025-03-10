@@ -3104,8 +3104,9 @@ The setter is available via point.quality=xyz)def")
                              "milliseconds transported with the "
                              "value "
                              "itself or None (read-only)")
+      .def_property_readonly("is_readonly", &Object::Information::isReadonly,
+                             "bool: test if the information is read-only")
       .def("__repr__", &Object::Information::toString);
-  ;
 
   py::class_<Object::SingleInfo, Object::Information,
              std::shared_ptr<Object::SingleInfo>>(

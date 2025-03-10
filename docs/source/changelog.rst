@@ -4,10 +4,19 @@ Change log
 v2.2.1 (draft)
 -------
 
+Features
+^^^^^^^^
+
+- Add **Information.is_readonly**- property to test, if a new value can be assigned to this information.
+
 Fixes
 ^^^^^^
 
 - fix docstring for c104.ProtocolParameters timings: unit is seconds not milliseconds
+- support try-except blocks in callbacks instead of catching all errors and removing the callback
+- prevent invalid pointer access from lib60870 callbacks
+- setting **Point.value** will raise ValueError if info is readonly
+- setting **Point.quality** will raise ValueError if info is readonly
 
 v2.2.0
 -------

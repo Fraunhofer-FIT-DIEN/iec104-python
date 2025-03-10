@@ -130,7 +130,7 @@ protected:
    *
    * This function unsets the callback function by setting it to `py::none()`.
    */
-  void unset() {
+  void unset() noexcept(true) {
     DEBUG_PRINT(Debug::Callback, "CLEAR " + name);
     {
       std::lock_guard<Module::GilAwareMutex> const lock(callback_mutex);
@@ -180,7 +180,7 @@ public:
    * @param values The values to pass to the callback
    * @return bool True if the callback was called successfully, false otherwise
    */
-  template <typename... Types> bool call(Types &&...values) {
+  template <typename... Types> bool call(Types &&...values) noexcept(true) {
     std::unique_lock<Module::GilAwareMutex> lock(this->callback_mutex);
     auto const cb = this->callback;
     lock.unlock();
@@ -195,27 +195,33 @@ public:
 
     try {
       py::object res = cb(std::forward<Types>(values)...);
-      result_type = py::cast<std::string>(py::str(py::type::handle_of(res)));
-      result = py::cast<T>(res);
+
+      // Safely get the result type as a string
+      result_type = py::cast<std::string>(py::str(res.get_type()));
+
+      // Cast the result to the expected type
+      result = res.cast<T>();
       this->success = true;
     } catch (py::error_already_set &e) {
-      this->success = false;
-      std::cerr
-          << '\n'
-          << "------------------------------------------------------------"
-          << '\n'
-          << '\n'
-          << this->name << "] Error:" << std::endl;
+      this->success = PyErr_Occurred();
+      if (!this->success) {
+        std::cerr
+            << '\n'
+            << "------------------------------------------------------------"
+            << '\n'
+            << '\n'
+            << this->name << "] Error:" << std::endl;
 
-      auto traceback = py::module_::import("traceback");
-      traceback.attr("print_exception")(e.type(), e.value(), e.trace());
+        auto traceback = py::module_::import("traceback");
+        traceback.attr("print_exception")(e.type(), e.value(), e.trace());
 
-      std::cerr
-          << "\nRemoved erroneous callback handler!\n\n"
-          << "------------------------------------------------------------"
-          << '\n'
-          << std::endl;
-      this->unset();
+        std::cerr
+            << "\nRemoved erroneous callback handler!\n\n"
+            << "------------------------------------------------------------"
+            << '\n'
+            << std::endl;
+        this->unset();
+      }
     } catch (py::builtin_exception &e) {
       this->success = false;
       std::cerr
@@ -301,7 +307,7 @@ public:
    * @return bool Returns true if the callback function is called successfully,
    * false otherwise.
    */
-  template <typename... Types> bool call(Types &&...values) {
+  template <typename... Types> bool call(Types &&...values) noexcept(true) {
     std::unique_lock<Module::GilAwareMutex> lock(this->callback_mutex);
     auto const cb = this->callback;
     lock.unlock();
@@ -318,23 +324,25 @@ public:
       cb(std::forward<Types>(values)...);
       this->success = true;
     } catch (py::error_already_set &e) {
-      this->success = false;
-      std::cerr
-          << '\n'
-          << "------------------------------------------------------------"
-          << '\n'
-          << '\n'
-          << this->name << "] Error:" << std::endl;
+      this->success = PyErr_Occurred();
+      if (!this->success) {
+        std::cerr
+            << '\n'
+            << "------------------------------------------------------------"
+            << '\n'
+            << '\n'
+            << this->name << "] Error:" << std::endl;
 
-      auto traceback = py::module_::import("traceback");
-      traceback.attr("print_exception")(e.type(), e.value(), e.trace());
+        auto traceback = py::module_::import("traceback");
+        traceback.attr("print_exception")(e.type(), e.value(), e.trace());
 
-      std::cerr
-          << "\nRemoved erroneous callback handler!\n\n"
-          << "------------------------------------------------------------"
-          << '\n'
-          << std::endl;
-      this->unset();
+        std::cerr
+            << "\nRemoved erroneous callback handler!\n\n"
+            << "------------------------------------------------------------"
+            << '\n'
+            << std::endl;
+        this->unset();
+      }
     }
 
     if (DEBUG_TEST(Debug::Callback)) {

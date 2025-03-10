@@ -60,7 +60,7 @@ InfoValue Information::getValue() {
 
 void Information::setValue(const InfoValue val) {
   if (readonly) {
-    throw std::logic_error("Information is read-only!");
+    throw std::domain_error("Information is read-only!");
   }
 
   try {
@@ -82,7 +82,7 @@ InfoQuality Information::getQuality() {
 
 void Information::setQuality(const InfoQuality val) {
   if (readonly) {
-    throw std::logic_error("Information is read-only!");
+    throw std::domain_error("Information is read-only!");
   }
 
   try {

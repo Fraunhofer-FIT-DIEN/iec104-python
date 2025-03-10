@@ -1345,6 +1345,11 @@ class Information:
     This class represents all specialized kind of information a specific point may have
     """
     @property
+    def is_readonly(self) -> bool:
+        """
+        test if the information is read-only
+        """
+    @property
     def processed_at(self) -> datetime.datetime:
         """
         timestamp with milliseconds of last local information processing

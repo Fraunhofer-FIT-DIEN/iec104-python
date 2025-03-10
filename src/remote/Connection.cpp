@@ -41,6 +41,10 @@
 using namespace Remote;
 using namespace std::chrono_literals;
 
+// Define static members
+std::unordered_map<void *, std::weak_ptr<Connection>> Connection::instanceMap;
+std::mutex Connection::instanceMapMutex;
+
 Connection::Connection(
     std::shared_ptr<Client> _client, const std::string &_ip,
     const uint_fast16_t _port, const uint_fast16_t command_timeout_ms,
@@ -70,12 +74,13 @@ Connection::Connection(
     setOriginatorAddress(originator_address);
   }
 
+  void *key = static_cast<void *>(this);
   CS104_Connection_setRawMessageHandler(connection,
-                                        &Connection::rawMessageHandler, this);
+                                        &Connection::rawMessageHandler, key);
   CS104_Connection_setConnectionHandler(connection,
-                                        &Connection::connectionHandler, this);
+                                        &Connection::connectionHandler, key);
   CS104_Connection_setASDUReceivedHandler(connection, &Connection::asduHandler,
-                                          this);
+                                          key);
   DEBUG_PRINT(Debug::Connection, "Created");
 }
 
@@ -84,8 +89,24 @@ Connection::~Connection() {
     std::scoped_lock<Module::GilAwareMutex> const lock(stations_mutex);
     stations.clear();
   }
+
+  {
+    std::lock_guard<std::mutex> lock(instanceMapMutex);
+    instanceMap.erase(
+        static_cast<void *>(this)); // Remove from map on destruction
+  }
+
   CS104_Connection_destroy(connection);
   DEBUG_PRINT(Debug::Connection, "Removed");
+}
+
+std::shared_ptr<Connection> Connection::getInstance(void *key) {
+  std::lock_guard<std::mutex> lock(instanceMapMutex);
+  auto it = instanceMap.find(key);
+  if (it != instanceMap.end()) {
+    return it->second.lock();
+  }
+  return {nullptr};
 }
 
 std::string Connection::getConnectionString() const { return connectionString; }
@@ -992,11 +1013,8 @@ void Connection::rawMessageHandler(void *parameter, uint_fast8_t *msg,
     begin = std::chrono::steady_clock::now();
   }
 
-  std::shared_ptr<Connection> instance{};
-
-  try {
-    instance = static_cast<Connection *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
+  const auto instance = getInstance(parameter);
+  if (!instance) {
     DEBUG_PRINT(Debug::Connection, "Ignore raw message in shutdown");
     return;
   }
@@ -1026,11 +1044,8 @@ void Connection::connectionHandler(void *parameter, CS104_Connection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  std::shared_ptr<Connection> instance{};
-
-  try {
-    instance = static_cast<Connection *>(parameter)->shared_from_this();
-  } catch (const std::bad_weak_ptr &e) {
+  const auto instance = getInstance(parameter);
+  if (!instance) {
     DEBUG_PRINT(Debug::Connection, "Ignore connection event " +
                                        ConnectionEvent_toString(event) +
                                        " in shutdown");
@@ -1075,10 +1090,14 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
   }
   bool handled = false;
 
-  std::shared_ptr<Connection> instance{};
-  try {
-    instance = static_cast<Connection *>(parameter)->shared_from_this();
+  const auto instance = getInstance(parameter);
+  if (!instance) {
+    DEBUG_PRINT_CONDITION(debug, Debug::Connection,
+                          "asdu_handler] Drop message: Connection removed");
+    return false;
+  }
 
+  try {
     const auto client = instance->getClient();
     if (!client || !client->isRunning()) {
       throw std::runtime_error("Client not running");
@@ -1184,9 +1203,6 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
               std::to_string(commonAddress) + " | TOTAL " + TICTOC(begin, end));
     }
 
-  } catch (const std::bad_weak_ptr &e) {
-    DEBUG_PRINT_CONDITION(debug, Debug::Connection,
-                          "asdu_handler] Drop message: Connection removed");
   } catch (const std::exception &e) {
     DEBUG_PRINT_CONDITION(debug, Debug::Connection,
                           "asdu_handler] Drop message: " +

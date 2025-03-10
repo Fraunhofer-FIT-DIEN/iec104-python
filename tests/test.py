@@ -35,10 +35,14 @@ print("DEBUG MODE: {0}".format(c104.get_debug_mode()))
 # CLIENT
 ##################################
 
-my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=100)
+my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=10000)
 my_client.originator_address = 123
 
 cl_connection_1 = my_client.add_connection(ip="127.0.0.1", port=2404, init=c104.Init.ALL)
+cl_connection_1.protocol_parameters.connection_timeout = 20
+cl_connection_1.protocol_parameters.message_timeout = 20
+cl_connection_1.protocol_parameters.confirm_interval = 10
+cl_connection_1.protocol_parameters.keep_alive_interval = 20
 
 
 def cl_pt_on_receive_point(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
@@ -129,6 +133,10 @@ def cl_dump():
 
 my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=100, max_connections=10)
 my_server.max_connections = 11
+my_server.protocol_parameters.connection_timeout = 20
+my_server.protocol_parameters.message_timeout = 20
+my_server.protocol_parameters.confirm_interval = 10
+my_server.protocol_parameters.keep_alive_interval = 20
 
 sv_station_2 = my_server.add_station(common_address=47)
 
@@ -176,11 +184,11 @@ def sv_pt_on_setpoint_command(point: c104.Point, previous_info: c104.Information
     if point.related_io_address:
         print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
         related_point = sv_station_2.get_point(point.related_io_address)
-        if related_point:
-            print("SV] -> RELATED POINT VALUE UPDATE")
+        if related_point and not related_point.info.is_readonly:
+            print("SV] -> RELATED POINT VALUE UPDATE %d: %s -> %s" % (related_point.io_address, related_point.value, point.value))
             related_point.value = point.value
         else:
-            print("SV] -> RELATED POINT NOT FOUND!")
+            print("SV] -> RELATED POINT NOT FOUND OR NOT WRITABLE!")
     return c104.ResponseState.SUCCESS
 
 
@@ -210,11 +218,11 @@ def sv_pt_on_double_command(point: c104.Point, previous_info: c104.Information, 
     if point.related_io_address:
         print("SV] -> RELATED IO ADDRESS: {}".format(point.related_io_address))
         related_point = sv_station_2.get_point(point.related_io_address)
-        if related_point:
+        if related_point and not related_point.info.is_readonly:
             print("SV] -> RELATED POINT VALUE UPDATE")
             related_point.value = point.value
         else:
-            print("SV] -> RELATED POINT NOT FOUND!")
+            print("SV] -> RELATED POINT NOT FOUND OR NOT WRITABLE!")
     return c104.ResponseState.SUCCESS
 
 

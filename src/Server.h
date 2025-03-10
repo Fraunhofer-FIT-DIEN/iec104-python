@@ -62,7 +62,15 @@ struct Selection {
 };
 
 /**
- * @brief service model for IEC60870-5-104 communication as server
+ * @brief Represents a server capable of handling connections, stations,
+ * and transport security for a network-based application.
+ *
+ * The `Server` class is designed to manage server-client communication,
+ * handle multiple connections, and interact with stations defined on this
+ * server. It provides robust features for managing connection limits,
+ * executing protocol-specific parameters, and integrating externally defined
+ * callback execution. The server also supports transport security options
+ * and schedule-based periodic tasks.
  */
 class Server : public std::enable_shared_from_this<Server> {
 
@@ -103,9 +111,16 @@ public:
       std::uint_fast8_t max_open_connections = 0,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr) {
     // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<Server>(
+    auto server = std::shared_ptr<Server>(
         new Server(bind_ip, tcp_port, tick_rate_ms, select_timeout_ms,
                    max_open_connections, std::move(transport_security)));
+
+    // track reference as weak pointer for safe static callbacks
+    void *key = static_cast<void *>(server.get());
+    std::lock_guard<std::mutex> lock(instanceMapMutex);
+    instanceMap[key] = server;
+
+    return server;
   }
 
   // DESTRUCTOR
@@ -675,6 +690,12 @@ private:
   /// another loop
   mutable std::condition_variable_any runThread_wait{};
 
+  /// @brief instance weak pointer list for safe static callbacks
+  static std::unordered_map<void *, std::weak_ptr<Server>> instanceMap;
+
+  /// @brief mutex to lock instanceMap read/write access
+  static std::mutex instanceMapMutex;
+
   /// @brief python callback function pointer
   Module::Callback<void> py_onReceiveRaw{
       "Server.on_receive_raw", "(server: c104.Server, data: bytes) -> None"};
@@ -706,7 +727,40 @@ private:
   // void thread_callback();
 
 public:
+  /**
+   * @brief Retrieves the selector associated with a given common address (ca)
+   * and information object address (ioa) from the selection vector.
+   *
+   * This function searches for a matching selector in the selection vector
+   * based on the provided parameters. If a selection is found
+   * and the time elapsed since its creation does not exceed
+   * the configured selection timeout, the function returns the selector;
+   * otherwise, it returns an empty optional.
+   *
+   * @param ca The common address to search for.
+   * @param ioa The information object address to search for.
+   * @return An optional containing the selector if found and valid;
+   *         otherwise, an empty optional.
+   */
   std::optional<uint8_t> getSelector(uint16_t ca, uint32_t ioa);
+
+  /**
+   * @brief Retrieves the shared instance of the Server associated with the
+   * given key.
+   *
+   * This function is a thread-safe method to access Server instances stored in
+   * an internal instance map. A weak reference is used for storage, and the
+   * function returns a shared pointer to the associated Server instance. If the
+   * key is not found in the map or the associated weak reference has expired, a
+   * null shared pointer is returned.
+   *
+   * @param key A pointer serving as the unique identifier for the desired
+   * Server instance.
+   * @return A shared pointer to the Server instance associated with the given
+   * key, or a null shared pointer if the key is not found or the instance has
+   * been deallocated.
+   */
+  static std::shared_ptr<Server> getInstance(void *key);
 
   /**
    * @brief Callback to accept or decline incoming client connections
