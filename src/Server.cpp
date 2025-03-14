@@ -1031,14 +1031,6 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
       // not added
       if (!CS101_ASDU_addInformationObject(asdu,
                                            message->getInformationObject())) {
-        if (CS101_ASDU_getNumberOfElements(asdu) < 0x7f) {
-          DEBUG_PRINT(Debug::Server,
-                      "Message for inventory cannot be added: Mismatching "
-                      "TypeID or invalid sequence" +
-                          std::to_string(message->getIOA()));
-          continue;
-        }
-
         // ASDU packet size exceeded => send ASDU and create a new one
         // @todo high vs low priority messages
         if (!connection ||
