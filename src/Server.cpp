@@ -1324,7 +1324,7 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
               auto g = batchMap.find(type);
               if (g == batchMap.end()) {
                 auto b = Remote::Message::Batch::create(
-                    CS101_COT_REQUESTED_BY_GENERAL_COUNTER);
+                    CS101_COT_INTERROGATED_BY_STATION);
                 b->addPoint(point);
                 batchMap[type] = std::move(b);
               } else {
