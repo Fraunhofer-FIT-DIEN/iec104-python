@@ -12,14 +12,15 @@ Features
 Fixes
 ^^^^^^
 
-- return to default connection parameters from lib60870 (10s,15s,10s)
+- return to default connection parameters from lib60870 (10s,15s,10s) #48, #51, #56
 - increase default (connection) command timeout from 100ms to 10000ms to fit to connection parameters
 - increase default (server) select timeout from 100ms to 10000ms to fit to connection parameters
-- fix server uses correct cause of transmission for interrogation response #57
-- fix server responds only with last station to general interrogation
-- fix all periodic tasks (periodic monitoring reports, selection timeout)
+- fix sending multiple messages for a batch, if maximum ASDU size exceeded #52
+- fix server uses correct cause of transmission for interrogation response #53, #57
+- fix server responds only with last station to general interrogation #54
+- fix all periodic tasks (periodic monitoring reports, selection timeout) #52
 - Connection interrogation command to global common address blocks until all stations send ACT_TERM, not just first station
-- fix docstring for c104.ProtocolParameters timings: unit is seconds not milliseconds
+- fix docstring for c104.ProtocolParameters timings: unit is seconds not milliseconds #48
 - support try-except blocks in callbacks instead of catching all errors and removing the callback
 - prevent invalid pointer access from lib60870 callbacks
 - setting **Point.value** will raise ValueError if info is readonly
