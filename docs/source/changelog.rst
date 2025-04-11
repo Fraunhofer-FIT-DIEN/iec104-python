@@ -25,6 +25,13 @@ Fixes
 - setting **Point.value** will raise ValueError if info is readonly
 - setting **Point.quality** will raise ValueError if info is readonly
 
+Dependencies
+^^^^^^^^^^^^
+
+- Add experimental support for python 3.13 free-threaded
+- Minor update of lib60870 to latest
+- Minor update of Mbed TLS to 3.6.3
+
 v2.2.0
 -------
 
