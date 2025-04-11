@@ -64,11 +64,11 @@ Connection::Connection(
   }
   connectionString = connectionStringFormatter(ip, _port);
 
-  // reduce lib60870-C connection timeout down to 2s
-  auto param = CS104_Connection_getAPCIParameters(connection);
-  param->t0 = 2; // socket connect timeout
-  param->t1 = 2; // acknowledgement timeout
-  param->t2 = 1; // acknowledgement interval
+  // use lib60870-C defaults for connection timeouts
+  // auto param = CS104_Connection_getAPCIParameters(connection);
+  // param->t0 = 10; // socket connect timeout
+  // param->t1 = 15; // acknowledgement timeout
+  // param->t2 = 10; // acknowledgement interval
 
   if (originator_address > 0) {
     setOriginatorAddress(originator_address);
@@ -435,6 +435,7 @@ void Connection::prepareCommandSuccess(
                              " already running!");
   }
   expectedResponseMap[cmdId] = process_state;
+  expectedResponseMapCount[cmdId] = 0;
 }
 
 bool Connection::awaitCommandSuccess(const std::string &cmdId) {
@@ -482,8 +483,13 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
 
     // delete cmd if still valid
     auto const _it = expectedResponseMap.find(cmdId);
-    if (it != expectedResponseMap.end()) {
-      expectedResponseMap.erase(it);
+    if (_it != expectedResponseMap.end()) {
+      expectedResponseMap.erase(_it);
+    }
+    // delete cmd from count if still valid
+    auto const _countIt = expectedResponseMapCount.find(cmdId);
+    if (_countIt != expectedResponseMapCount.end()) {
+      expectedResponseMapCount.erase(_countIt);
     }
 
     // print
@@ -535,10 +541,30 @@ void Connection::setCommandSuccess(
                   : COMMAND_FAILURE;
           break;
         case COMMAND_AWAIT_CON_TERM:
-          expectedResponseMap[cmdId] =
-              (message->getCauseOfTransmission() == CS101_COT_ACTIVATION_CON)
-                  ? COMMAND_AWAIT_TERM
-                  : COMMAND_FAILURE;
+          // this case allows counting up and down for multiple responses,
+          // number of CONs must match number of TERMs
+          switch (message->getCauseOfTransmission()) {
+          case CS101_COT_ACTIVATION_CON:
+            // increase counter on new CON
+            expectedResponseMapCount[cmdId]++;
+            break;
+          case CS101_COT_ACTIVATION_TERMINATION:
+            // error, if TERM before CON
+            if (expectedResponseMapCount[cmdId] < 1) {
+              expectedResponseMap[cmdId] = COMMAND_FAILURE;
+              break;
+            }
+            // decrease counter on new TERM
+            expectedResponseMapCount[cmdId]--;
+
+            // all CONs have a TERM => Success
+            if (expectedResponseMapCount[cmdId] == 0) {
+              expectedResponseMap[cmdId] = COMMAND_SUCCESS;
+            }
+            break;
+          default:
+            expectedResponseMap[cmdId] = COMMAND_FAILURE;
+          }
           break;
         case COMMAND_AWAIT_TERM:
           expectedResponseMap[cmdId] = (message->getCauseOfTransmission() ==

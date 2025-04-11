@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
     tlsconf->addAllowedRemoteCertificate(ROOT + "certs/server1.crt");
   }
 
-  auto my_client = Client::create(100, 100, tlsconf);
+  auto my_client = Client::create(100, 10000, tlsconf);
   my_client->setOriginatorAddress(123);
 
   auto cl_connection_1 =

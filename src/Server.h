@@ -97,7 +97,7 @@ public:
    * @param tick_rate_ms The interval, in milliseconds, at which the server
    * executes periodic tasks. Defaults to 100 ms.
    * @param select_timeout_ms The timeout, in milliseconds, for select
-   * operations. Defaults to 100 ms.
+   * operations. Defaults to 10000 ms.
    * @param max_open_connections The maximum number of simultaneous open
    * connections allowed. A value of 0 means no limit. Defaults to 0.
    * @param transport_security A shared pointer to a TransportSecurity object to
@@ -107,7 +107,7 @@ public:
   [[nodiscard]] static std::shared_ptr<Server> create(
       std::string bind_ip = "0.0.0.0",
       uint_fast16_t tcp_port = IEC_60870_5_104_DEFAULT_PORT,
-      uint_fast16_t tick_rate_ms = 100, uint_fast16_t select_timeout_ms = 100,
+      uint_fast16_t tick_rate_ms = 100, uint_fast16_t select_timeout_ms = 10000,
       std::uint_fast8_t max_open_connections = 0,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr) {
     // Not using std::make_shared because the constructor is private.
@@ -476,10 +476,11 @@ public:
    * @param task A callable object representing the task to be executed
    * periodically.
    * @param interval The interval in milliseconds at which the task should be
-   * executed. Must be at least 1000ms. Throws std::out_of_range if the interval
+   * executed. Must be at least 50ms. Throws std::out_of_range if the interval
    * is less than 50ms.
    */
-  void schedulePeriodicTask(const std::function<void()> &task, int interval);
+  void schedulePeriodicTask(const std::function<void()> &task,
+                            std::int_fast32_t interval);
 
   /**
    * @brief Schedules a task to be executed after a specified delay (or
@@ -492,7 +493,8 @@ public:
    * @param delay The delay in milliseconds before the task is executed. A
    * negative delay executes the task immediately.
    */
-  void scheduleTask(const std::function<void()> &task, int delay = 0);
+  void scheduleTask(const std::function<void()> &task,
+                    std::int_fast32_t delay = 0);
 
 private:
   /**
@@ -634,7 +636,7 @@ private:
   const std::uint_fast16_t tickRate_ms{100};
 
   /// @brief selection init timestamp, to test against timeout
-  const std::chrono::milliseconds selectTimeout_ms{100};
+  const std::chrono::milliseconds selectTimeout_ms{10000};
 
   /// @brief tls handler
   const std::shared_ptr<Remote::TransportSecurity> security{nullptr};

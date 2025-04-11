@@ -64,7 +64,7 @@ public:
   [[nodiscard]] static std::shared_ptr<Connection> create(
       std::shared_ptr<Client> client, const std::string &ip,
       const uint_fast16_t port = IEC_60870_5_104_DEFAULT_PORT,
-      const uint_fast16_t command_timeout_ms = 100,
+      const uint_fast16_t command_timeout_ms = 10000,
       const ConnectionInit init = INIT_ALL,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr,
       const uint_fast8_t originator_address = 0) {
@@ -503,7 +503,7 @@ private:
       "Connection::connection_mutex"};
 
   /// @brief timeout in milliseconds before an inactive connection gets closed
-  std::atomic_uint_fast16_t commandTimeout_ms{100};
+  std::atomic_uint_fast16_t commandTimeout_ms{10000};
 
   /// @brief IP address of remote server
   std::string ip = "";
@@ -542,6 +542,10 @@ private:
   /// @brief awaited command responses (must be access with
   /// expectedResponseMap_mutex)
   std::map<std::string, CommandProcessState> expectedResponseMap{};
+
+  /// @brief count expected occurrences of command responses (must be access
+  /// with expectedResponseMap_mutex)
+  std::map<std::string, std::uint_fast16_t> expectedResponseMapCount{};
 
   /// @brief Condition to wait for successfully command confirmation and success
   /// information or timeout

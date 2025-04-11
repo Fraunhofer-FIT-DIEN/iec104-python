@@ -274,7 +274,7 @@ class Client:
     """
     This class represents a local client and provides access to meta information and connected remote servers
     """
-    def __init__(self, tick_rate_ms: int = 100, command_timeout_ms: int = 100, transport_security: TransportSecurity | None = None) -> None:
+    def __init__(self, tick_rate_ms: int = 100, command_timeout_ms: int = 10000, transport_security: TransportSecurity | None = None) -> None:
         """
         create a new 104er client
 
@@ -289,7 +289,7 @@ class Client:
 
         Example
         -------
-        >>> my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=100)
+        >>> my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=10000)
         """
     def add_connection(self, ip: str, port: int = 2404, init: Init | None = Init.ALL) -> Connection | None:
         """
@@ -2478,7 +2478,7 @@ class Server:
     """
     This class represents a local server and provides access to meta information and containing stations
     """
-    def __init__(self, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 100, select_timeout_ms = 100, max_connections: int = 0, transport_security: TransportSecurity | None = None) -> None:
+    def __init__(self, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 100, select_timeout_ms = 10000, max_connections: int = 0, transport_security: TransportSecurity | None = None) -> None:
         """
         create a new 104er server
 
@@ -2499,7 +2499,7 @@ class Server:
 
         Example
         -------
-        >>> my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=100, select_timeout_ms=100, max_connections=0)
+        >>> my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=100, select_timeout_ms=10000, max_connections=0)
         """
     def add_station(self, common_address: int) -> Station | None:
         """

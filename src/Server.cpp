@@ -100,11 +100,11 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
 
   appLayerParameters = CS104_Slave_getAppLayerParameters(slave);
 
-  // reduce lib60870-C connection timeout down to 2s
-  auto param = CS104_Slave_getConnectionParameters(slave);
-  param->t0 = 2; // socket connect timeout
-  param->t1 = 2; // acknowledgement timeout
-  param->t2 = 1; // acknowledgement interval
+  // use lib60870-C defaults for connection timeouts
+  // auto param = CS104_Slave_getConnectionParameters(slave);
+  // param->t0 = 10; // socket connect timeout
+  // param->t1 = 15; // acknowledgement timeout
+  // param->t2 = 10; // acknowledgement interval
 
   // Function pointers for custom handler functions
   void *key = static_cast<void *>(this);
@@ -243,38 +243,33 @@ void Server::scheduleDataPointTimer() {
 }
 
 void Server::schedulePeriodicTask(const std::function<void()> &task,
-                                  int interval) {
-  {
-    if (interval < 50) {
-      throw std::out_of_range(
-          "The interval for periodic tasks must be 1000ms at minimum.");
-    }
-    auto periodic = std::make_shared<std::function<void()>>(
-        []() {}); // Empty function initially
-    std::weak_ptr<std::function<void()>> weakPeriodic =
-        periodic; // Weak reference
-    std::weak_ptr<Server> weakSelf =
-        shared_from_this(); // Weak reference to `this`
-
-    *periodic = [weakSelf, task, interval, weakPeriodic]() {
-      auto self = weakSelf.lock();
-      if (!self)
-        return; // Prevent running if `this` was destroyed
-
-      // Schedule next execution
-      if (auto periodicLock = weakPeriodic.lock()) { // Try to lock weak_ptr
-        self->scheduleTask(*periodicLock, interval);
-      }
-      task();
-    };
-    // Schedule first execution
-    scheduleTask(*periodic, interval);
+                                  std::int_fast32_t interval) {
+  if (interval < 50) {
+    throw std::out_of_range(
+        "The interval for periodic tasks must be 50ms at minimum.");
   }
+
+  std::weak_ptr<Server> weakSelf =
+      shared_from_this(); // Weak reference to `this`
+
+  auto periodicCallback = [weakSelf, task, interval]() {
+    auto self = weakSelf.lock();
+    if (!self)
+      return; // Prevent running if `this` was destroyed
+
+    // Schedule next execution
+    self->schedulePeriodicTask(task, interval); // Reschedule itself
+
+    task();
+  };
+  // Schedule first execution
+  scheduleTask(periodicCallback, interval);
 
   runThread_wait.notify_one();
 }
 
-void Server::scheduleTask(const std::function<void()> &task, int delay) {
+void Server::scheduleTask(const std::function<void()> &task,
+                          std::int_fast32_t delay) {
   {
     std::lock_guard<std::mutex> lock(runThread_mutex);
     if (delay < 0) {
@@ -741,37 +736,40 @@ void Server::onUnexpectedMessage(
     std::shared_ptr<Remote::Message::IncomingMessage> message,
     UnexpectedMessageCause cause) {
   CS101_ASDU asdu = message->getAsdu();
+
+  // manipulate and send copy instead of original ASDU
+  CS101_ASDU cp = CS101_ASDU_clone(asdu, nullptr);
   switch (cause) {
   case INVALID_TYPE_ID:
     DEBUG_PRINT(Debug::Server, "on_unexpected_message] Invalid type id");
-    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_TYPE_ID);
-    IMasterConnection_sendASDU(connection, asdu);
+    CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_TYPE_ID);
+    IMasterConnection_sendASDU(connection, cp);
     break;
   case MISMATCHED_TYPE_ID:
     DEBUG_PRINT(Debug::Server, "on_unexpected_message] Mismatching type id");
-    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_TYPE_ID);
-    IMasterConnection_sendASDU(connection, asdu);
+    CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_TYPE_ID);
+    IMasterConnection_sendASDU(connection, cp);
     break;
   case UNKNOWN_TYPE_ID:
     DEBUG_PRINT(Debug::Server, "on_unexpected_message] Unknown type id");
-    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_TYPE_ID);
-    IMasterConnection_sendASDU(connection, asdu);
+    CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_TYPE_ID);
+    IMasterConnection_sendASDU(connection, cp);
     break;
   case INVALID_COT:
   case UNKNOWN_COT:
     DEBUG_PRINT(Debug::Server, "on_unexpected_message] Invalid COT");
-    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
-    IMasterConnection_sendASDU(connection, asdu);
+    CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_COT);
+    IMasterConnection_sendASDU(connection, cp);
     break;
   case UNKNOWN_CA:
     DEBUG_PRINT(Debug::Server, "on_unexpected_message] Unknown CA");
-    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_CA);
-    IMasterConnection_sendASDU(connection, asdu);
+    CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_CA);
+    IMasterConnection_sendASDU(connection, cp);
     break;
   case UNKNOWN_IOA:
     DEBUG_PRINT(Debug::Server, "on_unexpected_message] Unknown IOA");
-    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
-    IMasterConnection_sendASDU(connection, asdu);
+    CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_IOA);
+    IMasterConnection_sendASDU(connection, cp);
     break;
   case UNIMPLEMENTED_GROUP:
     DEBUG_PRINT(Debug::Server, "on_unexpected_message] Unimplemented group");
@@ -779,6 +777,7 @@ void Server::onUnexpectedMessage(
   default: {
   }
   }
+  CS101_ASDU_destroy(cp);
 
   if (py_onUnexpectedMessage.is_set()) {
     std::weak_ptr<Server> weakSelf =
@@ -1102,21 +1101,24 @@ void Server::sendActivationConfirmation(IMasterConnection connection,
   if (!isExistingConnection(connection))
     return;
 
-  CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
-  CS101_ASDU_setNegative(asdu, negative);
+  // manipulate copy instead of original asdu
+  CS101_ASDU cp = CS101_ASDU_clone(asdu, nullptr);
+  CS101_ASDU_setCOT(cp, CS101_COT_ACTIVATION_CON);
+  CS101_ASDU_setNegative(cp, negative);
 
   if (isGlobalCommonAddress(CS101_ASDU_getCA(asdu))) {
     DEBUG_PRINT(Debug::Server, "send_activation_confirmation] to all MTUs");
     std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
     for (auto &s : stations) {
-      CS101_ASDU_setCA(asdu, s->getCommonAddress());
-      IMasterConnection_sendASDU(connection, asdu);
+      CS101_ASDU_setCA(cp, s->getCommonAddress());
+      IMasterConnection_sendASDU(connection, cp);
     }
   } else {
     DEBUG_PRINT(Debug::Server,
                 "send_activation_confirmation] to requesting MTU");
-    IMasterConnection_sendASDU(connection, asdu);
+    IMasterConnection_sendASDU(connection, cp);
   }
+  CS101_ASDU_destroy(cp);
 }
 
 void Server::sendActivationTermination(IMasterConnection connection,
@@ -1124,18 +1126,21 @@ void Server::sendActivationTermination(IMasterConnection connection,
   if (!isExistingConnection(connection))
     return;
 
-  CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_TERMINATION);
+  // manipulate copy instead of original asdu
+  CS101_ASDU cp = CS101_ASDU_clone(asdu, nullptr);
+  CS101_ASDU_setCOT(cp, CS101_COT_ACTIVATION_TERMINATION);
 
   if (isGlobalCommonAddress(CS101_ASDU_getCA(asdu))) {
 
     std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
     for (auto &s : stations) {
-      CS101_ASDU_setCA(asdu, s->getCommonAddress());
-      IMasterConnection_sendASDU(connection, asdu);
+      CS101_ASDU_setCA(cp, s->getCommonAddress());
+      IMasterConnection_sendASDU(connection, cp);
     }
   } else {
-    IMasterConnection_sendASDU(connection, asdu);
+    IMasterConnection_sendASDU(connection, cp);
   }
+  CS101_ASDU_destroy(cp);
 }
 
 void Server::sendEndOfInitialization(const std::uint_fast16_t commonAddress,
@@ -1332,7 +1337,7 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
               }
             } catch (const std::exception &e) {
               DEBUG_PRINT(Debug::Server,
-                          "Invalid point message for counter interrogation: " +
+                          "Invalid point message for interrogation: " +
                               std::string(e.what()));
             }
           }

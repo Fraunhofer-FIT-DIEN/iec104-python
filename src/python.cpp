@@ -1505,7 +1505,7 @@ Example
       "information and connected remote servers")
       .def(
           py::init(&Client::create),
-          R"def(__init__(self: c104.Client, tick_rate_ms: int = 100, command_timeout_ms: int = 100, transport_security: c104.TransportSecurity = None) -> None
+          R"def(__init__(self: c104.Client, tick_rate_ms: int = 100, command_timeout_ms: int = 10000, transport_security: c104.TransportSecurity = None) -> None
 
 create a new 104er client
 
@@ -1520,9 +1520,9 @@ transport_security : c104.TransportSecurity, optional
 
 Example
 -------
->>> my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=100)
+>>> my_client = c104.Client(tick_rate_ms=100, command_timeout_ms=10000)
 )def",
-          "tick_rate_ms"_a = 100, "command_timeout_ms"_a = 100,
+          "tick_rate_ms"_a = 100, "command_timeout_ms"_a = 10000,
           "transport_security"_a = nullptr)
       .def_property_readonly(
           "tick_rate_ms", &Client::getTickRate_ms,
@@ -1799,7 +1799,7 @@ Example
       "information and containing stations")
       .def(
           py::init(&Server::create),
-          R"def(__init__(self: c104.Server, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 100, select_timeout_ms = 100, max_connections: int = 0, transport_security: c104.TransportSecurity = None) -> None
+          R"def(__init__(self: c104.Server, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 100, select_timeout_ms = 10000, max_connections: int = 0, transport_security: c104.TransportSecurity = None) -> None
 
 create a new 104er server
 
@@ -1820,10 +1820,10 @@ transport_security: c104.TransportSecurity, optional
 
 Example
 -------
->>> my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=100, select_timeout_ms=100, max_connections=0)
+>>> my_server = c104.Server(ip="0.0.0.0", port=2404, tick_rate_ms=100, select_timeout_ms=10000, max_connections=0)
 )def",
           "ip"_a = "0.0.0.0", "port"_a = IEC_60870_5_104_DEFAULT_PORT,
-          "tick_rate_ms"_a = 100, "select_timeout_ms"_a = 100,
+          "tick_rate_ms"_a = 100, "select_timeout_ms"_a = 10000,
           "max_connections"_a = 0, "transport_security"_a = nullptr)
       .def_property_readonly(
           "tick_rate_ms", &Server::getTickRate_ms,

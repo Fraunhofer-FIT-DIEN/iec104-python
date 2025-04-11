@@ -12,6 +12,13 @@ Features
 Fixes
 ^^^^^^
 
+- return to default connection parameters from lib60870 (10s,15s,10s)
+- increase default (connection) command timeout from 100ms to 10000ms to fit to connection parameters
+- increase default (server) select timeout from 100ms to 10000ms to fit to connection parameters
+- fix server uses correct cause of transmission for interrogation response #57
+- fix server responds only with last station to general interrogation
+- fix all periodic tasks (periodic monitoring reports, selection timeout)
+- Connection interrogation command to global common address blocks until all stations send ACT_TERM, not just first station
 - fix docstring for c104.ProtocolParameters timings: unit is seconds not milliseconds
 - support try-except blocks in callbacks instead of catching all errors and removing the callback
 - prevent invalid pointer access from lib60870 callbacks

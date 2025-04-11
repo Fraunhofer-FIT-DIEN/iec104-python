@@ -57,14 +57,14 @@ public:
    * @param tick_rate_ms Tick rate in milliseconds for the Client execution
    * loop. Defaults to 100.
    * @param timeout_ms Timeout in milliseconds for Client operations. Defaults
-   * to 100.
+   * to 10000.
    * @param transport_security Shared pointer to a TransportSecurity object for
    * remote communication. Defaults to nullptr.
    * @return A shared pointer to the newly created Client instance.
    */
   [[nodiscard]] static std::shared_ptr<Client> create(
       std::uint_fast16_t tick_rate_ms = 100,
-      std::uint_fast16_t timeout_ms = 100,
+      std::uint_fast16_t timeout_ms = 10000,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr) {
     // Not using std::make_shared because the constructor is private.
     return std::shared_ptr<Client>(
@@ -278,10 +278,11 @@ public:
    * @param task A callable object representing the task to be executed
    * periodically.
    * @param interval The interval in milliseconds at which the task should be
-   * executed. Must be at least 1000ms. Throws std::out_of_range if the interval
+   * executed. Must be at least 50ms. Throws std::out_of_range if the interval
    * is less than 50ms.
    */
-  void schedulePeriodicTask(const std::function<void()> &task, int interval);
+  void schedulePeriodicTask(const std::function<void()> &task,
+                            std::int_fast32_t interval);
 
   /**
    * @brief Schedules a task to be executed after a specified delay (or
@@ -294,7 +295,8 @@ public:
    * @param delay The delay in milliseconds before the task is executed. A
    * negative delay executes the task immediately.
    */
-  void scheduleTask(const std::function<void()> &task, int delay = 0);
+  void scheduleTask(const std::function<void()> &task,
+                    std::int_fast32_t delay = 0);
 
 private:
   /**
@@ -321,10 +323,10 @@ private:
   void scheduleDataPointTimer();
 
   /// @brief minimum interval between two periodic tasks
-  const std::uint_fast16_t tickRate_ms{1000};
+  const std::uint_fast16_t tickRate_ms{100};
 
   /// @brief timeout in milliseconds before an inactive connection gets closed
-  const std::uint_fast16_t commandTimeout_ms{100};
+  const std::uint_fast16_t commandTimeout_ms{10000};
 
   /// @brief tls handler
   const std::shared_ptr<Remote::TransportSecurity> security{nullptr};

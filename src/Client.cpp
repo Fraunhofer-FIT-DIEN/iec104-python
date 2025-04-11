@@ -361,38 +361,33 @@ void Client::scheduleDataPointTimer() {
 }
 
 void Client::schedulePeriodicTask(const std::function<void()> &task,
-                                  int interval) {
-  {
-    if (interval < 50) {
-      throw std::out_of_range(
-          "The interval for periodic tasks must be 1000ms at minimum.");
-    }
-    auto periodic = std::make_shared<std::function<void()>>(
-        []() {}); // Empty function initially
-    std::weak_ptr<std::function<void()>> weakPeriodic =
-        periodic; // Weak reference
-    std::weak_ptr<Client> weakSelf =
-        shared_from_this(); // Weak reference to `this`
-
-    *periodic = [weakSelf, task, interval, weakPeriodic]() {
-      auto self = weakSelf.lock();
-      if (!self)
-        return; // Prevent running if `this` was destroyed
-
-      // Schedule next execution
-      if (auto periodicLock = weakPeriodic.lock()) { // Try to lock weak_ptr
-        self->scheduleTask(*periodicLock, interval);
-      }
-      task();
-    };
-    // Schedule first execution
-    scheduleTask(*periodic, interval);
+                                  std::int_fast32_t interval) {
+  if (interval < 50) {
+    throw std::out_of_range(
+        "The interval for periodic tasks must be 50ms at minimum.");
   }
+
+  std::weak_ptr<Client> weakSelf =
+      shared_from_this(); // Weak reference to `this`
+
+  auto periodicCallback = [weakSelf, task, interval]() {
+    auto self = weakSelf.lock();
+    if (!self)
+      return; // Prevent running if `this` was destroyed
+
+    // Schedule next execution
+    self->schedulePeriodicTask(task, interval); // Reschedule itself
+
+    task();
+  };
+  // Schedule first execution
+  scheduleTask(periodicCallback, interval);
 
   runThread_wait.notify_one();
 }
 
-void Client::scheduleTask(const std::function<void()> &task, int delay) {
+void Client::scheduleTask(const std::function<void()> &task,
+                          std::int_fast32_t delay) {
   {
     std::lock_guard<std::mutex> lock(runThread_mutex);
     if (delay < 0) {
