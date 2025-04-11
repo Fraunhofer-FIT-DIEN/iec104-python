@@ -41,11 +41,12 @@
 #include <pybind11/stl.h>
 
 #ifdef VERSION_INFO
-#define PY_MODULE(var) PYBIND11_MODULE(_c104, var)
+#define PY_MODULE(var) PYBIND11_MODULE(_c104, var, py::mod_gil_not_used())
 #else
 #define VERSION_INFO "embedded"
 #include <pybind11/embed.h>
-#define PY_MODULE(var) PYBIND11_EMBEDDED_MODULE(c104, var)
+#define PY_MODULE(var)                                                         \
+  PYBIND11_EMBEDDED_MODULE(c104, var, py::mod_gil_not_used())
 #endif
 
 using namespace pybind11::literals;
