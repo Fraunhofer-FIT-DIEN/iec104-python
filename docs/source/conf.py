@@ -14,7 +14,7 @@ copyright = "2020-2025, Fraunhofer Institute for Applied Information Technology 
 author = "Martin Unkel <martin.unkel@fit.fraunhofer.de>"
 
 release = "2.2"
-version = "2.2.0"
+version = "2.2.1"
 
 
 # -- General configuration ---------------------------------------------------

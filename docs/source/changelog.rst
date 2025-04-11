@@ -1,7 +1,7 @@
 Change log
 ==========
 
-v2.2.1 (draft)
+v2.2.1
 -------
 
 Features
