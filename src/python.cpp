@@ -45,26 +45,10 @@
 #else
 #define VERSION_INFO "embedded"
 #include <pybind11/embed.h>
-#define PY_MODULE(var)                                                         \
-  PYBIND11_EMBEDDED_MODULE(c104, var, py::mod_gil_not_used())
+#define PY_MODULE(var) PYBIND11_EMBEDDED_MODULE(c104, var)
 #endif
 
 using namespace pybind11::literals;
-
-// set UNBUFFERED mode for correct order of stdout flush between python and c++
-struct EnvironmentInitializer {
-  EnvironmentInitializer() {
-#if defined(_WIN32) || defined(_WIN64)
-    _putenv("PYTHONUNBUFFERED=1");
-#else
-    // Use setenv on Linux
-    setenv("PYTHONUNBUFFERED", "1", 1);
-#endif
-  }
-};
-
-// Initialize the environment variable before main() is called
-static EnvironmentInitializer initializer;
 
 // Bind Number with Template
 template <typename T>

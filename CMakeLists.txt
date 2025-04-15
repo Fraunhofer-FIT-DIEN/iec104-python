@@ -17,6 +17,8 @@ if(DEFINED ENV{TOOLCHAIN})
   message(STATUS "TOOLCHAIN: $ENV{TOOLCHAIN}")
 endif()
 
+list(APPEND c104_PRIVATE_DEFINITIONS VERSION_INFO=\"${C104_VERSION_INFO}\")
+
 # ##############################################################################
 # pybind11 and Python3
 # ##############################################################################
@@ -29,6 +31,20 @@ add_subdirectory(depends/pybind11)
 list(APPEND c104_tests_PRIVATE_LIBRARIES pybind11::embed)
 if(MSVC)
   list(APPEND c104_tests_PRIVATE_LIBRARIES pybind11::windows_extras)
+endif()
+
+# Run Python to check for GIL status
+execute_process(
+  COMMAND
+    ${Python_EXECUTABLE} -c
+    "import sysconfig; print(bool(sysconfig.get_config_var(\"Py_GIL_DISABLED\")) and 1 or 0)"
+  OUTPUT_VARIABLE PYTHON_FREE_THREADED
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(PYTHON_FREE_THREADED)
+  list(APPEND c104_PRIVATE_DEFINITIONS Py_GIL_DISABLED=1)
+  message(STATUS "Python is running without GIL (free threaded)")
+else()
+  message(STATUS "Python is running with GIL (classic)")
 endif()
 
 # ##############################################################################
@@ -150,7 +166,7 @@ if(c104_PRIVATE_LIBRARIES)
   target_link_libraries(_c104 PRIVATE ${c104_PRIVATE_LIBRARIES})
 endif()
 
-target_compile_definitions(_c104 PRIVATE VERSION_INFO=\"${C104_VERSION_INFO}\")
+target_compile_definitions(_c104 PRIVATE ${c104_PRIVATE_DEFINITIONS})
 
 # ##############################################################################
 # Tests with Catch2

@@ -12,6 +12,7 @@ rm -rf /opt/c104/dist/*manylinux*.whl ; \
 /opt/python/cp311-cp311/bin/python3 -m pip wheel /opt/c104 ; \
 /opt/python/cp312-cp312/bin/python3 -m pip wheel /opt/c104 ; \
 /opt/python/cp313-cp313/bin/python3 -m pip wheel /opt/c104 ; \
+/opt/python/cp313-cp313t/bin/python3 -m pip wheel /opt/c104 ; \
 auditwheel repair ./c104-*-linux_aarch64.whl ; \
 mv ./wheelhouse/* /opt/c104/dist/
 "
