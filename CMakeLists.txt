@@ -29,7 +29,7 @@ set(Python_FIND_REGISTRY "LAST")
 set(PYBIND11_FINDPYTHON ON)
 add_subdirectory(depends/pybind11)
 list(APPEND c104_tests_PRIVATE_LIBRARIES pybind11::embed)
-if(MSVC)
+if(WIN32)
   list(APPEND c104_tests_PRIVATE_LIBRARIES pybind11::windows_extras)
 endif()
 
@@ -37,12 +37,47 @@ endif()
 execute_process(
   COMMAND
     ${Python_EXECUTABLE} -c
-    "import sysconfig; print(bool(sysconfig.get_config_var(\"Py_GIL_DISABLED\")) and 1 or 0)"
+    "import sysconfig; print(bool(sysconfig.get_config_var('Py_GIL_DISABLED')) and 1 or 0)"
   OUTPUT_VARIABLE PYTHON_FREE_THREADED
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 if(PYTHON_FREE_THREADED)
+  # set Py_GIL_DISABLED=1 to build pybind11 for free threaded python
   list(APPEND c104_PRIVATE_DEFINITIONS Py_GIL_DISABLED=1)
   message(STATUS "Python is running without GIL (free threaded)")
+
+  # fix library path on windows
+  if(WIN32 AND DEFINED Python_LIBRARY)
+    get_filename_component(_PYTHON_LIB_DIR "${Python_LIBRARY}" DIRECTORY)
+    get_filename_component(_PYTHON_LIB_NAME "${Python_LIBRARY}" NAME_WE)
+    get_filename_component(_PYTHON_LIB_EXT "${Python_LIBRARY}" EXT)
+
+    # Check if library name already has 't' suffix
+    if(NOT _PYTHON_LIB_NAME MATCHES "t$")
+      set(_PYTHON_LIB_NAME "${_PYTHON_LIB_NAME}t")
+      set(_CORRECTED_PYTHON_LIBRARY
+          "${_PYTHON_LIB_DIR}/${_PYTHON_LIB_NAME}${_PYTHON_LIB_EXT}")
+
+      message(STATUS "Hotfix free-threaded Python library path:")
+      message(STATUS "  Original: ${Python_LIBRARY}")
+      message(STATUS "  Corrected: ${_CORRECTED_PYTHON_LIBRARY}")
+
+      # Verify the corrected library exists
+      if(EXISTS "${_CORRECTED_PYTHON_LIBRARY}")
+        set(Python_LIBRARY
+            "${_CORRECTED_PYTHON_LIBRARY}"
+            CACHE STRING "Path to Python library" FORCE)
+        set(Python_LIBRARIES
+            "${_CORRECTED_PYTHON_LIBRARY}"
+            CACHE STRING "Python libraries" FORCE)
+      else()
+        message(
+          WARNING
+            "Corrected Python library file not found: ${_CORRECTED_PYTHON_LIBRARY}"
+        )
+      endif()
+    endif()
+
+  endif()
 else()
   message(STATUS "Python is running with GIL (classic)")
 endif()
