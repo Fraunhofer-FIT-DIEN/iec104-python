@@ -739,6 +739,7 @@ void Server::onUnexpectedMessage(
 
   // manipulate and send copy instead of original ASDU
   CS101_ASDU cp = CS101_ASDU_clone(asdu, nullptr);
+  CS101_ASDU_setNegative(cp, true);
   switch (cause) {
   case INVALID_TYPE_ID:
     DEBUG_PRINT(Debug::Server, "on_unexpected_message] Invalid type id");
