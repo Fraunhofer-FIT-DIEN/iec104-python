@@ -23,7 +23,7 @@
  * @brief date time with extra flags
  *
  * @package iec104-python
- * @namespace object
+ * @namespace Object
  *
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *

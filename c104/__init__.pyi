@@ -90,9 +90,9 @@ class Batch:
         originator address (0-255)
         """
     @property
-    def points(self) -> list[Point]:
+    def points(self) -> tuple[Point]:
         """
-        get a list of contained points
+        list of contained Point objects
         """
     @property
     def type(self) -> Type:
@@ -161,7 +161,7 @@ class BinaryCounterInfo(Information):
     @property
     def counter(self) -> int:
         """
-        the value
+        the actual counter-value
         """
     @property
     def quality(self) -> BinaryCounterQuality:
@@ -503,7 +503,7 @@ class Client:
         get number of active (open and not muted) connections to servers
         """
     @property
-    def connections(self) -> list[Connection]:
+    def connections(self) -> tuple[Connection]:
         """
         list of all remote terminal unit (server) Connection objects
         """
@@ -1019,7 +1019,7 @@ class Connection:
         current connection state
         """
     @property
-    def stations(self) -> list[Station]:
+    def stations(self) -> tuple[Station]:
         """
         list of all Station objects
         """
@@ -1738,6 +1738,25 @@ class Point:
     """
     This class represents command and measurement data point of a station and provides access to structured properties of points
     """
+    @property
+    def groups(self) -> tuple[int]:
+        """
+        list of membership group IDs
+        """
+    @groups.setter
+    def groups(self, groups: list[int]) -> None:
+        """
+        set group memberships for this point
+
+        Parameters
+        ----------
+        groups: list[int]
+            new list of membership group IDs (valid IDs: 1-20)
+
+        Returns
+        -------
+        None
+        """
     def on_before_auto_transmit(self, callable: collections.abc.Callable[[Point], None]) -> None:
         """
         set python callback that will be called before server reports a measured value interval-based
@@ -2995,7 +3014,7 @@ class Server:
         read and update protocol parameters
         """
     @property
-    def stations(self) -> list[Station]:
+    def stations(self) -> tuple[Station]:
         """
         list of all local Station objects
         """
@@ -3239,6 +3258,24 @@ class Station:
         >>> point_2 = sv_station_1.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
         >>> point_3 = sv_station_1.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=point_2.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
         """
+    def get_group(self, group_id: int) -> tuple[Point]:
+        """
+        get a list of points that belong to the group (0=all points) targetable in qualifiers like interrogation commands
+
+        Parameters
+        ----------
+        group_id: int
+            interrogation group index (value between 1 and 20, 0 = all points)
+
+        Returns
+        -------
+        tuple[c104.Point]
+            list of points that are member of this group
+
+        Example
+        -------
+        >>> group_1 = my_station.get_group(group_id=1)
+        """
     def get_point(self, io_address: int) -> Point | None:
         """
         get a point object via information object address
@@ -3371,7 +3408,7 @@ class Station:
         test if station is local (has sever) or remote (has connection) one
         """
     @property
-    def points(self) -> list[Point]:
+    def points(self) -> tuple[Point]:
         """
         list of all Point objects
         """
@@ -4253,4 +4290,4 @@ def set_debug_mode(mode: Debug) -> None:
     -------
     >>> c104.set_debug_mode(mode=c104.Debug.Client|c104.Debug.Connection)
     """
-__version__: str = '2.2.1'
+__version__: str = '3.0.0'

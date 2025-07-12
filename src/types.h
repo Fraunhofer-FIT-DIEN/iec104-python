@@ -42,6 +42,7 @@
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <list>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -74,6 +75,7 @@
 #define TICTOCNOW(begin) TICTOC(begin, std::chrono::steady_clock::now())
 #define MAX_INFORMATION_OBJECT_ADDRESS 16777215
 #define UNDEFINED_INFORMATION_OBJECT_ADDRESS 16777216
+#define NUM_GROUPS 16
 
 /**
  * @brief Global atomic variable storing the current debug mode configuration.

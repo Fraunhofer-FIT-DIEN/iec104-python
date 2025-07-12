@@ -23,7 +23,7 @@
  * @brief 60870-5-104 station
  *
  * @package iec104-python
- * @namespace object
+ * @namespace Object
  *
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *
@@ -99,6 +99,13 @@ private:
   /// find a DataPoint via IOA
   std::unordered_map<std::uint_fast32_t, std::shared_ptr<DataPoint>>
       pointIoaMap{};
+
+  /// @brief qualifier of interrogation group mapping
+  /// (index 0 = Group 1, index 19 = Group 20)
+  std::array<std::list<std::weak_ptr<DataPoint>>, NUM_GROUPS> groups;
+
+  /// @brief mutex to lock member read/write access
+  mutable Module::GilAwareMutex groups_mutex{"Station::groups_mutex"};
 
   /// @brief timezone offset in seconds that point timestamps are recorded in
   std::atomic<std::chrono::seconds> timeZoneOffset{0s};
@@ -195,6 +202,29 @@ public:
   [[nodiscard]] bool isAutoTimeSubstituted() const;
 
   void setAutoTimeSubstituted(bool enabled);
+
+  /**
+   * @brief Get DataPoints by group
+   * @param index group id (0=all, 1-20=group 1-20)
+   * @return vector of DataPoints that are member of the group
+   */
+  DataPointVector getGroup(size_t index) const;
+
+  /**
+   * @brief Get group memberships of a DataPoint
+   * @param point DataPoint
+   * @return list of group membership IDs
+   */
+  std::list<size_t>
+  getGroupsForDataPoint(std::shared_ptr<DataPoint> point) const;
+
+  /**
+   * @brief Set group memberships of a DataPoint
+   * @param point DataPoint
+   * @param new_groups new list of group membership IDs
+   */
+  void setGroupsForDataPoint(std::shared_ptr<DataPoint> point,
+                             const std::list<size_t> &new_groups);
 
   /**
    * @brief Sends the end of initialization signal with the specified cause.

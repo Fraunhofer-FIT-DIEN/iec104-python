@@ -10,6 +10,13 @@ Features
 - Improve type hints for all classes and methods as a ``.pyi`` file.
 - Add DateTime to support timezones and time flags
 - Add argument date_time to **Connection.clock_sync()** method to modify the to be sent timestamp, defaults to now() as before
+- Add server-side support for Groups (used by interrogation and counter interrogation):
+  - A point can be member of multiple groups, per default a point is not member of any group
+  - Add method **Station.get_group(int)** to get points by group (group 1-16, or 1-4 for integrated totals (counter))
+  - Add property **Point.groups** to get or set the list of groups this point is member of
+  - the server automatically handles this groups in interrogation commands
+  - points on the client-side do not know about these groups
+- Add server-side support for counter freeze and reset in counter interrogation
 
 Breaking Changes
 ^^^^^^^^^^^^^^^^
@@ -18,6 +25,11 @@ Breaking Changes
 - **Point.recorded_at** returns c104.DateTime instead of datetime.datetime, the native python datetime is available via **Point.recorded_at.value**
 - **Point.processed_at** returns c104.DateTime instead of datetime.datetime, the native python datetime is available via **Point.processed_at.value**
 - **Server.on_clock_sync** callback argument date_time changed from datetime.datetime to c104.DateTime
+- **Server.stations** returns a tuple instead of a list to express that this property is immutable
+- **Client.connections** returns a tuple instead of a list to express that this property is immutable
+- **Connection.stations** returns a tuple instead of a list to express that this property is immutable
+- **Station.points** returns a tuple instead of a list to express that this property is immutable
+- **Batch.points** returns a tuple instead of a list to express that this property is immutable
 
 v2.2.1
 -------

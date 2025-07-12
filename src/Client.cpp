@@ -191,7 +191,7 @@ std::uint_fast8_t Client::getActiveConnectionCount() const {
   return count;
 }
 
-Remote::ConnectionVector Client::getConnections() {
+Remote::ConnectionVector Client::getConnections() const {
   std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
 
   return connections;

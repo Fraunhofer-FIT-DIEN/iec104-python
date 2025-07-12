@@ -1,6 +1,6 @@
 [project]
 name = "c104"
-version = "2.2.1"
+version = "3.0.0"
 description = "A Python module to simulate SCADA and RTU communication over protocol 60870-5-104 to research ICT behavior in power grids."
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = "LICENSE"}

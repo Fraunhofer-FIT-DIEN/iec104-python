@@ -24,7 +24,7 @@
  * deadlocks with GIL
  *
  * @package iec104-python
- * @namespace module
+ * @namespace Module
  *
  * @authors Lennart Bader <lennart.bader@fkie.fraunhofer.de>, Martin Unkel
  * <martin.unkel@fit.fraunhofer.de>

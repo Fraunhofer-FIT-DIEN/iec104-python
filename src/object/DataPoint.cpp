@@ -23,7 +23,7 @@
  * @brief 60870-5-104 information object
  *
  * @package iec104-python
- * @namespace object
+ * @namespace Object
  *
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *
@@ -1138,6 +1138,40 @@ DataPoint::nextTimerAt() const {
     return timerNext;
   }
   return std::nullopt;
+}
+
+std::list<size_t> DataPoint::getGroups() {
+  const auto _station = getStation();
+  if (_station) {
+    return _station->getGroupsForDataPoint(shared_from_this());
+  }
+
+  return {};
+}
+
+void DataPoint::setGroups(const std::list<size_t> &groups) {
+  const auto _station = getStation();
+  if (!_station) {
+    throw std::invalid_argument("Station reference deleted");
+  }
+  // as client
+  if (!_station->isLocal()) {
+    throw std::invalid_argument("Cannot assign groups as client");
+  }
+
+  // Test restriction for counter values
+  if (type == M_IT_TB_1 || type == M_IT_NA_1) {
+    for (const size_t index : groups) {
+      if (index > 4) {
+        throw std::invalid_argument(
+            "Point.groups] Integrated total points may use group 1 to 4, but " +
+            std::to_string(index) + " given");
+      }
+    }
+  }
+
+  // Add point to specified new groups
+  _station->setGroupsForDataPoint(shared_from_this(), groups);
 }
 
 void DataPoint::setOnTimerCallback(py::object &callable,

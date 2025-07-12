@@ -23,7 +23,7 @@
  * @brief abstract data point
  *
  * @package iec104-python
- * @namespace object
+ * @namespace Object
  *
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *
@@ -323,6 +323,18 @@ public:
    * @return seconds since unix-epoch
    */
   std::optional<std::chrono::steady_clock::time_point> nextTimerAt() const;
+
+  /**
+   * @brief get list of group memberships
+   * @return list of group IDs
+   */
+  std::list<size_t> getGroups();
+
+  /**
+   * @brief assign roup memberships
+   * @param groups list of new group membership IDs
+   */
+  void setGroups(const std::list<size_t> &groups);
 
   /**
    * @brief handle remote point update, execute python callback
