@@ -23,7 +23,7 @@
  * @brief mangage python callbacks and verify function signatures
  *
  * @package iec104-python
- * @namespace module
+ * @namespace Module
  *
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *

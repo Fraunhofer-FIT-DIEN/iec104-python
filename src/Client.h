@@ -151,7 +151,7 @@ public:
    * @return A vector of shared pointers to Connection objects representing
    * active connections.
    */
-  Remote::ConnectionVector getConnections();
+  Remote::ConnectionVector getConnections() const;
 
   /**
    * @brief Checks if a connection exists for the specified IP and port.

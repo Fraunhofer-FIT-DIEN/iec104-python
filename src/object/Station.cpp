@@ -23,7 +23,7 @@
  * @brief 60870-5-104 station
  *
  * @package iec104-python
- * @namespace object
+ * @namespace Object
  *
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *
@@ -139,13 +139,15 @@ bool Station::removePoint(const std::uint_fast32_t informationObjectAddress) {
 
   // Use std::remove_if to find and remove the entry
   points.erase(std::remove_if(points.begin(), points.end(),
-                              [informationObjectAddress](
+                              [this, informationObjectAddress](
                                   const std::shared_ptr<DataPoint> &point) {
                                 // Check if the current DataPoint matches the
                                 // provided address
                                 if (point->getInformationObjectAddress() ==
                                     informationObjectAddress) {
                                   point->detach();
+                                  // remove from all groups
+                                  setGroupsForDataPoint(point, {});
                                   return true;
                                 }
                                 return false;
@@ -177,6 +179,70 @@ bool Station::isAutoTimeSubstituted() const {
 
 void Station::setAutoTimeSubstituted(const bool enabled) {
   autoTimeSubstituted.store(enabled);
+}
+
+DataPointVector Station::getGroup(size_t index) const {
+  if (index < 0 || index > NUM_GROUPS) {
+    throw std::out_of_range("Station.get_group] Invalid group ID " +
+                            std::to_string(index) + " (must be 0.." +
+                            std::to_string(NUM_GROUPS) + ")");
+  }
+
+  if (index == 0)
+    return getPoints();
+
+  std::scoped_lock<Module::GilAwareMutex> const lock(groups_mutex);
+
+  Object::DataPointVector result;
+  for (const auto &weak_point : groups[index - 1]) {
+    if (auto point = weak_point.lock()) {
+      result.push_back(point);
+    }
+  }
+  return result;
+}
+
+std::list<size_t>
+Station::getGroupsForDataPoint(std::shared_ptr<DataPoint> point) const {
+  std::list<size_t> result;
+  std::scoped_lock<Module::GilAwareMutex> const lock(groups_mutex);
+
+  for (size_t index = 0; index < groups.size(); ++index) {
+    for (const auto &weak_point : groups[index]) {
+      if (auto locked = weak_point.lock()) {
+        if (locked == point) {
+          result.push_back(index + 1);
+          break;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+void Station::setGroupsForDataPoint(std::shared_ptr<DataPoint> point,
+                                    const std::list<size_t> &new_groups) {
+  std::scoped_lock<Module::GilAwareMutex> const lock(groups_mutex);
+
+  // Remove point from all current groups (also remove invalid points)
+  for (auto &group : groups) {
+    group.remove_if([point](const std::weak_ptr<DataPoint> &weak_point) {
+      auto locked = weak_point.lock();
+      return !locked || locked == point;
+    });
+  }
+
+  // Add point to specified new groups
+  for (const size_t index : new_groups) {
+    if (index > 0 && index <= NUM_GROUPS) {
+      groups[index - 1].push_back(point);
+    } else {
+      throw std::invalid_argument(
+          "Station.setGroupsForDataPoint] Invalid group ID " +
+          std::to_string(index));
+    }
+  }
 }
 
 void Station::sendEndOfInitialization(

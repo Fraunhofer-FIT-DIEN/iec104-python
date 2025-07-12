@@ -24,7 +24,7 @@
  * GIL-holding python thread
  *
  * @package iec104-python
- * @namespace module
+ * @namespace Module
  *
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *

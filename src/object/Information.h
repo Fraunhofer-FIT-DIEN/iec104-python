@@ -23,7 +23,7 @@
  * @brief abstract protocol information
  *
  * @package iec104-python
- * @namespace object
+ * @namespace Object
  *
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *
@@ -45,10 +45,9 @@
 namespace Object {
 
 class Information : public std::enable_shared_from_this<Information> {
-private:
-  std::mutex mtx;
-
 protected:
+  mutable std::recursive_mutex mtx;
+
   /// @brief timestamp of information value generation, optional
   std::optional<DateTime> recorded_at;
 
@@ -689,6 +688,11 @@ protected:
   /// @brief measurement quality
   BinaryCounterQuality quality;
 
+  /// @brief frozen state
+  bool frozen;
+  /// @brief counter value
+  int32_t counter_frozen;
+
   [[nodiscard]] InfoValue getValueImpl() const override;
   void setValueImpl(InfoValue val) override;
 
@@ -708,10 +712,45 @@ public:
                     const BinaryCounterQuality quality,
                     const std::optional<DateTime> &recorded_at,
                     const bool readonly)
-      : Information(recorded_at, readonly), counter(counter),
-        sequence(std::move(sequence)), quality(quality) {}
+      : Information(recorded_at, readonly), frozen(false), counter_frozen(0),
+        counter(counter), sequence(std::move(sequence)), quality(quality) {}
 
   [[nodiscard]] int32_t getCounter() const { return counter; }
+
+  /**
+   * Get frozen value and reset freeze-state
+   * @return counter-value from freeze timestamp
+   */
+  [[nodiscard]] int32_t getCounterFrozen() {
+    std::lock_guard<std::recursive_mutex> lock(mtx);
+
+    if (frozen) {
+      frozen = false;
+      return counter_frozen;
+    }
+    return counter;
+  }
+
+  void freeze(bool with_reset) {
+    std::lock_guard<std::recursive_mutex> lock(mtx);
+
+    frozen = true;
+    counter_frozen = counter;
+    if (with_reset) {
+      reset();
+    }
+  }
+
+  void reset() {
+    std::lock_guard<std::recursive_mutex> lock(mtx);
+
+    counter = 0;
+    try {
+      sequence += 1;
+    } catch (std::out_of_range &e) {
+      sequence = LimitedUInt5(0);
+    }
+  }
 
   [[nodiscard]] const LimitedUInt5 &getSequence() const { return sequence; }
 

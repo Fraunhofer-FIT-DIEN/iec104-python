@@ -162,7 +162,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     auto i = std::dynamic_pointer_cast<Object::BinaryCounterInfo>(info);
     auto q = std::get<BinaryCounterQuality>(i->getQuality());
     BinaryCounterReading _value = BinaryCounterReading_create(
-        nullptr, i->getCounter(), i->getSequence().get(),
+        nullptr, i->getCounterFrozen(), i->getSequence().get(),
         ::test(q, BinaryCounterQuality::Carry),
         ::test(q, BinaryCounterQuality::Adjusted),
         ::test(q, BinaryCounterQuality::Invalid));
@@ -174,7 +174,7 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     auto i = std::dynamic_pointer_cast<Object::BinaryCounterInfo>(info);
     auto q = std::get<BinaryCounterQuality>(i->getQuality());
     BinaryCounterReading _value = BinaryCounterReading_create(
-        nullptr, i->getCounter(), i->getSequence().get(),
+        nullptr, i->getCounterFrozen(), i->getSequence().get(),
         ::test(q, BinaryCounterQuality::Carry),
         ::test(q, BinaryCounterQuality::Adjusted),
         ::test(q, BinaryCounterQuality::Invalid));

@@ -157,42 +157,53 @@ include_directories(
 set(c104_SOURCES
     src/numbers.h
     src/enums.h
-    src/enums.cpp
-    src/types.cpp
     src/types.h
+    src/module/Tuple.h
     src/module/Callback.h
     src/module/ScopedGilAcquire.h
     src/module/ScopedGilRelease.h
     src/module/GilAwareMutex.h
-    src/object/DateTime.cpp
     src/object/DateTime.h
     src/object/Information.h
     src/object/DataPoint.h
     src/object/Station.h
     src/remote/Helper.h
     src/remote/Helper.cpp
-    src/remote/TransportSecurity.cpp
     src/remote/TransportSecurity.h
-    src/remote/Connection.cpp
     src/remote/Connection.h
     src/remote/message/IMessageInterface.h
-    src/remote/message/IncomingMessage.cpp
     src/remote/message/IncomingMessage.h
-    src/remote/message/OutgoingMessage.cpp
     src/remote/message/OutgoingMessage.h
-    src/remote/message/PointCommand.cpp
     src/remote/message/PointCommand.h
-    src/remote/message/PointMessage.cpp
     src/remote/message/PointMessage.h
-    src/remote/message/Batch.cpp
     src/remote/message/Batch.h
-    src/Client.cpp
     src/Client.h
-    src/Server.cpp
     src/Server.h
+    src/enums.cpp
+    src/types.cpp
+    src/object/DateTime.cpp
+    src/object/DateTimePy.cpp
     src/object/Information.cpp
+    src/object/InformationPy.cpp
     src/object/DataPoint.cpp
+    src/object/DataPointPy.cpp
     src/object/Station.cpp
+    src/object/StationPy.cpp
+    src/remote/TransportSecurity.cpp
+    src/remote/TransportSecurityPy.cpp
+    src/remote/Connection.cpp
+    src/remote/ConnectionPy.cpp
+    src/remote/message/IncomingMessage.cpp
+    src/remote/message/IncomingMessagePy.cpp
+    src/remote/message/OutgoingMessage.cpp
+    src/remote/message/PointCommand.cpp
+    src/remote/message/PointMessage.cpp
+    src/remote/message/Batch.cpp
+    src/remote/message/BatchPy.cpp
+    src/Client.cpp
+    src/ClientPy.cpp
+    src/Server.cpp
+    src/ServerPy.cpp
     src/python.cpp)
 
 pybind11_add_module(_c104 MODULE OPT_SIZE ${c104_SOURCES})

@@ -1277,65 +1277,66 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
 
   if (auto message = instance->getValidMessage(connection, asdu)) {
 
-    // todo support GROUPS
-    if (IEC60870_QOI_STATION == qoi) {
-
-      // confirm activation
-      instance->sendActivationConfirmation(connection, asdu, false);
-
-      const auto commonAddress = CS101_ASDU_getCA(asdu);
-      IEC60870_5_TypeID type = C_TS_TA_1;
-
-      // batch messages per station by type
-      std::map<IEC60870_5_TypeID, std::shared_ptr<Remote::Message::Batch>>
-          batchMap;
-
-      for (const auto &station : instance->getStations()) {
-        if (isGlobalCommonAddress(commonAddress) ||
-            station->getCommonAddress() == commonAddress) {
-
-          for (const auto &point : station->getPoints()) {
-            type = point->getType();
-
-            // only monitoring points SP,DP,ST,ME,BO
-            if (type > M_ME_TF_1 || (type > M_ME_NC_1 && type < M_SP_TB_1))
-              continue;
-
-            try {
-              // add message to group
-              auto g = batchMap.find(type);
-              if (g == batchMap.end()) {
-                auto b = Remote::Message::Batch::create(
-                    CS101_COT_INTERROGATED_BY_STATION);
-                b->setOriginatorAddress(message->getOriginatorAddress());
-                b->addPoint(point);
-                batchMap[type] = std::move(b);
-              } else {
-                g->second->addPoint(point);
-              }
-            } catch (const std::exception &e) {
-              DEBUG_PRINT(Debug::Server,
-                          "Invalid point message for interrogation: " +
-                              std::string(e.what()));
-            }
-          }
-
-          // send batched messages of current station
-          for (auto &batch : batchMap) {
-            instance->sendBatch(std::move(batch.second), connection);
-          }
-          batchMap.clear();
-        }
-      }
-
-      // Notify Master of command finalization
-      instance->sendActivationTermination(connection, asdu);
-    } else {
-      // special groups not supported
+    if (qoi < IEC60870_QOI_STATION || qoi > IEC60870_QOI_GROUP_16) {
+      // invalid group, reject command
       instance->sendActivationConfirmation(connection, asdu, true);
-
       instance->onUnexpectedMessage(connection, message, UNIMPLEMENTED_GROUP);
+      return true;
     }
+
+    // confirm activation
+    instance->sendActivationConfirmation(connection, asdu, false);
+
+    const auto commonAddress = CS101_ASDU_getCA(asdu);
+    IEC60870_5_TypeID type = C_TS_TA_1;
+
+    // batch messages per station by type
+    std::map<IEC60870_5_TypeID, std::shared_ptr<Remote::Message::Batch>>
+        batchMap;
+
+    const size_t group_id = qoi - IEC60870_QOI_STATION;
+    const CS101_CauseOfTransmission cot =
+        static_cast<CS101_CauseOfTransmission>(qoi);
+
+    for (const auto &station : instance->getStations()) {
+      if (isGlobalCommonAddress(commonAddress) ||
+          station->getCommonAddress() == commonAddress) {
+
+        for (const auto &point : station->getGroup(group_id)) {
+          type = point->getType();
+
+          // only monitoring points SP,DP,ST,ME,BO
+          if (type > M_ME_TF_1 || (type > M_ME_NC_1 && type < M_SP_TB_1))
+            continue;
+
+          try {
+            // add message to group
+            auto g = batchMap.find(type);
+            if (g == batchMap.end()) {
+              auto b = Remote::Message::Batch::create(cot);
+              b->setOriginatorAddress(message->getOriginatorAddress());
+              b->addPoint(point);
+              batchMap[type] = std::move(b);
+            } else {
+              g->second->addPoint(point);
+            }
+          } catch (const std::exception &e) {
+            DEBUG_PRINT(Debug::Server,
+                        "Invalid point message for interrogation: " +
+                            std::string(e.what()));
+          }
+        }
+
+        // send batched messages of current station
+        for (auto &batch : batchMap) {
+          instance->sendBatch(std::move(batch.second), connection);
+        }
+        batchMap.clear();
+      }
+    }
+
+    // Notify Master of command finalization
+    instance->sendActivationTermination(connection, asdu);
   }
 
   if (debug) {
@@ -1378,64 +1379,87 @@ bool Server::counterInterrogationHandler(void *parameter,
     const auto frz = static_cast<CS101_FreezeOfCounterInterrogation>(
         (qcc >> 6) & 0b00000011);
 
-    // todo support GROUPS and FREEZE/RESET
-    if (rqt == CS101_QualifierOfCounterInterrogation::GENERAL ||
-        frz != CS101_FreezeOfCounterInterrogation::READ) {
-
-      // confirm activation
-      instance->sendActivationConfirmation(connection, asdu, false);
-
-      const auto commonAddress = CS101_ASDU_getCA(asdu);
-      IEC60870_5_TypeID type = C_TS_TA_1;
-
-      // batch messages per station by type
-      std::map<IEC60870_5_TypeID, std::shared_ptr<Remote::Message::Batch>>
-          batchMap;
-
-      for (const auto &station : instance->getStations()) {
-        if (isGlobalCommonAddress(commonAddress) ||
-            station->getCommonAddress() == commonAddress) {
-
-          for (const auto &point : station->getPoints()) {
-            type = point->getType();
-            if (type != M_IT_NA_1 && type != M_IT_TB_1)
-              continue;
-
-            try {
-              // add message to group
-              auto g = batchMap.find(type);
-              if (g == batchMap.end()) {
-                auto b = Remote::Message::Batch::create(
-                    CS101_COT_REQUESTED_BY_GENERAL_COUNTER);
-                b->setOriginatorAddress(message->getOriginatorAddress());
-                b->addPoint(point);
-                batchMap[type] = std::move(b);
-              } else {
-                g->second->addPoint(point);
-              }
-            } catch (const std::exception &e) {
-              DEBUG_PRINT(Debug::Server,
-                          "Invalid point message for counter interrogation: " +
-                              std::string(e.what()));
-            }
-          }
-
-          // send batched messages of current station
-          for (auto &batch : batchMap) {
-            instance->sendBatch(std::move(batch.second), connection);
-          }
-          batchMap.clear();
-        }
-      }
-
-      // Notify Master of command finalization
-      instance->sendActivationTermination(connection, asdu);
-    } else {
-      // special groups not supported
+    if (rqt < CS101_QualifierOfCounterInterrogation::GROUP_1 ||
+        rqt > CS101_QualifierOfCounterInterrogation::GENERAL) {
+      // invalid group, reject command
       instance->sendActivationConfirmation(connection, asdu, true);
-
       instance->onUnexpectedMessage(connection, message, UNIMPLEMENTED_GROUP);
+      return true;
     }
+
+    bool const is_general =
+        static_cast<std::uint_fast8_t>(rqt) ==
+        static_cast<int>(CS101_QualifierOfCounterInterrogation::GENERAL);
+    const size_t group_id = is_general ? 0 : static_cast<size_t>(rqt);
+    const CS101_CauseOfTransmission cot =
+        is_general ? CS101_COT_REQUESTED_BY_GENERAL_COUNTER
+                   : static_cast<CS101_CauseOfTransmission>(
+                         static_cast<std::uint_fast8_t>(
+                             CS101_COT_REQUESTED_BY_GENERAL_COUNTER) +
+                         static_cast<std::uint_fast8_t>(rqt));
+
+    // confirm activation
+    instance->sendActivationConfirmation(connection, asdu, false);
+
+    const auto commonAddress = CS101_ASDU_getCA(asdu);
+    IEC60870_5_TypeID type = C_TS_TA_1;
+
+    // batch messages per station by type
+    std::map<IEC60870_5_TypeID, std::shared_ptr<Remote::Message::Batch>>
+        batchMap;
+
+    for (const auto &station : instance->getStations()) {
+      if (isGlobalCommonAddress(commonAddress) ||
+          station->getCommonAddress() == commonAddress) {
+
+        for (const auto &point : station->getGroup(group_id)) {
+          type = point->getType();
+          if (type != M_IT_NA_1 && type != M_IT_TB_1)
+            continue;
+
+          auto current_info =
+              std::dynamic_pointer_cast<Object::BinaryCounterInfo>(
+                  point->getInfo());
+          switch (frz) {
+          case CS101_FreezeOfCounterInterrogation::COUNTER_RESET:
+            current_info->reset();
+            continue;
+          case CS101_FreezeOfCounterInterrogation::FREEZE_WITHOUT_RESET:
+            current_info->freeze(false);
+            break;
+          case CS101_FreezeOfCounterInterrogation::FREEZE_WITH_RESET:
+            current_info->freeze(true);
+            break;
+          }
+
+          try {
+            // add the message to a group
+            auto g = batchMap.find(type);
+            if (g == batchMap.end()) {
+              auto b = Remote::Message::Batch::create(cot);
+              b->setOriginatorAddress(message->getOriginatorAddress());
+              b->addPoint(point);
+              batchMap[type] = std::move(b);
+            } else {
+              g->second->addPoint(point);
+            }
+          } catch (const std::exception &e) {
+            DEBUG_PRINT(Debug::Server,
+                        "Invalid point message for counter interrogation: " +
+                            std::string(e.what()));
+          }
+        }
+
+        // send batched messages of current station
+        for (auto &batch : batchMap) {
+          instance->sendBatch(std::move(batch.second), connection);
+        }
+        batchMap.clear();
+      }
+    }
+
+    // Notify Master of command finalization
+    instance->sendActivationTermination(connection, asdu);
   }
 
   if (debug) {

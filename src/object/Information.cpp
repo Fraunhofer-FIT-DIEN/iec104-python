@@ -23,7 +23,7 @@
  * @brief abstract protocol information
  *
  * @package iec104-python
- * @namespace object
+ * @namespace Object
  *
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *
@@ -52,7 +52,7 @@ InfoQuality Information::getQualityImpl() const { return std::monostate{}; }
 void Information::setQualityImpl(const InfoQuality val){};
 
 InfoValue Information::getValue() {
-  std::lock_guard<std::mutex> lock(mtx);
+  std::lock_guard<std::recursive_mutex> lock(mtx);
   return getValueImpl();
 }
 
@@ -62,7 +62,7 @@ void Information::setValue(const InfoValue val) {
   }
 
   try {
-    std::lock_guard<std::mutex> lock(mtx);
+    std::lock_guard<std::recursive_mutex> lock(mtx);
     setValueImpl(val);
   } catch (const std::bad_variant_access &e) {
     throw std::invalid_argument(
@@ -74,7 +74,7 @@ void Information::setValue(const InfoValue val) {
 };
 
 InfoQuality Information::getQuality() {
-  std::lock_guard<std::mutex> lock(mtx);
+  std::lock_guard<std::recursive_mutex> lock(mtx);
   return getQualityImpl();
 }
 
@@ -84,7 +84,7 @@ void Information::setQuality(const InfoQuality val) {
   }
 
   try {
-    std::lock_guard<std::mutex> lock(mtx);
+    std::lock_guard<std::recursive_mutex> lock(mtx);
     setQualityImpl(val);
   } catch (const std::bad_variant_access &e) {
     throw std::invalid_argument(
@@ -99,7 +99,7 @@ void Information::setReadonly() {
   if (readonly) {
     return;
   }
-  std::lock_guard<std::mutex> lock(mtx);
+  std::lock_guard<std::recursive_mutex> lock(mtx);
   readonly = true;
 };
 
@@ -107,18 +107,18 @@ void Information::setRecordedAt(const std::optional<DateTime> val) {
   if (readonly) {
     return;
   }
-  std::lock_guard<std::mutex> lock(mtx);
+  std::lock_guard<std::recursive_mutex> lock(mtx);
   recorded_at = val;
 }
 
 void Information::setProcessedAt(const DateTime &val) {
-  std::lock_guard<std::mutex> lock(mtx);
+  std::lock_guard<std::recursive_mutex> lock(mtx);
   processed_at = val;
 }
 
 void Information::injectTimeZone(const std::chrono::seconds offset,
                                  const bool daylightSavingTime) {
-  std::lock_guard<std::mutex> lock(mtx);
+  std::lock_guard<std::recursive_mutex> lock(mtx);
   processed_at.injectTimeZone(offset, daylightSavingTime, true);
   if (recorded_at.has_value()) {
     recorded_at.value().injectTimeZone(offset, daylightSavingTime);
