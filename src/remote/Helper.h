@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -31,10 +31,6 @@
 
 #ifndef C104_REMOTE_HELPER_H
 #define C104_REMOTE_HELPER_H
-
-// short address not allowed for 104 (only 101) #define
-// IEC60870_GLOBAL_COMMON_ADDRESS_SHORT 255
-#define IEC60870_GLOBAL_COMMON_ADDRESS 65535
 
 #define IEC60870_FORMAT_OFFSET 2
 #define IEC60870_TYPEID_OFFSET 6

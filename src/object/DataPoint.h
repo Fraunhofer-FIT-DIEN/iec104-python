@@ -32,12 +32,25 @@
 #ifndef C104_OBJECT_DATAPOINT_H
 #define C104_OBJECT_DATAPOINT_H
 
+#include "enums.h"
 #include "module/Callback.h"
 #include "module/ScopedGilAcquire.h"
-#include "object/Information.h"
 #include "types.h"
+#include <list>
+
+namespace Remote {
+namespace Message {
+class IncomingMessage;
+}
+} // namespace Remote
 
 namespace Object {
+class DateTime;
+class Station;
+namespace Information {
+class IInformation;
+}
+
 /**
  * @brief Disallow copying of the DataPoint instance.
  */
@@ -50,7 +63,7 @@ public:
   /**
    * @brief create a new DataPoint instance
    * @param dp_ioa information object address
-   * @param dp_type iec60870-5-104 information type
+   * @param dp_value iec60870-5-104 information value
    * @param dp_station station object reference
    * @param dp_report_ms auto reporting interval
    * @param dp_related_ioa related information object address, if any
@@ -60,20 +73,14 @@ public:
    * @throws std::invalid_argument if type is invalid
    */
   [[nodiscard]] static std::shared_ptr<DataPoint>
-  create(const std::uint_fast32_t dp_ioa, const IEC60870_5_TypeID dp_type,
+  create(const std::uint_fast32_t dp_ioa,
+         std::shared_ptr<Information::IInformation> dp_info,
          const std::shared_ptr<Station> &dp_station,
          const std::uint_fast16_t dp_report_ms = 0,
          const std::optional<std::uint_fast32_t> dp_related_ioa = std::nullopt,
          const bool dp_related_auto_return = false,
          const CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND,
-         const std::uint_fast16_t tick_rate_ms = 0) {
-    Module::ScopedGilAcquire scoped("DataPoint.create");
-
-    // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<DataPoint>(
-        new DataPoint(dp_ioa, dp_type, dp_station, dp_report_ms, dp_related_ioa,
-                      dp_related_auto_return, dp_cmd_mode, tick_rate_ms));
-  }
+         const std::uint_fast16_t tick_rate_ms = 0);
 
   /**
    * @brief Remove DataPoint and owned references
@@ -84,7 +91,7 @@ private:
   /**
    * @brief create a new DataPoint instance
    * @param dp_ioa information object address
-   * @param dp_type iec60870-5-104 information type
+   * @param dp_info iec60870-5-104 information value
    * @param dp_station station object reference
    * @param dp_report_ms auto reporting interval
    * @param dp_related_ioa related information object address
@@ -93,7 +100,8 @@ private:
    * @param tick_rate_ms outer tick rate
    * @throws std::invalid_argument if arguments provided are not compatible
    */
-  DataPoint(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
+  DataPoint(std::uint_fast32_t dp_ioa,
+            std::shared_ptr<Information::IInformation> dp_info,
             const std::shared_ptr<Station> &dp_station,
             std::uint_fast16_t dp_report_ms,
             std::optional<std::uint_fast32_t> dp_related_ioa,
@@ -104,9 +112,6 @@ private:
 
   /// @brief IEC60870-5 remote address of this DataPoint
   const std::uint_fast32_t informationObjectAddress;
-
-  /// @brief IEC60870-5 TypeID for related remote message
-  const IEC60870_5_TypeID type;
 
   /// @brief parent Station object (not owning pointer)
   std::weak_ptr<Station> station;
@@ -122,7 +127,7 @@ private:
   std::atomic<CommandTransmissionMode> commandMode{DIRECT_COMMAND};
 
   /// @brief abstract representation of information
-  std::shared_ptr<Information> info{nullptr};
+  std::shared_ptr<Information::IInformation> info{nullptr};
 
   /// @brief steady clock to calculate nextReportAt
   std::atomic<std::chrono::steady_clock::time_point> lastSentAt;
@@ -211,16 +216,9 @@ public:
 
   /**
    * @brief Get select-and-execute lock originator address
-   * @return client originator address or zero if no active selection lock
-   * exists
+   * @return client originator address or no selection exists
    */
   std::optional<std::uint_fast8_t> getSelectedByOriginatorAddress() const;
-
-  /**
-   * @brief Get the IEC60870-5-104 information type of the DataPoint.
-   * @return The IEC60870_5_TypeID associated with this DataPoint
-   */
-  IEC60870_5_TypeID getType() const;
 
   /**
    * @brief Get automatic report transmission interval of this point
@@ -246,15 +244,16 @@ public:
    * @return shared pointer to the Information instance associated with the
    * DataPoint
    */
-  std::shared_ptr<Information> getInfo() const;
+  std::shared_ptr<Information::IInformation> getInfo() const;
 
   /**
    * @brief Sets a new information object for the DataPoint.
    * @param new_info A shared pointer to the new Information object.
-   * @throws std::invalid_argument if the type of the DataPoint is unsupported
+   * @throws std::invalid_argument if the information instance is incompatible
    * or does not match the provided information object.
    */
-  void setInfo(std::shared_ptr<Information> new_info);
+  void setInfo(std::shared_ptr<Information::IInformation> new_info,
+               bool allow_all = false);
 
   /**
    * @brief Retrieve the value associated with the DataPoint object
@@ -288,7 +287,7 @@ public:
    * @brief Sets the quality of the DataPoint instance.
    *
    * This method updates the quality of the associated information object.
-   * Depending on the DataPoint type, a timestamp may also be injected.
+   * A timestamp may also be injected.
    *
    * @param new_quality The new quality value to be set for the DataPoint.
    */
@@ -400,11 +399,13 @@ public:
   /**
    * @brief transmit point
    * @param cause cause of transmission
+   * @param timestamp use a message with timestamp support
    * @return success information
    * @throws std::invalid_argument if parent station or connection reference is
    * invalid
    */
-  bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT);
+  bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT,
+                bool timestamp = false);
 
   /**
    * @brief Remove reference to station, do not call this method, this is called
@@ -417,34 +418,12 @@ public:
    * including its various properties.
    *
    * @return A string representation of the DataPoint object containing detailed
-   * information such as its IO address, type, report interval, related IO
+   * information such as its IO address, info, report interval, related IO
    * address, and additional attributes.
    */
-  std::string toString() const {
-    std::ostringstream oss;
-    oss << "<c104.Point io_address=" << std::to_string(informationObjectAddress)
-        << ", type=" << TypeID_toString(type) << ", info=" << info->name()
-        << ", report_ms=" << std::to_string(reportInterval_ms.load())
-        << ", related_io_address=";
-
-    if (relatedInformationObjectAddress < MAX_INFORMATION_OBJECT_ADDRESS)
-      oss << std::to_string(relatedInformationObjectAddress.load());
-    else
-      oss << "None";
-
-    oss << ", related_io_autoreturn="
-        << bool_toString(relatedInformationObjectAutoReturn.load())
-        << ", command_mode=" << CommandTransmissionMode_toString(commandMode)
-        << " at " << std::hex << std::showbase
-        << reinterpret_cast<std::uintptr_t>(this) << ">";
-    return oss.str();
-  };
+  std::string toString() const;
 };
 
-/**
- * @brief vector definition of DataPoint objects
- */
-typedef std::vector<std::shared_ptr<DataPoint>> DataPointVector;
 } // namespace Object
 
 #endif // C104_OBJECT_DATAPOINT_H

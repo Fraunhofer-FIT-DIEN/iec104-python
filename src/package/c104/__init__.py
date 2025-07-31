@@ -26,7 +26,16 @@ for attr_name, attr_value in vars(_c104).items():
     if isinstance(attr_value, (type, BuiltinFunctionType)):
         # Change the __module__ attribute
         attr_value.__module__ = 'c104'
-        # print("set", attr_value)
+
+        # Attempt to replace _c104 with c104 in the docstring
+        doc = getattr(attr_value, '__doc__', None)
+        if isinstance(doc, str) and '_c104' in doc:
+            try:
+                attr_value.__doc__ = doc.replace('_c104', 'c104')
+            except (AttributeError, TypeError):
+                # Can't assign to __doc__, likely a built-in or C extension
+                pass
+
         # Set the attribute in the main module namespace
         setattr(sys.modules['c104'], attr_name, attr_value)
 

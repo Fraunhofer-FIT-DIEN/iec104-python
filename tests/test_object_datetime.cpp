@@ -24,8 +24,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "Server.h"
 #include "object/DataPoint.h"
+#include "object/DateTime.h"
 #include "object/Station.h"
 #include "remote/message/IncomingMessage.h"
 #include "types.h"

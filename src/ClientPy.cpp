@@ -29,13 +29,13 @@
  *
  */
 
-#include <pybind11/chrono.h>
-#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
 #include "Client.h"
 #include "module/Tuple.h"
+#include "remote/Connection.h"
+#include "remote/TransportSecurity.h"
 
 using namespace pybind11::literals;
 
@@ -292,7 +292,7 @@ Example
           "callable"_a)
       .def(
           "on_new_point", &Client::setOnNewPointCallback,
-          R"def(on_new_point(self: c104.Client, callable: collections.abc.Callable[[c104.Client, c104.Station, int, c104.Type], None]) -> None
+          R"def(on_new_point(self: c104.Client, callable: collections.abc.Callable[[c104.Client, c104.Station, int, c104.Information], None]) -> None
 
 set python callback that will be executed on incoming message from unknown point
 
@@ -320,8 +320,8 @@ station: c104.Station
     station reporting point
 io_address: int
     point information object address (value between 0 and 16777215)
-point_type: c104.Type
-    point information type
+point_info: c104.Information
+    point information instance
 
 Callable Returns
 ----------------
@@ -329,9 +329,9 @@ None
 
 Example
 -------
->>> def cl_on_new_point(client: c104.Client, station: c104.Station, io_address: int, point_type: c104.Type) -> None:
->>>     print("NEW POINT: {1} with IOA {0} | CLIENT OA {2}".format(io_address, point_type, client.originator_address))
->>>     point = station.add_point(io_address=io_address, type=point_type)
+>>> def cl_on_new_point(client: c104.Client, station: c104.Station, io_address: int, point_info: c104.Information) -> None:
+>>>     print("NEW POINT: {1} with IOA {0} | CLIENT OA {2}".format(io_address, point_info, client.originator_address))
+>>>     point = station.add_point(io_address=io_address, info=point_info)
 >>>
 >>> my_client.on_new_point(callable=cl_on_new_point)
 )def",

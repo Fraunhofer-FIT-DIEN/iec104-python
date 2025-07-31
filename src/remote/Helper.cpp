@@ -29,9 +29,9 @@
  *
  */
 
-#include "Helper.h"
+#include "remote/Helper.h"
+#include "constants.h"
 #include "module/ScopedGilAcquire.h"
-#include "types.h"
 
 bool Remote::isSingleCommonAddress(const std::uint_fast16_t commonAddress) {
   return 0 < commonAddress && IEC60870_GLOBAL_COMMON_ADDRESS > commonAddress;

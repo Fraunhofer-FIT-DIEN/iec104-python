@@ -32,12 +32,10 @@
 #ifndef C104_REMOTE_MESSAGE_INCOMINGMESSAGE_H
 #define C104_REMOTE_MESSAGE_INCOMINGMESSAGE_H
 
-#include "IMessageInterface.h"
 #include "module/GilAwareMutex.h"
+#include "remote/message/IMessageInterface.h"
 
-namespace Remote {
-
-namespace Message {
+namespace Remote::Message {
 
 /**
  * @brief facade model to read incoming messages (ASDU packages)
@@ -54,15 +52,13 @@ public:
    * CS101_ASDU packet via object-oriented methods
    * @param packet internal incoming message
    * @param app_layer_parameters connection parameters
+   * @param load_io if first information object should be loaded (throwing)
    * @throws std::invalid_argument if information value is incompatible with
    * information type
    */
   [[nodiscard]] static std::shared_ptr<IncomingMessage>
-  create(CS101_ASDU packet, CS101_AppLayerParameters app_layer_parameters) {
-    // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<IncomingMessage>(
-        new IncomingMessage(packet, app_layer_parameters));
-  }
+  create(CS101_ASDU packet, CS101_AppLayerParameters app_layer_parameters,
+         bool load_io = true);
 
   /**
    * @brief free extracted information object and ASDU
@@ -131,11 +127,13 @@ private:
    * CS101_ASDU packet via object oriented methods
    * @param packet internal incoming message
    * @param app_layer_parameters connection parameters
+   * @param load_io if first information object should be loaded (throwing)
    * @throws std::invalid_argument if information value is incompatible with
    * information type
    */
   explicit IncomingMessage(CS101_ASDU packet,
-                           CS101_AppLayerParameters app_layer_parameters);
+                           CS101_AppLayerParameters app_layer_parameters,
+                           bool load_io = true);
 
   /// @brief IEC60870-5-104 asdu struct
   CS101_ASDU asdu;
@@ -160,19 +158,11 @@ private:
   std::atomic_uint_fast8_t numberOfObjects{0};
 
   /**
-   * @brief extract meta data from this message: commonAddress,
-   * originatorAddress, message identifier and mode, ...
-   * @throws std::invalid_argument if information value is incompatible with
-   * information type
-   */
-  void extractMetaData();
-
-  /**
    * @brief extract values of an information object at the current position
    */
   void extractInformation();
 };
-} // namespace Message
-} // namespace Remote
+
+} // namespace Remote::Message
 
 #endif // C104_REMOTE_MESSAGE_INCOMINGMESSAGE_H

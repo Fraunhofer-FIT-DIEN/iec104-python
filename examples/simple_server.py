@@ -39,12 +39,12 @@ def main():
     station = server.add_station(common_address=47)
 
     # monitoring point preparation
-    point = station.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
+    point = station.add_point(io_address=11, info=c104.ShortInfo(0), report_ms=1000)
     point.on_before_auto_transmit(callable=before_auto_transmit)
     point.on_before_read(callable=before_read)
 
     # command point preparation
-    command = station.add_point(io_address=12, type=c104.Type.C_RC_TA_1)
+    command = station.add_point(io_address=12, info=c104.StepCmd(c104.Step.HIGHER))
     command.on_receive(callable=on_step_command)
 
     # start

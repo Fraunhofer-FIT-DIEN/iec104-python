@@ -24,20 +24,24 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "Server.h"
 #include "object/DataPoint.h"
+#include "object/Information/ShortInfo.h"
 #include "object/Station.h"
 #include "remote/message/Batch.h"
 #include "types.h"
 
 TEST_CASE("Create batch", "[remote::message::batch]") {
-  auto server = Server::create();
-  auto station = server->addStation(10);
-  auto point1 = station->addPoint(11, IEC60870_5_TypeID::M_ME_NC_1);
-  auto point2 = station->addPoint(12, IEC60870_5_TypeID::M_ME_NC_1);
-  auto point3 = station->addPoint(13, IEC60870_5_TypeID::M_ME_NC_1);
-  auto point4 = station->addPoint(14, IEC60870_5_TypeID::M_ME_NC_1);
-  auto point5 = station->addPoint(15, IEC60870_5_TypeID::M_ME_NC_1);
+  auto station = Object::Station::create(10, nullptr, nullptr);
+  auto point1 =
+      station->addPoint(11, Object::Information::ShortInfo::create(0));
+  auto point2 =
+      station->addPoint(12, Object::Information::ShortInfo::create(0));
+  auto point3 =
+      station->addPoint(13, Object::Information::ShortInfo::create(0));
+  auto point4 =
+      station->addPoint(14, Object::Information::ShortInfo::create(0));
+  auto point5 =
+      station->addPoint(15, Object::Information::ShortInfo::create(0));
 
   auto last = point1->getProcessedAt();
   REQUIRE(last.getTime() > std::chrono::system_clock::time_point::min());

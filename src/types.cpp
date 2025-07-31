@@ -30,29 +30,10 @@
  */
 
 #include "types.h"
-
-std::atomic<Debug> GLOBAL_DEBUG_MODE{Debug::None};
-
-void setDebug(Debug mode) { GLOBAL_DEBUG_MODE.store(mode); }
-
-Debug getDebug() { return GLOBAL_DEBUG_MODE.load(); }
-
-void enableDebug(Debug mode) {
-  GLOBAL_DEBUG_MODE.store(GLOBAL_DEBUG_MODE.load() | mode);
-}
-
-void disableDebug(Debug mode) {
-  GLOBAL_DEBUG_MODE.store(GLOBAL_DEBUG_MODE.load() & ~mode);
-}
-
-void printDebugMessage(const Debug mode, const std::string &message) {
-  if (test(GLOBAL_DEBUG_MODE.load(), mode)) {
-    std::ostringstream oss;
-    oss << "[c104." << Debug_toFlagString(mode) << "] " << message << std::endl;
-    std::cout << oss.str();
-    std::cout.flush();
-  }
-}
+#include "numbers.h"
+#include <bitset>
+#include <regex>
+#include <stdexcept>
 
 std::string bool_toString(const bool &val) { return val ? "True" : "False"; }
 
@@ -76,57 +57,4 @@ void Assert_Port(const int_fast64_t port) {
   if (port < 1 || port > 65534)
     throw std::invalid_argument("Port " + std::to_string(port) +
                                 " is invalid!");
-}
-
-struct InfoValueToStringVisitor {
-  std::string operator()(std::monostate value) const { return "N.A."; }
-  std::string operator()(bool value) const { return std::to_string(value); }
-  std::string operator()(DoublePointValue value) const {
-    return DoublePointValue_toString(value);
-  }
-  std::string operator()(const LimitedInt7 &obj) {
-    return std::to_string(obj.get());
-  }
-  std::string operator()(StepCommandValue value) const {
-    return StepCommandValue_toString(value);
-  }
-  std::string operator()(const Byte32 &obj) {
-    return std::to_string(obj.get());
-  }
-  std::string operator()(const NormalizedFloat &obj) {
-    return std::to_string(obj.get());
-  }
-  std::string operator()(const LimitedInt16 &obj) {
-    return std::to_string(obj.get());
-  }
-  std::string operator()(float value) const { return std::to_string(value); }
-  std::string operator()(int32_t value) const { return std::to_string(value); }
-  std::string operator()(EventState value) const {
-    return EventState_toString(value);
-  }
-  std::string operator()(const StartEvents &obj) {
-    return StartEvents_toString(obj);
-  }
-  std::string operator()(const OutputCircuits &obj) {
-    return OutputCircuits_toString(obj);
-  }
-  std::string operator()(const FieldSet16 &obj) {
-    return FieldSet16_toString(obj);
-  }
-};
-
-std::string InfoValue_toString(const InfoValue &value) {
-  return std::visit(InfoValueToStringVisitor(), value);
-}
-
-struct QualityValueToStringVisitor {
-  std::string operator()(std::monostate value) const { return "N. A."; }
-  std::string operator()(const Quality &obj) { return Quality_toString(obj); }
-  std::string operator()(const BinaryCounterQuality &obj) {
-    return BinaryCounterQuality_toString(obj);
-  }
-};
-
-std::string InfoQuality_toString(const InfoQuality &value) {
-  return std::visit(QualityValueToStringVisitor(), value);
 }

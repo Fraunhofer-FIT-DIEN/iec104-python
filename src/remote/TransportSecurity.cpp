@@ -31,8 +31,17 @@
 
 #include "TransportSecurity.h"
 #include "Helper.h"
+#include "debug.h"
+#include <sstream>
 
 using namespace Remote;
+
+std::shared_ptr<TransportSecurity>
+TransportSecurity::create(const bool validate, const bool only_known) {
+  // Not using std::make_shared because the constructor is private.
+  return std::shared_ptr<TransportSecurity>(
+      new TransportSecurity(validate, only_known));
+}
 
 void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
                                      int eventCode, const char *msg,
@@ -41,11 +50,8 @@ void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
   try {
     instance = static_cast<TransportSecurity *>(parameter)->shared_from_this();
   } catch (const std::bad_weak_ptr &e) {
-    if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
-      std::cout << "[c104.TransportSecurity] failed to handle event: instance "
-                   "already removed"
-                << std::endl;
-    }
+    DEBUG_PRINT_NAMED(Debug::Server | Debug::Client, "TransportSecurity",
+                      "Failed to handle event: instance removed");
     return;
   }
 
@@ -58,7 +64,7 @@ void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
     tlsVersion = TLSConfigVersion_toString(TLSConnection_getTLSVersion(con));
   }
 
-  if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
+  if (DEBUG_TEST(Debug::Server | Debug::Client)) {
     printf("[c104.TransportSecurity] %s (t: %i, c: %i, version: %s remote-ip: "
            "%s)\n",
            msg, eventLevel, eventCode, tlsVersion, peerAddr);
@@ -74,17 +80,15 @@ TransportSecurity::TransportSecurity(const bool validate,
   TLSConfiguration_setTimeValidation(config, validate);
   TLSConfiguration_setAllowOnlyKnownCertificates(config, only_known);
 
-  if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
-    std::cout << "[c104.TransportSecurity] Created" << std::endl;
-  }
+  DEBUG_PRINT_NAMED(Debug::Server | Debug::Client, "TransportSecurity",
+                    "Created");
 }
 
 TransportSecurity::~TransportSecurity() {
   TLSConfiguration_destroy(config);
 
-  if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
-    std::cout << "[c104.TransportSecurity] Removed" << std::endl;
-  }
+  DEBUG_PRINT_NAMED(Debug::Server | Debug::Client, "TransportSecurity",
+                    "Removed");
 }
 
 void TransportSecurity::setCertificate(const std::string &cert,
@@ -228,4 +232,11 @@ void TransportSecurity::setVersion(const TLSConfigVersion min,
 TLSConfiguration TransportSecurity::get() {
   readonly.store(true);
   return config;
+}
+
+std::string TransportSecurity::toString() const {
+  std::ostringstream oss;
+  oss << "<104.TransportSecurity at " << std::hex << std::showbase
+      << reinterpret_cast<std::uintptr_t>(this) << ">";
+  return oss.str();
 }

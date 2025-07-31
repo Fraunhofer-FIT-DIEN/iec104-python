@@ -29,8 +29,21 @@
  *
  */
 
-#include "Client.h"
+#include <iomanip>
 #include <pybind11/embed.h> // everything needed for embedding
+
+#include "Client.h"
+#include "object/DataPoint.h"
+#include "object/Station.h"
+#include "object/information/DoubleCmd.h"
+#include "object/information/ShortCmd.h"
+#include "object/information/SingleCmd.h"
+#include "object/information/SingleInfo.h"
+#include "object/information/StepCmd.h"
+#include "object/information/StepInfo.h"
+#include "remote/Connection.h"
+#include "remote/TransportSecurity.h"
+#include "transformer/Type.h"
 
 namespace py = pybind11;
 
@@ -61,8 +74,8 @@ void cl_dump(std::shared_ptr<Client> my_client,
                   << std::endl;
 
         for (auto &pt_iter : st_iter->getPoints()) {
-          std::cout << "             | " << TypeID_toString(pt_iter->getType())
-                    << " | " << std::setw(7)
+          std::cout << "             | " << pt_iter->getInfo()->name() << " | "
+                    << std::setw(7)
                     << std::to_string(pt_iter->getInformationObjectAddress())
                     << " | " << std::setw(13)
                     << InfoValue_toString(pt_iter->getValue()) << " | "
@@ -87,7 +100,7 @@ int main(int argc, char *argv[]) {
   py::scoped_interpreter guard{};
   auto c104 = py::module_::import("c104");
 
-  bool const USE_TLS = true;
+  bool const USE_TLS = false;
   std::string ROOT = argv[0];
 
   bool found = false;
@@ -120,11 +133,11 @@ int main(int argc, char *argv[]) {
   my_client->setOriginatorAddress(123);
 
   auto cl_connection_1 =
-      my_client->addConnection("127.0.0.1", 19998, INIT_NONE);
+      my_client->addConnection("127.0.0.1", USE_TLS ? 19998 : 2404, INIT_NONE);
 
   auto cl_station_1 = cl_connection_1->addStation(47);
-  auto cl_step_command = cl_station_1->addPoint(32, C_RC_TA_1);
-  cl_step_command->setValue(IEC60870_STEP_HIGHER);
+  auto cl_step_command = cl_station_1->addPoint(
+      32, Object::Information::StepCmd::create(IEC60870_STEP_HIGHER));
 
   Module::ScopedGilRelease scoped("main");
 
@@ -155,7 +168,8 @@ int main(int argc, char *argv[]) {
               << " already exists" << std::endl;
   }
 
-  auto cl_step_point = cl_station_2->addPoint(31, M_ST_TB_1);
+  auto cl_step_point = cl_station_2->addPoint(
+      31, Object::Information::StepInfo::create(LimitedInt7(0)));
   if (!cl_step_point) {
     cl_step_point = cl_station_2->getPoint(31);
     std::cout << "CL] Point with io address "
@@ -170,8 +184,9 @@ int main(int argc, char *argv[]) {
    * send single commands
    */
 
-  auto cl_single_command = cl_station_2->addPoint(16, C_SC_NA_1);
-  cl_single_command->setValue(false);
+  auto cl_single_command = cl_station_2->addPoint(
+      16, Object::Information::SingleCmd::create(
+              false, CS101_QualifierOfCommand::SHORT_PULSE));
   if (cl_single_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Single command OFF successful" << std::endl;
   } else {
@@ -181,8 +196,8 @@ int main(int argc, char *argv[]) {
   std::this_thread::sleep_for(1s);
 
   cl_single_command->setCommandMode(SELECT_AND_EXECUTE_COMMAND);
-  cl_single_command->setInfo(
-      Object::SingleCmd::create(false, CS101_QualifierOfCommand::SHORT_PULSE));
+  cl_single_command->setInfo(Object::Information::SingleCmd::create(
+      false, CS101_QualifierOfCommand::SHORT_PULSE));
   if (cl_single_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Single command OFF successful (selected)"
               << std::endl;
@@ -195,11 +210,12 @@ int main(int argc, char *argv[]) {
    * send double commands
    */
 
-  auto cl_double_command = cl_station_2->addPoint(22, C_DC_TA_1);
-  cl_double_command->setInfo(Object::DoubleCmd::create(
+  auto cl_double_command =
+      cl_station_2->addPoint(22, Transformer::fromType(C_DC_TA_1));
+  cl_double_command->setInfo(Object::Information::DoubleCmd::create(
       IEC60870_DOUBLE_POINT_ON, CS101_QualifierOfCommand::NONE,
-      std::chrono::system_clock::time_point(
-          std::chrono::milliseconds(1711111111111))));
+      Object::DateTime(std::chrono::system_clock::time_point(
+          std::chrono::milliseconds(1711111111111)))));
 
   if (cl_double_command->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Double command ON successful" << std::endl;
@@ -220,10 +236,12 @@ int main(int argc, char *argv[]) {
    * send set_point commands
    */
 
-  auto cl_setpoint_1 = cl_station_2->addPoint(12, C_SE_NC_1);
-  auto cl_setpoint_2 = cl_station_2->addPoint(13, C_SE_NC_1);
+  auto cl_setpoint_1 =
+      cl_station_2->addPoint(12, Object::Information::ShortCmd::create(0));
+  auto cl_setpoint_2 =
+      cl_station_2->addPoint(13, Object::Information::ShortCmd::create(0));
 
-  cl_setpoint_1->setInfo(Object::ShortCmd::create(13.45));
+  cl_setpoint_1->setInfo(Object::Information::ShortCmd::create(13.45));
   if (cl_setpoint_1->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Setpoint1 command successful" << std::endl;
   } else {
@@ -231,7 +249,7 @@ int main(int argc, char *argv[]) {
   }
   std::this_thread::sleep_for(1s);
 
-  cl_setpoint_2->setInfo(Object::ShortCmd::create(13.45));
+  cl_setpoint_2->setInfo(Object::Information::ShortCmd::create(13.45));
   if (cl_setpoint_2->transmit(CS101_COT_ACTIVATION)) {
     std::cout << "CL] transmit: Setpoint2 command successful" << std::endl;
   } else {
@@ -260,7 +278,8 @@ int main(int argc, char *argv[]) {
         std::cout << "CL] transmit: Step command failed" << std::endl;
 
         // fix station
-        auto step_command_t = cl_station_2->addPoint(32, C_RC_TA_1);
+        auto step_command_t = cl_station_2->addPoint(
+            32, Object::Information::StepCmd::create(IEC60870_STEP_LOWER));
         if (step_command_t) {
           cl_step_command = step_command_t;
         }

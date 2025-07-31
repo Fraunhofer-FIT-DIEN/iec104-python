@@ -7,6 +7,11 @@ v3.0.0
 Features
 ^^^^^^^^
 
+TODO: INIT NACH ENDINIT von SERVER fortsetzen
+DEACT und DEACT_CON werden nur bei SELECT_AND_EXECUTE verwendet
+C_SC, C_DC, C_RC -> ACTTERM benutzen nach Umsetzung
+C_SE ACTTERM darf wahlfrei benutzt werden
+
 - Improve type hints for all classes and methods as a ``.pyi`` file.
 - Add DateTime to support timezones and time flags
 - Add argument date_time to **Connection.clock_sync()** method to modify the to be sent timestamp, defaults to now() as before
@@ -17,6 +22,16 @@ Features
   - the server automatically handles this groups in interrogation commands
   - points on the client-side do not know about these groups
 - Add server-side support for counter freeze and reset in counter interrogation
+- Switch from type-based to information-based point definition
+- Simplify **Information** creation: All constructors support a value from number without required value class ``c104.ScaledInfo(1234)`` automatically converts to ``c104.ScaledInfo(c104.Int16(1234))``
+- Add static method **Information.from_type(type)** to create an Information object based on an IEC message **Type**
+- Add method **Information.as_type(bool)** returns IEC message **Type** with or without timestamp
+- Add method **Point.reset_info(info)** to force override a points information type
+- New selection algorithm and tracking (t.b.d.)
+
+Fixes
+^^^^^^
+- **BinaryCounterInfo** failed to create instance due to invalid default value for keyword argument quality
 
 Breaking Changes
 ^^^^^^^^^^^^^^^^
@@ -30,6 +45,8 @@ Breaking Changes
 - **Connection.stations** returns a tuple instead of a list to express that this property is immutable
 - **Station.points** returns a tuple instead of a list to express that this property is immutable
 - **Batch.points** returns a tuple instead of a list to express that this property is immutable
+- Signature change in **Station.add_point** type -> info
+- **Point.type** returns point.info.get_type(timestamp=False), so it will always return without timestamp
 
 v2.2.1
 -------

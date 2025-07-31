@@ -20,7 +20,7 @@
  *
  *
  * @file Callback.h
- * @brief mangage python callbacks and verify function signatures
+ * @brief manage python callbacks and verify function signatures
  *
  * @package iec104-python
  * @namespace Module
@@ -32,11 +32,13 @@
 #ifndef C104_MODULE_CALLBACK_H
 #define C104_MODULE_CALLBACK_H
 
-#include <utility>
+#include <optional>
+#include <pybind11/pybind11.h>
 
+#include "debug.h"
 #include "module/GilAwareMutex.h"
-#include "types.h"
 
+namespace py = pybind11;
 using namespace pybind11::literals;
 
 namespace Module {
@@ -52,7 +54,7 @@ namespace Module {
 class CallbackBase {
 public:
   CallbackBase(std::string cb_name, std::string cb_signature)
-      : callback(py::none()), name(std::move(cb_name)) {
+      : name(std::move(cb_name)) {
     cb_signature.erase(
         remove_if(cb_signature.begin(), cb_signature.end(), isspace),
         cb_signature.end());
@@ -82,7 +84,7 @@ public:
     auto inspect = py::module_::import("inspect");
     auto empty = inspect.attr("Parameter").attr("empty");
 
-    // throws if callback is not a callable
+    // throws if callback is not an instance of callable
     auto sig = inspect.attr("signature")(callable);
     // create a derived signature object without non-empty parameters
     auto parameters = py::dict(sig.attr("parameters"));
@@ -121,7 +123,7 @@ public:
   bool is_set() const {
     std::lock_guard<Module::GilAwareMutex> const lock(callback_mutex);
 
-    return !callback.is_none();
+    return callback.has_value() && !callback.value().is_none();
   }
 
 protected:
@@ -134,15 +136,13 @@ protected:
     DEBUG_PRINT(Debug::Callback, "CLEAR " + name);
     {
       std::lock_guard<Module::GilAwareMutex> const lock(callback_mutex);
-      if (!callback.is_none()) {
-        callback = py::none();
-      }
+      callback = std::nullopt;
     }
     success = false;
   }
 
   /// @brief callback function reference
-  py::object callback;
+  std::optional<py::object> callback{std::nullopt};
 
   /// @brief callback function name, used for debug logging
   std::string name{"Callback"};
@@ -185,7 +185,7 @@ public:
     auto const cb = this->callback;
     lock.unlock();
 
-    if (cb.is_none()) {
+    if (!cb.has_value() || cb.value().is_none()) {
       return false;
     }
 
@@ -194,7 +194,7 @@ public:
     }
 
     try {
-      py::object res = cb(std::forward<Types>(values)...);
+      py::object res = cb.value()(std::forward<Types>(values)...);
 
       // Safely get the result type as a string
       result_type = py::cast<std::string>(py::str(res.get_type()));
@@ -233,7 +233,7 @@ public:
           << "TypeError: incompatible return value" << std::endl;
 
       auto inspect = py::module_::import("inspect");
-      auto sig = inspect.attr("signature")(cb);
+      auto sig = inspect.attr("signature")(cb.value());
       auto expected =
           py::cast<std::string>(py::str(sig.attr("return_annotation")));
       std::cerr << "Cannot convert returned type " << result_type
@@ -312,7 +312,7 @@ public:
     auto const cb = this->callback;
     lock.unlock();
 
-    if (cb.is_none()) {
+    if (!cb.has_value() || cb.value().is_none()) {
       return false;
     }
 
@@ -321,7 +321,7 @@ public:
     }
 
     try {
-      cb(std::forward<Types>(values)...);
+      cb.value()(std::forward<Types>(values)...);
       this->success = true;
     } catch (py::error_already_set &e) {
       this->success = PyErr_Occurred();

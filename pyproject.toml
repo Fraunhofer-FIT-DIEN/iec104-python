@@ -55,8 +55,7 @@ Changelog = "https://iec104-python.readthedocs.io/latest/changelog.html"
 "Source Code" = "https://github.com/Fraunhofer-FIT-DIEN/iec104-python"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["c104"]
+where = ["src/package"]
 
 [tool.setuptools.package-data]
 "c104" = ["__init__.pyi", "py.typed"]

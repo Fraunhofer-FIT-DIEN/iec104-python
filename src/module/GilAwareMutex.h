@@ -34,6 +34,7 @@
 #ifndef C104_MODULE_GILAWAREMUTEX_H
 #define C104_MODULE_GILAWAREMUTEX_H
 
+#include <iostream>
 #include <mutex>
 #include <utility>
 
@@ -56,9 +57,9 @@ namespace Module {
 class GilAwareMutex {
 public:
   // Create a new combined mutex that automatically handles the GIL
-  inline GilAwareMutex() = default;
+  GilAwareMutex() = default;
 
-  inline explicit GilAwareMutex(std::string _name) : name(std::move(_name)) {}
+  explicit GilAwareMutex(std::string _name) : name(std::move(_name)) {}
 
   /**
    * @brief Locks the GilAwareMutex.
@@ -70,7 +71,7 @@ public:
    * @throws std::runtime_error If the GilAwareMutex is unable to acquire the
    * lock within 100ms.
    */
-  inline void lock() {
+  void lock() {
     ScopedGilRelease const scoped_gil(name + "::lock_gil_aware");
     if (!this->wrapped_mutex.try_lock_for(100ms)) {
       throw std::runtime_error("Potential Deadlock: mutex " + name +
@@ -86,7 +87,7 @@ public:
    * @note This function should only be called after acquiring the lock using
    * the `lock()` function.
    */
-  inline void unlock() { this->wrapped_mutex.unlock(); }
+  void unlock() { this->wrapped_mutex.unlock(); }
 
   /**
    * @brief Tries to lock the GilAwareMutex.
@@ -97,7 +98,7 @@ public:
    *
    * @return True if the lock was acquired successfully, false otherwise.
    */
-  inline bool try_lock() {
+  bool try_lock() {
     ScopedGilRelease const scoped_gil(name + "::try_lock_gil_aware");
     return this->wrapped_mutex.try_lock();
   }

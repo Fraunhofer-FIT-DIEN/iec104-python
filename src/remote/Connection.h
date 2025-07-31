@@ -32,12 +32,29 @@
 #ifndef C104_REMOTE_CONNECTION_H
 #define C104_REMOTE_CONNECTION_H
 
+#include "enums.h"
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
-#include "object/Station.h"
-#include "types.h"
+#include <condition_variable>
+#include <map>
+
+class Client;
+
+namespace Object {
+class DataPoint;
+class DateTime;
+class Station;
+} // namespace Object
 
 namespace Remote {
+
+class TransportSecurity;
+
+namespace Message {
+class IncomingMessage;
+class OutgoingMessage;
+} // namespace Message
+
 /**
  * @brief connection model for connections via client component to remote
  * servers
@@ -67,20 +84,7 @@ public:
       const uint_fast16_t command_timeout_ms = 10000,
       const ConnectionInit init = INIT_ALL,
       std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr,
-      const uint_fast8_t originator_address = 0) {
-    // Not using std::make_shared because the constructor is private.
-    auto connection = std::shared_ptr<Connection>(
-        new Connection(std::move(client), ip, port, command_timeout_ms, init,
-                       std::move(transport_security), originator_address));
-
-    // track reference as weak pointer for safe static callbacks
-    void *key =
-        static_cast<void *>(connection.get()); // Use `this` as a unique key
-    std::lock_guard<std::mutex> lock(instanceMapMutex);
-    instanceMap[key] = connection;
-
-    return connection;
-  }
+      const uint_fast8_t originator_address = 0);
 
   /**
    * @brief Close and destroy a connection to a remote server
@@ -229,7 +233,7 @@ public:
    * @brief Get a list of all Stations
    * @return vector with object stationer
    */
-  Object::StationVector getStations() const;
+  std::vector<std::shared_ptr<Object::Station>> getStations() const;
 
   /**
    * @brief Get a Station that exists at this NetworkStation and is identified
@@ -381,8 +385,7 @@ public:
    * @param wait_for_response blocking or non-blocking
    * @return success information
    */
-  bool clockSync(std::uint_fast16_t commonAddress,
-                 Object::DateTime date_time = Object::DateTime::now(),
+  bool clockSync(std::uint_fast16_t commonAddress, Object::DateTime date_time,
                  bool wait_for_response = true);
 
   bool resetProcess(std::uint_fast16_t commonAddress,
@@ -558,7 +561,7 @@ private:
   std::condition_variable_any response_wait{};
 
   /// @brief vector of stations accessible via this connection
-  Object::StationVector stations{};
+  std::vector<std::shared_ptr<Object::Station>> stations{};
 
   /// @brief access mutex to lock station vector access
   mutable Module::GilAwareMutex stations_mutex{"Connection::stations_mutex"};
@@ -607,25 +610,8 @@ public:
    *
    * @return A formatted string describing the current state of the Connection.
    */
-  std::string toString() const {
-    size_t len = 0;
-    {
-      std::scoped_lock<Module::GilAwareMutex> const lock(stations_mutex);
-      len = stations.size();
-    }
-    std::ostringstream oss;
-    oss << "<104.Connection ip=" << ip << ", port=" << std::to_string(port)
-        << ", state=" << ConnectionState_toString(state)
-        << ", #stations=" << std::to_string(len) << " at " << std::hex
-        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
-    return oss.str();
-  };
+  std::string toString() const;
 };
-
-/**
- * @brief vector definition of Connection objects
- */
-typedef std::vector<std::shared_ptr<Connection>> ConnectionVector;
 
 } // namespace Remote
 

@@ -29,22 +29,36 @@
  *
  */
 
-#include "Client.h"
+#include <sstream>
 
+#include "Client.h"
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
+#include "object/DataPoint.h"
+#include "object/Information/IInformation.h"
+#include "object/Station.h"
+#include "remote/Connection.h"
 #include "remote/Helper.h"
+#include "remote/TransportSecurity.h"
+#include "remote/message/Batch.h"
 #include "remote/message/IncomingMessage.h"
-#include "remote/message/OutgoingMessage.h"
 
 using namespace Remote;
 using namespace std::chrono_literals;
+
+std::shared_ptr<Client>
+Client::create(std::uint_fast16_t tick_rate_ms, std::uint_fast16_t timeout_ms,
+               std::shared_ptr<Remote::TransportSecurity> transport_security) {
+  // Not using std::make_shared because the constructor is private.
+  return std::shared_ptr<Client>(
+      new Client(tick_rate_ms, timeout_ms, std::move(transport_security)));
+}
 
 Client::Client(const std::uint_fast16_t tick_rate_ms,
                const std::uint_fast16_t timeout_ms,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : tickRate_ms(tick_rate_ms), commandTimeout_ms(timeout_ms),
-      security(std::move(transport_security)) {
+      selectionManager(timeout_ms), security(std::move(transport_security)) {
   if (tickRate_ms < 50)
     throw std::range_error("tickRate_ms must be 50 or greater");
   DEBUG_PRINT(Debug::Client, "Created");
@@ -70,21 +84,13 @@ void Client::start() {
 
   Module::ScopedGilRelease const scoped("Client.start");
 
-  if (!runThread) {
-    runThread = new std::thread(&Client::thread_run, this);
-  }
+  executor = std::make_shared<Tasks::Executor>();
 
+  // Schedule periodics based on tickRate
   std::weak_ptr<Client> weakSelf =
       shared_from_this(); // Weak reference to `this`
-  schedulePeriodicTask(
-      [weakSelf]() {
-        auto self = weakSelf.lock();
-        if (!self)
-          return; // Prevent running if `this` was destroyed
-
-        self->scheduleDataPointTimer();
-      },
-      tickRate_ms);
+  executor->addPeriodic(SAFE_TASK(scheduleDataPointTimer), tickRate_ms);
+  executor->addPeriodic(SAFE_TASK(selectionManager.cleanup), tickRate_ms);
 
   {
     std::lock_guard<Module::GilAwareMutex> const con_lock(connections_mutex);
@@ -106,15 +112,7 @@ void Client::stop() {
     return;
   }
 
-  if (running.load()) {
-    runThread_wait.notify_all();
-  }
-
-  if (runThread) {
-    runThread->join();
-    delete runThread;
-    runThread = nullptr;
-  }
+  executor->stop();
 
   // stop all connections
   disconnectAll();
@@ -191,7 +189,7 @@ std::uint_fast8_t Client::getActiveConnectionCount() const {
   return count;
 }
 
-Remote::ConnectionVector Client::getConnections() const {
+std::vector<std::shared_ptr<Connection>> Client::getConnections() const {
   std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
 
   return connections;
@@ -295,19 +293,20 @@ void Client::setOnNewPointCallback(py::object &callable) {
   py_onNewPoint.reset(callable);
 }
 
-void Client::onNewPoint(std::shared_ptr<Object::Station> station,
-                        std::uint_fast32_t io_address, IEC60870_5_TypeID type) {
+void Client::onNewPoint(
+    std::shared_ptr<Object::Station> station, std::uint_fast32_t io_address,
+    std::shared_ptr<Object::Information::IInformation> info) {
 
   if (py_onNewPoint.is_set()) {
     DEBUG_PRINT(Debug::Client, "CALLBACK on_new_point");
     Module::ScopedGilAcquire const scoped("Client.on_new_point");
     py_onNewPoint.call(shared_from_this(), std::move(station), io_address,
-                       type);
+                       info);
   } else {
     DEBUG_PRINT(Debug::Client, "CALLBACK on_new_point (default: add point)");
     // default behaviour
     try {
-      station->addPoint(io_address, type, 0, std::nullopt);
+      station->addPoint(io_address, info, 0, std::nullopt);
     } catch (const std::exception &e) {
       DEBUG_PRINT(Debug::Client, "on_new_point] Failed to add point: " +
                                      std::string(e.what()));
@@ -331,6 +330,15 @@ void Client::onEndOfInitialization(std::shared_ptr<Object::Station> station,
 
 std::uint_fast16_t Client::getTickRate_ms() const { return tickRate_ms; }
 
+std::optional<std::uint8_t> Client::getSelector(const uint16_t ca,
+                                                const uint32_t ioa) const {
+  const auto selection = selectionManager.get(ca, ioa);
+  if (selection.has_value()) {
+    return selection.value().oa;
+  }
+  return std::nullopt;
+}
+
 void Client::scheduleDataPointTimer() {
   uint16_t counter = 0;
   auto now = std::chrono::steady_clock::now();
@@ -344,7 +352,7 @@ void Client::scheduleDataPointTimer() {
 
             std::weak_ptr<Object::DataPoint> weakPoint =
                 point; // Weak reference to `point`
-            scheduleTask(
+            executor->add(
                 [weakPoint]() {
                   auto self = weakPoint.lock();
                   if (!self)
@@ -360,98 +368,16 @@ void Client::scheduleDataPointTimer() {
   }
 }
 
-void Client::schedulePeriodicTask(const std::function<void()> &task,
-                                  std::int_fast32_t interval) {
-  if (interval < 50) {
-    throw std::out_of_range(
-        "The interval for periodic tasks must be 50ms at minimum.");
-  }
-
-  std::weak_ptr<Client> weakSelf =
-      shared_from_this(); // Weak reference to `this`
-
-  auto periodicCallback = [weakSelf, task, interval]() {
-    auto self = weakSelf.lock();
-    if (!self)
-      return; // Prevent running if `this` was destroyed
-
-    // Schedule next execution
-    self->schedulePeriodicTask(task, interval); // Reschedule itself
-
-    task();
-  };
-  // Schedule first execution
-  scheduleTask(periodicCallback, interval);
-
-  runThread_wait.notify_one();
-}
-
-void Client::scheduleTask(const std::function<void()> &task,
-                          std::int_fast32_t delay) {
+std::string Client::toString() const {
+  size_t len = 0;
   {
-    std::lock_guard<std::mutex> lock(runThread_mutex);
-    if (delay < 0) {
-      tasks.push({task, std::chrono::steady_clock::time_point::min()});
-    } else {
-      tasks.push({task, std::chrono::steady_clock::now() +
-                            std::chrono::milliseconds(delay)});
-    }
+    std::scoped_lock<Module::GilAwareMutex> const lock(connections_mutex);
+    len = connections.size();
   }
-
-  runThread_wait.notify_one();
-}
-
-void Client::thread_run() {
-  bool const debug = DEBUG_TEST(Debug::Client);
-  running.store(true);
-  while (enabled.load()) {
-    std::function<void()> task;
-
-    {
-      std::unique_lock<std::mutex> lock(runThread_mutex);
-      if (tasks.empty()) {
-        runThread_wait.wait(lock);
-        continue;
-      }
-      const auto top = tasks.top();
-
-      auto now = std::chrono::steady_clock::now();
-      if (now >= top.schedule_time) {
-        auto delay = now - top.schedule_time;
-        if (delay > TASK_DELAY_THRESHOLD) {
-          DEBUG_PRINT_CONDITION(
-              debug, Debug::Client,
-              "Warning: Task started delayed by " +
-                  std::to_string(
-                      std::chrono::duration_cast<std::chrono::milliseconds>(
-                          delay)
-                          .count()) +
-                  " ms");
-        }
-        task = top.function;
-        tasks.pop();
-      } else {
-        runThread_wait.wait_until(lock, top.schedule_time);
-        continue;
-      }
-    }
-
-    try {
-      task();
-    } catch (const std::exception &e) {
-      std::cerr << "[c104.Client] loop] Task aborted: " << e.what()
-                << std::endl;
-    }
-  }
-  {
-    std::unique_lock<std::mutex> lock(runThread_mutex);
-    if (!tasks.empty()) {
-      DEBUG_PRINT_CONDITION(debug, Debug::Client,
-                            "loop] Tasks dropped due to stop: " +
-                                std::to_string(tasks.size()));
-      std::priority_queue<Task> empty;
-      std::swap(tasks, empty);
-    }
-  }
-  running.store(false);
+  std::ostringstream oss;
+  oss << "<104.Client originator_address="
+      << std::to_string(originatorAddress.load())
+      << ", #connections=" << std::to_string(len) << " at " << std::hex
+      << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+  return oss.str();
 }

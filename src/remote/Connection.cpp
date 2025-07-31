@@ -33,10 +33,14 @@
 #include "Client.h"
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
+#include "object/DataPoint.h"
+#include "object/Station.h"
+#include "object/information/ICommand.h"
 #include "remote/Helper.h"
+#include "remote/TransportSecurity.h"
 #include "remote/message/IncomingMessage.h"
 #include "remote/message/OutgoingMessage.h"
-#include "remote/message/PointCommand.h"
+#include <sstream>
 
 using namespace Remote;
 using namespace std::chrono_literals;
@@ -44,6 +48,26 @@ using namespace std::chrono_literals;
 // Define static members
 std::unordered_map<void *, std::weak_ptr<Connection>> Connection::instanceMap;
 std::mutex Connection::instanceMapMutex;
+
+std::shared_ptr<Connection> Connection::create(
+    std::shared_ptr<Client> client, const std::string &ip,
+    const uint_fast16_t port, const uint_fast16_t command_timeout_ms,
+    const ConnectionInit init,
+    std::shared_ptr<Remote::TransportSecurity> transport_security,
+    const uint_fast8_t originator_address) {
+  // Not using std::make_shared because the constructor is private.
+  auto connection = std::shared_ptr<Connection>(
+      new Connection(std::move(client), ip, port, command_timeout_ms, init,
+                     std::move(transport_security), originator_address));
+
+  // track reference as weak pointer for safe static callbacks
+  void *key =
+      static_cast<void *>(connection.get()); // Use `this` as a unique key
+  std::lock_guard<std::mutex> lock(instanceMapMutex);
+  instanceMap[key] = connection;
+
+  return connection;
+}
 
 Connection::Connection(
     std::shared_ptr<Client> _client, const std::string &_ip,
@@ -125,7 +149,7 @@ void Connection::setState(ConnectionState connectionState) {
       if (auto c = getClient()) {
         std::weak_ptr<Connection> weakSelf =
             shared_from_this(); // Weak reference to `this`
-        c->scheduleTask([weakSelf, connectionState]() {
+        c->executor->add([weakSelf, connectionState]() {
           auto self = weakSelf.lock();
           if (!self)
             return; // Prevent running if `this` was destroyed
@@ -279,7 +303,7 @@ void Connection::setMuted(bool value) {
 
         std::weak_ptr<Connection> weakSelf =
             shared_from_this(); // Weak reference to `this`
-        c->scheduleTask(
+        c->executor->add(
             [weakSelf]() {
               auto self = weakSelf.lock();
               if (!self)
@@ -298,7 +322,7 @@ void Connection::setMuted(bool value) {
       if (auto c = getClient()) {
         std::weak_ptr<Connection> weakSelf =
             shared_from_this(); // Weak reference to `this`
-        c->scheduleTask(
+        c->executor->add(
             [weakSelf]() {
               auto self = weakSelf.lock();
               if (!self)
@@ -315,7 +339,7 @@ void Connection::setMuted(bool value) {
       if (auto c = getClient()) {
         std::weak_ptr<Connection> weakSelf =
             shared_from_this(); // Weak reference to `this`
-        c->scheduleTask(
+        c->executor->add(
             [weakSelf]() {
               auto self = weakSelf.lock();
               if (!self)
@@ -349,7 +373,7 @@ void Connection::setOpen() {
     if (auto c = getClient()) {
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask(
+      c->executor->add(
           [weakSelf]() {
             auto self = weakSelf.lock();
             if (!self)
@@ -366,7 +390,7 @@ void Connection::setOpen() {
     if (auto c = getClient()) {
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask(
+      c->executor->add(
           [weakSelf]() {
             auto self = weakSelf.lock();
             if (!self)
@@ -410,7 +434,7 @@ void Connection::setClosed() {
 
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask(
+      c->executor->add(
           [weakSelf]() {
             auto self = weakSelf.lock();
             if (!self)
@@ -509,7 +533,6 @@ void Connection::setCommandSuccess(
   TypeID const type = message->getCauseOfTransmission() == CS101_COT_REQUEST
                           ? C_RD_NA_1
                           : message->getType();
-  ConnectionState const current = state.load();
   bool found = false;
 
   std::string cmdId = std::to_string(message->getCommonAddress()) + "-" +
@@ -613,7 +636,7 @@ bool Connection::hasStations() const {
   return !stations.empty();
 }
 
-Object::StationVector Connection::getStations() const {
+std::vector<std::shared_ptr<Object::Station>> Connection::getStations() const {
   std::lock_guard<Module::GilAwareMutex> const lock(stations_mutex);
 
   return stations;
@@ -698,7 +721,7 @@ void Connection::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
 
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask([weakSelf, cp, msgSize]() {
+      c->executor->add([weakSelf, cp, msgSize]() {
         auto self = weakSelf.lock();
         if (!self)
           return; // Prevent running if `this` was destroyed
@@ -728,7 +751,7 @@ void Connection::onSendRaw(unsigned char *msg, unsigned char msgSize) {
 
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask([weakSelf, cp, msgSize]() {
+      c->executor->add([weakSelf, cp, msgSize]() {
         auto self = weakSelf.lock();
         if (!self)
           return; // Prevent running if `this` was destroyed
@@ -757,7 +780,7 @@ void Connection::onUnexpectedMessage(
 
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask([weakSelf, message, cause]() {
+      c->executor->add([weakSelf, message, cause]() {
         auto self = weakSelf.lock();
         if (!self)
           return; // Prevent running if `this` was destroyed
@@ -950,7 +973,7 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
       if (result) {
         return awaitCommandSuccess(cmdId);
       }
-      // result not required anymore, because no message was sent
+      // the result is not required anymore, because no message was sent
       cancelCommandSuccess(cmdId);
     }
     return result;
@@ -965,7 +988,7 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
     if (result) {
       return awaitCommandSuccess(cmdId);
     }
-    // result not required anymore, because no message was sent
+    // the result is not required anymore, because no message was sent
     cancelCommandSuccess(cmdId);
   }
   return result;
@@ -973,32 +996,70 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
 
 bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
                           const CS101_CauseOfTransmission cause) {
-  auto type = point->getType();
+  const auto _client = getClient();
+  const auto station = point->getStation();
+  auto cmd = std::dynamic_pointer_cast<Object::Information::ICommand>(
+      point->getInfo());
 
-  // is a supported control command?
-  if (type <= S_IT_TC_1 || type >= M_EI_NA_1) {
-    throw std::invalid_argument("Invalid point type");
+  // validate context
+  if (!_client || !station || !cmd) {
+    throw std::invalid_argument("Only attached command points are supported");
   }
 
-  bool selectAndExecute = point->getCommandMode() == SELECT_AND_EXECUTE_COMMAND;
-  // send select command
-  if (selectAndExecute) {
-    auto message = Message::PointCommand::create(point, true);
+  bool auto_select = false;
+
+  // is select and execute, but not a manual select call?
+  if (point->getCommandMode() == SELECT_AND_EXECUTE_COMMAND &&
+      !cmd->isSelect()) {
+    const auto selectedByOA = _client->getSelector(
+        station->getCommonAddress(), point->getInformationObjectAddress());
+    // test if already selected by this originator
+    auto_select =
+        !selectedByOA.has_value() || selectedByOA.value() != originatorAddress;
+    DEBUG_PRINT(Debug::Connection, " auto SELECT-AND-EXECUTE");
+  }
+
+  // auto-send a select command
+  if (auto_select) {
+    cmd->setIsSelect(true);
+
+    auto message = Message::OutgoingMessage::create(point);
     message->setCauseOfTransmission(cause);
-    // Select success ?
-    if (!command(std::move(message), true)) {
+
+    // Select success?
+    const bool selected = command(std::move(message), true);
+
+    cmd->setIsSelect(false);
+
+    if (selected) {
+      _client->selectionManager.replace(originatorAddress,
+                                        station->getCommonAddress(),
+                                        point->getInformationObjectAddress());
+    } else {
       return false;
     }
   }
-  // send execute command
 
-  auto message = Message::PointCommand::create(point, false);
+  // send an execute command
+  auto message = Message::OutgoingMessage::create(point);
   message->setCauseOfTransmission(cause);
-  if (selectAndExecute) {
-    // wait for ACT_TERM after ACT_CON
-    return command(std::move(message), true, COMMAND_AWAIT_CON_TERM);
+
+  const auto executed = command(std::move(message), true);
+
+  // remove the selected state after successful execution
+  if (auto_select) {
+    _client->selectionManager.remove(station->getCommonAddress(),
+                                     point->getInformationObjectAddress());
   }
-  return command(std::move(message), true);
+
+  // add the selected state after successful manual selection
+  else if (executed && cmd->isSelect()) {
+    _client->selectionManager.replace(originatorAddress,
+                                      station->getCommonAddress(),
+                                      point->getInformationObjectAddress());
+  }
+
+  return executed;
 }
 
 bool Connection::command(std::shared_ptr<Message::OutgoingMessage> message,
@@ -1027,7 +1088,7 @@ bool Connection::command(std::shared_ptr<Message::OutgoingMessage> message,
     if (result) {
       return awaitCommandSuccess(cmdId);
     }
-    // result not required anymore, because no message was sent
+    // the result is not required anymore, because no message was sent
     cancelCommandSuccess(cmdId);
   }
   return result;
@@ -1063,7 +1124,7 @@ bool Connection::read(std::shared_ptr<Object::DataPoint> point,
     if (result) {
       return awaitCommandSuccess(cmdId);
     }
-    // result not required anymore, because no message was sent
+    // the result is not required anymore, because no message was sent
     cancelCommandSuccess(cmdId);
   }
   return result;
@@ -1221,7 +1282,7 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
         auto point = station->getPoint(message->getIOA());
         if (!point) {
           // accept point via callback?
-          client->onNewPoint(station, message->getIOA(), type);
+          client->onNewPoint(station, message->getIOA(), message->getInfo());
           point = station->getPoint(message->getIOA());
         }
         if (!point) {
@@ -1229,8 +1290,9 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
           instance->onUnexpectedMessage(message, UNKNOWN_IOA);
           throw std::domain_error("Unknown point");
         }
-        if (point->getType() != type) {
-          instance->onUnexpectedMessage(message, MISMATCHED_TYPE_ID);
+        // test if info class matches
+        if (point->getInfo()->name().compare(message->getInfo()->name()) != 0) {
+          instance->onUnexpectedMessage(message, INVALID_TYPE_ID);
           throw std::domain_error("Mismatched TypeID");
         }
         point->onReceive(message);
@@ -1279,4 +1341,18 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
   }
 
   return handled;
+}
+
+std::string Connection::toString() const {
+  size_t len = 0;
+  {
+    std::scoped_lock<Module::GilAwareMutex> const lock(stations_mutex);
+    len = stations.size();
+  }
+  std::ostringstream oss;
+  oss << "<104.Connection ip=" << ip << ", port=" << std::to_string(port)
+      << ", state=" << ConnectionState_toString(state)
+      << ", #stations=" << std::to_string(len) << " at " << std::hex
+      << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+  return oss.str();
 }

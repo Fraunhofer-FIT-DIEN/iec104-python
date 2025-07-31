@@ -33,9 +33,10 @@
 #ifndef C104_MODULE_SCOPEDGILRELEASE_H
 #define C104_MODULE_SCOPEDGILRELEASE_H
 
-#include <utility>
+#include "debug.h"
+#include <pybind11/pybind11.h>
 
-#include "types.h"
+namespace py = pybind11;
 
 namespace Module {
 

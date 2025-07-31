@@ -103,13 +103,13 @@ class BinaryCmd(Information):
     """
     This class represents all specific binary command information
     """
-    def __init__(self, blob: Byte32, recorded_at: DateTime | None = None) -> None:
+    def __init__(self, blob: Byte32 | bytes | int, recorded_at: DateTime | None = None) -> None:
         """
         create a new binary command
 
         Parameters
         ----------
-        blob: c104.Byte32
+        blob: c104.Byte32 | bytes | int
             Binary command value
         recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
@@ -139,7 +139,7 @@ class BinaryCounterInfo(Information):
     """
     This class represents all specific integrated totals of binary counter point information
     """
-    def __init__(self, counter: int, sequence: UInt5, quality: BinaryCounterQuality = BinaryCounterQuality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, counter: int, sequence: UInt5 | int, quality: BinaryCounterQuality = BinaryCounterQuality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new short measurement info
 
@@ -147,7 +147,7 @@ class BinaryCounterInfo(Information):
         ----------
         counter: int
             Counter value
-        sequence: c104.UInt5
+        sequence: c104.UInt5 | int
             Counter info sequence number
         quality: c104.BinaryCounterQuality
             Binary counter quality information
@@ -207,13 +207,13 @@ class BinaryInfo(Information):
     """
     This class represents all specific binary point information
     """
-    def __init__(self, blob: Byte32, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, blob: Byte32 | bytes | int, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new binary info
 
         Parameters
         ----------
-        blob: c104.Byte32
+        blob: c104.Byte32 | bytes | int
             Binary status value
         quality: c104.Quality
             Quality information
@@ -386,9 +386,9 @@ class Client:
 
         Example
         -------
-        >>> def cl_on_new_point(client: c104.Client, station: c104.Station, io_address: int, point_type: c104.Type) -> None:
-        >>>     print("NEW POINT: {1} with IOA {0} | CLIENT OA {2}".format(io_address, point_type, client.originator_address))
-        >>>     point = station.add_point(io_address=io_address, type=point_type)
+        >>> def cl_on_new_point(client: c104.Client, station: c104.Station, io_address: int, point_info: c104.Information) -> None:
+        >>>     print("NEW POINT: {1} with IOA {0} | CLIENT OA {2}".format(io_address, point_info, client.originator_address))
+        >>>     point = station.add_point(io_address=io_address, info=point_info)
         >>>
         >>> my_client.on_new_point(callable=cl_on_new_point)
         """
@@ -1268,13 +1268,13 @@ class DoubleCmd(Information):
     """
     This class represents all specific double command information
     """
-    def __init__(self, state: Double, qualifier: Qoc = Qoc.NONE, recorded_at: DateTime | None = None) -> None:
+    def __init__(self, state: Double | int, qualifier: Qoc = Qoc.NONE, recorded_at: DateTime | None = None) -> None:
         """
         create a new double command
 
         Parameters
         ----------
-        state: c104.Double
+        state: c104.Double | int
             Double command value
         qualifier: c104.Qoc
             Qualifier of command
@@ -1311,13 +1311,13 @@ class DoubleInfo(Information):
     """
     This class represents all specific double point information
     """
-    def __init__(self, state: Double, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, state: Double | int, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new double info
 
         Parameters
         ----------
-        state: c104.Double
+        state: c104.Double | int
             Double point status value
         quality: c104.Quality
             Quality information
@@ -1475,6 +1475,44 @@ class Information:
     """
     This class represents all specialized kind of information a specific point may have
     """
+    def as_type(self, timestamp: bool) -> Type:
+        """
+        get related IEC60870 message type identifier (with or without a timestamp)
+
+        Parameters
+        ----------
+        timestamp: bool
+            identifier with or without timestamp
+
+        Returns
+        -------
+        c104.Type
+
+        Raises
+        ------
+        ValueError
+            if the information does not support the given timestamp option
+        """
+    @staticmethod
+    def from_type(type: Type) -> Information:
+        """
+        create an empty information object from a IEC60870 message type
+
+        Parameters
+        ----------
+        type: c104.Type
+            IEC60870 message type identifier
+
+        Returns
+        -------
+        c104.Information
+            empty information object
+
+        Raises
+        ------
+        ValueError
+            if the type is not supported
+        """
     @property
     def is_readonly(self) -> bool:
         """
@@ -1574,15 +1612,15 @@ class NormalizedCmd(Information):
     """
     This class represents all specific normalized set point command information
     """
-    def __init__(self, target: NormalizedFloat, qualifier: UInt7 = UInt7(0), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, target: NormalizedFloat | int | float, qualifier: UInt7 | int = UInt7(0), recorded_at: DateTime | None = None) -> None:
         """
         create a new normalized set point command
 
         Parameters
         ----------
-        target: c104.NormalizedFloat
+        target: c104.NormalizedFloat | int | float
             Target set-point value [-1.f, 1.f]
-        qualifier: c104.UInt7
+        qualifier: c104.UInt7 | int
             Qualifier of set-point command
         recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
@@ -1642,13 +1680,13 @@ class NormalizedInfo(Information):
     """
     This class represents all specific normalized measurement point information
     """
-    def __init__(self, actual: NormalizedFloat, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, actual: NormalizedFloat | int | float, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new normalized measurement info
 
         Parameters
         ----------
-        actual: c104.NormalizedFloat
+        actual: c104.NormalizedFloat | int | float
             Actual measurement value [-1.f, 1.f]
         quality: c104.Quality
             Quality information
@@ -2189,15 +2227,15 @@ class ProtectionCircuitInfo(Information):
     """
     This class represents all specific protection equipment output circuit point information
     """
-    def __init__(self, circuits: OutputCircuits, relay_operating_ms: UInt16, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, circuits: OutputCircuits | int, relay_operating_ms: UInt16 | int, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new output circuits info raised by protection equipment
 
         Parameters
         ----------
-        circuits: c104.OutputCircuits
+        circuits: c104.OutputCircuits | int
             Set of output circuits
-        relay_operating_ms: c104.UInt16
+        relay_operating_ms: c104.UInt16 | int
             Time in milliseconds of relay operation
         quality: c104.Quality
             Quality information
@@ -2236,15 +2274,15 @@ class ProtectionEventInfo(Information):
     """
     This class represents all specific protection equipment single event point information
     """
-    def __init__(self, state: EventState, elapsed_ms: UInt16, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, state: EventState | int, elapsed_ms: UInt16 | int, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new event info raised by protection equipment
 
         Parameters
         ----------
-        state: c104.EventState
+        state: c104.EventState | int
             State of the event
-        elapsed_ms: c104.UInt16
+        elapsed_ms: c104.UInt16 | int
             Time in milliseconds elapsed
         quality: c104.Quality
             Quality information
@@ -2283,15 +2321,15 @@ class ProtectionStartInfo(Information):
     """
     This class represents all specific protection equipment packed start events point information
     """
-    def __init__(self, events: StartEvents, relay_duration_ms: UInt16, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, events: StartEvents | int, relay_duration_ms: UInt16 | int, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new packed event start info raised by protection equipment
 
         Parameters
         ----------
-        events: c104.StartEvents
+        events: c104.StartEvents | int
             Set of start events
-        relay_duration_ms: c104.UInt16
+        relay_duration_ms: c104.UInt16 | int
             Time in milliseconds of relay duration
         quality: c104.Quality
             Quality information
@@ -2545,15 +2583,15 @@ class ScaledCmd(Information):
     """
     This class represents all specific scaled set point command information
     """
-    def __init__(self, target: Int16, qualifier: UInt7 = UInt7(0), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, target: Int16 | int, qualifier: UInt7 | int = UInt7(0), recorded_at: DateTime | None = None) -> None:
         """
         create a new scaled set point command
 
         Parameters
         ----------
-        target: c104.Int16
+        target: c104.Int16 | int
             Target set-point value [-32768, 32767]
-        qualifier: c104.UInt7
+        qualifier: c104.UInt7 | int
             Qualifier of set-point command
         recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
@@ -2588,13 +2626,13 @@ class ScaledInfo(Information):
     """
     This class represents all specific scaled measurement point information
     """
-    def __init__(self, actual: Int16, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, actual: Int16 | int, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new scaled measurement info
 
         Parameters
         ----------
-        actual: c104.Int16
+        actual: c104.Int16 | int
             Actual measurement value [-32768, 32767]
         quality: c104.Quality
             Quality information
@@ -3027,7 +3065,7 @@ class ShortCmd(Information):
     """
     This class represents all specific short set point command information
     """
-    def __init__(self, target: float, qualifier: UInt7 = UInt7(0), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, target: float, qualifier: UInt7 | int = UInt7(0), recorded_at: DateTime | None = None) -> None:
         """
         create a new short set point command
 
@@ -3035,7 +3073,7 @@ class ShortCmd(Information):
         ----------
         target: float
             Target set-point value in 32-bit precision
-        qualifier: c104.UInt7
+        qualifier: c104.UInt7 | int
             Qualifier of set-point command
         recorded_at: c104.DateTime, optional
             Timestamp contained in the protocol message, or None if the protocol message type does not contain a timestamp.
@@ -3217,7 +3255,7 @@ class Station:
     """
     This class represents local or remote stations and provides access to meta information and containing points
     """
-    def add_point(self, io_address: int, type: Type, report_ms: int = 0, related_io_address: int | None = None, related_io_autoreturn: bool = False, command_mode: CommandMode = CommandMode.DIRECT) -> Point | None:
+    def add_point(self, io_address: int, info: Information, report_ms: int = 0, related_io_address: int | None = None, related_io_autoreturn: bool = False, command_mode: CommandMode = CommandMode.DIRECT) -> Point | None:
         """
         add a new point to this station and return the new point object
 
@@ -3225,8 +3263,8 @@ class Station:
         ----------
         io_address: int
             point information object address (value between 0 and 16777215)
-        type: c104.Type
-            point information type
+        info: c104.Information
+            point information instance
         report_ms: int
             automatic reporting interval in milliseconds (monitoring points server-sided only), 0 = disabled
         related_io_address: int, optional
@@ -3254,9 +3292,9 @@ class Station:
 
         Example
         -------
-        >>> point_1 = sv_station_1.add_point(common_address=15, type=c104.Type.M_ME_NC_1)
-        >>> point_2 = sv_station_1.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
-        >>> point_3 = sv_station_1.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=point_2.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
+        >>> point_1 = sv_station_1.add_point(common_address=15, info=c104.ShortInfo(0))
+        >>> point_2 = sv_station_1.add_point(io_address=11, info=c104.ShortInfo(0), report_ms=1000)
+        >>> point_3 = sv_station_1.add_point(io_address=12, info=c104.ShortCmd(0), report_ms=0, related_io_address=point_2.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
         """
     def get_group(self, group_id: int) -> tuple[Point]:
         """
@@ -3440,15 +3478,15 @@ class StatusAndChanged(Information):
     """
     This class represents all specific packed status point information with change detection
     """
-    def __init__(self, status: PackedSingle, changed: PackedSingle, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, status: PackedSingle | int, changed: PackedSingle | int, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new event info raised by protection equipment
 
         Parameters
         ----------
-        status: c104.PackedSingle
+        status: c104.PackedSingle | int
             Set of current single values
-        changed: c104.PackedSingle
+        changed: c104.PackedSingle | int
             Set of changed single values
         quality: c104.Quality
             Quality information
@@ -3502,13 +3540,13 @@ class StepCmd(Information):
     """
     This class represents all specific step command information
     """
-    def __init__(self, direction: Step, qualifier: Qoc = Qoc.NONE, recorded_at: DateTime | None = None) -> None:
+    def __init__(self, direction: Step | int, qualifier: Qoc = Qoc.NONE, recorded_at: DateTime | None = None) -> None:
         """
         create a new step command
 
         Parameters
         ----------
-        direction: c104.Step
+        direction: c104.Step | int
             Step command direction value
         qualifier: c104.Qoc
             Qualifier of Command
@@ -3545,13 +3583,13 @@ class StepInfo(Information):
     """
     This class represents all specific step point information
     """
-    def __init__(self, position: Int7, transient: bool, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
+    def __init__(self, position: Int7 | int, transient: bool, quality: Quality = Quality(), recorded_at: DateTime | None = None) -> None:
         """
         create a new step info
 
         Parameters
         ----------
-        position: c104.Int7
+        position: c104.Int7 | int
             Current transformer step position value
         transient: bool
             Indicator, if transformer is currently in step change procedure
@@ -4179,14 +4217,13 @@ class Umc:
     """
     INVALID_COT: typing.ClassVar[Umc]  # value = <Umc.INVALID_COT: 5>
     INVALID_TYPE_ID: typing.ClassVar[Umc]  # value = <Umc.INVALID_TYPE_ID: 6>
-    MISMATCHED_TYPE_ID: typing.ClassVar[Umc]  # value = <Umc.MISMATCHED_TYPE_ID: 7>
     NO_ERROR_CAUSE: typing.ClassVar[Umc]  # value = <Umc.NO_ERROR_CAUSE: 0>
     UNIMPLEMENTED_GROUP: typing.ClassVar[Umc]  # value = <Umc.UNIMPLEMENTED_GROUP: 8>
     UNKNOWN_CA: typing.ClassVar[Umc]  # value = <Umc.UNKNOWN_CA: 3>
     UNKNOWN_COT: typing.ClassVar[Umc]  # value = <Umc.UNKNOWN_COT: 2>
     UNKNOWN_IOA: typing.ClassVar[Umc]  # value = <Umc.UNKNOWN_IOA: 4>
     UNKNOWN_TYPE_ID: typing.ClassVar[Umc]  # value = <Umc.UNKNOWN_TYPE_ID: 1>
-    __members__: typing.ClassVar[dict[str, Umc]]  # value = {'NO_ERROR_CAUSE': <Umc.NO_ERROR_CAUSE: 0>, 'UNKNOWN_TYPE_ID': <Umc.UNKNOWN_TYPE_ID: 1>, 'UNKNOWN_COT': <Umc.UNKNOWN_COT: 2>, 'UNKNOWN_CA': <Umc.UNKNOWN_CA: 3>, 'UNKNOWN_IOA': <Umc.UNKNOWN_IOA: 4>, 'INVALID_COT': <Umc.INVALID_COT: 5>, 'INVALID_TYPE_ID': <Umc.INVALID_TYPE_ID: 6>, 'MISMATCHED_TYPE_ID': <Umc.MISMATCHED_TYPE_ID: 7>, 'UNIMPLEMENTED_GROUP': <Umc.UNIMPLEMENTED_GROUP: 8>}
+    __members__: typing.ClassVar[dict[str, Umc]]  # value = {'NO_ERROR_CAUSE': <Umc.NO_ERROR_CAUSE: 0>, 'UNKNOWN_TYPE_ID': <Umc.UNKNOWN_TYPE_ID: 1>, 'UNKNOWN_COT': <Umc.UNKNOWN_COT: 2>, 'UNKNOWN_CA': <Umc.UNKNOWN_CA: 3>, 'UNKNOWN_IOA': <Umc.UNKNOWN_IOA: 4>, 'INVALID_COT': <Umc.INVALID_COT: 5>, 'INVALID_TYPE_ID': <Umc.INVALID_TYPE_ID: 6>, 'UNIMPLEMENTED_GROUP': <Umc.UNIMPLEMENTED_GROUP: 8>}
     @property
     def name(self) -> str:
         ...

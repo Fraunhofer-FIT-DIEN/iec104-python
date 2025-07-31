@@ -32,34 +32,29 @@
 #ifndef C104_SERVER_H
 #define C104_SERVER_H
 
-#include "remote/Helper.h"
-#include "types.h"
-
+#include "enums.h"
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
-#include "object/Station.h"
+#include "remote/Helper.h"
+#include "remote/Selection.h"
 #include "remote/TransportSecurity.h"
-#include "remote/message/IncomingMessage.h"
+#include "tasks/Executor.h"
+#include <map>
 
-/**
- * @brief Represents a selection within the server for select-and-execute
- * patterns.
- *
- * The `Selection` structure is used to maintain information related to a
- * specific select-and-execute process. This includes details such as the select
- * ASDU, originating address (OA), common address (CA), information object
- * address (IOA), and the master connection that initiated the selection.
- * Additionally, it stores the timestamp indicating when the selection was
- * created to test for timeouts.
- */
-struct Selection {
-  CS101_ASDU asdu;
-  uint8_t oa;
-  uint16_t ca;
-  uint32_t ioa;
-  IMasterConnection connection;
-  std::chrono::steady_clock::time_point created;
-};
+namespace Object {
+class DataPoint;
+class DateTime;
+class Station;
+} // namespace Object
+
+namespace Remote {
+namespace Message {
+class Batch;
+class IncomingMessage;
+class InvalidMessageException;
+class OutgoingMessage;
+} // namespace Message
+} // namespace Remote
 
 /**
  * @brief Represents a server capable of handling connections, stations,
@@ -105,23 +100,11 @@ public:
    * @return A `std::shared_ptr` to the created `Server` instance.
    */
   [[nodiscard]] static std::shared_ptr<Server> create(
-      std::string bind_ip = "0.0.0.0",
+      const std::string &bind_ip = "0.0.0.0",
       uint_fast16_t tcp_port = IEC_60870_5_104_DEFAULT_PORT,
       uint_fast16_t tick_rate_ms = 100, uint_fast16_t select_timeout_ms = 10000,
       std::uint_fast8_t max_open_connections = 0,
-      std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr) {
-    // Not using std::make_shared because the constructor is private.
-    auto server = std::shared_ptr<Server>(
-        new Server(bind_ip, tcp_port, tick_rate_ms, select_timeout_ms,
-                   max_open_connections, std::move(transport_security)));
-
-    // track reference as weak pointer for safe static callbacks
-    void *key = static_cast<void *>(server.get());
-    std::lock_guard<std::mutex> lock(instanceMapMutex);
-    instanceMap[key] = server;
-
-    return server;
-  }
+      std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr);
 
   // DESTRUCTOR
 
@@ -233,7 +216,7 @@ public:
    * @brief Get a list of all Stations
    * @return vector with station objects
    */
-  Object::StationVector getStations() const;
+  std::vector<std::shared_ptr<Object::Station>> getStations() const;
 
   /**
    * @brief Retrieves a Station that exists on this Server, identified by the
@@ -345,15 +328,11 @@ public:
    *
    * @param connection The master connection from which the unexpected message
    * was received.
-   * @param message A shared pointer to the incoming message that triggered the
-   * unexpected event.
-   * @param cause The reason why the message was classified as unexpected (e.g.,
-   * unknown type ID or invalid cause-of-transmission).
+   * @param exception The reason why the message was classified as unexpected
    */
-  void
-  onUnexpectedMessage(IMasterConnection connection,
-                      std::shared_ptr<Remote::Message::IncomingMessage> message,
-                      UnexpectedMessageCause cause);
+  void onUnexpectedMessage(
+      IMasterConnection connection,
+      const Remote::Message::InvalidMessageException &exception);
 
   /**
    * @brief set python callback that will be executed on incoming connection
@@ -372,12 +351,13 @@ public:
    * @brief transmit a datapoint related message to a remote client
    * @param point datapoint that should be send via server
    * @param cause reason for transmission
+   * @param timestamp use a message with timestamp support
    * @return information on operation success
    * @throws std::invalid_argument if point type is not supported for this
    * operation
    */
   bool transmit(std::shared_ptr<Object::DataPoint> point,
-                CS101_CauseOfTransmission cause);
+                CS101_CauseOfTransmission cause, bool timestamp = false);
 
   /**
    * @brief send a message object to a remote client
@@ -469,30 +449,12 @@ public:
   void sendPeriodicInventory();
 
   /**
-   * @brief Schedules a periodic task to be executed at a specified interval.
-   *
-   * @param task A callable object representing the task to be executed
-   * periodically.
-   * @param interval The interval in milliseconds at which the task should be
-   * executed. Must be at least 50ms. Throws std::out_of_range if the interval
-   * is less than 50ms.
+   * @brief get the originator address, who selected this point, if any
+   * @param ca station common address
+   * @param ioa information object address
+   * @return
    */
-  void schedulePeriodicTask(const std::function<void()> &task,
-                            std::int_fast32_t interval);
-
-  /**
-   * @brief Schedules a task to be executed after a specified delay (or
-   * instant).
-   *
-   * The order of execution will depend on the timestamp calculated from current
-   * time + delay. The delay may be negative for high priority tasks.
-   *
-   * @param task The function to be executed.
-   * @param delay The delay in milliseconds before the task is executed. A
-   * negative delay executes the task immediately.
-   */
-  void scheduleTask(const std::function<void()> &task,
-                    std::int_fast32_t delay = 0);
+  std::optional<std::uint8_t> getSelector(uint16_t ca, uint32_t ioa) const;
 
 private:
   /**
@@ -522,46 +484,6 @@ private:
   void scheduleDataPointTimer();
 
   /**
-   * @brief Cleans up expired selections within the server.
-   *
-   * The `cleanupSelections` method removes outdated selections from the
-   * server's selection list. This process iterates through the current
-   * selections to determine if their lifetime has exceeded the configured
-   * selection timeout. Removed selections will trigger an unselect operation.
-   */
-  void cleanupSelections();
-
-  /**
-   * @brief Removes all selections associated with the specified master
-   * connection.
-   *
-   * This method iterates over the current selections and removes any selections
-   * that are tied to the provided master connection.
-   * Removed selections will NOT trigger an unselect operation, because the
-   * connection is expected to be lost.
-   *
-   * @param connection The master connection whose associated selections are to
-   * be removed.
-   */
-  void dropConnectionSelections(IMasterConnection connection);
-
-  /**
-   * @brief Cleans up a selection associated with the specified common address
-   * (CA) and information object address (IOA).
-   *
-   * This method removes a selection from the selection vector based on the
-   * provided CA and IOA. If a matching selection is found, it is unselected and
-   * removed. Removed selections will trigger an unselect operation. This method
-   * is used to delay the activation termination message after the actual
-   * command response.
-   *
-   * @param ca The common address (CA) of the selection to be cleaned up.
-   * @param ioa The information object address (IOA) of the selection to be
-   * cleaned up.
-   */
-  void cleanupSelection(uint16_t ca, uint32_t ioa);
-
-  /**
    * @brief Selects a control point for execution in the server.
    *
    * The select method identifies a specific control point based on the details
@@ -571,30 +493,15 @@ private:
    * conflicts with an existing selection, the method may reject the new
    * selection.
    *
-   * @param connection The master connection that initiated the selection
-   * process.
-   * @param message A shared pointer to the incoming message containing control
-   * point details such as type, originator address, common address, and
-   * information object address.
-   *
-   * @return True if the selection was successfully created or updated; false
-   * otherwise.
+   * @param message A shared pointer to the incoming message containing command
+   * details.
+   * @param point A shared pointer to the target data point to execute the
+   * command on.
+   * @throws Remote::Message::InvalidMessageException if not selectable or
+   * already selected
    */
-  bool select(IMasterConnection connection,
-              std::shared_ptr<Remote::Message::IncomingMessage> message);
-
-  /**
-   * @brief Cancels a previously made selection and performs necessary cleanup.
-   *
-   * The `unselect` method is responsible for terminating an active selection
-   * initiated by a client. It schedules a task to send an activation
-   * termination message to the originating connection and releases any
-   * resources associated with the selection.
-   *
-   * @param selection The `Selection` object representing the active selection
-   * to be canceled, including information about the master connection and ASDU.
-   */
-  void unselect(const Selection &selection);
+  void select(std::shared_ptr<Remote::Message::IncomingMessage> message,
+              std::shared_ptr<Object::DataPoint> point);
 
   /**
    * @brief Executes a command on a specified data point based on an incoming
@@ -607,8 +514,6 @@ private:
    * Additionally, it schedules cleanup tasks for selections once the command is
    * executed.
    *
-   * @param connection A reference to the master connection initiating the
-   * command.
    * @param message A shared pointer to the incoming message containing command
    * details.
    * @param point A shared pointer to the target data point to execute the
@@ -620,9 +525,8 @@ private:
    *         - RESPONSE_STATE_NONE: No response state determined.
    */
   CommandResponseState
-  execute(IMasterConnection connection,
-          std::shared_ptr<Remote::Message::IncomingMessage> message,
-          const std::shared_ptr<Object::DataPoint> &point);
+  execute(std::shared_ptr<Remote::Message::IncomingMessage> message,
+          std::shared_ptr<Object::DataPoint> point);
 
   /// @brief IP address of remote server
   const std::string ip{};
@@ -633,14 +537,11 @@ private:
   /// @brief minimum interval between two periodic tasks
   const std::uint_fast16_t tickRate_ms{100};
 
-  /// @brief selection init timestamp, to test against timeout
-  const std::chrono::milliseconds selectTimeout_ms{10000};
-
   /// @brief tls handler
   const std::shared_ptr<Remote::TransportSecurity> security{nullptr};
 
   /// @brief vector of stations accessible via this connection
-  Object::StationVector stations{};
+  std::vector<std::shared_ptr<Object::Station>> stations{};
 
   /// @brief access mutex to lock station vector access
   mutable Module::GilAwareMutex station_mutex{"Server::station_mutex"};
@@ -648,11 +549,10 @@ private:
   /// @brief lib60870-c slave struct
   CS104_Slave slave = nullptr;
 
+  std::shared_ptr<Tasks::Executor> executor{nullptr};
+
   /// @brief state that defines if server thread should be running
   std::atomic_bool enabled{false};
-
-  /// @brief server thread state
-  std::atomic_bool running{false};
 
   /// @brief parameters of current server intance
   CS101_AppLayerParameters appLayerParameters;
@@ -663,15 +563,6 @@ private:
   /// @brief map of all connections to store connection state
   std::map<IMasterConnection, bool> connectionMap{};
 
-  /// @brief MUTEX Lock to access selectionVEcotr
-  mutable Module::GilAwareMutex selection_mutex{"Server::selection_mutex"};
-
-  /// @brief vector of all selections
-  std::vector<Selection> selectionVector{};
-
-  /// @brief number of active selections
-  std::atomic_uint_fast8_t activeSelections{0};
-
   /// @brief number of active connections
   std::atomic_uint_fast8_t activeConnections{0};
 
@@ -681,17 +572,7 @@ private:
   /// @brief maximum number of connections (0-255), 0 = no limit
   std::atomic_uint_fast8_t maxOpenConnections{0};
 
-  std::priority_queue<Task> tasks;
-
-  /// @brief server thread to execute periodic transmission
-  std::thread *runThread = nullptr;
-
-  /// @brief server thread mutex to not lock thread execution
-  mutable std::mutex runThread_mutex{};
-
-  /// @brief conditional variable to stop server thread without waiting for
-  /// another loop
-  mutable std::condition_variable_any runThread_wait{};
+  Remote::SelectionManager selectionManager;
 
   /// @brief instance weak pointer list for safe static callbacks
   static std::unordered_map<void *, std::weak_ptr<Server>> instanceMap;
@@ -722,31 +603,7 @@ private:
   Module::Callback<bool> py_onConnect{"Server.on_connect",
                                       "(server: c104.Server, ip: str) -> bool"};
 
-  /// @brief server thread function
-  void thread_run();
-
-  /// @brief server thread function
-  // @todo use callback thread
-  // void thread_callback();
-
 public:
-  /**
-   * @brief Retrieves the selector associated with a given common address (ca)
-   * and information object address (ioa) from the selection vector.
-   *
-   * This function searches for a matching selector in the selection vector
-   * based on the provided parameters. If a selection is found
-   * and the time elapsed since its creation does not exceed
-   * the configured selection timeout, the function returns the selector;
-   * otherwise, it returns an empty optional.
-   *
-   * @param ca The common address to search for.
-   * @param ioa The information object address to search for.
-   * @return An optional containing the selector if found and valid;
-   *         otherwise, an empty optional.
-   */
-  std::optional<uint8_t> getSelector(uint16_t ca, uint32_t ioa);
-
   /**
    * @brief Retrieves the shared instance of the Server associated with the
    * given key.
@@ -787,12 +644,11 @@ public:
   /**
    * @brief validate incoming ASDU, send negative response if invalid receiver
    * station or return ASDU wrapped in a IncomingMessage facade otherwise
-   * @param connection reference to internal connection object
    * @param asdu incoming ASDU packet
    * @return
    */
   std::shared_ptr<Remote::Message::IncomingMessage>
-  getValidMessage(IMasterConnection connection, CS101_ASDU asdu);
+  getValidMessage(CS101_ASDU asdu);
 
   /**
    * @brief Callback for logging incoming and outgoing byteStreams
@@ -862,6 +718,40 @@ public:
                           CS101_ASDU asdu, int ioAddress);
 
   /**
+   * @brief Callback for handling incoming clock-sync commands
+   * @param parameter reference to custom bound connection data
+   * @param connection reference to internal connection object
+   * @param asdu incoming ASDU packet
+   * @param time synchronized timestamp
+   * @return if command was handled.. if not it will be passed to asduHandler
+   */
+  static bool clockSyncHandler(void *parameter, IMasterConnection connection,
+                               CS101_ASDU asdu, CP56Time2a time);
+
+  /**
+   * @brief Callback for handling incoming reset-process commands
+   * @param parameter reference to custom bound connection data
+   * @param connection reference to internal connection object
+   * @param asdu incoming ASDU packet
+   * @param qualifier reset process parameter
+   * @return if command was handled.. if not it will be passed to asduHandler
+   */
+  static bool resetProcessHandler(void *parameter, IMasterConnection connection,
+                                  CS101_ASDU asdu, QualifierOfRPC qualifier);
+
+  /**
+   * @brief Callback for handling incoming reset-process commands
+   * @param parameter reference to custom bound connection data
+   * @param connection reference to internal connection object
+   * @param asdu incoming ASDU packet
+   * @param delay the delay that should be waited
+   * @return if command was handled.. if not it will be passed to asduHandler
+   */
+  static bool delayAcquisitionHandler(void *parameter,
+                                      IMasterConnection connection,
+                                      CS101_ASDU asdu, CP16Time2a delay);
+
+  /**
    * @brief Callback for reacting on incoming commands
    * @param parameter reference to custom bound connection data
    * @param connection reference to internal connection object
@@ -881,24 +771,7 @@ public:
    *
    * @return A string containing the server's state and attributes.
    */
-  std::string toString() const {
-    size_t lencon = 0;
-    {
-      std::scoped_lock<Module::GilAwareMutex> const lock(connection_mutex);
-      lencon = connectionMap.size();
-    }
-    size_t lenst = 0;
-    {
-      std::scoped_lock<Module::GilAwareMutex> const lock(station_mutex);
-      lenst = stations.size();
-    }
-    std::ostringstream oss;
-    oss << "<104.Server ip=" << ip << ", port=" << std::to_string(port)
-        << ", #clients=" << std::to_string(lencon)
-        << ", #stations=" << std::to_string(lenst) << " at " << std::hex
-        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
-    return oss.str();
-  };
+  std::string toString() const;
 };
 
 #endif // C104_SERVER_H

@@ -34,7 +34,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "object/Information.h"
+#include "object/information/IInformation.h"
 #include "remote/message/IncomingMessage.h"
 
 using namespace pybind11::literals;

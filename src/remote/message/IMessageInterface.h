@@ -32,19 +32,20 @@
 #ifndef C104_REMOTE_MESSAGE_IMESSAGEINTERFACE_H
 #define C104_REMOTE_MESSAGE_IMESSAGEINTERFACE_H
 
+#include "iec60870_common.h"
 #include "module/GilAwareMutex.h"
-#include "types.h"
 
-/**
- * @brief Remote layer - remote communication via IEC60870-5-104
- */
-namespace Remote {
+namespace Object {
+namespace Information {
+class IInformation;
+}
+} // namespace Object
 
 /**
  * @brief Remote::Message layer - remote message objects received send via
  * IEC60870-5-104
  */
-namespace Message {
+namespace Remote::Message {
 
 /**
  * @brief interface for Remote::Message::IncomingMessage and
@@ -105,7 +106,9 @@ public:
    * @brief Get the value from an information object inside the remote message
    * @return value as Information object
    */
-  virtual std::shared_ptr<Object::Information> getInfo() const { return info; }
+  virtual std::shared_ptr<Object::Information::IInformation> getInfo() const {
+    return info;
+  }
 
   /**
    * @brief test if message test flag is set
@@ -159,7 +162,7 @@ protected:
       CS101_COT_UNKNOWN_COT};
 
   /// @brief abstract representation of information
-  std::shared_ptr<Object::Information> info{nullptr};
+  std::shared_ptr<Object::Information::IInformation> info{nullptr};
 
   /// @brief state that defines if informationObject has a value
   std::atomic_bool test{false};
@@ -170,8 +173,7 @@ protected:
   /// @brief state that defines if informationObject has a value
   std::atomic_bool sequence{false};
 };
-} // namespace Message
 
-} // namespace Remote
+} // namespace Remote::Message
 
 #endif // C104_REMOTE_MESSAGE_IMESSAGEINTERFACE_H

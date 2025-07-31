@@ -30,12 +30,13 @@
  */
 
 #include <pybind11/chrono.h>
-#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
 #include "Server.h"
 #include "module/Tuple.h"
+#include "object/DataPoint.h"
+#include "object/Information/IInformation.h"
 #include "object/Station.h"
 #include "remote/Connection.h"
 
@@ -117,7 +118,7 @@ Example
           "io_address"_a)
       .def(
           "add_point", &Object::Station::addPoint,
-          R"def(add_point(self: c104.Station, io_address: int, type: c104.Type, report_ms: int = 0, related_io_address: int = None, related_io_autoreturn: bool = False, command_mode: c104.CommandMode = c104.CommandMode.DIRECT) -> c104.Point | None
+          R"def(add_point(self: c104.Station, io_address: int, info: c104.Information, report_ms: int = 0, related_io_address: int = None, related_io_autoreturn: bool = False, command_mode: c104.CommandMode = c104.CommandMode.DIRECT) -> c104.Point | None
 
 add a new point to this station and return the new point object
 
@@ -125,8 +126,8 @@ Parameters
 ----------
 io_address: int
     point information object address (value between 0 and 16777215)
-type: c104.Type
-    point information type
+info: c104.Information
+    point information instance
 report_ms: int
     automatic reporting interval in milliseconds (monitoring points server-sided only), 0 = disabled
 related_io_address: int, optional
@@ -154,11 +155,11 @@ ValueError
 
 Example
 -------
->>> point_1 = sv_station_1.add_point(common_address=15, type=c104.Type.M_ME_NC_1)
->>> point_2 = sv_station_1.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
->>> point_3 = sv_station_1.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=point_2.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
+>>> point_1 = sv_station_1.add_point(common_address=15, info=c104.ShortInfo(0))
+>>> point_2 = sv_station_1.add_point(io_address=11, info=c104.ShortInfo(3.45), report_ms=1000)
+>>> point_3 = sv_station_1.add_point(io_address=12, info=c104.ShortCmd(-6.89), related_io_address=point_2.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
 )def",
-          "io_address"_a, "type"_a, "report_ms"_a = 0,
+          "io_address"_a, "info"_a, "report_ms"_a = 0,
           "related_io_address"_a = py::none(),
           "related_io_autoreturn"_a = false, "command_mode"_a = DIRECT_COMMAND)
       .def("remove_point", &Object::Station::removePoint,

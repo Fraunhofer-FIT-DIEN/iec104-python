@@ -32,40 +32,47 @@
 #include "Server.h"
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
+#include "object/DataPoint.h"
+#include "object/Station.h"
+#include "object/information/ICommand.h"
+#include "object/information/IntegratedTotalInfo.h"
 #include "remote/TransportSecurity.h"
 #include "remote/message/Batch.h"
-#include "remote/message/PointCommand.h"
-#include "remote/message/PointMessage.h"
+#include "remote/message/IncomingMessage.h"
+#include "remote/message/InvalidMessageException.h"
+#include "remote/message/OutgoingMessage.h"
+#include "transformer/Type.h"
+
 #include <pybind11/chrono.h>
+#include <sstream>
 
 using namespace Remote;
 using namespace std::chrono_literals;
 
-template <typename T>
-bool areKeysSequential(const std::map<uint_fast16_t, T> &inputMap) {
-  if (inputMap.empty()) {
-    return true; // An empty map is trivially sequential
-  }
-
-  // Iterator-based traversal to test key sequences
-  // std::map is always ordered, therefore sorting is not necessary
-  auto it = inputMap.begin();
-  uint_fast16_t previousKey = it->first;
-  ++it;
-
-  for (; it != inputMap.end(); ++it) {
-    if (it->first != previousKey + 1) {
-      return false; // Keys are not sequential
-    }
-    previousKey = it->first;
-  }
-
-  return true; // All keys are sequential
-}
-
 // Define static members
 std::unordered_map<void *, std::weak_ptr<Server>> Server::instanceMap;
 std::mutex Server::instanceMapMutex;
+
+std::shared_ptr<Server>
+Server::create(const std::string &bind_ip, const uint_fast16_t tcp_port,
+               const uint_fast16_t tick_rate_ms,
+               const uint_fast16_t select_timeout_ms,
+               const std::uint_fast8_t max_open_connections,
+               std::shared_ptr<Remote::TransportSecurity> transport_security) {
+  Module::ScopedGilRelease const scoped("Server.create");
+
+  // Not using std::make_shared because the constructor is private.
+  auto server = std::shared_ptr<Server>(
+      new Server(bind_ip, tcp_port, tick_rate_ms, select_timeout_ms,
+                 max_open_connections, std::move(transport_security)));
+
+  // track reference as a weak pointer for safe static callbacks
+  void *key = static_cast<void *>(server.get());
+  std::lock_guard<std::mutex> lock(instanceMapMutex);
+  instanceMap[key] = server;
+
+  return server;
+}
 
 Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
                const std::uint_fast16_t tick_rate_ms,
@@ -73,7 +80,7 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
                const std::uint_fast8_t max_open_connections,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : ip(bind_ip), port(tcp_port), tickRate_ms(tick_rate_ms),
-      selectTimeout_ms(select_timeout_ms),
+      selectionManager(select_timeout_ms),
       maxOpenConnections(max_open_connections),
       security(std::move(transport_security)) {
   if (tickRate_ms < 50)
@@ -117,6 +124,7 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
                                       key);
   CS104_Slave_setCounterInterrogationHandler(
       slave, &Server::counterInterrogationHandler, key);
+  CS104_Slave_setClockSyncHandler(slave, &Server::clockSyncHandler, key);
   CS104_Slave_setReadHandler(slave, &Server::readHandler, key);
   CS104_Slave_setASDUHandler(slave, &Server::asduHandler, key);
 
@@ -127,11 +135,11 @@ Server::~Server() {
   // stops and destroys the slave
   stop();
 
+  Module::ScopedGilRelease const scoped("Server.destroy");
   {
     std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
     stations.clear();
   }
-
   {
     std::lock_guard<std::mutex> lock(instanceMapMutex);
     instanceMap.erase(
@@ -176,43 +184,23 @@ void Server::start() {
   }
 
   Module::ScopedGilRelease const scoped("Server.start");
-
   CS104_Slave_start(slave);
 
   if (!CS104_Slave_isRunning(slave)) {
     enabled.store(false);
-    throw std::runtime_error("Can't start server: Port in use?");
+    throw std::runtime_error("Can't start server: Port in use or IP invalid?");
   }
+
+  executor = std::make_shared<Tasks::Executor>();
 
   DEBUG_PRINT(Debug::Server, "start] Started");
-
-  if (!runThread) {
-    runThread = new std::thread(&Server::thread_run, this);
-  }
 
   // Schedule periodics based on tickRate
   std::weak_ptr<Server> weakSelf =
       shared_from_this(); // Weak reference to `this`
-  schedulePeriodicTask(
-      [weakSelf]() {
-        auto self = weakSelf.lock();
-        if (!self)
-          return; // Prevent running if `this` was destroyed
-
-        self->sendPeriodicInventory();
-      },
-      tickRate_ms);
-
-  schedulePeriodicTask(
-      [weakSelf]() {
-        auto self = weakSelf.lock();
-        if (!self)
-          return; // Prevent running if `this` was destroyed
-
-        self->cleanupSelections();
-        self->scheduleDataPointTimer();
-      },
-      tickRate_ms);
+  executor->addPeriodic(SAFE_TASK(sendPeriodicInventory), tickRate_ms);
+  executor->addPeriodic(SAFE_TASK(selectionManager.cleanup), tickRate_ms);
+  executor->addPeriodic(SAFE_TASK(scheduleDataPointTimer), tickRate_ms);
 }
 
 void Server::scheduleDataPointTimer() {
@@ -226,116 +214,12 @@ void Server::scheduleDataPointTimer() {
       auto next = point->nextTimerAt();
       if (next.has_value() && next.value() < now) {
 
-        std::weak_ptr<Object::DataPoint> weakPoint =
+        std::weak_ptr<Object::DataPoint> weakSelf =
             point; // Weak reference to `point`
-        scheduleTask(
-            [weakPoint]() {
-              auto self = weakPoint.lock();
-              if (!self)
-                return; // Prevent running if `point` was destroyed
-
-              self->onTimer();
-            },
-            counter++);
+        executor->add(SAFE_TASK(onTimer), counter++);
       }
     }
   }
-}
-
-void Server::schedulePeriodicTask(const std::function<void()> &task,
-                                  std::int_fast32_t interval) {
-  if (interval < 50) {
-    throw std::out_of_range(
-        "The interval for periodic tasks must be 50ms at minimum.");
-  }
-
-  std::weak_ptr<Server> weakSelf =
-      shared_from_this(); // Weak reference to `this`
-
-  auto periodicCallback = [weakSelf, task, interval]() {
-    auto self = weakSelf.lock();
-    if (!self)
-      return; // Prevent running if `this` was destroyed
-
-    // Schedule next execution
-    self->schedulePeriodicTask(task, interval); // Reschedule itself
-
-    task();
-  };
-  // Schedule first execution
-  scheduleTask(periodicCallback, interval);
-
-  runThread_wait.notify_one();
-}
-
-void Server::scheduleTask(const std::function<void()> &task,
-                          std::int_fast32_t delay) {
-  {
-    std::lock_guard<std::mutex> lock(runThread_mutex);
-    if (delay < 0) {
-      tasks.push({task, std::chrono::steady_clock::time_point::min()});
-    } else {
-      tasks.push({task, std::chrono::steady_clock::now() +
-                            std::chrono::milliseconds(delay)});
-    }
-  }
-
-  runThread_wait.notify_one();
-}
-
-void Server::thread_run() {
-  bool const debug = DEBUG_TEST(Debug::Server);
-  running.store(true);
-  while (enabled.load()) {
-    std::function<void()> task;
-
-    {
-      std::unique_lock<std::mutex> lock(runThread_mutex);
-      if (tasks.empty()) {
-        runThread_wait.wait(lock);
-        continue;
-      }
-      const auto top = tasks.top();
-
-      auto now = std::chrono::steady_clock::now();
-      if (now >= top.schedule_time) {
-        auto delay = now - top.schedule_time;
-        if (delay > TASK_DELAY_THRESHOLD) {
-          DEBUG_PRINT_CONDITION(
-              debug, Debug::Server,
-              "Warning: Task started delayed by " +
-                  std::to_string(
-                      std::chrono::duration_cast<std::chrono::milliseconds>(
-                          delay)
-                          .count()) +
-                  " ms");
-        }
-        task = top.function;
-        tasks.pop();
-      } else {
-        runThread_wait.wait_until(lock, top.schedule_time);
-        continue;
-      }
-    }
-
-    try {
-      task();
-    } catch (const std::exception &e) {
-      std::cerr << "[c104.Server] loop] Task aborted: " << e.what()
-                << std::endl;
-    }
-  }
-  {
-    std::unique_lock<std::mutex> lock(runThread_mutex);
-    if (!tasks.empty()) {
-      DEBUG_PRINT_CONDITION(debug, Debug::Server,
-                            "loop] Tasks dropped due to stop: " +
-                                std::to_string(tasks.size()));
-      std::priority_queue<Task> empty;
-      std::swap(tasks, empty);
-    }
-  }
-  running.store(false);
 }
 
 void Server::stop() {
@@ -346,15 +230,7 @@ void Server::stop() {
     return;
   }
 
-  if (running.load()) {
-    runThread_wait.notify_all();
-  }
-
-  if (runThread) {
-    runThread->join();
-    delete runThread;
-    runThread = nullptr;
-  }
+  executor->stop();
 
   CS104_Slave_stop(slave);
 
@@ -396,7 +272,7 @@ std::uint_fast8_t Server::getActiveConnectionCount() const {
   return activeConnections.load();
 }
 
-Object::StationVector Server::getStations() const {
+std::vector<std::shared_ptr<Object::Station>> Server::getStations() const {
   std::lock_guard<Module::GilAwareMutex> const lock(station_mutex);
 
   return stations;
@@ -404,8 +280,11 @@ Object::StationVector Server::getStations() const {
 
 std::shared_ptr<Object::Station>
 Server::getStation(const std::uint_fast16_t commonAddress) const {
-  std::lock_guard<Module::GilAwareMutex> const lock(station_mutex);
+  if (IEC60870_GLOBAL_COMMON_ADDRESS == commonAddress) {
+    return {nullptr};
+  }
 
+  std::lock_guard<Module::GilAwareMutex> const lock(station_mutex);
   for (auto &s : stations) {
     if (s->getCommonAddress() == commonAddress) {
       return s;
@@ -465,76 +344,11 @@ bool Server::removeStation(std::uint_fast16_t commonAddress) {
   return (stations.size() < originalSize); // Success if the size decreased
 }
 
-void Server::cleanupSelections() {
-  if (activeSelections.load() == 0)
-    return;
-
-  auto now = std::chrono::steady_clock::now();
-  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  selectionVector.erase(
-      std::remove_if(selectionVector.begin(), selectionVector.end(),
-                     [this, now](const Selection &s) {
-                       if ((now - s.created) < selectTimeout_ms) {
-                         return false;
-                       } else {
-                         unselect(s);
-                         return true;
-                       }
-                     }),
-      selectionVector.end());
-  activeSelections.store(selectionVector.size());
-}
-
-void Server::dropConnectionSelections(IMasterConnection connection) {
-  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  selectionVector.erase(std::remove_if(selectionVector.begin(),
-                                       selectionVector.end(),
-                                       [this, connection](const Selection &s) {
-                                         // do not call unselect here, because
-                                         // it is called on connection loss
-                                         return s.connection == connection;
-                                       }),
-                        selectionVector.end());
-  activeSelections.store(selectionVector.size());
-}
-
-void Server::cleanupSelection(uint16_t ca, uint32_t ioa) {
-  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  selectionVector.erase(
-      std::remove_if(selectionVector.begin(), selectionVector.end(),
-                     [this, ca, ioa](const Selection &s) {
-                       if (s.ca == ca && s.ioa == ioa) {
-                         unselect(s);
-                         activeSelections.store(activeSelections.load() - 1);
-                         return true;
-                       } else {
-                         return false;
-                       }
-                     }),
-      selectionVector.end());
-}
-
-std::optional<uint8_t> Server::getSelector(const uint16_t ca,
-                                           const uint32_t ioa) {
-  auto now = std::chrono::steady_clock::now();
-  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  auto it = std::find_if(
-      selectionVector.begin(), selectionVector.end(),
-      [ca, ioa](const Selection &s) { return s.ca == ca && s.ioa == ioa; });
-
-  // selection NOT found
-  if (it != selectionVector.end() && (now - it->created) < selectTimeout_ms) {
-    return it->oa;
-  }
-  return std::nullopt;
-}
-
-bool Server::select(IMasterConnection connection,
-                    std::shared_ptr<Remote::Message::IncomingMessage> message) {
-  const auto type = message->getType();
-  if (type < C_SC_NA_1 || C_BO_NA_1 == type || C_SE_TC_1 < type) {
-    throw std::invalid_argument(
-        "Only control points, except for binary commands can be selected");
+void Server::select(std::shared_ptr<Remote::Message::IncomingMessage> message,
+                    std::shared_ptr<Object::DataPoint> point) {
+  if (SELECT_AND_EXECUTE_COMMAND != point->getCommandMode()) {
+    throw Remote::Message::InvalidMessageException(message,
+                                                   CUSTOM_NOT_SELECTABLE);
   }
 
   const uint8_t oa = message->getOriginatorAddress();
@@ -542,85 +356,75 @@ bool Server::select(IMasterConnection connection,
   const uint32_t ioa = message->getIOA();
   auto now = std::chrono::steady_clock::now();
 
-  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  auto it = std::find_if(
-      selectionVector.begin(), selectionVector.end(),
-      [ca, ioa](const Selection &s) { return s.ca == ca && s.ioa == ioa; });
-
-  // selection NOT found
-  if (it == selectionVector.end()) {
-    CS101_ASDU cp = CS101_ASDU_clone(message->getAsdu(), nullptr);
-    selectionVector.emplace_back<Selection>({cp, oa, ca, ioa, connection, now});
-    activeSelections.store(activeSelections.load() + 1);
+  if (!selectionManager.add({oa, ca, ioa, now})) {
+    throw Remote::Message::InvalidMessageException(message,
+                                                   CUSTOM_ALREADY_SELECTED);
   }
-  // selection found
-  else {
-    if ((it->connection != connection) &&
-        (now - it->created) < selectTimeout_ms) {
-      return false;
-    }
-    it->created = now;
-  }
-
-  return true;
-}
-
-void Server::unselect(const Selection &selection) {
-  std::weak_ptr<Server> weakSelf =
-      shared_from_this(); // Weak reference to `this`
-
-  scheduleTask([weakSelf, selection]() {
-    auto self = weakSelf.lock();
-    if (self) {
-      // Prevent running if `this` was destroyed
-      self->sendActivationTermination(selection.connection, selection.asdu);
-    }
-    CS101_ASDU_destroy(selection.asdu);
-  });
 }
 
 CommandResponseState
-Server::execute(IMasterConnection connection,
-                std::shared_ptr<Remote::Message::IncomingMessage> message,
-                const std::shared_ptr<Object::DataPoint> &point) {
+Server::execute(std::shared_ptr<Remote::Message::IncomingMessage> message,
+                std::shared_ptr<Object::DataPoint> point) {
   bool selected = false;
+  const uint8_t oa = message->getOriginatorAddress();
   const uint16_t ca = message->getCommonAddress();
   const uint32_t ioa = message->getIOA();
+  auto now = std::chrono::steady_clock::now();
 
   if (SELECT_AND_EXECUTE_COMMAND == point->getCommandMode()) {
-    auto now = std::chrono::steady_clock::now();
-
-    std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-    auto it = std::find_if(
-        selectionVector.begin(), selectionVector.end(),
-        [ca, ioa](const Selection &s) { return s.ca == ca && s.ioa == ioa; });
-
-    // selection NOT found
-    selected = (it != selectionVector.end() && (it->connection == connection) &&
-                (now - it->created) < selectTimeout_ms);
+    selected = selectionManager.exists({oa, ca, ioa, now});
     if (!selected) {
-      std::cerr << "[c104.Server] Cannot execute command on point in "
-                   "SELECT_AND_EXECUTE "
-                   "command mode without selection"
-                << std::endl;
-      return RESPONSE_STATE_FAILURE;
+      throw Remote::Message::InvalidMessageException(message,
+                                                     CUSTOM_NOT_SELECTED);
     }
   }
 
+  // execute python callback
   auto res = point->onReceive(std::move(message));
 
+  // remove selection
   if (selected) {
     std::weak_ptr<Server> weakSelf =
         shared_from_this(); // Weak reference to Server
-    scheduleTask(
-        [weakSelf, ca, ioa]() {
-          auto self = weakSelf.lock();
-          if (!self)
-            return; // Prevent running if `this` was destroyed
+    executor->add(SAFE_TASK_CAPTURE(selectionManager.remove, ca, ioa), 1);
+  }
 
-          self->cleanupSelection(ca, ioa);
-        },
-        1);
+  if (res == RESPONSE_STATE_SUCCESS) {
+    // handle auto-return feature
+    const auto auto_return = point->getRelatedInformationObjectAutoReturn();
+    const auto related_ioa = point->getRelatedInformationObjectAddress();
+
+    // send related point info in case of auto return
+    if (auto_return && related_ioa.has_value()) {
+      const auto station = point->getStation();
+      auto related_point =
+          station ? station->getPoint(related_ioa.value()) : nullptr;
+
+      std::weak_ptr<Server> weakSelf =
+          shared_from_this(); // Weak reference to Server
+      std::weak_ptr<Object::DataPoint> weakPoint =
+          related_point; // Weak reference to Point
+
+      executor->add(
+          SAFE_LAMBDA_CAPTURE(
+              {
+                auto related = weakPoint.lock();
+                if (!related)
+                  return;
+
+                try {
+                  self->transmit(related, CS101_COT_RETURN_INFO_REMOTE);
+                } catch (const std::exception &e) {
+                  std::cerr << "[c104.Server] asdu_handler] Auto transmit "
+                               "related point failed for "
+                            << related->getInfo()->name() << " at IOA "
+                            << related->getInformationObjectAddress() << ": "
+                            << e.what() << std::endl;
+                }
+              },
+              weakPoint),
+          2);
+    }
   }
 
   return res;
@@ -642,19 +446,17 @@ void Server::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
 
     std::weak_ptr<Server> weakSelf =
         shared_from_this(); // Weak reference to Server
-    scheduleTask([weakSelf, cp, msgSize]() {
-      auto self = weakSelf.lock();
-      if (!self)
-        return; // Prevent running if `this` was destroyed
+    executor->add(SAFE_LAMBDA_CAPTURE(
+        {
+          DEBUG_PRINT(Debug::Server, "CALLBACK on_receive_raw");
+          Module::ScopedGilAcquire const scoped("Server.on_receive_raw");
+          PyObject *pymemview =
+              PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
+          PyObject *pybytes = PyBytes_FromObject(pymemview);
 
-      DEBUG_PRINT(Debug::Server, "CALLBACK on_receive_raw");
-      Module::ScopedGilAcquire const scoped("Server.on_receive_raw");
-      PyObject *pymemview =
-          PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
-      PyObject *pybytes = PyBytes_FromObject(pymemview);
-
-      self->py_onReceiveRaw.call(self, py::handle(pybytes));
-    });
+          self->py_onReceiveRaw.call(self, py::handle(pybytes));
+        },
+        cp, msgSize));
   }
 }
 
@@ -670,19 +472,17 @@ void Server::onSendRaw(unsigned char *msg, unsigned char msgSize) {
 
     std::weak_ptr<Server> weakSelf =
         shared_from_this(); // Weak reference to Server
-    scheduleTask([weakSelf, cp, msgSize]() {
-      auto self = weakSelf.lock();
-      if (!self)
-        return; // Prevent running if `this` was destroyed
+    executor->add(SAFE_LAMBDA_CAPTURE(
+        {
+          DEBUG_PRINT(Debug::Server, "CALLBACK on_send_raw");
+          Module::ScopedGilAcquire const scoped("Server.on_send_raw");
+          PyObject *pymemview =
+              PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
+          PyObject *pybytes = PyBytes_FromObject(pymemview);
 
-      DEBUG_PRINT(Debug::Server, "CALLBACK on_send_raw");
-      Module::ScopedGilAcquire const scoped("Server.on_send_raw");
-      PyObject *pymemview =
-          PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
-      PyObject *pybytes = PyBytes_FromObject(pymemview);
-
-      self->py_onSendRaw.call(self, py::handle(pybytes));
-    });
+          self->py_onSendRaw.call(self, py::handle(pybytes));
+        },
+        cp, msgSize));
   }
 }
 
@@ -716,8 +516,9 @@ void Server::setOnUnexpectedMessageCallback(py::object &callable) {
 
 void Server::onUnexpectedMessage(
     IMasterConnection connection,
-    std::shared_ptr<Remote::Message::IncomingMessage> message,
-    UnexpectedMessageCause cause) {
+    const Remote::Message::InvalidMessageException &exception) {
+  const auto message = exception.getMessage();
+  const auto cause = exception.getCause();
   CS101_ASDU asdu = message->getAsdu();
 
   // manipulate and send copy instead of original ASDU
@@ -725,17 +526,8 @@ void Server::onUnexpectedMessage(
   CS101_ASDU_setNegative(cp, true);
   switch (cause) {
   case INVALID_TYPE_ID:
-    DEBUG_PRINT(Debug::Server, "on_unexpected_message] Invalid type id");
-    CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_TYPE_ID);
-    IMasterConnection_sendASDU(connection, cp);
-    break;
-  case MISMATCHED_TYPE_ID:
-    DEBUG_PRINT(Debug::Server, "on_unexpected_message] Mismatching type id");
-    CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_TYPE_ID);
-    IMasterConnection_sendASDU(connection, cp);
-    break;
   case UNKNOWN_TYPE_ID:
-    DEBUG_PRINT(Debug::Server, "on_unexpected_message] Unknown type id");
+    DEBUG_PRINT(Debug::Server, "on_unexpected_message] Invalid type id");
     CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_TYPE_ID);
     IMasterConnection_sendASDU(connection, cp);
     break;
@@ -755,10 +547,8 @@ void Server::onUnexpectedMessage(
     CS101_ASDU_setCOT(cp, CS101_COT_UNKNOWN_IOA);
     IMasterConnection_sendASDU(connection, cp);
     break;
-  case UNIMPLEMENTED_GROUP:
-    DEBUG_PRINT(Debug::Server, "on_unexpected_message] Unimplemented group");
-    break;
   default: {
+    DEBUG_PRINT(Debug::Server, "on_unexpected_message] " + exception.getWhat());
   }
   }
   CS101_ASDU_destroy(cp);
@@ -766,15 +556,13 @@ void Server::onUnexpectedMessage(
   if (py_onUnexpectedMessage.is_set()) {
     std::weak_ptr<Server> weakSelf =
         shared_from_this(); // Weak reference to Server
-    scheduleTask([weakSelf, message, cause]() {
-      auto self = weakSelf.lock();
-      if (!self)
-        return; // Prevent running if `this` was destroyed
-
-      DEBUG_PRINT(Debug::Server, "CALLBACK on_unexpected_message");
-      Module::ScopedGilAcquire const scoped("Server.on_unexpected_message");
-      self->py_onUnexpectedMessage.call(self, message, cause);
-    });
+    executor->add(SAFE_LAMBDA_CAPTURE(
+        {
+          DEBUG_PRINT(Debug::Server, "CALLBACK on_unexpected_message");
+          Module::ScopedGilAcquire const scoped("Server.on_unexpected_message");
+          self->py_onUnexpectedMessage.call(self, message, cause);
+        },
+        message, cause));
   }
 }
 
@@ -822,7 +610,7 @@ void Server::connectionEventHandler(void *parameter,
   if (!instance) {
     DEBUG_PRINT(Debug::Server, "Ignore connection event " +
                                    PeerConnectionEvent_toString(event) +
-                                   " in shutdown");
+                                   " during shutdown");
     return;
   }
 
@@ -852,18 +640,8 @@ void Server::connectionEventHandler(void *parameter,
         }
         instance->connectionMap.erase(it);
       }
-      // remove selections
-
-      std::weak_ptr<Server> weakSelf = instance; // Weak reference to Server
-      instance->scheduleTask([weakSelf, connection]() {
-        auto self = weakSelf.lock();
-        if (!self)
-          return; // Prevent running if `this` was destroyed
-
-        self->dropConnectionSelections(connection);
-      });
     } else if (event == CS104_CON_EVENT_ACTIVATED) {
-      // set as valid receiver
+      // set as a valid receiver
       auto it = instance->connectionMap.find(connection);
       if (it == instance->connectionMap.end()) {
         instance->connectionMap[connection] = true;
@@ -898,24 +676,23 @@ void Server::connectionEventHandler(void *parameter,
 }
 
 bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
-                      const CS101_CauseOfTransmission cause) {
-  auto type = point->getType();
+                      const CS101_CauseOfTransmission cause,
+                      const bool timestamp) {
+  const auto category = point->getInfo()->getCategory();
+  // lazy confirm previous control command
+  if (category != MONITORING_STATUS && category != MONITORING_COUNTER &&
+      category != MONITORING_EVENT) {
+    // todo is this a valid option or do we auto-confirm anyway?
+    throw std::invalid_argument("Only monitoring points are supported");
+    // auto message = Message::OutgoingMessage::create(std::move(point));
+    // message->setCauseOfTransmission(cause);
+    // return send(std::move(message));
+  }
 
   // report monitoring point
-  if (type < S_IT_TC_1) {
-    auto message = Message::PointMessage::create(std::move(point));
-    message->setCauseOfTransmission(cause);
-    return send(std::move(message));
-  }
-
-  // lazy confirm previous control command
-  if (type > S_IT_TC_1 && type < M_EI_NA_1) {
-    auto message = Message::PointCommand::create(std::move(point));
-    message->setCauseOfTransmission(cause);
-    return send(std::move(message));
-  }
-
-  throw std::invalid_argument("Invalid point type");
+  auto message = Message::OutgoingMessage::create(std::move(point));
+  message->setCauseOfTransmission(cause);
+  return send(std::move(message));
 }
 
 bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
@@ -1009,7 +786,7 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
 
     try {
       // catch exception in create, if point was detached in meanwhile
-      auto message = Remote::Message::PointMessage::create(point);
+      auto message = Remote::Message::OutgoingMessage::create(point);
 
       // not added
       if (!CS101_ASDU_addInformationObject(asdu,
@@ -1169,25 +946,27 @@ void Server::sendPeriodicInventory() {
 
   bool empty = true;
   IEC60870_5_TypeID type = C_TS_TA_1;
+  std::shared_ptr<Object::Information::IInformation> info;
 
   // batch messages per station by type
   std::map<IEC60870_5_TypeID, std::shared_ptr<Remote::Message::Batch>> batchMap;
 
   for (const auto &station : getStations()) {
     for (const auto &point : station->getPoints()) {
-      type = point->getType();
+      info = point->getInfo();
+      type = Transformer::asType(info, false);
 
-      // only monitoring points SP,DP,ST,ME,BO + IT
-      if (type > M_IT_TB_1 || (type > M_IT_NA_1 && type < M_SP_TB_1))
+      // only monitoring status points
+      if (info->getCategory() != MONITORING_STATUS)
         continue;
 
-      // enabled cyclic report and ready for cyclic transmission ?
+      // point has the cyclic report enabled and is ready for transmission?
       const auto next = point->nextReportAt();
       if (!next.has_value() || begin < next.value())
         continue;
 
       try {
-        // add message to group
+        // add the message to a group
         auto g = batchMap.find(type);
         if (g == batchMap.end()) {
           auto b = Remote::Message::Batch::create(CS101_COT_PERIODIC);
@@ -1217,46 +996,58 @@ void Server::sendPeriodicInventory() {
   }
 }
 
+std::optional<std::uint8_t> Server::getSelector(const uint16_t ca,
+                                                const uint32_t ioa) const {
+  const auto selection = selectionManager.get(ca, ioa);
+  if (selection.has_value()) {
+    return selection.value().oa;
+  }
+  return std::nullopt;
+}
+
 std::shared_ptr<Remote::Message::IncomingMessage>
-Server::getValidMessage(IMasterConnection connection, CS101_ASDU asdu) {
+Server::getValidMessage(CS101_ASDU asdu) {
   try {
-    auto message =
-        Remote::Message::IncomingMessage::create(asdu, appLayerParameters);
+    auto message = Remote::Message::IncomingMessage::create(
+        asdu, appLayerParameters, true);
+
+    // test NEGATIVE
+    if (message->isNegative()) {
+      throw Remote::Message::InvalidMessageException(
+          message, CUSTOM_NOT_SUPPORTED, "Negative message received");
+      ;
+    }
 
     // test COT
     if (!message->isValidCauseOfTransmission()) {
-      if (message->requireConfirmation()) {
-        sendActivationConfirmation(connection, asdu, true);
-      }
-
-      onUnexpectedMessage(connection, message, INVALID_COT);
-
-      return {nullptr};
+      throw Remote::Message::InvalidMessageException(message, INVALID_COT);
     }
 
     // test CA
-    if (!hasStation(message->getCommonAddress())) {
-      if (message->requireConfirmation()) {
-        sendActivationConfirmation(connection, asdu, true);
-      }
-
-      onUnexpectedMessage(connection, std::move(message), UNKNOWN_CA);
-      return {nullptr};
+    const auto station = getStation(message->getCommonAddress());
+    if (!station) {
+      throw Remote::Message::InvalidMessageException(message, UNKNOWN_CA);
     }
+
+    // inject station timezone into DateTime properties
+    message->getInfo()->injectTimeZone(station->getTimeZoneOffset(),
+                                       station->isDaylightSavingTime());
 
     return std::move(message);
   } catch (const std::exception &e) {
-    DEBUG_PRINT(Debug::Server, "get_valid_message] Invalid message format: " +
-                                   std::string(e.what()));
+    // fail-safe load without parsing any information object
+    auto message = Remote::Message::IncomingMessage::create(
+        asdu, appLayerParameters, false);
+    throw Remote::Message::InvalidMessageException(
+        message, CUSTOM_NOT_SUPPORTED, std::string(e.what()));
   }
-  return {nullptr};
 }
 
 void Server::rawMessageHandler(void *parameter, IMasterConnection connection,
                                uint_fast8_t *msg, int msgSize, bool sent) {
   const auto instance = getInstance(parameter);
   if (!instance) {
-    DEBUG_PRINT(Debug::Server, "Ignore raw message in shutdown");
+    DEBUG_PRINT(Debug::Server, "Ignore raw message during shutdown");
     return;
   }
 
@@ -1278,24 +1069,25 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
 
   const auto instance = getInstance(parameter);
   if (!instance) {
-    DEBUG_PRINT(Debug::Server, "Reject interrogation command in shutdown");
-    return false;
+    DEBUG_PRINT(Debug::Server, "Ignore interrogation command during shutdown");
+    return true;
   }
 
-  if (auto message = instance->getValidMessage(connection, asdu)) {
+  try {
+    const auto message = instance->getValidMessage(asdu);
 
     if (qoi < IEC60870_QOI_STATION || qoi > IEC60870_QOI_GROUP_16) {
       // invalid group, reject command
-      instance->sendActivationConfirmation(connection, asdu, true);
-      instance->onUnexpectedMessage(connection, message, UNIMPLEMENTED_GROUP);
-      return true;
+      throw Remote::Message::InvalidMessageException(
+          message, CUSTOM_NOT_SUPPORTED, "Invalid qualifier of interrogation");
     }
 
     // confirm activation
     instance->sendActivationConfirmation(connection, asdu, false);
 
-    const auto commonAddress = CS101_ASDU_getCA(asdu);
+    const auto commonAddress = message->getCommonAddress();
     IEC60870_5_TypeID type = C_TS_TA_1;
+    std::shared_ptr<Object::Information::IInformation> info;
 
     // batch messages per station by type
     std::map<IEC60870_5_TypeID, std::shared_ptr<Remote::Message::Batch>>
@@ -1310,14 +1102,15 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
           station->getCommonAddress() == commonAddress) {
 
         for (const auto &point : station->getGroup(group_id)) {
-          type = point->getType();
+          info = point->getInfo();
+          type = Transformer::asType(info, false);
 
-          // only monitoring points SP,DP,ST,ME,BO
-          if (type > M_ME_TF_1 || (type > M_ME_NC_1 && type < M_SP_TB_1))
+          // only monitoring status points
+          if (info->getCategory() != MONITORING_STATUS)
             continue;
 
           try {
-            // add message to group
+            // add the message to a group
             auto g = batchMap.find(type);
             if (g == batchMap.end()) {
               auto b = Remote::Message::Batch::create(cot);
@@ -1343,6 +1136,10 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
 
     // Notify Master of command finalization
     instance->sendActivationTermination(connection, asdu);
+
+  } catch (const Remote::Message::InvalidMessageException &e) {
+    // report error cause
+    instance->onUnexpectedMessage(connection, e);
   }
 
   if (debug) {
@@ -1374,11 +1171,12 @@ bool Server::counterInterrogationHandler(void *parameter,
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Server,
-                "Reject counter interrogation command in shutdown");
-    return false;
+                "Ignore counter interrogation command during shutdown");
+    return true;
   }
 
-  if (auto message = instance->getValidMessage(connection, asdu)) {
+  try {
+    const auto message = instance->getValidMessage(asdu);
 
     const auto rqt =
         static_cast<CS101_QualifierOfCounterInterrogation>(qcc & 0b00111111);
@@ -1388,9 +1186,9 @@ bool Server::counterInterrogationHandler(void *parameter,
     if (rqt < CS101_QualifierOfCounterInterrogation::GROUP_1 ||
         rqt > CS101_QualifierOfCounterInterrogation::GENERAL) {
       // invalid group, reject command
-      instance->sendActivationConfirmation(connection, asdu, true);
-      instance->onUnexpectedMessage(connection, message, UNIMPLEMENTED_GROUP);
-      return true;
+      throw Remote::Message::InvalidMessageException(
+          message, CUSTOM_NOT_SUPPORTED,
+          "Invalid qualifier of counter interrogation");
     }
 
     bool const is_general =
@@ -1407,8 +1205,9 @@ bool Server::counterInterrogationHandler(void *parameter,
     // confirm activation
     instance->sendActivationConfirmation(connection, asdu, false);
 
-    const auto commonAddress = CS101_ASDU_getCA(asdu);
+    const auto commonAddress = message->getCommonAddress();
     IEC60870_5_TypeID type = C_TS_TA_1;
+    std::shared_ptr<Object::Information::IInformation> info;
 
     // batch messages per station by type
     std::map<IEC60870_5_TypeID, std::shared_ptr<Remote::Message::Batch>>
@@ -1419,12 +1218,19 @@ bool Server::counterInterrogationHandler(void *parameter,
           station->getCommonAddress() == commonAddress) {
 
         for (const auto &point : station->getGroup(group_id)) {
-          type = point->getType();
-          if (type != M_IT_NA_1 && type != M_IT_TB_1)
+          info = point->getInfo();
+          type = Transformer::asType(info, false);
+          if (info->getCategory() != MONITORING_COUNTER)
             continue;
 
+          // todo Wahlmöglichkeiten ZÄHLWERT SPEICHERN und INKREMENTALWERT
+          // SPEICHERN werden benutzt. Die Zählwerte werden mit der
+          // ÜBERTRAGUNGSURSACHE = SPONTAN nach dem Speichern übertragen ABFRAGE
+          // ZÄHLWERTE wird benutzt. In diesem Fall werden die Zählwerte mit der
+          // ÜBERTRAGUNGSURSACHE = ABGEFRAGT DURCH ZÄHLERABFRAGE übertragen.
+          // todo report_ms on M_IT_TA_1 SPONTANEOUS einzelmeldung
           auto current_info =
-              std::dynamic_pointer_cast<Object::BinaryCounterInfo>(
+              std::dynamic_pointer_cast<Object::Information::BinaryCounterInfo>(
                   point->getInfo());
           switch (frz) {
           case CS101_FreezeOfCounterInterrogation::COUNTER_RESET:
@@ -1432,10 +1238,10 @@ bool Server::counterInterrogationHandler(void *parameter,
             continue;
           case CS101_FreezeOfCounterInterrogation::FREEZE_WITHOUT_RESET:
             current_info->freeze(false);
-            break;
+            continue;
           case CS101_FreezeOfCounterInterrogation::FREEZE_WITH_RESET:
             current_info->freeze(true);
-            break;
+            continue;
           }
 
           try {
@@ -1465,6 +1271,10 @@ bool Server::counterInterrogationHandler(void *parameter,
 
     // Notify Master of command finalization
     instance->sendActivationTermination(connection, asdu);
+
+  } catch (const Remote::Message::InvalidMessageException &e) {
+    // report error cause
+    instance->onUnexpectedMessage(connection, e);
   }
 
   if (debug) {
@@ -1494,55 +1304,53 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
 
   const auto instance = getInstance(parameter);
   if (!instance) {
-    DEBUG_PRINT(Debug::Server, "Reject read command in shutdown");
-    return false;
+    DEBUG_PRINT(Debug::Server, "Ignore read command during shutdown");
+    return true;
   }
 
-  if (auto message = instance->getValidMessage(connection, asdu)) {
+  try {
+    const auto message = instance->getValidMessage(asdu);
+    const auto station = instance->getStation(message->getCommonAddress());
+    if (!station) {
+      throw Remote::Message::InvalidMessageException(message, UNKNOWN_CA);
+    }
 
-    UnexpectedMessageCause cause = NO_ERROR_CAUSE;
-    bool success = false;
+    auto point = station->getPoint(message->getIOA());
+    if (!point) {
+      throw Remote::Message::InvalidMessageException(message, UNKNOWN_IOA);
+    }
 
-    if (auto station = instance->getStation(message->getCommonAddress())) {
-      if (auto point = station->getPoint(message->getIOA())) {
+    auto info = point->getInfo();
+    const auto category = info->getCategory();
+    // according to standard: read isn't allowed for integrated totals and
+    // protection equipment events
+    if (category != MONITORING_STATUS) {
+      throw Remote::Message::InvalidMessageException(message, UNKNOWN_IOA);
+    }
 
-        // read not allowed for binary counter / integrated values and
-        // protection equipment events
-        if (point->getType() < C_SC_NA_1 && point->getType() != M_IT_NA_1 &&
-            point->getType() != M_IT_TA_1 && point->getType() != M_IT_TB_1 &&
-            point->getType() != M_EP_TA_1 && point->getType() != M_EP_TB_1 &&
-            point->getType() != M_EP_TD_1 && point->getType() != M_EP_TE_1 &&
-            point->getType() != M_EP_TF_1) {
-
-          // value polling callback
-          point->onBeforeRead();
-          success = true;
-
+    std::weak_ptr<Server> weakSelf = instance; // Weak reference to Server
+    instance->executor->add(SAFE_LAMBDA_CAPTURE(
+        {
           try {
-            instance->transmit(point, CS101_COT_REQUEST);
+            // value polling callback
+            point->onBeforeRead();
+
+            // according to standard: send with COT=5 and without a timestamp
+            self->transmit(point, CS101_COT_REQUEST, false);
           } catch (const std::exception &e) {
             std::cerr << "[c104.Server] read] Auto respond failed for "
-                      << TypeID_toString(point->getType()) << " at IOA "
+                      << point->getInfo()->name() << " at IOA "
                       << point->getInformationObjectAddress() << ": "
                       << e.what() << std::endl;
           }
+        },
+        point));
 
-        } else {
-          cause = INVALID_TYPE_ID;
-        }
-      } else {
-        cause = UNKNOWN_IOA;
-      }
-    } else {
-      cause = UNKNOWN_CA;
-    }
+    instance->sendActivationConfirmation(connection, asdu, false);
 
-    instance->sendActivationConfirmation(connection, asdu, !success);
-
+  } catch (const Remote::Message::InvalidMessageException &e) {
     // report error cause
-    if (cause != NO_ERROR_CAUSE) {
-      instance->onUnexpectedMessage(connection, message, cause);
-    }
+    instance->onUnexpectedMessage(connection, e);
   }
 
   if (debug) {
@@ -1561,6 +1369,168 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
   return true;
 }
 
+bool Server::clockSyncHandler(void *parameter, IMasterConnection connection,
+                              CS101_ASDU asdu, CP56Time2a time) {
+  bool const debug = DEBUG_TEST(Debug::Server);
+  std::chrono::steady_clock::time_point begin, end;
+  if (debug) {
+    begin = std::chrono::steady_clock::now();
+  }
+
+  const auto instance = getInstance(parameter);
+  if (!instance) {
+    DEBUG_PRINT(Debug::Server, "Ignore clock-sync command during shutdown");
+    return true;
+  }
+
+  try {
+    const auto datetime = Object::DateTime(time);
+
+    char ipAddrStr[60];
+    IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
+
+    DEBUG_PRINT_CONDITION(debug, Debug::Server,
+                          "clock_sync_handler] TIME " + datetime.toString());
+
+    // execute python callback
+    CommandResponseState responseState =
+        instance->onClockSync(std::string(ipAddrStr), datetime);
+
+    if (responseState != RESPONSE_STATE_NONE) {
+      // send confirmation
+      instance->sendActivationConfirmation(
+          connection, asdu, (responseState == RESPONSE_STATE_FAILURE));
+    }
+
+  } catch (const Remote::Message::InvalidMessageException &e) {
+    // report error cause
+    instance->onUnexpectedMessage(connection, e);
+  }
+
+  if (debug) {
+    end = std::chrono::steady_clock::now();
+    char ipAddrStr[60];
+    IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
+
+    DEBUG_PRINT_CONDITION(
+        true, Debug::Server,
+        "clock_sync_handler] IP " + std::string(ipAddrStr) + " | OA " +
+            std::to_string(CS101_ASDU_getOA(asdu)) + " | CA " +
+            std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " +
+            TICTOC(begin, end));
+  }
+  return true;
+}
+
+bool Server::resetProcessHandler(void *parameter, IMasterConnection connection,
+                                 CS101_ASDU asdu, QualifierOfRPC qualifier) {
+  bool const debug = DEBUG_TEST(Debug::Server);
+  std::chrono::steady_clock::time_point begin, end;
+  if (debug) {
+    begin = std::chrono::steady_clock::now();
+  }
+
+  const auto instance = getInstance(parameter);
+  if (!instance) {
+    DEBUG_PRINT(Debug::Server, "Ignore reset-process command during shutdown");
+    return true;
+  }
+
+  try {
+    const auto message = instance->getValidMessage(asdu);
+    // todo not implemented
+    // execute python callback
+    // responseState = instance->onProcessReset(std::string(ipAddrStr), ...);
+    throw Remote::Message::InvalidMessageException(
+        message, CUSTOM_NOT_SUPPORTED, "Reset process command not implemented");
+
+    // execute python callback
+    CommandResponseState responseState = RESPONSE_STATE_FAILURE;
+    // responseState = instance->onResetProcess(std::string(ipAddrStr),
+    // datetime);
+
+    if (responseState != RESPONSE_STATE_NONE) {
+      // send confirmation
+      instance->sendActivationConfirmation(
+          connection, asdu, (responseState == RESPONSE_STATE_FAILURE));
+    }
+
+  } catch (const Remote::Message::InvalidMessageException &e) {
+    // report error cause
+    instance->onUnexpectedMessage(connection, e);
+  }
+
+  if (debug) {
+    end = std::chrono::steady_clock::now();
+    char ipAddrStr[60];
+    IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
+
+    DEBUG_PRINT_CONDITION(
+        true, Debug::Server,
+        "reset_process_handler] IP " + std::string(ipAddrStr) + " | OA " +
+            std::to_string(CS101_ASDU_getOA(asdu)) + " | CA " +
+            std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " +
+            TICTOC(begin, end));
+  }
+  return true;
+}
+
+bool Server::delayAcquisitionHandler(void *parameter,
+                                     IMasterConnection connection,
+                                     CS101_ASDU asdu, CP16Time2a delay) {
+  bool const debug = DEBUG_TEST(Debug::Server);
+  std::chrono::steady_clock::time_point begin, end;
+  if (debug) {
+    begin = std::chrono::steady_clock::now();
+  }
+
+  const auto instance = getInstance(parameter);
+  if (!instance) {
+    DEBUG_PRINT(Debug::Server,
+                "Ignore delay-acquisition command during shutdown");
+    return true;
+  }
+
+  try {
+    const auto message = instance->getValidMessage(asdu);
+    // todo not implemented
+    // execute python callback
+    // responseState = instance->onProcessReset(std::string(ipAddrStr), ...);
+    throw Remote::Message::InvalidMessageException(
+        message, CUSTOM_NOT_SUPPORTED,
+        "Delay acquisition command not implemented");
+
+    // execute python callback
+    CommandResponseState responseState = RESPONSE_STATE_FAILURE;
+    // responseState = instance->onDelayAcquisition(std::string(ipAddrStr),
+    // datetime);
+
+    if (responseState != RESPONSE_STATE_NONE) {
+      // send confirmation
+      instance->sendActivationConfirmation(
+          connection, asdu, (responseState == RESPONSE_STATE_FAILURE));
+    }
+
+  } catch (const Remote::Message::InvalidMessageException &e) {
+    // report error cause
+    instance->onUnexpectedMessage(connection, e);
+  }
+
+  if (debug) {
+    end = std::chrono::steady_clock::now();
+    char ipAddrStr[60];
+    IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
+
+    DEBUG_PRINT_CONDITION(
+        true, Debug::Server,
+        "delay_acquisition_handler] IP " + std::string(ipAddrStr) + " | OA " +
+            std::to_string(CS101_ASDU_getOA(asdu)) + " | CA " +
+            std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " +
+            TICTOC(begin, end));
+  }
+  return true;
+}
+
 bool Server::asduHandler(void *parameter, IMasterConnection connection,
                          CS101_ASDU asdu) {
   bool const debug = DEBUG_TEST(Debug::Server);
@@ -1571,135 +1541,54 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
 
   const auto instance = getInstance(parameter);
   if (!instance) {
-    DEBUG_PRINT(Debug::Server, "Reject asdu in shutdown");
-    return false;
+    DEBUG_PRINT(Debug::Server, "Ignore ASDU during shutdown");
+    return true;
   }
 
-  // message with more than one object is not allowed for command type ids
-  if (auto message = instance->getValidMessage(connection, asdu)) {
-
+  try {
     CommandResponseState responseState = RESPONSE_STATE_FAILURE;
-    UnexpectedMessageCause cause = NO_ERROR_CAUSE;
 
-    // clock sync
-    if (message->getType() == C_CS_NA_1) {
-      auto info = message->getInfo();
-      auto time = info->getRecordedAt().value_or(info->getProcessedAt());
-
-      char ipAddrStr[60];
-      IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
-
-      // execute python callback
-      responseState = instance->onClockSync(std::string(ipAddrStr), time);
-
-      DEBUG_PRINT_CONDITION(debug, Debug::Server,
-                            "clock_sync_handler] TIME " + time.toString());
+    // message with more than one object is not allowed for command type ids
+    const auto message = instance->getValidMessage(asdu);
+    const auto station = instance->getStation(message->getCommonAddress());
+    if (!station) {
+      throw Remote::Message::InvalidMessageException(message, UNKNOWN_CA);
     }
-    // process reset
-    else if (message->getType() == C_RP_NA_1) {
-      // todo test for COT activation
-      auto info = message->getInfo();
-      char ipAddrStr[60];
-      IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
-      // todo not implemented
-      // execute python callback
-      // responseState = instance->onProcessReset(std::string(ipAddrStr), ...);
-      DEBUG_PRINT_CONDITION(debug, Debug::Server,
-                            "reset_process_handler] Not implemented");
+    const auto point = station->getPoint(message->getIOA());
+    if (!point) {
+      throw Remote::Message::InvalidMessageException(message, UNKNOWN_IOA);
+    }
+
+    const auto cmd = std::dynamic_pointer_cast<Object::Information::ICommand>(
+        message->getInfo());
+    if (!cmd) {
+      throw Remote::Message::InvalidMessageException(
+          message, CUSTOM_NOT_SUPPORTED, "Only commands supported");
+    }
+    if (cmd->name().compare(point->getInfo()->name()) != 0) {
+      throw Remote::Message::InvalidMessageException(
+          message, INVALID_TYPE_ID,
+          "Mismatching type between command and point");
+    }
+
+    if (message->isSelectCommand()) {
+      instance->select(message, point);
+      responseState = RESPONSE_STATE_SUCCESS;
     } else {
-      if (message->getType() >= C_SC_NA_1) {
-        if (const auto station =
-                instance->getStation(message->getCommonAddress())) {
-          // inject station timezone into DateTime properties
-          message->getInfo()->injectTimeZone(station->getTimeZoneOffset(),
-                                             station->isDaylightSavingTime());
-
-          if (const auto point = station->getPoint(message->getIOA())) {
-            if (point->getType() == message->getType()) {
-
-              if (message->isSelectCommand()) {
-                if (SELECT_AND_EXECUTE_COMMAND == point->getCommandMode()) {
-                  responseState = instance->select(connection, message)
-                                      ? RESPONSE_STATE_SUCCESS
-                                      : RESPONSE_STATE_FAILURE;
-                } else {
-                  std::cerr << "[c104.Point] Failed to select point in DIRECT "
-                               "command mode"
-                            << std::endl;
-                  responseState = RESPONSE_STATE_FAILURE;
-                }
-              } else {
-                responseState = instance->execute(connection, message, point);
-
-                if (responseState == RESPONSE_STATE_SUCCESS &&
-                    point->getRelatedInformationObjectAutoReturn()) {
-                  const auto related_ioa =
-                      point->getRelatedInformationObjectAddress();
-                  // send related point info in case of auto return
-                  if (related_ioa.has_value()) {
-                    auto related_point = station->getPoint(related_ioa.value());
-
-                    std::weak_ptr<Server> weakSelf =
-                        instance; // Weak reference to Server
-                    std::weak_ptr<Object::DataPoint> weakPoint =
-                        related_point; // Weak reference to Point
-                    instance->scheduleTask(
-                        [weakSelf, weakPoint]() {
-                          auto self = weakSelf.lock();
-                          if (!self)
-                            return; // Prevent running if `this` was destroyed
-
-                          auto related = weakPoint.lock();
-                          if (!related)
-                            return; // Prevent running if `related_point` was
-                                    // destroyed
-
-                          try {
-                            self->transmit(related,
-                                           CS101_COT_RETURN_INFO_REMOTE);
-                          } catch (const std::exception &e) {
-                            std::cerr
-                                << "[c104.Server] asdu_handler] Auto transmit "
-                                   "related point failed for "
-                                << TypeID_toString(related->getType())
-                                << " at IOA "
-                                << related->getInformationObjectAddress()
-                                << ": " << e.what() << std::endl;
-                          }
-                        },
-                        2);
-                  }
-                }
-
-              } // else: message->isSelectCommand()
-
-            } else {
-              cause = MISMATCHED_TYPE_ID;
-            }
-          } else {
-            cause = UNKNOWN_IOA;
-          }
-        } else {
-          cause = UNKNOWN_CA;
-        }
-      } else {
-        cause = INVALID_TYPE_ID;
-      }
+      responseState = instance->execute(message, point);
     }
 
-    // confirm activation
+    // send confirmation
     if ((responseState != RESPONSE_STATE_NONE) &&
-        (message->getCauseOfTransmission() == CS101_COT_ACTIVATION ||
-         message->getCauseOfTransmission() == CS101_COT_DEACTIVATION)) {
+        message->requireConfirmation()) {
       instance->sendActivationConfirmation(
           connection, asdu, (responseState == RESPONSE_STATE_FAILURE));
     }
 
+  } catch (const Remote::Message::InvalidMessageException &e) {
     // report error cause
-    if (cause != NO_ERROR_CAUSE) {
-      instance->onUnexpectedMessage(connection, message, cause);
-    }
+    instance->onUnexpectedMessage(connection, e);
   }
 
   if (debug) {
@@ -1718,3 +1607,22 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
   }
   return true;
 }
+
+std::string Server::toString() const {
+  size_t lencon = 0;
+  {
+    std::scoped_lock<Module::GilAwareMutex> const lock(connection_mutex);
+    lencon = connectionMap.size();
+  }
+  size_t lenst = 0;
+  {
+    std::scoped_lock<Module::GilAwareMutex> const lock(station_mutex);
+    lenst = stations.size();
+  }
+  std::ostringstream oss;
+  oss << "<104.Server ip=" << ip << ", port=" << std::to_string(port)
+      << ", #clients=" << std::to_string(lencon)
+      << ", #stations=" << std::to_string(lenst) << " at " << std::hex
+      << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
+  return oss.str();
+};

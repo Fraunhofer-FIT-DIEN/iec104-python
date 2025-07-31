@@ -32,11 +32,14 @@
 #ifndef C104_REMOTE_MESSAGE_OUTGOINGMESSAGE_H
 #define C104_REMOTE_MESSAGE_OUTGOINGMESSAGE_H
 
-#include "IMessageInterface.h"
 #include "object/DateTime.h"
+#include "remote/message/IMessageInterface.h"
 
-namespace Remote {
-namespace Message {
+namespace Object {
+class DataPoint;
+}
+
+namespace Remote::Message {
 
 /**
  * @brief model to modify and transmit Remote::Command and Remote::Report
@@ -51,6 +54,21 @@ public:
 
   // destructor
   ~OutgoingMessage() override;
+
+  /**
+   * @brief Creates a new instance of OutgoingMessage for a given DataPoint.
+   *
+   * This method creates a shared pointer to a OutgoingMessage object
+   * corresponding to the specified DataPoint.
+   *
+   * @param point The DataPoint object for which the message is created. This
+   * represents the value that should be reported to a remote client.
+   * @return A shared pointer to a newly created PointMessage instance.
+   * @throws std::invalid_argument if point reference, point type, station
+   * reference is invalid
+   */
+  [[nodiscard]] static std::shared_ptr<OutgoingMessage>
+  create(std::shared_ptr<Object::DataPoint> point);
 
   /**
    * @brief Setter for originator address of outgoing message
@@ -83,7 +101,6 @@ protected:
   Object::DateTime reported_at{Object::DateTime::now()};
 };
 
-} // namespace Message
-} // namespace Remote
+} // namespace Remote::Message
 
 #endif // C104_REMOTE_MESSAGE_OUTGOINGMESSAGE_H

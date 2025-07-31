@@ -30,11 +30,21 @@
  */
 
 #include "OutgoingMessage.h"
-
 #include "object/DataPoint.h"
+#include "object/DateTime.h"
 #include "object/Station.h"
+#include "object/information/Generic.h"
+#include "transformer/Information.h"
+#include "transformer/Type.h"
 
 using namespace Remote::Message;
+
+std::shared_ptr<OutgoingMessage>
+OutgoingMessage::create(std::shared_ptr<Object::DataPoint> point) {
+  // Not using std::make_shared because the constructor is private.
+  return std::shared_ptr<OutgoingMessage>(
+      new OutgoingMessage(std::move(point)));
+}
 
 OutgoingMessage::OutgoingMessage() : IMessageInterface() {
   DEBUG_PRINT(Debug::Message,
@@ -50,10 +60,13 @@ OutgoingMessage::OutgoingMessage(
 
   io = nullptr;
 
-  type = point->getType();
   info = point->getInfo();
+  type = Transformer::asType(
+      info, true); // todo use COT to decide if with or without timestamp?
 
-  causeOfTransmission = CS101_COT_UNKNOWN_COT;
+  causeOfTransmission = (info->getCategory() == COMMAND)
+                            ? CS101_COT_ACTIVATION
+                            : CS101_COT_SPONTANEOUS;
 
   const auto _station = point->getStation();
   if (!_station) {
@@ -79,12 +92,52 @@ OutgoingMessage::OutgoingMessage(
   }
 
   informationObjectAddress = point->getInformationObjectAddress();
+
+  if (std::dynamic_pointer_cast<Object::Information::Generic>(info)) {
+    switch (type) {
+      // End of initialization
+    case M_EI_NA_1: {
+      // todo remove??
+      throw std::invalid_argument(
+          "End of initialization is not a PointMessage!");
+      informationObjectAddress = 0;
+      io = (InformationObject)EndOfInitialization_create(
+          nullptr, IEC60870_COI_REMOTE_RESET);
+    } break;
+
+    case M_SP_TA_1:
+    case M_DP_TA_1:
+    case M_ST_TA_1:
+    case M_BO_TA_1:
+    case M_ME_TA_1:
+    case M_ME_TB_1:
+    case M_ME_TC_1:
+    case M_IT_TA_1:
+    case M_EP_TA_1:
+    case M_EP_TB_1:
+    case M_EP_TC_1: {
+      throw std::invalid_argument("CP24Time based messages "
+                                  "not supported by norm IEC60870-5-104!");
+    }
+
+    default:
+      throw std::invalid_argument("Unsupported type " +
+                                  std::string(TypeID_toString(type)));
+    }
+  } else {
+    // todo timestamp as argument
+    io = Transformer::asInformationObject(info, informationObjectAddress, true);
+  }
+
   DEBUG_PRINT(Debug::Message,
               "Created (outgoing) at " +
                   std::to_string(reinterpret_cast<std::uintptr_t>(this)));
 }
 
 OutgoingMessage::~OutgoingMessage() {
+  if (io)
+    InformationObject_destroy(io);
+
   DEBUG_PRINT(Debug::Message,
               "Removed (outgoing) at " +
                   std::to_string(reinterpret_cast<std::uintptr_t>(this)));

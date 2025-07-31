@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -24,21 +24,27 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "Server.h"
 #include "object/DataPoint.h"
+#include "object/Information/DoubleCmd.h"
+#include "object/Information/ScaledInfo.h"
+#include "object/Information/SingleInfo.h"
 #include "object/Station.h"
 #include "remote/message/IncomingMessage.h"
+#include "transformer/Type.h"
 #include "types.h"
 
 TEST_CASE("Create point", "[object::point]") {
-  auto server = Server::create();
-  auto station = server->addStation(10);
-  auto point = station->addPoint(11, IEC60870_5_TypeID::M_SP_NA_1);
+  auto station = Object::Station::create(10, nullptr, nullptr);
+  auto point =
+      station->addPoint(11, Object::Information::SingleInfo::create(0));
   REQUIRE(point->getStation().get() == station.get());
   REQUIRE(point->getInformationObjectAddress() == 11);
-  REQUIRE(point->getRelatedInformationObjectAddress() == 0);
+  REQUIRE(point->getRelatedInformationObjectAddress() == std::nullopt);
   REQUIRE(point->getRelatedInformationObjectAutoReturn() == false);
-  REQUIRE(point->getType() == IEC60870_5_TypeID::M_SP_NA_1);
+  REQUIRE(Transformer::asType(point->getInfo(), false) ==
+          IEC60870_5_TypeID::M_SP_NA_1);
+  REQUIRE(Transformer::asType(point->getInfo(), true) ==
+          IEC60870_5_TypeID::M_SP_TB_1);
   REQUIRE(point->getReportInterval_ms() == 0);
   REQUIRE(std::get<Quality>(point->getInfo()->getQuality()) == Quality::None);
   REQUIRE(std::get<Quality>(point->getQuality()) == Quality::None);
@@ -46,15 +52,16 @@ TEST_CASE("Create point", "[object::point]") {
   REQUIRE(std::get<bool>(point->getValue()) == false);
   REQUIRE(point->getProcessedAt().getTime() >
           std::chrono::system_clock::time_point::min());
-  REQUIRE(point->getRecordedAt().has_value() == false);
+  // time injected automatically
+  REQUIRE(point->getRecordedAt().has_value() == true);
 }
 
 TEST_CASE("Set point value", "[object::point]") {
-  auto server = Server::create();
-  auto station = server->addStation(10);
-  auto point = station->addPoint(11, IEC60870_5_TypeID::M_ME_TE_1);
+  auto station = Object::Station::create(10, nullptr, nullptr);
+  auto point = station->addPoint(
+      11, Object::Information::ScaledInfo::create(LimitedInt16(0)));
 
-  point->setInfo(std::make_shared<Object::ScaledInfo>(
+  point->setInfo(std::make_shared<Object::Information::ScaledInfo>(
       LimitedInt16(334), Quality::Invalid,
       Object::DateTime(std::chrono::system_clock::time_point(
           std::chrono::milliseconds(1234567890))),
@@ -68,9 +75,9 @@ TEST_CASE("Set point value", "[object::point]") {
 }
 
 TEST_CASE("Set point value via message", "[object::point]") {
-  auto server = Server::create();
-  auto station = server->addStation(10);
-  auto point = station->addPoint(11, IEC60870_5_TypeID::C_DC_TA_1);
+  auto station = Object::Station::create(10, nullptr, nullptr);
+  auto point = station->addPoint(
+      11, Object::Information::DoubleCmd::create(IEC60870_DOUBLE_POINT_ON));
 
   sCS101_AppLayerParameters appLayerParameters{.sizeOfTypeId = 1,
                                                .sizeOfVSQ = 0,

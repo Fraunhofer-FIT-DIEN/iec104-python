@@ -32,152 +32,23 @@
 #ifndef C104_TYPES_H
 #define C104_TYPES_H
 
-#include <algorithm>
-#include <atomic>
-#include <bitset>
-#include <chrono>
-#include <condition_variable>
-#include <cstddef>
+#include "cs101_information_objects.h"
 #include <cstdint>
-#include <functional>
-#include <iomanip>
-#include <iostream>
-#include <list>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <numeric>
-#include <pybind11/pybind11.h>
-#include <queue>
-#include <regex>
-#include <sstream>
+#include <optional>
 #include <string>
-#include <thread>
 #include <variant>
-#include <vector>
 
-#include "enums.h"
-#include "numbers.h"
+class LimitedInt7;
+class Byte32;
+class NormalizedFloat;
+class LimitedInt16;
+enum class FieldSet16;
+enum class Quality;
+enum class BinaryCounterQuality;
+enum class StartEvents;
+enum class OutputCircuits;
 
-#define DEBUG_PRINT_CONDITION(X, Y, Z)                                         \
-  ((X) ? printDebugMessage((Y), (Z)) : (void)0)
-#define DEBUG_PRINT(mode, Y)                                                   \
-  (::test(GLOBAL_DEBUG_MODE.load(), mode) ? printDebugMessage(mode, (Y))       \
-                                          : (void)0)
-#define DEBUG_TEST(mode) ::test(GLOBAL_DEBUG_MODE.load(), mode)
-
-#define MICRO_SEC_STR u8" \xc2\xb5s"
-#define DIFF_MS(begin, end)                                                    \
-  std::chrono::duration_cast<std::chrono::microseconds>((end) - (begin)).count()
-#define TICTOC(begin, end)                                                     \
-  (std::to_string(DIFF_MS(begin, end)) +                                       \
-   std::string(reinterpret_cast<const char *>(MICRO_SEC_STR)))
-#define TICTOCNOW(begin) TICTOC(begin, std::chrono::steady_clock::now())
-#define MAX_INFORMATION_OBJECT_ADDRESS 16777215
-#define UNDEFINED_INFORMATION_OBJECT_ADDRESS 16777216
-#define NUM_GROUPS 16
-
-/**
- * @brief Global atomic variable storing the current debug mode configuration.
- *
- * This variable is used to manage and track the enabled debug settings across
- * the system. It is represented as a value from the Debug enum, supporting
- * bitwise operations for managing multiple debug modes simultaneously.
- *
- * The initial value is set to Debug::None, indicating that no debug mode
- * is enabled. This value can be modified using helper functions such as
- * setDebug, enableDebug, and disableDebug.
- *
- * Thread-safe operations on this variable ensure consistent behavior in
- * concurrent environments.
- */
-extern std::atomic<Debug> GLOBAL_DEBUG_MODE;
-
-/**
- * @brief Sets the global debug mode configuration.
- * @param mode The debug mode to be set, represented as a value of the Debug
- * enum.
- */
-void setDebug(Debug mode);
-
-/**
- * @brief Retrieves the current global debug mode configuration.
- * @return The current debug mode as a value of the Debug enum.
- */
-Debug getDebug();
-
-/**
- * @brief Enables the specified debug mode in the global debug configuration.
- * @param mode Debug mode to be enabled.
- */
-void enableDebug(Debug mode);
-
-/**
- * @brief Disables the specified debug mode in the global debug configuration.
- * @param mode Debug mode to be disabled.
- */
-void disableDebug(Debug mode);
-
-/**
- * @brief Prints a debug message if the specified debug mode is enabled.
- * @param mode Debug mode to check against the global debug mode.
- * @param message The message to be printed if the debug mode is enabled.
- */
-void printDebugMessage(Debug mode, const std::string &message);
-
-/**
- * @brief Validate and convert an ip address from string to in_addr struct
- * @param s ipv4 address in string representation
- * @return ipv4 address in in_addr struct format
- * @throws std::invalid_argument if conversion failed
- */
-void Assert_IPv4(const std::string &s);
-
-/**
- * @brief Validate a port number
- * @throws std::invalid_argument if port is < 1 or > 65535
- */
-void Assert_Port(int_fast64_t port);
-
-/**
- * @brief Convert a boolean value to its string representation.
- * @param val The boolean value to be converted.
- * @return A string representation of the boolean value ("True" or "False").
- */
-std::string bool_toString(const bool &val);
-
-/**
- * @brief Converts a Byte32 object to its binary string representation.
- * @param byte A reference to a Byte32 object to be converted.
- * @return A string containing the 32-bit binary representation of the Byte32
- * object prefixed with "0b".
- */
-std::string Byte32_toString(const Byte32 &byte);
-
-/**
- * @brief Represents a task with a name, description, and completion status.
- *
- * Provides functionality to manage and query the task's state, including
- * marking it as complete.
- */
-struct Task {
-  std::function<void()> function;
-  std::chrono::steady_clock::time_point schedule_time;
-  bool operator<(const Task &rhs) const {
-    return schedule_time > rhs.schedule_time;
-  }
-};
-
-/**
- * @brief Defines the threshold duration for task delay warnings.
- * @details This constant is used to compare against the actual delay of a
- * scheduled task execution. If the delay exceeds this threshold,
- * a warning message will be logged indicating that the task execution
- * was delayed beyond the acceptable duration.
- */
-constexpr auto TASK_DELAY_THRESHOLD = std::chrono::milliseconds(100);
-
-// use primitives at the end, to avoid pybind11 down-casts (i .e. int)
+// use primitives at the end to avoid pybind11 down-casts (i .e. int)
 typedef std::variant<std::monostate, DoublePointValue, LimitedInt7,
                      StepCommandValue, Byte32, NormalizedFloat, LimitedInt16,
                      EventState, StartEvents, OutputCircuits, FieldSet16, bool,
@@ -199,31 +70,33 @@ std::string InfoValue_toString(const InfoValue &value);
  */
 std::string InfoQuality_toString(const InfoQuality &value);
 
-// forward declaration to avoid .h loop inclusion
-namespace Object {
-class DateTime;
-class DataPoint;
-class Information;
+/**
+ * @brief Convert a boolean value to its string representation.
+ * @param val The boolean value to be converted.
+ * @return A string representation of the boolean value ("True" or "False").
+ */
+std::string bool_toString(const bool &val);
 
-class Station;
-} // namespace Object
+/**
+ * @brief Converts a Byte32 object to its binary string representation.
+ * @param byte A reference to a Byte32 object to be converted.
+ * @return A string containing the 32-bit binary representation of the Byte32
+ * object prefixed with "0b".
+ */
+std::string Byte32_toString(const Byte32 &byte);
 
-namespace Remote {
-namespace Message {
-class IncomingMessage;
-class OutgoingMessage;
-class Batch;
-class PointMessage;
-class PointCommand;
-} // namespace Message
-class Connection;
-class TransportSecurity;
-} // namespace Remote
+/**
+ * @brief Validate and convert an ip address from string to in_addr struct
+ * @param s ipv4 address in string representation
+ * @return ipv4 address in in_addr struct format
+ * @throws std::invalid_argument if conversion failed
+ */
+void Assert_IPv4(const std::string &s);
 
-class Server;
-
-class Client;
-
-namespace py = pybind11;
+/**
+ * @brief Validate a port number
+ * @throws std::invalid_argument if port is < 1 or > 65535
+ */
+void Assert_Port(std::int_fast64_t port);
 
 #endif // C104_TYPES_H

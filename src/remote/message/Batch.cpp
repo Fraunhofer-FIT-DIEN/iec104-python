@@ -30,12 +30,26 @@
  */
 
 #include "Batch.h"
+#include "object/DataPoint.h"
 #include "object/Station.h"
+#include "object/information/IInformation.h"
+#include "transformer/Type.h"
+#include <sstream>
 
 using namespace Remote::Message;
 
-Batch::Batch(const CS101_CauseOfTransmission cause,
-             const std::optional<Object::DataPointVector> &points)
+std::shared_ptr<Batch> Batch::create(
+    const CS101_CauseOfTransmission cause,
+    const std::optional<std::vector<std::shared_ptr<Object::DataPoint>>>
+        &points) {
+  // Not using std::make_shared because the constructor is private.
+  return std::shared_ptr<Batch>(new Batch(cause, points));
+}
+
+Batch::Batch(
+    const CS101_CauseOfTransmission cause,
+    const std::optional<std::vector<std::shared_ptr<Object::DataPoint>>>
+        &points)
     : OutgoingMessage() {
   causeOfTransmission.store(cause);
 
@@ -63,20 +77,26 @@ Batch::~Batch() {
 }
 
 void Batch::addPoint(std::shared_ptr<Object::DataPoint> point) {
+  const auto info = point->getInfo();
+  const auto category = info->getCategory();
 
   // only monitoring points
-  if (point->getType() > 41)
-    throw std::invalid_argument(
-        "Only monitoring points are allowed in a batch");
+  if (category != MONITORING_STATUS && category != MONITORING_COUNTER) {
+    throw std::invalid_argument("The information class " + info->name() +
+                                " does not support batch transmission");
+  }
 
   auto _station = point->getStation();
   if (!_station) {
     throw std::invalid_argument("Cannot get station from point");
   }
 
+  // batch does not support individual timestamps
+  auto point_type = Transformer::asType(info, false);
+
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
   if (pointMap.empty()) {
-    type = point->getType();
+    type = point_type;
     commonAddress = _station->getCommonAddress();
   } else {
     // already added?
@@ -87,7 +107,7 @@ void Batch::addPoint(std::shared_ptr<Object::DataPoint> point) {
     }
 
     // test compatibility
-    if (type != point->getType()) {
+    if (type != point_type) {
       throw std::invalid_argument("Incompatible types in batch");
     }
     if (commonAddress != _station->getCommonAddress()) {
@@ -112,8 +132,8 @@ std::uint_fast8_t Batch::getNumberOfObjects() const {
   return pointMap.size();
 }
 
-Object::DataPointVector Batch::getPoints() const {
-  Object::DataPointVector points;
+std::vector<std::shared_ptr<Object::DataPoint>> Batch::getPoints() const {
+  std::vector<std::shared_ptr<Object::DataPoint>> points;
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
 
   for (auto it = pointMap.begin(); it != pointMap.end(); ++it) {

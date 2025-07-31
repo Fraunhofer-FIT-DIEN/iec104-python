@@ -29,8 +29,20 @@
  *
  */
 
-#include "Server.h"
 #include <pybind11/embed.h> // everything needed for embedding
+
+#include "Server.h"
+#include "object/DataPoint.h"
+#include "object/Station.h"
+#include "object/information/DoubleCmd.h"
+#include "object/information/DoubleInfo.h"
+#include "object/information/ShortCmd.h"
+#include "object/information/ShortInfo.h"
+#include "object/information/SingleCmd.h"
+#include "object/information/SingleInfo.h"
+#include "object/information/StepCmd.h"
+#include "object/information/StepInfo.h"
+#include "remote/TransportSecurity.h"
 
 namespace py = pybind11;
 
@@ -38,7 +50,7 @@ int main(int argc, char *argv[]) {
   py::scoped_interpreter guard{};
   auto c104 = py::module_::import("c104");
 
-  bool const USE_TLS = true;
+  bool const USE_TLS = false;
   std::string ROOT = argv[0];
 
   bool found = false;
@@ -67,38 +79,46 @@ int main(int argc, char *argv[]) {
     tlsconf->addAllowedRemoteCertificate(ROOT + "certs/client1.crt");
   }
 
-  auto my_server = Server::create("127.0.0.1", 19998, 100, 10000, 0, tlsconf);
+  auto my_server = Server::create("127.0.0.1", USE_TLS ? 19998 : 2404, 100,
+                                  10000, 0, tlsconf);
 
   auto sv_station_2 = my_server->addStation(47);
 
-  auto sv_measurement_point = sv_station_2->addPoint(11, M_ME_TF_1, 1000);
+  auto sv_measurement_point = sv_station_2->addPoint(
+      11, Object::Information::ShortInfo::create(0), 1000);
   sv_measurement_point->setValue((float)12.34);
 
   auto sv_control_setpoint = sv_station_2->addPoint(
-      12, C_SE_NC_1, 0, sv_measurement_point->getInformationObjectAddress(),
-      true);
+      12, Object::Information::ShortCmd::create(0), 0,
+      sv_measurement_point->getInformationObjectAddress(), true);
 
   // use invalid return IOA for testing purpose
-  auto sv_control_setpoint_2 =
-      sv_station_2->addPoint(13, C_SE_NC_1, 0, 14, false);
+  auto sv_control_setpoint_2 = sv_station_2->addPoint(
+      13, Object::Information::ShortCmd::create(0), 0, 14, false);
 
-  auto sv_single_point = sv_station_2->addPoint(15, M_SP_NA_1);
+  auto sv_single_point =
+      sv_station_2->addPoint(15, Object::Information::SingleInfo::create(0));
   sv_single_point->setValue(true);
 
-  auto sv_single_command = sv_station_2->addPoint(16, C_SC_NA_1, 0, 15, true,
-                                                  SELECT_AND_EXECUTE_COMMAND);
+  auto sv_single_command =
+      sv_station_2->addPoint(16, Object::Information::SingleCmd::create(0), 0,
+                             15, true, SELECT_AND_EXECUTE_COMMAND);
 
-  auto sv_double_point = sv_station_2->addPoint(21, M_DP_TB_1, 4000);
-  sv_double_point->setValue(IEC60870_DOUBLE_POINT_OFF);
+  auto sv_double_point = sv_station_2->addPoint(
+      21, Object::Information::DoubleInfo::create(IEC60870_DOUBLE_POINT_OFF),
+      4000);
 
   auto sv_double_command = sv_station_2->addPoint(
-      22, C_DC_TA_1, 0, sv_double_point->getInformationObjectAddress(), true);
+      22, Object::Information::DoubleCmd::create(IEC60870_DOUBLE_POINT_ON), 0,
+      sv_double_point->getInformationObjectAddress(), true);
 
-  auto sv_step_point = sv_station_2->addPoint(31, M_ST_TB_1, 2000);
+  auto sv_step_point = sv_station_2->addPoint(
+      31, Object::Information::StepInfo::create(LimitedInt7(0)), 2000);
   sv_step_point->setValue(LimitedInt7(1));
 
   auto sv_step_command = sv_station_2->addPoint(
-      32, C_RC_TA_1, 0, sv_step_point->getInformationObjectAddress(), true);
+      32, Object::Information::StepCmd::create(IEC60870_STEP_HIGHER), 0,
+      sv_step_point->getInformationObjectAddress(), true);
 
   auto locals = py::dict(
       "my_server"_a = my_server, "sv_control_setpoint"_a = sv_control_setpoint,
@@ -110,9 +130,8 @@ int main(int argc, char *argv[]) {
   try {
     py::exec(R"(
 import c104
-import datetime
 
-def sv_on_clock_sync(server: c104.Server, ip: str, date_time: datetime.datetime) -> c104.ResponseState:
+def sv_on_clock_sync(server: c104.Server, ip: str, date_time: c104.DateTime) -> c104.ResponseState:
     print("SV] ->@| Time {0} from {1} | SERVER {2}:{3}".format(date_time, ip, server.ip, server.port))
     return c104.ResponseState.SUCCESS
 
@@ -240,11 +259,12 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 
   std::this_thread::sleep_for(10s);
 
-  sv_measurement_point->setInfo(std::make_shared<Object::ShortInfo>(
-      1234, Quality::None,
-      Object::DateTime(std::chrono::system_clock::time_point(
-          std::chrono::milliseconds(1711111111111))),
-      false));
+  sv_measurement_point->setInfo(
+      std::make_shared<Object::Information::ShortInfo>(
+          1234, Quality::None,
+          Object::DateTime(std::chrono::system_clock::time_point(
+              std::chrono::milliseconds(1711111111111))),
+          false));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {
@@ -253,11 +273,12 @@ sv_step_command.on_receive(callable=sv_pt_on_step_command)
 
   std::this_thread::sleep_for(10s);
 
-  sv_measurement_point->setInfo(std::make_shared<Object::ShortInfo>(
-      -1234.56, Quality::Invalid,
-      Object::DateTime(std::chrono::system_clock::time_point(
-          std::chrono::milliseconds(1711111111111))),
-      false));
+  sv_measurement_point->setInfo(
+      std::make_shared<Object::Information::ShortInfo>(
+          -1234.56, Quality::Invalid,
+          Object::DateTime(std::chrono::system_clock::time_point(
+              std::chrono::milliseconds(1711111111111))),
+          false));
   if (sv_measurement_point->transmit(CS101_COT_SPONTANEOUS)) {
     std::cout << "SV] transmit: Measurement point send successful" << std::endl;
   } else {

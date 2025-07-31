@@ -30,11 +30,12 @@
  */
 
 #include <pybind11/chrono.h>
-#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
 #include "module/Tuple.h"
+#include "object/DateTime.h"
+#include "object/Station.h"
 #include "remote/Connection.h"
 
 using namespace pybind11::literals;

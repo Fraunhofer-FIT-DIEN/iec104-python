@@ -21,11 +21,10 @@ def main():
     station = connection.add_station(common_address=47)
 
     # monitoring point preparation
-    point = station.add_point(io_address=11, type=c104.Type.M_ME_NC_1)
+    point = station.add_point(io_address=11, info=c104.ShortInfo(0))
 
     # command point preparation
-    command = station.add_point(io_address=12, type=c104.Type.C_RC_TA_1)
-    command.value = c104.Step.HIGHER
+    command = station.add_point(io_address=12, info=c104.StepCmd(c104.Step.HIGHER))
 
     # start
     client.start()

@@ -29,13 +29,14 @@
  *
  */
 
-#include <pybind11/chrono.h>
-#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "numbers.h"
 #include "object/DataPoint.h"
+#include "object/Information/IInformation.h"
 #include "object/Station.h"
+#include "transformer/Type.h"
 
 using namespace pybind11::literals;
 
@@ -51,9 +52,14 @@ void init_object_datapoint(py::module_ &m) {
       .def_property_readonly("io_address",
                              &Object::DataPoint::getInformationObjectAddress,
                              "int : information object address (read-only)")
-      .def_property_readonly("type", &Object::DataPoint::getType,
-                             "c104.Type : data related IEC60870 message type "
-                             "identifier (read-only)")
+      .def_property_readonly(
+          "type",
+          [](const Object::DataPoint &point) {
+            return Transformer::asType(point.getInfo(),
+                                       false); // legacy support
+          },
+          "c104.Type : data related IEC60870 message type "
+          "identifier (without timestamp) (read-only)")
       .def_property("related_io_address",
                     &Object::DataPoint::getRelatedInformationObjectAddress,
                     &Object::DataPoint::setRelatedInformationObjectAddress,
@@ -85,6 +91,26 @@ void init_object_datapoint(py::module_ &m) {
                     &Object::DataPoint::setInfo,
                     "c104.Information : current information",
                     py::return_value_policy::automatic)
+      .def(
+          "reset_info",
+          [](Object::DataPoint &point,
+             std::shared_ptr<Object::Information::IInformation> info) {
+            return point.setInfo(std::move(info), true);
+          },
+          R"def(reset_info(self: c104.Point, info: c104.Information) -> None
+
+replace current information even with different type
+
+Parameters
+----------
+info: c104.Information
+    new information instance
+
+Returns
+-------
+None
+)def",
+          "callable"_a)
       .def_property(
           "groups", &Object::DataPoint::getGroups,
           &Object::DataPoint::setGroups,
@@ -169,9 +195,8 @@ Example
 >>>             print("SV] -> RELATED POINT NOT FOUND!")
 >>>     return c104.ResponseState.SUCCESS
 >>>
->>> sv_measurement_point = sv_station_2.add_point(io_address=11, type=c104.Type.M_ME_NC_1, report_ms=1000)
->>> sv_measurement_point.value = 12.34
->>> sv_command_point = sv_station_2.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=sv_measurement_point.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
+>>> sv_measurement_point = sv_station_2.add_point(io_address=11, info=c104.ShortInfo(12.34), report_ms=1000)
+>>> sv_command_point = sv_station_2.add_point(io_address=12, info=c104.ShortCmd(1), related_io_address=sv_measurement_point.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
 >>> sv_command_point.on_receive(callable=on_setpoint_command)
 )def",
           "callable"_a)
@@ -212,7 +237,7 @@ Example
 >>>     print("SV] {0} READ COMMAND on IOA: {1}".format(point.type, point.io_address))
 >>>     point.value = random.randint(-64,63)  # import random
 >>>
->>> step_point = sv_station_2.add_point(io_address=31, type=c104.Type.M_ST_TB_1, report_ms=2000)
+>>> step_point = sv_station_2.add_point(io_address=31, info=c104.StepInfo(1), report_ms=2000)
 >>> step_point.on_before_read(callable=on_before_read_steppoint)
 )def",
           "callable"_a)
@@ -260,7 +285,7 @@ Example
 >>>     print("SV] {0} PERIODIC TRANSMIT on IOA: {1}".format(point.type, point.io_address))
 >>>     point.value = c104.Int7(random.randint(-64,63))  # import random
 >>>
->>> step_point = sv_station_2.add_point(io_address=31, type=c104.Type.M_ST_TB_1, report_ms=2000)
+>>> step_point = sv_station_2.add_point(io_address=31, info=c104.StepInfo(3), report_ms=2000)
 >>> step_point.on_before_auto_transmit(callable=on_before_auto_transmit_step)
 )def",
           "callable"_a)
@@ -302,10 +327,10 @@ None
 Example
 -------
 >>> def on_timer(point: c104.Point) -> None:
->>>     print("SV] {0} TIMER on IOA: {1}".format(point.type, point.io_address))
+>>>     print("SV] {0} TIMER on IOA: {1}".format(point.info.name, point.io_address))
 >>>     point.value = random.randint(-64,63)  # import random
 >>>
->>> nv_point = sv_station_2.add_point(io_address=31, type=c104.Type.M_ME_TD_1)
+>>> nv_point = sv_station_2.add_point(io_address=31, info=c104.NormalizedInfo(1.34))
 >>> nv_point.on_timer(callable=on_timer, interval_ms=1000)
 )def",
           "callable"_a, "interval_ms"_a = 0)
@@ -330,8 +355,9 @@ Example
 >>>     print("read command successful")
 )def",
            py::return_value_policy::copy)
-      .def("transmit", &Object::DataPoint::transmit,
-           R"def(transmit(self: c104.Point, cause: c104.Cot) -> bool
+      .def(
+          "transmit", &Object::DataPoint::transmit,
+          R"def(transmit(self: c104.Point, cause: c104.Cot, timestamp: bool = False) -> bool
 
 **Server-side point**
 report a measurement value to connected clients
@@ -343,6 +369,8 @@ Parameters
 ----------
 cause: c104.Cot
     cause of the transmission
+timestamp: bool, optional
+    send timestamp with the value, default: False
 
 Raises
 ------
@@ -357,8 +385,8 @@ bool
 Example
 -------
 >>> sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
->>> cl_single_command_point.transmit(cause=c104.Cot.ACTIVATION)
+>>> cl_single_command_point.transmit(cause=c104.Cot.ACTIVATION, timestamp=True)
 )def",
-           "cause"_a, py::return_value_policy::copy)
+          "cause"_a, "timestamp"_a = false, py::return_value_policy::copy)
       .def("__repr__", &Object::DataPoint::toString);
 }

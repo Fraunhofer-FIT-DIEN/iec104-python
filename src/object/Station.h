@@ -32,11 +32,23 @@
 #ifndef C104_OBJECT_STATION_H
 #define C104_OBJECT_STATION_H
 
-#include "DataPoint.h"
+#include "constants.h"
+#include "enums.h"
 #include "module/GilAwareMutex.h"
-#include "types.h"
+#include <list>
+
+class Server;
+namespace Remote {
+class Connection;
+}
 
 namespace Object {
+
+namespace Information {
+class IInformation;
+}
+
+class DataPoint;
 
 class Station : public std::enable_shared_from_this<Station> {
 public:
@@ -62,11 +74,7 @@ public:
   [[nodiscard]] static std::shared_ptr<Station>
   create(const std::uint_fast16_t st_commonAddress,
          const std::shared_ptr<Server> &st_server = nullptr,
-         const std::shared_ptr<Remote::Connection> &st_connection = nullptr) {
-    // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<Station>(
-        new Station(st_commonAddress, st_server, st_connection));
-  }
+         const std::shared_ptr<Remote::Connection> &st_connection = nullptr);
 
   /**
    * @brief Remove station and cleanup all related DataPoints
@@ -90,7 +98,7 @@ private:
   std::weak_ptr<Remote::Connection> connection;
 
   /// @brief child DataPoint objects (owned by this Station)
-  DataPointVector points{};
+  std::vector<std::shared_ptr<DataPoint>> points{};
 
   /// @brief mutex to lock member read/write access
   mutable Module::GilAwareMutex points_mutex{"Station::points_mutex"};
@@ -100,8 +108,8 @@ private:
   std::unordered_map<std::uint_fast32_t, std::shared_ptr<DataPoint>>
       pointIoaMap{};
 
-  /// @brief qualifier of interrogation group mapping
-  /// (index 0 = Group 1, index 19 = Group 20)
+  /// @brief qualifier of interrogation group mapping (index 0 = Group 1, index
+  /// 19 = Group 20)
   std::array<std::list<std::weak_ptr<DataPoint>>, NUM_GROUPS> groups;
 
   /// @brief mutex to lock member read/write access
@@ -145,7 +153,7 @@ public:
    * @brief Get a list of all DataPoints
    * @return vector with object pointer
    */
-  DataPointVector getPoints() const;
+  std::vector<std::shared_ptr<DataPoint>> getPoints() const;
 
   /**
    * @brief Get a DataPoint that exists at this NetworkStation and is identified
@@ -158,7 +166,7 @@ public:
   /**
    * @brief Add a DataPoint to this Station
    * @param informationObjectAddress information object address
-   * @param type iec60870-5-104 information type
+   * @param info iec60870-5-104 information instance
    * @param reportInterval_ms auto reporting interval
    * @param relatedInformationObjectAddress related information object address,
    * if any
@@ -168,7 +176,8 @@ public:
    * @throws std::invalid_argument if type is invalid
    */
   std::shared_ptr<DataPoint>
-  addPoint(std::uint_fast32_t informationObjectAddress, IEC60870_5_TypeID type,
+  addPoint(std::uint_fast32_t informationObjectAddress,
+           std::shared_ptr<Information::IInformation> info,
            std::uint_fast16_t reportInterval_ms = 0,
            std::optional<std::uint_fast32_t> relatedInformationObjectAddress =
                std::nullopt,
@@ -208,7 +217,7 @@ public:
    * @param index group id (0=all, 1-20=group 1-20)
    * @return vector of DataPoints that are member of the group
    */
-  DataPointVector getGroup(size_t index) const;
+  std::vector<std::shared_ptr<DataPoint>> getGroup(size_t index) const;
 
   /**
    * @brief Get group memberships of a DataPoint
@@ -249,28 +258,9 @@ public:
    *
    * @return A string representing the Station object.
    */
-  std::string toString() const {
-    size_t len = 0;
-    {
-      std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
-      len = points.size();
-    }
-    std::ostringstream oss;
-    oss << "<104.Station common_address=" << std::to_string(commonAddress)
-        << ", #points=" << std::to_string(len)
-        << ", daylight_saving_time=" << bool_toString(daylightSavingTime)
-        << ", timezone_offset=" << std::to_string(timeZoneOffset.load().count())
-        << "min"
-        << " at " << std::hex << std::showbase
-        << reinterpret_cast<std::uintptr_t>(this) << ">";
-    return oss.str();
-  }
+  std::string toString() const;
 };
 
-/**
- * @brief vector definition of Station objects
- */
-typedef std::vector<std::shared_ptr<Station>> StationVector;
 } // namespace Object
 
 #endif // C104_OBJECT_STATION_H

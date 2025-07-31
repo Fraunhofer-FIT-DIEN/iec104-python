@@ -32,11 +32,10 @@
 #ifndef C104_REMOTE_MESSAGE_BATCH_H
 #define C104_REMOTE_MESSAGE_BATCH_H
 
-#include "object/DataPoint.h"
 #include "remote/message/OutgoingMessage.h"
+#include <map>
 
-namespace Remote {
-namespace Message {
+namespace Remote::Message {
 
 /**
  * @brief model to modify and transmit Remote::Command and Remote::Report
@@ -69,10 +68,8 @@ public:
    */
   [[nodiscard]] static std::shared_ptr<Batch>
   create(const CS101_CauseOfTransmission cause,
-         const std::optional<Object::DataPointVector> &points = std::nullopt) {
-    // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<Batch>(new Batch(cause, points));
-  }
+         const std::optional<std::vector<std::shared_ptr<Object::DataPoint>>>
+             &points = std::nullopt);
 
   /**
    * @brief clearing the map of DataPoints
@@ -112,7 +109,7 @@ public:
    * @brief Get a list of all DataPoints
    * @return vector with object pointer
    */
-  Object::DataPointVector getPoints() const;
+  std::vector<std::shared_ptr<Object::DataPoint>> getPoints() const;
 
   /**
    * @brief Checks if the keys of DataPoints in the Batch are sequential.
@@ -153,7 +150,8 @@ private:
    * if its type or station is incompatible with the Batch.
    */
   Batch(CS101_CauseOfTransmission cause,
-        const std::optional<Object::DataPointVector> &points);
+        const std::optional<std::vector<std::shared_ptr<Object::DataPoint>>>
+            &points);
 
   /// @brief contained DataPoint objects (non-owned)
   std::map<std::uint_fast16_t, std::weak_ptr<Object::DataPoint>> pointMap{};
@@ -162,7 +160,6 @@ private:
   mutable Module::GilAwareMutex points_mutex{"Batch::points_mutex"};
 };
 
-} // namespace Message
-} // namespace Remote
+} // namespace Remote::Message
 
 #endif // C104_REMOTE_MESSAGE_BATCH_H

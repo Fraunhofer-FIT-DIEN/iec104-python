@@ -32,12 +32,22 @@
 #ifndef C104_CLIENT_H
 #define C104_CLIENT_H
 
-#include "types.h"
-
+#include "enums.h"
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
-#include "remote/Connection.h"
-#include "remote/TransportSecurity.h"
+#include "remote/Selection.h"
+#include "tasks/Executor.h"
+
+namespace Object {
+class Station;
+namespace Information {
+class IInformation;
+};
+} // namespace Object
+namespace Remote {
+class Connection;
+class TransportSecurity;
+} // namespace Remote
 
 /**
  * @brief service model for IEC60870-5-104 communication as client
@@ -65,11 +75,7 @@ public:
   [[nodiscard]] static std::shared_ptr<Client> create(
       std::uint_fast16_t tick_rate_ms = 100,
       std::uint_fast16_t timeout_ms = 10000,
-      std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr) {
-    // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<Client>(
-        new Client(tick_rate_ms, timeout_ms, std::move(transport_security)));
-  }
+      std::shared_ptr<Remote::TransportSecurity> transport_security = nullptr);
 
   /**
    * @brief Close and destroy all connections of this connection handler
@@ -151,7 +157,7 @@ public:
    * @return A vector of shared pointers to Connection objects representing
    * active connections.
    */
-  Remote::ConnectionVector getConnections() const;
+  std::vector<std::shared_ptr<Remote::Connection>> getConnections() const;
 
   /**
    * @brief Checks if a connection exists for the specified IP and port.
@@ -241,11 +247,11 @@ public:
    * @param station Shared pointer to the station object where the point is to
    * be added.
    * @param io_address The input/output address associated with the new point.
-   * @param type The type identifier for the new point, conforming to the
-   * IEC60870-5 standard.
+   * @param info The information instance for the point
    */
   void onNewPoint(std::shared_ptr<Object::Station> station,
-                  std::uint_fast32_t io_address, IEC60870_5_TypeID type);
+                  std::uint_fast32_t io_address,
+                  std::shared_ptr<Object::Information::IInformation> info);
 
   /**
    * @brief set python callback that will be executed on incoming end of
@@ -273,30 +279,12 @@ public:
   std::uint_fast16_t getTickRate_ms() const;
 
   /**
-   * @brief Schedules a periodic task to be executed at a specified interval.
-   *
-   * @param task A callable object representing the task to be executed
-   * periodically.
-   * @param interval The interval in milliseconds at which the task should be
-   * executed. Must be at least 50ms. Throws std::out_of_range if the interval
-   * is less than 50ms.
+   * @brief get the originator address, who selected this point, if any
+   * @param ca station common address
+   * @param ioa information object address
+   * @return
    */
-  void schedulePeriodicTask(const std::function<void()> &task,
-                            std::int_fast32_t interval);
-
-  /**
-   * @brief Schedules a task to be executed after a specified delay (or
-   * instant).
-   *
-   * The order of execution will depend on the timestamp calculated from current
-   * time + delay. The delay may be negative for high priority tasks.
-   *
-   * @param task The function to be executed.
-   * @param delay The delay in milliseconds before the task is executed. A
-   * negative delay executes the task immediately.
-   */
-  void scheduleTask(const std::function<void()> &task,
-                    std::int_fast32_t delay = 0);
+  std::optional<std::uint8_t> getSelector(uint16_t ca, uint32_t ioa) const;
 
 private:
   /**
@@ -334,29 +322,18 @@ private:
   /// @brief originator address of outgoing messages
   std::atomic_uint_fast8_t originatorAddress{0};
 
-  /// @brief state that describes if the client component is enabled or not
-  std::atomic_bool enabled{false};
-
-  /// @brief client thread state
-  std::atomic_bool running{false};
+  Remote::SelectionManager selectionManager;
 
   /// @brief MUTEX Lock to access connectionMap
   mutable Module::GilAwareMutex connections_mutex{"Client::connections_mutex"};
 
   /// @brief list of all created connections to remote servers
-  Remote::ConnectionVector connections;
+  std::vector<std::shared_ptr<Remote::Connection>> connections;
 
-  std::priority_queue<Task> tasks;
+  /// @brief state that describes if the client component is enabled or not
+  std::atomic_bool enabled{false};
 
-  /// @brief client thread to execute reconnects
-  std::thread *runThread = nullptr;
-
-  /// @brief client thread mutex to not lock thread execution
-  mutable std::mutex runThread_mutex{};
-
-  /// @brief conditional variable to stop client thread without waiting for
-  /// another loop
-  mutable std::condition_variable runThread_wait{};
+  std::shared_ptr<Tasks::Executor> executor{nullptr};
 
   /// @brief python callback function pointer
   Module::Callback<void> py_onNewStation{
@@ -365,17 +342,15 @@ private:
 
   /// @brief python callback function pointer
   Module::Callback<void> py_onNewPoint{
-      "Client.on_new_point", "(client: c104.Client, station: c104.Station, "
-                             "io_address: int, point_type: c104.Type) -> None"};
+      "Client.on_new_point",
+      "(client: c104.Client, station: c104.Station, "
+      "io_address: int, point_info: c104.Information) -> None"};
 
   /// @brief python callback function pointer
   Module::Callback<void> py_onEndOfInitialization{
       "Client.on_station_initialized",
       "(client: c104.Client, station: c104.Station, "
       "cause: c104.Coi) -> None"};
-
-  /// @brief client thread function
-  void thread_run();
 
   /**
    * @brief Get Connection object for a certain connection identified via
@@ -386,6 +361,9 @@ private:
   std::shared_ptr<Remote::Connection>
   getConnectionFromString(const std::string &connectionString);
 
+  // Declare Connection as a friend to allow executor access
+  friend class Remote::Connection;
+
 public:
   /**
    * @brief Converts the current client instance state into a string
@@ -395,19 +373,7 @@ public:
    * originator address, number of active connections, and memory address of the
    * object.
    */
-  std::string toString() const {
-    size_t len = 0;
-    {
-      std::scoped_lock<Module::GilAwareMutex> const lock(connections_mutex);
-      len = connections.size();
-    }
-    std::ostringstream oss;
-    oss << "<104.Client originator_address="
-        << std::to_string(originatorAddress.load())
-        << ", #connections=" << std::to_string(len) << " at " << std::hex
-        << std::showbase << reinterpret_cast<std::uintptr_t>(this) << ">";
-    return oss.str();
-  };
+  std::string toString() const;
 };
 
 #endif // C104_CLIENT_H

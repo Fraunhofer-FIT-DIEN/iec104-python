@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -31,22 +31,49 @@
  */
 
 #include "IncomingMessage.h"
-
-#include "object/Information.h"
+#include "constants.h"
+#include "object/information/ICommand.h"
 #include "remote/Helper.h"
+#include "transformer/Information.h"
 #include <memory>
+#include <sstream>
 
 using namespace Remote::Message;
+using namespace Object::Information;
+
+std::shared_ptr<IncomingMessage>
+IncomingMessage::create(CS101_ASDU packet,
+                        CS101_AppLayerParameters app_layer_parameters,
+                        const bool load_io) {
+  // Not using std::make_shared because the constructor is private.
+  return std::shared_ptr<IncomingMessage>(
+      new IncomingMessage(packet, app_layer_parameters, load_io));
+}
 
 IncomingMessage::IncomingMessage(CS101_ASDU packet,
-                                 CS101_AppLayerParameters app_layer_parameters)
+                                 CS101_AppLayerParameters app_layer_parameters,
+                                 const bool load_io)
     : IMessageInterface(), asdu(nullptr), parameters(app_layer_parameters) {
   if (packet) {
     asdu = CS101_ASDU_clone(packet, nullptr);
   }
+
   if (asdu) {
-    extractMetaData();
-    first();
+    commonAddress = CS101_ASDU_getCA(asdu);
+    originatorAddress = CS101_ASDU_getOA(asdu);
+    type = CS101_ASDU_getTypeID(asdu);
+
+    causeOfTransmission = CS101_ASDU_getCOT(asdu);
+
+    negative = CS101_ASDU_isNegative(asdu);
+    sequence = CS101_ASDU_isSequence(asdu);
+    test = CS101_ASDU_isTest(asdu);
+
+    numberOfObjects = (uint_fast8_t)CS101_ASDU_getNumberOfElements(asdu);
+
+    if (load_io) {
+      first();
+    }
   }
   DEBUG_PRINT(Debug::Message, "Created (incoming)");
 }
@@ -59,79 +86,6 @@ IncomingMessage::~IncomingMessage() {
     CS101_ASDU_destroy(asdu);
   }
   DEBUG_PRINT(Debug::Message, "Removed (incoming)");
-}
-
-void IncomingMessage::extractMetaData() {
-  {
-    std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
-
-    commonAddress = CS101_ASDU_getCA(asdu);
-    originatorAddress = CS101_ASDU_getOA(asdu);
-    type = CS101_ASDU_getTypeID(asdu);
-
-    causeOfTransmission = CS101_ASDU_getCOT(asdu);
-
-    negative = CS101_ASDU_isNegative(asdu);
-    sequence = CS101_ASDU_isSequence(asdu);
-    test = CS101_ASDU_isTest(asdu);
-  }
-
-  {
-    std::lock_guard<Module::GilAwareMutex> const lock_position(position_mutex);
-    numberOfObjects = (uint_fast8_t)CS101_ASDU_getNumberOfElements(asdu);
-  }
-
-  // REJECT CP24Time based messages
-  switch (type) {
-  case M_SP_TA_1:
-  case M_DP_TA_1:
-  case M_ST_TA_1:
-  case M_BO_TA_1:
-  case M_ME_TA_1:
-  case M_ME_TB_1:
-  case M_ME_TC_1:
-  case M_IT_TA_1:
-  case M_EP_TA_1:
-  case M_EP_TB_1:
-  case M_EP_TC_1: {
-    throw std::invalid_argument("CP24Time based messages not supported by norm "
-                                "IEC60870-5-104 (101 only)!");
-  }
-  case C_TS_NA_1:
-  case C_CD_NA_1: {
-    throw std::invalid_argument("Message not supported by norm "
-                                "IEC60870-5-104 (101 only)!");
-  }
-  }
-
-  if (type >= C_SC_NA_1 && type < F_DR_TA_1) {
-    // REJECT sequence in non-sequence context
-    if (sequence) {
-      throw std::invalid_argument("IncomingMessage with TypeID " +
-                                  std::string(TypeID_toString(type)) +
-                                  " must not be marked as sequence.");
-    }
-    // REJECT multiple objects in non-list context
-    if (numberOfObjects > 1) {
-      throw std::invalid_argument(
-          "IncomingMessage with TypeID " + std::string(TypeID_toString(type)) +
-          " must not contain more than one information object.");
-    }
-  }
-
-  // REJECT global common address in non-global context
-  if (type < C_IC_NA_1 && type > C_RP_NA_1 &&
-      commonAddress == IEC60870_GLOBAL_COMMON_ADDRESS) {
-    throw std::invalid_argument(
-        "IncomingMessage with TypeID " + std::string(TypeID_toString(type)) +
-        " must use a single common address and not the global common address.");
-  }
-
-  // REJECT file transfer @todo handle file transfer
-  if (type >= F_FR_NA_1) {
-    throw std::invalid_argument(
-        "lib60870-c does not support file transfer messages.");
-  }
 }
 
 CS101_ASDU IncomingMessage::getAsdu() const { return asdu; }
@@ -209,6 +163,58 @@ std::uint_fast8_t IncomingMessage::getNumberOfObjects() const {
 }
 
 void IncomingMessage::first() {
+  // REJECT CP24Time based messages
+  switch (type) {
+  case M_SP_TA_1:
+  case M_DP_TA_1:
+  case M_ST_TA_1:
+  case M_BO_TA_1:
+  case M_ME_TA_1:
+  case M_ME_TB_1:
+  case M_ME_TC_1:
+  case M_IT_TA_1:
+  case M_EP_TA_1:
+  case M_EP_TB_1:
+  case M_EP_TC_1: {
+    throw std::invalid_argument("CP24Time based messages not supported by norm "
+                                "IEC60870-5-104 (101 only)!");
+  }
+  case C_TS_NA_1:
+  case C_CD_NA_1: {
+    throw std::invalid_argument(
+        "Message not supported by norm IEC60870-5-104 (101 only)!");
+  }
+  }
+
+  if (type >= C_SC_NA_1 && type < F_DR_TA_1) {
+    // REJECT sequence in non-sequence context
+    if (sequence) {
+      throw std::invalid_argument("IncomingMessage with TypeID " +
+                                  std::string(TypeID_toString(type)) +
+                                  " must not be marked as sequence.");
+    }
+    // REJECT multiple objects in non-list context
+    if (numberOfObjects > 1) {
+      throw std::invalid_argument(
+          "IncomingMessage with TypeID " + std::string(TypeID_toString(type)) +
+          " must not contain more than one information object.");
+    }
+  }
+
+  // REJECT global common address in non-global context
+  if (type < C_IC_NA_1 && type > C_RP_NA_1 &&
+      commonAddress == IEC60870_GLOBAL_COMMON_ADDRESS) {
+    throw std::invalid_argument(
+        "IncomingMessage with TypeID " + std::string(TypeID_toString(type)) +
+        " must use a single common address and not the global common address.");
+  }
+
+  // REJECT file transfer @todo handle file transfer
+  if (type >= F_FR_NA_1) {
+    throw std::invalid_argument(
+        "lib60870-c does not support file transfer messages.");
+  }
+
   {
     std::lock_guard<Module::GilAwareMutex> const lock(position_mutex);
 
@@ -253,396 +259,7 @@ void IncomingMessage::extractInformation() {
   info.reset();
 
   if ((io != nullptr) && positionValid) {
-    switch (type) {
-      /**
-       * MONITORING
-       */
-
-    case M_SP_NA_1: {
-      auto _io = reinterpret_cast<SinglePointInformation>(io);
-      info = std::make_shared<Object::SingleInfo>(
-          SinglePointInformation_getValue(_io),
-          static_cast<Quality>(SinglePointInformation_getQuality(_io)),
-          std::nullopt, true);
-    } break;
-
-    case M_SP_TB_1: {
-      auto _io = reinterpret_cast<SinglePointInformation>(io);
-      info = std::make_shared<Object::SingleInfo>(
-          SinglePointInformation_getValue(_io),
-          static_cast<Quality>(SinglePointInformation_getQuality(_io)),
-          Object::DateTime(SinglePointWithCP56Time2a_getTimestamp(
-              reinterpret_cast<SinglePointWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case M_DP_NA_1: {
-      auto _io = reinterpret_cast<DoublePointInformation>(io);
-      info = std::make_shared<Object::DoubleInfo>(
-          DoublePointInformation_getValue(_io),
-          static_cast<Quality>(DoublePointInformation_getQuality(_io)),
-          std::nullopt, true);
-    } break;
-
-    case M_DP_TB_1: {
-      auto _io = reinterpret_cast<DoublePointInformation>(io);
-      info = std::make_shared<Object::DoubleInfo>(
-          DoublePointInformation_getValue(_io),
-          static_cast<Quality>(DoublePointInformation_getQuality(_io)),
-          Object::DateTime(DoublePointWithCP56Time2a_getTimestamp(
-              reinterpret_cast<DoublePointWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case M_ST_NA_1: {
-      auto _io = reinterpret_cast<StepPositionInformation>(io);
-      info = std::make_shared<Object::StepInfo>(
-          LimitedInt7(StepPositionInformation_getValue(_io)),
-          StepPositionInformation_isTransient(_io),
-          static_cast<Quality>(StepPositionInformation_getQuality(_io)),
-          std::nullopt, true);
-    } break;
-
-    case M_ST_TB_1: {
-      auto _io = reinterpret_cast<StepPositionInformation>(io);
-      info = std::make_shared<Object::StepInfo>(
-          LimitedInt7(StepPositionInformation_getValue(_io)),
-          StepPositionInformation_isTransient(_io),
-          static_cast<Quality>(StepPositionInformation_getQuality(_io)),
-          Object::DateTime(StepPositionWithCP56Time2a_getTimestamp(
-              reinterpret_cast<StepPositionWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case M_BO_NA_1: {
-      auto _io = reinterpret_cast<BitString32>(io);
-      info = std::make_shared<Object::BinaryInfo>(
-          Byte32(BitString32_getValue(_io)),
-          static_cast<Quality>(BitString32_getQuality(_io)), std::nullopt,
-          true);
-    } break;
-
-    case M_BO_TB_1: {
-      auto _io = reinterpret_cast<BitString32>(io);
-      info = std::make_shared<Object::BinaryInfo>(
-          Byte32(BitString32_getValue(_io)),
-          static_cast<Quality>(BitString32_getQuality(_io)),
-          Object::DateTime(Bitstring32WithCP56Time2a_getTimestamp(
-              reinterpret_cast<Bitstring32WithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case M_ME_NA_1: {
-      auto _io = reinterpret_cast<MeasuredValueNormalized>(io);
-      info = std::make_shared<Object::NormalizedInfo>(
-          NormalizedFloat(MeasuredValueNormalized_getValue(_io)),
-          static_cast<Quality>(MeasuredValueNormalized_getQuality(_io)),
-          std::nullopt, true);
-    } break;
-
-    case M_ME_TD_1: {
-      auto _io = reinterpret_cast<MeasuredValueNormalized>(io);
-      info = std::make_shared<Object::NormalizedInfo>(
-          NormalizedFloat(MeasuredValueNormalized_getValue(_io)),
-          static_cast<Quality>(MeasuredValueNormalized_getQuality(_io)),
-          Object::DateTime(MeasuredValueNormalizedWithCP56Time2a_getTimestamp(
-              reinterpret_cast<MeasuredValueNormalizedWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case M_ME_NB_1: {
-      auto _io = reinterpret_cast<MeasuredValueScaled>(io);
-      info = std::make_shared<Object::ScaledInfo>(
-          LimitedInt16(MeasuredValueScaled_getValue(_io)),
-          static_cast<Quality>(MeasuredValueScaled_getQuality(_io)),
-          std::nullopt, true);
-    } break;
-
-    case M_ME_TE_1: {
-      auto _io = reinterpret_cast<MeasuredValueScaled>(io);
-      info = std::make_shared<Object::ScaledInfo>(
-          LimitedInt16(MeasuredValueScaled_getValue(_io)),
-          static_cast<Quality>(MeasuredValueScaled_getQuality(_io)),
-          Object::DateTime(MeasuredValueScaledWithCP56Time2a_getTimestamp(
-              reinterpret_cast<MeasuredValueScaledWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case M_ME_NC_1: {
-      auto _io = reinterpret_cast<MeasuredValueShort>(io);
-      info = std::make_shared<Object::ShortInfo>(
-          MeasuredValueShort_getValue(_io),
-          static_cast<Quality>(MeasuredValueShort_getQuality(_io)),
-          std::nullopt, true);
-    } break;
-
-    case M_ME_TF_1: {
-      auto _io = reinterpret_cast<MeasuredValueShort>(io);
-      info = std::make_shared<Object::ShortInfo>(
-          MeasuredValueShort_getValue(_io),
-          static_cast<Quality>(MeasuredValueShort_getQuality(_io)),
-          Object::DateTime(MeasuredValueShortWithCP56Time2a_getTimestamp(
-              reinterpret_cast<MeasuredValueShortWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case M_IT_NA_1: {
-      BinaryCounterReading bcr1 =
-          IntegratedTotals_getBCR(reinterpret_cast<IntegratedTotals>(io));
-      info = std::make_shared<Object::BinaryCounterInfo>(
-          BinaryCounterReading_getValue(bcr1),
-          LimitedUInt5(static_cast<uint32_t>(
-              BinaryCounterReading_getSequenceNumber(bcr1))),
-          static_cast<BinaryCounterQuality>(bcr1->encodedValue[4] & 0b11100000),
-          std::nullopt, true);
-    } break;
-
-    case M_IT_TB_1: {
-      BinaryCounterReading bcr1 =
-          IntegratedTotals_getBCR(reinterpret_cast<IntegratedTotals>(io));
-      info = std::make_shared<Object::BinaryCounterInfo>(
-          BinaryCounterReading_getValue(bcr1),
-          LimitedUInt5(static_cast<uint32_t>(
-              BinaryCounterReading_getSequenceNumber(bcr1))),
-          static_cast<BinaryCounterQuality>(bcr1->encodedValue[4] & 0b11100000),
-          Object::DateTime(IntegratedTotalsWithCP56Time2a_getTimestamp(
-              reinterpret_cast<IntegratedTotalsWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case M_EP_TD_1: {
-      auto _io = reinterpret_cast<EventOfProtectionEquipmentWithCP56Time2a>(io);
-      SingleEvent single_event =
-          EventOfProtectionEquipmentWithCP56Time2a_getEvent(_io);
-      info = std::make_shared<Object::ProtectionEquipmentEventInfo>(
-          static_cast<EventState>(*single_event & 0b00000111),
-          LimitedUInt16(CP16Time2a_getEplapsedTimeInMs(
-              EventOfProtectionEquipmentWithCP56Time2a_getElapsedTime(_io))),
-          static_cast<Quality>(*single_event & 0b11111000),
-          Object::DateTime(
-              EventOfProtectionEquipmentWithCP56Time2a_getTimestamp(_io)),
-          true);
-    } break;
-
-    case M_EP_TE_1: {
-      auto _io = reinterpret_cast<
-          PackedStartEventsOfProtectionEquipmentWithCP56Time2a>(io);
-      info = std::make_shared<Object::ProtectionEquipmentStartEventsInfo>(
-          static_cast<StartEvents>(
-              PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getEvent(
-                  _io) &
-              0b00111111),
-          LimitedUInt16(CP16Time2a_getEplapsedTimeInMs(
-              PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getElapsedTime(
-                  _io))),
-          static_cast<Quality>(
-              PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getQuality(
-                  _io)),
-          Object::DateTime(
-              PackedStartEventsOfProtectionEquipmentWithCP56Time2a_getTimestamp(
-                  _io)),
-          true);
-    } break;
-
-    case M_EP_TF_1: {
-      auto _io = reinterpret_cast<PackedOutputCircuitInfoWithCP56Time2a>(io);
-      info = std::make_shared<Object::ProtectionEquipmentOutputCircuitInfo>(
-          static_cast<OutputCircuits>(
-              PackedOutputCircuitInfoWithCP56Time2a_getOCI(_io) & 0b00001111),
-          LimitedUInt16(CP16Time2a_getEplapsedTimeInMs(
-              PackedOutputCircuitInfoWithCP56Time2a_getOperatingTime(_io))),
-          static_cast<Quality>(
-              PackedOutputCircuitInfoWithCP56Time2a_getQuality(_io)),
-          Object::DateTime(
-              PackedOutputCircuitInfoWithCP56Time2a_getTimestamp(_io)),
-          true);
-    } break;
-
-    case M_PS_NA_1: {
-      auto _io = reinterpret_cast<PackedSinglePointWithSCD>(io);
-      StatusAndStatusChangeDetection sscd =
-          PackedSinglePointWithSCD_getSCD(_io);
-      info = std::make_shared<Object::StatusWithChangeDetection>(
-          static_cast<FieldSet16>(
-              (static_cast<uint16_t>(sscd->encodedValue[0]) << 0) +
-              (static_cast<uint16_t>(sscd->encodedValue[1]) << 8)),
-          static_cast<FieldSet16>(
-              (static_cast<uint16_t>(sscd->encodedValue[2]) << 0) +
-              (static_cast<uint16_t>(sscd->encodedValue[3]) << 8)),
-          static_cast<Quality>(PackedSinglePointWithSCD_getQuality(_io)),
-          std::nullopt, true);
-    } break;
-
-    case M_ME_ND_1: {
-      info = std::make_shared<Object::NormalizedInfo>(
-          NormalizedFloat(MeasuredValueNormalizedWithoutQuality_getValue(
-              reinterpret_cast<MeasuredValueNormalizedWithoutQuality>(io))),
-          Quality::None, std::nullopt, true);
-    } break;
-
-      /**
-       * CONTROL
-       */
-
-    case C_SC_NA_1: {
-      auto _io = reinterpret_cast<SingleCommand>(io);
-      info = std::make_shared<Object::SingleCmd>(
-          SingleCommand_getState(_io), SingleCommand_isSelect(_io),
-          static_cast<CS101_QualifierOfCommand>(SingleCommand_getQU(_io)),
-          std::nullopt, true);
-    } break;
-
-    case C_SC_TA_1: {
-      auto _io = reinterpret_cast<SingleCommand>(io);
-      info = std::make_shared<Object::SingleCmd>(
-          SingleCommand_getState(_io), SingleCommand_isSelect(_io),
-          static_cast<CS101_QualifierOfCommand>(SingleCommand_getQU(_io)),
-          Object::DateTime(SingleCommandWithCP56Time2a_getTimestamp(
-              reinterpret_cast<SingleCommandWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case C_DC_NA_1: {
-      auto _io = reinterpret_cast<DoubleCommand>(io);
-      info = std::make_shared<Object::DoubleCmd>(
-          static_cast<DoublePointValue>(DoubleCommand_getState(_io)),
-          DoubleCommand_isSelect(_io),
-          static_cast<CS101_QualifierOfCommand>(DoubleCommand_getQU(_io)),
-          std::nullopt, true);
-    } break;
-
-    case C_DC_TA_1: {
-      auto _io = reinterpret_cast<DoubleCommand>(io);
-      info = std::make_shared<Object::DoubleCmd>(
-          static_cast<DoublePointValue>(DoubleCommand_getState(_io)),
-          DoubleCommand_isSelect(_io),
-          static_cast<CS101_QualifierOfCommand>(DoubleCommand_getQU(_io)),
-          Object::DateTime(DoubleCommandWithCP56Time2a_getTimestamp(
-              reinterpret_cast<DoubleCommandWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case C_RC_NA_1: {
-      auto _io = reinterpret_cast<StepCommand>(io);
-      info = std::make_shared<Object::StepCmd>(
-          static_cast<StepCommandValue>(StepCommand_getState(_io)),
-          StepCommand_isSelect(_io),
-          static_cast<CS101_QualifierOfCommand>(StepCommand_getQU(_io)),
-          std::nullopt, true);
-    } break;
-
-    case C_RC_TA_1: {
-      auto _io = reinterpret_cast<StepCommand>(io);
-      info = std::make_shared<Object::StepCmd>(
-          static_cast<StepCommandValue>(StepCommand_getState(_io)),
-          StepCommand_isSelect(_io),
-          static_cast<CS101_QualifierOfCommand>(StepCommand_getQU(_io)),
-          Object::DateTime(StepCommandWithCP56Time2a_getTimestamp(
-              reinterpret_cast<StepCommandWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case C_SE_NA_1: {
-      auto _io = reinterpret_cast<SetpointCommandNormalized>(io);
-      info = std::make_shared<Object::NormalizedCmd>(
-          NormalizedFloat(SetpointCommandNormalized_getValue(_io)),
-          SetpointCommandNormalized_isSelect(_io),
-          LimitedUInt7(
-              static_cast<uint32_t>(SetpointCommandNormalized_getQL(_io))),
-          std::nullopt, true);
-    } break;
-
-    case C_SE_TA_1: {
-      auto _io = reinterpret_cast<SetpointCommandNormalized>(io);
-      info = std::make_shared<Object::NormalizedCmd>(
-          NormalizedFloat(SetpointCommandNormalized_getValue(_io)),
-          SetpointCommandNormalized_isSelect(_io),
-          LimitedUInt7(
-              static_cast<uint32_t>(SetpointCommandNormalized_getQL(_io))),
-          Object::DateTime(SetpointCommandNormalizedWithCP56Time2a_getTimestamp(
-              reinterpret_cast<SetpointCommandNormalizedWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case C_SE_NB_1: {
-      auto _io = reinterpret_cast<SetpointCommandScaled>(io);
-      info = std::make_shared<Object::ScaledCmd>(
-          LimitedInt16(SetpointCommandScaled_getValue(_io)),
-          SetpointCommandScaled_isSelect(_io),
-          LimitedUInt7(static_cast<uint32_t>(SetpointCommandScaled_getQL(_io))),
-          std::nullopt, true);
-    } break;
-
-    case C_SE_TB_1: {
-      auto _io = reinterpret_cast<SetpointCommandScaled>(io);
-      info = std::make_shared<Object::ScaledCmd>(
-          LimitedInt16(SetpointCommandScaled_getValue(_io)),
-          SetpointCommandScaled_isSelect(_io),
-          LimitedUInt7(static_cast<uint32_t>(SetpointCommandScaled_getQL(_io))),
-          Object::DateTime(SetpointCommandScaledWithCP56Time2a_getTimestamp(
-              reinterpret_cast<SetpointCommandScaledWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case C_SE_NC_1: {
-      auto _io = reinterpret_cast<SetpointCommandShort>(io);
-      info = std::make_shared<Object::ShortCmd>(
-          SetpointCommandShort_getValue(_io),
-          SetpointCommandShort_isSelect(_io),
-          LimitedUInt7(static_cast<uint32_t>(SetpointCommandShort_getQL(_io))),
-          std::nullopt, true);
-    } break;
-
-    case C_SE_TC_1: {
-      auto _io = reinterpret_cast<SetpointCommandShort>(io);
-      info = std::make_shared<Object::ShortCmd>(
-          SetpointCommandShort_getValue(_io),
-          SetpointCommandShort_isSelect(_io),
-          LimitedUInt7(static_cast<uint32_t>(SetpointCommandShort_getQL(_io))),
-          Object::DateTime(SetpointCommandShortWithCP56Time2a_getTimestamp(
-              reinterpret_cast<SetpointCommandShortWithCP56Time2a>(io))),
-          true);
-    } break;
-
-    case C_BO_NA_1: {
-      info = std::make_shared<Object::BinaryCmd>(
-          Byte32(Bitstring32Command_getValue(
-              reinterpret_cast<Bitstring32Command>(io))),
-          std::nullopt, true);
-    } break;
-
-    case C_BO_TA_1: {
-      info = std::make_shared<Object::BinaryCmd>(
-          Byte32(Bitstring32Command_getValue(
-              reinterpret_cast<Bitstring32Command>(io))),
-          Object::DateTime(Bitstring32CommandWithCP56Time2a_getTimestamp(
-              reinterpret_cast<Bitstring32CommandWithCP56Time2a>(io))),
-          true);
-    } break;
-    case C_CS_NA_1: {
-      info = std::make_shared<Object::Command>(
-          Object::DateTime(ClockSynchronizationCommand_getTime(
-              reinterpret_cast<ClockSynchronizationCommand>(io))),
-          true);
-    } break;
-
-    case M_EI_NA_1:
-    case C_IC_NA_1:
-    case C_CI_NA_1:
-    case C_RD_NA_1:
-    case C_TS_NA_1:
-      // allow get valid message to pass and extract informationObjectAddress
-      // even though no further info is extracted
-      break;
-
-      /**
-       * Unhandled message
-       */
-
-    default:
-      std::cerr << "[c104.IncomingMessage.extract] Unsupported type "
-                << TypeID_toString(type) << std::endl;
-    }
+    info = Transformer::fromInformationObject(io);
   }
 }
 
@@ -857,7 +474,7 @@ bool IncomingMessage::requireConfirmation() const {
 }
 
 bool IncomingMessage::isSelectCommand() const {
-  auto cmd = std::dynamic_pointer_cast<Object::Command>(info);
+  auto cmd = std::dynamic_pointer_cast<ICommand>(info);
   return cmd && cmd->isSelectable() && cmd->isSelect();
 }
 

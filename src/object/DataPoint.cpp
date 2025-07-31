@@ -31,31 +31,47 @@
 
 #include "object/DataPoint.h"
 #include "Server.h"
+#include "constants.h"
 #include "module/ScopedGilAcquire.h"
 #include "object/DateTime.h"
-#include "object/Information.h"
 #include "object/Station.h"
+#include "object/information/ICommand.h"
+#include "object/information/IntegratedTotalInfo.h"
 #include "remote/Connection.h"
 #include "remote/message/IncomingMessage.h"
+#include "types.h"
+#include <sstream>
 
 using namespace Object;
 
+std::shared_ptr<DataPoint>
+DataPoint::create(const std::uint_fast32_t dp_ioa,
+                  std::shared_ptr<Information::IInformation> dp_info,
+                  const std::shared_ptr<Station> &dp_station,
+                  const std::uint_fast16_t dp_report_ms,
+                  const std::optional<std::uint_fast32_t> dp_related_ioa,
+                  const bool dp_related_auto_return,
+                  const CommandTransmissionMode dp_cmd_mode,
+                  const std::uint_fast16_t tick_rate_ms) {
+  Module::ScopedGilAcquire scoped("DataPoint.create");
+
+  // Not using std::make_shared because the constructor is private.
+  return std::shared_ptr<DataPoint>(
+      new DataPoint(dp_ioa, dp_info, dp_station, dp_report_ms, dp_related_ioa,
+                    dp_related_auto_return, dp_cmd_mode, tick_rate_ms));
+}
+
 DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
-                     const IEC60870_5_TypeID dp_type,
+                     std::shared_ptr<Information::IInformation> dp_info,
                      const std::shared_ptr<Station> &dp_station,
                      const std::uint_fast16_t dp_report_ms,
                      const std::optional<std::uint_fast32_t> dp_related_ioa,
                      const bool dp_related_auto_return,
                      const CommandTransmissionMode dp_cmd_mode,
                      const std::uint_fast16_t tick_rate_ms)
-    : informationObjectAddress(dp_ioa), type(dp_type), station(dp_station),
+    : informationObjectAddress(dp_ioa), station(dp_station),
       relatedInformationObjectAutoReturn(dp_related_auto_return),
-      commandMode(dp_cmd_mode), tickRate_ms(tick_rate_ms),
-      timerNext(std::chrono::steady_clock::now()) {
-  if (type >= M_EI_NA_1) {
-    throw std::invalid_argument("Unsupported type " +
-                                std::string(TypeID_toString(type)));
-  }
+      tickRate_ms(tick_rate_ms), timerNext(std::chrono::steady_clock::now()) {
 
   is_server = dp_station && dp_station->isLocal();
 
@@ -65,188 +81,16 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
                                 std::to_string(dp_ioa));
   }
 
+  setInfo(std::move(dp_info));
+  setRelatedInformationObjectAddress(dp_related_ioa);
+
+  if (info->getCategory() == COMMAND) {
+    setCommandMode(dp_cmd_mode);
+    setRelatedInformationObjectAutoReturn(dp_related_auto_return);
+  }
+
   lastSentAt = std::chrono::steady_clock::now();
   setReportInterval_ms(dp_report_ms);
-
-  if (dp_related_ioa.has_value()) {
-    if (MAX_INFORMATION_OBJECT_ADDRESS < dp_related_ioa) {
-      throw std::invalid_argument(
-          "Invalid related information object address " +
-          std::to_string(dp_related_ioa.value()));
-    }
-    relatedInformationObjectAddress = dp_related_ioa.value();
-    if (!is_server) {
-      throw std::invalid_argument(
-          "Related IO address option is only allowed for server-sided points");
-    }
-  }
-  if (relatedInformationObjectAutoReturn) {
-    if (MAX_INFORMATION_OBJECT_ADDRESS < relatedInformationObjectAddress) {
-      throw std::invalid_argument("Related IO auto return option cannot be "
-                                  "used without the related IO address option");
-    }
-    if (dp_type < C_SC_NA_1 || dp_type > C_BO_TA_1) {
-      throw std::invalid_argument("Related IO auto return option is only "
-                                  "allowed for control types, but not for " +
-                                  std::string(TypeID_toString(type)));
-    }
-  }
-
-  switch (type) {
-  case M_SP_NA_1:
-    info =
-        std::make_shared<SingleInfo>(false, Quality::None, std::nullopt, false);
-    break;
-  case M_SP_TB_1:
-    info = std::make_shared<SingleInfo>(
-        false, Quality::None, DateTime::now(getStation(), false), false);
-    break;
-  case C_SC_NA_1:
-    info = std::make_shared<SingleCmd>(
-        false, false, CS101_QualifierOfCommand::NONE, std::nullopt, false);
-    break;
-  case C_SC_TA_1:
-    info = std::make_shared<SingleCmd>(
-        false, false, CS101_QualifierOfCommand::NONE,
-        DateTime::now(getStation(), false), false);
-    break;
-  case M_DP_NA_1:
-    info = std::make_shared<DoubleInfo>(IEC60870_DOUBLE_POINT_OFF,
-                                        Quality::None, std::nullopt, false);
-    break;
-  case M_DP_TB_1:
-    info =
-        std::make_shared<DoubleInfo>(IEC60870_DOUBLE_POINT_OFF, Quality::None,
-                                     DateTime::now(getStation(), false), false);
-    break;
-  case C_DC_NA_1:
-    info = std::make_shared<DoubleCmd>(IEC60870_DOUBLE_POINT_OFF, false,
-                                       CS101_QualifierOfCommand::NONE,
-                                       std::nullopt, false);
-  case C_DC_TA_1:
-    info = std::make_shared<DoubleCmd>(
-        IEC60870_DOUBLE_POINT_OFF, false, CS101_QualifierOfCommand::NONE,
-        DateTime::now(getStation(), false), false);
-    break;
-  case M_ST_NA_1:
-    info = std::make_shared<StepInfo>(LimitedInt7(0), false, Quality::None,
-                                      std::nullopt, false);
-    break;
-  case M_ST_TB_1:
-    info =
-        std::make_shared<StepInfo>(LimitedInt7(0), false, Quality::None,
-                                   DateTime::now(getStation(), false), false);
-    break;
-  case C_RC_NA_1:
-    info = std::make_shared<StepCmd>(IEC60870_STEP_LOWER, false,
-                                     CS101_QualifierOfCommand::NONE,
-                                     std::nullopt, false);
-    break;
-  case C_RC_TA_1:
-    info = std::make_shared<StepCmd>(IEC60870_STEP_LOWER, false,
-                                     CS101_QualifierOfCommand::NONE,
-                                     DateTime::now(getStation(), false), false);
-    break;
-  case M_ME_NA_1:
-  case M_ME_ND_1:
-    info = std::make_shared<NormalizedInfo>(NormalizedFloat(0), Quality::None,
-                                            std::nullopt, false);
-    break;
-  case M_ME_TD_1:
-    info = std::make_shared<NormalizedInfo>(NormalizedFloat(0), Quality::None,
-                                            DateTime::now(getStation(), false),
-                                            false);
-    break;
-  case C_SE_NA_1:
-    info = std::make_shared<NormalizedCmd>(
-        NormalizedFloat(0), false, LimitedUInt7(0), std::nullopt, false);
-    break;
-  case C_SE_TA_1:
-    info = std::make_shared<NormalizedCmd>(
-        NormalizedFloat(0), false, LimitedUInt7(0),
-        DateTime::now(getStation(), false), false);
-    break;
-  case M_ME_NB_1:
-    info = std::make_shared<ScaledInfo>(LimitedInt16(0), Quality::None,
-                                        std::nullopt, false);
-    break;
-  case M_ME_TE_1:
-    info =
-        std::make_shared<ScaledInfo>(LimitedInt16(0), Quality::None,
-                                     DateTime::now(getStation(), false), false);
-    break;
-  case C_SE_NB_1:
-    info = std::make_shared<ScaledCmd>(LimitedInt16(0), false, LimitedUInt7(0),
-                                       std::nullopt, false);
-    break;
-  case C_SE_TB_1:
-    info =
-        std::make_shared<ScaledCmd>(LimitedInt16(0), false, LimitedUInt7(0),
-                                    DateTime::now(getStation(), false), false);
-    break;
-  case M_ME_NC_1:
-    info = std::make_shared<ShortInfo>(0.0, Quality::None, std::nullopt, false);
-    break;
-  case M_ME_TF_1:
-    info = std::make_shared<ShortInfo>(
-        0.0, Quality::None, DateTime::now(getStation(), false), false);
-    break;
-  case C_SE_NC_1:
-    info = std::make_shared<ShortCmd>(0.0, false, LimitedUInt7(0), std::nullopt,
-                                      false);
-    break;
-  case C_SE_TC_1:
-    info = std::make_shared<ShortCmd>(
-        0.0, false, LimitedUInt7(0), DateTime::now(getStation(), false), false);
-    break;
-  case M_BO_NA_1:
-    info = std::make_shared<BinaryInfo>(Byte32(0), Quality::None, std::nullopt,
-                                        false);
-    break;
-  case M_BO_TB_1:
-    info = std::make_shared<BinaryInfo>(
-        Byte32(0), Quality::None, DateTime::now(getStation(), false), false);
-    break;
-  case C_BO_NA_1:
-    info = std::make_shared<BinaryCmd>(Byte32(0), std::nullopt, false);
-    break;
-  case C_BO_TA_1:
-    info = std::make_shared<BinaryCmd>(
-        Byte32(0), DateTime::now(getStation(), false), false);
-    break;
-  case M_IT_NA_1:
-    info = std::make_shared<BinaryCounterInfo>(
-        0, LimitedUInt5(0), BinaryCounterQuality::None, std::nullopt, false);
-    break;
-  case M_IT_TB_1:
-    info = std::make_shared<BinaryCounterInfo>(
-        0, LimitedUInt5(0), BinaryCounterQuality::None,
-        DateTime::now(getStation(), false), false);
-    break;
-  case M_EP_TD_1:
-    info = std::make_shared<ProtectionEquipmentEventInfo>(
-        IEC60870_EVENTSTATE_OFF, LimitedUInt16(0), Quality::None,
-        DateTime::now(getStation(), false), false);
-    break;
-  case M_EP_TE_1:
-    info = std::make_shared<ProtectionEquipmentStartEventsInfo>(
-        StartEvents::None, LimitedUInt16(0), Quality::None,
-        DateTime::now(getStation(), false), false);
-    break;
-  case M_EP_TF_1:
-    info = std::make_shared<ProtectionEquipmentOutputCircuitInfo>(
-        OutputCircuits::None, LimitedUInt16(0), Quality::None,
-        DateTime::now(getStation(), false), false);
-    break;
-  case M_PS_NA_1:
-    info = std::make_shared<StatusWithChangeDetection>(
-        static_cast<FieldSet16>(0), static_cast<FieldSet16>(0), Quality::None,
-        std::nullopt, false);
-    break;
-  default:
-    throw std::invalid_argument("Unsupported type " +
-                                std::string(TypeID_toString(type)));
-  }
 
   DEBUG_PRINT(Debug::Point, "Created");
 }
@@ -303,10 +147,11 @@ void DataPoint::setRelatedInformationObjectAutoReturn(const bool auto_return) {
       throw std::invalid_argument("Related IO auto return option cannot be "
                                   "used without the related IO address option");
     }
-    if (type < C_SC_NA_1 || type > C_BO_TA_1) {
-      throw std::invalid_argument("Related IO auto return option is only "
-                                  "allowed for control types, but not for " +
-                                  std::string(TypeID_toString(type)));
+    if (info->getCategory() != COMMAND) {
+      throw std::invalid_argument(
+          "Related IO auto return option is only "
+          "allowed for control information, but not for " +
+          info->name());
     }
   }
   relatedInformationObjectAutoReturn.store(auto_return);
@@ -317,11 +162,17 @@ CommandTransmissionMode DataPoint::getCommandMode() const {
 }
 
 void DataPoint::setCommandMode(const CommandTransmissionMode mode) {
-  if (SELECT_AND_EXECUTE_COMMAND == mode &&
-      (type < C_SC_NA_1 || C_BO_NA_1 == type || C_SE_TC_1 < type)) {
-    throw std::invalid_argument("Only control points, except for C_BO_* "
-                                "support select and execute mode");
+  const auto cmd =
+      std::dynamic_pointer_cast<Object::Information::ICommand>(info);
+  if (!cmd) {
+    throw std::invalid_argument(
+        "Command mode can be set for commands, but not for " + info->name());
   }
+  if (SELECT_AND_EXECUTE_COMMAND == mode && !cmd->isSelectable()) {
+    throw std::invalid_argument("Select and Execute mode is not support for " +
+                                cmd->name());
+  }
+
   commandMode.store(mode);
 }
 
@@ -336,618 +187,28 @@ DataPoint::getSelectedByOriginatorAddress() const {
   return std::nullopt;
 }
 
-IEC60870_5_TypeID DataPoint::getType() const { return type; }
+std::shared_ptr<Information::IInformation> DataPoint::getInfo() const {
+  return info;
+}
 
-std::shared_ptr<Information> DataPoint::getInfo() const { return info; }
-
-void DataPoint::setInfo(std::shared_ptr<Information> new_info) {
+void DataPoint::setInfo(std::shared_ptr<Information::IInformation> new_info,
+                        bool allow_all) {
   bool const debug = DEBUG_TEST(Debug::Point);
 
-  switch (type) {
-  case M_SP_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<SingleInfo>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type SingleInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_SP_TB_1: {
-    if (auto i = std::dynamic_pointer_cast<SingleInfo>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type SingleInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_SC_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<SingleCmd>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type SingleCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_SC_TA_1: {
-    if (auto i = std::dynamic_pointer_cast<SingleCmd>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type SingleCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_DP_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<DoubleInfo>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type DoubleInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_DP_TB_1: {
-    if (auto i = std::dynamic_pointer_cast<DoubleInfo>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type DoubleInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_DC_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<DoubleCmd>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type DoubleCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_DC_TA_1: {
-    if (auto i = std::dynamic_pointer_cast<DoubleCmd>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type DoubleCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_ST_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<StepInfo>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type StepInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_ST_TB_1: {
-    if (auto i = std::dynamic_pointer_cast<StepInfo>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type StepInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_RC_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<StepCmd>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type StepCmd, but is " + new_info->name());
-    }
-  } break;
-  case C_RC_TA_1: {
-    if (auto i = std::dynamic_pointer_cast<StepCmd>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type StepCmd, but is " + new_info->name());
-    }
-  } break;
-  case M_ME_NA_1:
-  case M_ME_ND_1: {
-    if (auto i = std::dynamic_pointer_cast<NormalizedInfo>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type NormalizedInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_ME_TD_1: {
-    if (auto i = std::dynamic_pointer_cast<NormalizedInfo>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type NormalizedInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_SE_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<NormalizedCmd>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type NormalizedCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_SE_TA_1: {
-    if (auto i = std::dynamic_pointer_cast<NormalizedCmd>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type NormalizedCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_ME_NB_1: {
-    if (auto i = std::dynamic_pointer_cast<ScaledInfo>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ScaledInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_ME_TE_1: {
-    if (auto i = std::dynamic_pointer_cast<ScaledInfo>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ScaledInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_SE_NB_1: {
-    if (auto i = std::dynamic_pointer_cast<ScaledCmd>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ScaledCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_SE_TB_1: {
-    if (auto i = std::dynamic_pointer_cast<ScaledCmd>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ScaledCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_ME_NC_1: {
-    if (auto i = std::dynamic_pointer_cast<ShortInfo>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ShortInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_ME_TF_1: {
-    if (auto i = std::dynamic_pointer_cast<ShortInfo>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ShortInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_SE_NC_1: {
-    if (auto i = std::dynamic_pointer_cast<ShortCmd>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ShortCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_SE_TC_1: {
-    if (auto i = std::dynamic_pointer_cast<ShortCmd>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ShortCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_BO_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<BinaryInfo>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type BinaryInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_BO_TB_1: {
-    if (auto i = std::dynamic_pointer_cast<BinaryInfo>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type BinaryInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_BO_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<BinaryCmd>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type BinaryCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case C_BO_TA_1: {
-    if (auto i = std::dynamic_pointer_cast<BinaryCmd>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type BinaryCmd, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_IT_NA_1: {
-    if (auto i = std::dynamic_pointer_cast<BinaryCounterInfo>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type BinaryCounterInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_IT_TB_1: {
-    if (auto i = std::dynamic_pointer_cast<BinaryCounterInfo>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type BinaryCounterInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_EP_TD_1: {
-    if (auto i =
-            std::dynamic_pointer_cast<ProtectionEquipmentEventInfo>(new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ProtectionEventInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_EP_TE_1: {
-    if (auto i = std::dynamic_pointer_cast<ProtectionEquipmentStartEventsInfo>(
-            new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ProtectionStartInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_EP_TF_1: {
-    if (auto i =
-            std::dynamic_pointer_cast<ProtectionEquipmentOutputCircuitInfo>(
-                new_info)) {
-      if (!i->getRecordedAt().has_value()) {
-        i->setRecordedAt(DateTime::now(getStation(), false));
-        DEBUG_PRINT_CONDITION(debug, Debug::Point,
-                              "Injecting current local timestamp into "
-                              "information for [c104.Type." +
-                                  std::string(TypeID_toString(type)) +
-                                  "] at IOA " +
-                                  std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type ProtectionCircuitInfo, but is " +
-          new_info->name());
-    }
-  } break;
-  case M_PS_NA_1: {
-    if (auto i =
-            std::dynamic_pointer_cast<StatusWithChangeDetection>(new_info)) {
-      if (i->getRecordedAt().has_value()) {
-        i->setRecordedAt(std::nullopt);
-        DEBUG_PRINT_CONDITION(
-            debug, Debug::Point,
-            "Dropping timestamp of information for [c104.Type." +
-                std::string(TypeID_toString(type)) + "] at IOA " +
-                std::to_string(informationObjectAddress));
-      }
-    } else {
-      throw std::invalid_argument(
-          "[c104.Type." + std::string(TypeID_toString(type)) +
-          "] requires Information of type StatusAndChanged, but is " +
-          new_info->name());
-    }
-  } break;
-  default:
-    throw std::invalid_argument("Unsupported type " +
-                                std::string(TypeID_toString(type)));
+  if (info && !allow_all && info->name().compare(new_info->name()) != 0) {
+    throw std::invalid_argument(
+        "Incompatible information type (is: " + new_info->name() +
+        ", expected: " + info->name() + ")");
   }
+  if (!new_info->getRecordedAt().has_value()) {
+    new_info->setRecordedAt(DateTime::now(getStation(), false));
+    DEBUG_PRINT_CONDITION(debug, Debug::Point,
+                          "Injecting current local timestamp into "
+                          "information for " +
+                              new_info->name() + " at IOA " +
+                              std::to_string(informationObjectAddress));
+  }
+
   info = std::move(new_info);
 }
 
@@ -955,70 +216,20 @@ InfoValue DataPoint::getValue() const { return info->getValue(); }
 
 void DataPoint::setValue(const InfoValue &new_value) const {
   info->setValue(new_value);
-  switch (type) {
-  case M_SP_TB_1:
-  case C_SC_TA_1:
-  case M_DP_TB_1:
-  case C_DC_TA_1:
-  case M_ST_TB_1:
-  case C_RC_TA_1:
-  case M_ME_TD_1:
-  case C_SE_TA_1:
-  case M_ME_TE_1:
-  case C_SE_TB_1:
-  case M_ME_TF_1:
-  case C_SE_TC_1:
-  case M_BO_TB_1:
-  case C_BO_TA_1:
-  case M_IT_TB_1:
-  case M_EP_TD_1:
-  case M_EP_TE_1:
-  case M_EP_TF_1:
-    info->setRecordedAt(DateTime::now(getStation(), false));
-    DEBUG_PRINT(
-        Debug::Point,
-        "Injecting current local timestamp into information for [c104.Type." +
-            std::string(TypeID_toString(type)) + "] at IOA " +
-            std::to_string(informationObjectAddress));
-    break;
-  default: {
-  }
-  }
+  info->setRecordedAt(DateTime::now(getStation(), false));
+  DEBUG_PRINT(Debug::Point, "Injecting current local timestamp into " +
+                                info->name() + " at IOA " +
+                                std::to_string(informationObjectAddress));
 }
 
 InfoQuality DataPoint::getQuality() const { return info->getQuality(); }
 
 void DataPoint::setQuality(const InfoQuality new_quality) const {
   info->setQuality(new_quality);
-  switch (type) {
-  case M_SP_TB_1:
-  case C_SC_TA_1:
-  case M_DP_TB_1:
-  case C_DC_TA_1:
-  case M_ST_TB_1:
-  case C_RC_TA_1:
-  case M_ME_TD_1:
-  case C_SE_TA_1:
-  case M_ME_TE_1:
-  case C_SE_TB_1:
-  case M_ME_TF_1:
-  case C_SE_TC_1:
-  case M_BO_TB_1:
-  case C_BO_TA_1:
-  case M_IT_TB_1:
-  case M_EP_TD_1:
-  case M_EP_TE_1:
-  case M_EP_TF_1:
-    info->setRecordedAt(DateTime::now(getStation(), false));
-    DEBUG_PRINT(
-        Debug::Point,
-        "Injecting current local timestamp into information for [c104.Type." +
-            std::string(TypeID_toString(type)) + "] at IOA " +
-            std::to_string(informationObjectAddress));
-    break;
-  default: {
-  }
-  }
+  info->setRecordedAt(DateTime::now(getStation(), false));
+  DEBUG_PRINT(Debug::Point, "Injecting current local timestamp into " +
+                                info->name() + " at IOA " +
+                                std::to_string(informationObjectAddress));
 }
 
 std::optional<DateTime> DataPoint::getRecordedAt() const {
@@ -1045,12 +256,10 @@ void DataPoint::setReportInterval_ms(const std::uint_fast16_t interval_ms) {
                              std::to_string(tickRate_ms) + ")");
     }
 
-    // only monitoring points SP,DP,ST,ME,BO + IT
-    if (type > M_IT_TB_1 || (type > M_IT_NA_1 && type < M_SP_TB_1)) {
-      throw std::invalid_argument(
-          "Report interval option is only allowed for "
-          "monitoring types (excluding evens), but not for " +
-          std::string(TypeID_toString(type)));
+    // only monitoring status points
+    if (info->getCategory() != MONITORING_STATUS) {
+      throw std::invalid_argument("interval_ms option is not supported for " +
+                                  info->name());
     }
     if (!is_server) {
       throw std::invalid_argument(
@@ -1160,7 +369,8 @@ void DataPoint::setGroups(const std::list<size_t> &groups) {
   }
 
   // Test restriction for counter values
-  if (type == M_IT_TB_1 || type == M_IT_NA_1) {
+  if (std::dynamic_pointer_cast<Information::BinaryCounterInfo>(info) !=
+      nullptr) {
     for (const size_t index : groups) {
       if (index > 4) {
         throw std::invalid_argument(
@@ -1214,10 +424,10 @@ bool DataPoint::read() {
   return _connection->read(shared_from_this());
 }
 
-bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
-  DEBUG_PRINT(Debug::Point,
-              "transmit_ex] " + std::string(TypeID_toString(type)) +
-                  " at IOA " + std::to_string(informationObjectAddress));
+bool DataPoint::transmit(const CS101_CauseOfTransmission cause,
+                         const bool timestamp) {
+  DEBUG_PRINT(Debug::Point, "transmit_ex] " + info->name() + " at IOA " +
+                                std::to_string(informationObjectAddress));
 
   const auto _station = getStation();
   if (!_station) {
@@ -1230,7 +440,7 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
     if (!server) {
       throw std::invalid_argument("Server reference deleted");
     }
-    return server->transmit(shared_from_this(), cause);
+    return server->transmit(shared_from_this(), cause, timestamp);
   }
 
   // as client
@@ -1242,3 +452,23 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
 }
 
 void DataPoint::detach() { station.reset(); }
+
+std::string DataPoint::toString() const {
+  std::ostringstream oss;
+  oss << "<c104.Point io_address=" << std::to_string(informationObjectAddress)
+      << ", info=" << info->name()
+      << ", report_ms=" << std::to_string(reportInterval_ms.load())
+      << ", related_io_address=";
+
+  if (relatedInformationObjectAddress < MAX_INFORMATION_OBJECT_ADDRESS)
+    oss << std::to_string(relatedInformationObjectAddress.load());
+  else
+    oss << "None";
+
+  oss << ", related_io_autoreturn="
+      << bool_toString(relatedInformationObjectAutoReturn.load())
+      << ", command_mode=" << CommandTransmissionMode_toString(commandMode)
+      << " at " << std::hex << std::showbase
+      << reinterpret_cast<std::uintptr_t>(this) << ">";
+  return oss.str();
+}

@@ -36,7 +36,6 @@
 #include <chrono>
 #include <iec60870_common.h>
 #include <pybind11/pybind11.h>
-#include <string>
 
 namespace py = pybind11;
 using namespace std::chrono_literals;

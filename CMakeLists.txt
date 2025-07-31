@@ -10,6 +10,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+if(MSVC)
+  # MSVC supports /W0 to /W4 or /Wall
+  add_compile_options(/W3)
+else()
+  # GCC or Clang
+  add_compile_options(-Wno-attributes)
+endif()
+
 message(STATUS "Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS "ModulePath: ${CMAKE_MODULE_PATH}")
 
@@ -107,6 +115,8 @@ endif()
 # lib60870-C 2.3.3
 # ##############################################################################
 message(STATUS "Add lib60870")
+# Change the .lib suffix for static libs to avoid conflict with DLL import .lib
+set(CMAKE_STATIC_LIBRARY_SUFFIX ".a") # or ".lib_static"
 set(BUILD_COMMON
     ON
     CACHE BOOL "Build the platform abstraction layer (HAL)")
@@ -155,6 +165,8 @@ include_directories(
   depends/lib60870/lib60870-C/src/common/inc depends/mbedtls/include)
 
 set(c104_SOURCES
+    src/bitflag.h
+    src/debug.h
     src/numbers.h
     src/enums.h
     src/types.h
@@ -164,42 +176,90 @@ set(c104_SOURCES
     src/module/ScopedGilRelease.h
     src/module/GilAwareMutex.h
     src/object/DateTime.h
-    src/object/Information.h
+    src/object/information/IInformation.h
+    src/object/information/Generic.h
+    src/object/information/ICommand.h
+    src/object/information/BinaryCmd.h
+    src/object/information/BinaryInfo.h
+    src/object/information/DoubleCmd.h
+    src/object/information/DoubleInfo.h
+    src/object/information/EquipmentProtectionEvent.h
+    src/object/information/EquipmentProtectionOutputCircuitEvent.h
+    src/object/information/EquipmentProtectionStartEvents.h
+    src/object/information/IntegratedTotalInfo.h
+    src/object/information/NormalizedCmd.h
+    src/object/information/NormalizedInfo.h
+    src/object/information/ScaledCmd.h
+    src/object/information/ScaledInfo.h
+    src/object/information/ShortCmd.h
+    src/object/information/ShortInfo.h
+    src/object/information/SingleCmd.h
+    src/object/information/SingleInfo.h
+    src/object/information/StatusWithChangeDetection.h
+    src/object/information/StepCmd.h
+    src/object/information/StepInfo.h
+    src/transformer/Type.h
+    src/transformer/Information.h
     src/object/DataPoint.h
     src/object/Station.h
     src/remote/Helper.h
     src/remote/Helper.cpp
     src/remote/TransportSecurity.h
+    src/remote/Selection.h
     src/remote/Connection.h
     src/remote/message/IMessageInterface.h
     src/remote/message/IncomingMessage.h
     src/remote/message/OutgoingMessage.h
-    src/remote/message/PointCommand.h
-    src/remote/message/PointMessage.h
     src/remote/message/Batch.h
+    src/tasks/Task.h
+    src/tasks/Executor.h
     src/Client.h
     src/Server.h
+    src/debug.cpp
     src/enums.cpp
     src/types.cpp
     src/object/DateTime.cpp
     src/object/DateTimePy.cpp
-    src/object/Information.cpp
-    src/object/InformationPy.cpp
+    src/object/information/IInformation.cpp
+    src/object/information/Generic.cpp
+    src/object/information/ICommand.cpp
+    src/object/information/BinaryCmd.cpp
+    src/object/information/BinaryInfo.cpp
+    src/object/information/DoubleCmd.cpp
+    src/object/information/DoubleInfo.cpp
+    src/object/information/EquipmentProtectionEvent.cpp
+    src/object/information/EquipmentProtectionOutputCircuitEvent.cpp
+    src/object/information/EquipmentProtectionStartEvents.cpp
+    src/object/information/IntegratedTotalInfo.cpp
+    src/object/information/NormalizedCmd.cpp
+    src/object/information/NormalizedInfo.cpp
+    src/object/information/ScaledCmd.cpp
+    src/object/information/ScaledInfo.cpp
+    src/object/information/ShortCmd.cpp
+    src/object/information/ShortInfo.cpp
+    src/object/information/SingleCmd.cpp
+    src/object/information/SingleInfo.cpp
+    src/object/information/StatusWithChangeDetection.cpp
+    src/object/information/StepCmd.cpp
+    src/object/information/StepInfo.cpp
+    src/transformer/Type.cpp
+    src/transformer/Information.cpp
+    src/object/information/python.cpp
     src/object/DataPoint.cpp
     src/object/DataPointPy.cpp
     src/object/Station.cpp
     src/object/StationPy.cpp
     src/remote/TransportSecurity.cpp
     src/remote/TransportSecurityPy.cpp
+    src/remote/Selection.cpp
     src/remote/Connection.cpp
     src/remote/ConnectionPy.cpp
     src/remote/message/IncomingMessage.cpp
     src/remote/message/IncomingMessagePy.cpp
     src/remote/message/OutgoingMessage.cpp
-    src/remote/message/PointCommand.cpp
-    src/remote/message/PointMessage.cpp
     src/remote/message/Batch.cpp
     src/remote/message/BatchPy.cpp
+    src/tasks/Executor.cpp
     src/Client.cpp
     src/ClientPy.cpp
     src/Server.cpp

@@ -29,13 +29,10 @@
  *
  */
 
-#include "Client.h"
-#include "Server.h"
-#include "remote/Helper.h"
-
 #include <pybind11/chrono.h>
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
+#include <sstream>
 
 #ifdef VERSION_INFO
 #define PY_MODULE(var) PYBIND11_MODULE(_c104, var, py::mod_gil_not_used())
@@ -44,6 +41,12 @@
 #include <pybind11/embed.h>
 #define PY_MODULE(var) PYBIND11_EMBEDDED_MODULE(c104, var)
 #endif
+
+#include "Client.h"
+#include "Server.h"
+#include "numbers.h"
+#include "remote/Helper.h"
+#include "types.h"
 
 using namespace pybind11::literals;
 
@@ -224,6 +227,15 @@ PY_MODULE(m) {
   options.disable_function_signatures();
   options.disable_enum_members_docstring();
 
+  py::enum_<InformationCategory>(
+      m, "InfoCategory",
+      "This enum contains categories of information object classes.")
+      .value("MONITORING_STATUS", MONITORING_STATUS)
+      .value("MONITORING_COUNTER", MONITORING_COUNTER)
+      .value("MONITORING_PROTECTION", MONITORING_EVENT)
+      .value("COMMAND", COMMAND)
+      .value("PARAMETER", PARAMETER);
+
   py::enum_<IEC60870_5_TypeID>(m, "Type",
                                "This enum contains all valid IEC60870 message "
                                "types to interpret or create points.")
@@ -384,8 +396,7 @@ PY_MODULE(m) {
       .value("UNKNOWN_IOA", UNKNOWN_IOA)
       .value("INVALID_COT", INVALID_COT)
       .value("INVALID_TYPE_ID", INVALID_TYPE_ID)
-      .value("MISMATCHED_TYPE_ID", MISMATCHED_TYPE_ID)
-      .value("UNIMPLEMENTED_GROUP", UNIMPLEMENTED_GROUP);
+      .value("UNIMPLEMENTED_GROUP", CUSTOM_UNIMPLEMENTED_GROUP);
 
   py::enum_<ConnectionInit>(
       m, "Init",
@@ -995,27 +1006,14 @@ PY_MODULE(m) {
   py::class_<Byte32>(m, "Byte32",
                      "This object is compatible to native bytes and ensures "
                      "that the length of the bytes is exactly 32 bit.")
-      .def(py::init([](const int &number) {
-        uint32_t value = 0;
-        if (number < 0) {
-          throw std::overflow_error("can't convert negative int to bytes. The "
-                                    "accepted range is from 0 to 4294967295.");
-        }
-        if (number > 4294967295) {
-          throw std::overflow_error("can't convert long int to bytes. The "
-                                    "accepted range is from 0 to 4294967295.");
-        }
-
-        return Byte32(static_cast<uint32_t>(value));
-      }))
-      .def(py::init<uint32_t>(),
-           R"def(__init__(self, value: typing.Union[bytes, int]) -> None
+      .def(py::init<const std::variant<py::bytes, int32_t>>(),
+           R"def(__init__(self, value: bytes|int) -> None
 
 create a new fixed-length bytes representation
 
 Parameters
 ----------
-value: typing.Union[bytes, int]
+value: bytes|int
     native byte data
 
 Raises
@@ -1027,21 +1025,6 @@ Example
 -------
 >>> fixed_byte32 = c104.Byte32(0b10101010111)
 )def")
-      .def(py::init([](const py::bytes &byte_obj) {
-        py::buffer_info info(py::buffer(byte_obj).request());
-
-        if (info.size > sizeof(uint32_t)) {
-          throw std::overflow_error(
-              "Invalid size of bytes object. Expected 4 bytes, got " +
-              std::to_string(info.size) + ".");
-        }
-        uint32_t value = 0;
-
-        // Copy only the available bytes
-        std::memcpy(&value, info.ptr, info.size);
-
-        return Byte32(value);
-      }))
       .def(
           "__bytes__",
           [](const Byte32 &b) {

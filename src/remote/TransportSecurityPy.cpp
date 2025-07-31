@@ -30,11 +30,13 @@
  */
 
 #include <pybind11/chrono.h>
-#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "enums.h"
 #include "remote/TransportSecurity.h"
+
+namespace py = pybind11;
 using namespace pybind11::literals;
 
 void init_remote_security(py::module_ &m) {

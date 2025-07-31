@@ -32,66 +32,8 @@
 #include <numeric>
 #include <vector>
 
+#include "bitflag.h"
 #include "enums.h"
-
-std::string Debug_toString(const Debug &mode) {
-  if (is_none(mode)) {
-    return "Debug set: {}, is_none: True";
-  }
-  std::vector<std::string> sv{};
-  if (test(mode, Debug::Server))
-    sv.emplace_back("Server");
-  if (test(mode, Debug::Client))
-    sv.emplace_back("Client");
-  if (test(mode, Debug::Connection))
-    sv.emplace_back("Connection");
-  if (test(mode, Debug::Station))
-    sv.emplace_back("Station");
-  if (test(mode, Debug::Point))
-    sv.emplace_back("Point");
-  if (test(mode, Debug::Message))
-    sv.emplace_back("Message");
-  if (test(mode, Debug::Callback))
-    sv.emplace_back("Callback");
-  if (test(mode, Debug::Gil))
-    sv.emplace_back("Gil");
-  if (sv.empty())
-    return "Debug set: { UNSUPPORTED_BITS_DETECTED }, is_none: False";
-  return "Debug set: { " +
-         std::accumulate(std::next(sv.begin()), sv.end(), sv[0],
-                         [](const std::string &a, const std::string &b) {
-                           return a + " | " + b;
-                         }) +
-         " }, is_none: False";
-}
-
-std::string Debug_toFlagString(const Debug &mode) {
-  if (is_none(mode)) {
-    return "None";
-  }
-  std::vector<std::string> sv{};
-  if (test(mode, Debug::Server))
-    sv.emplace_back("Server");
-  if (test(mode, Debug::Client))
-    sv.emplace_back("Client");
-  if (test(mode, Debug::Connection))
-    sv.emplace_back("Connection");
-  if (test(mode, Debug::Station))
-    sv.emplace_back("Station");
-  if (test(mode, Debug::Point))
-    sv.emplace_back("Point");
-  if (test(mode, Debug::Message))
-    sv.emplace_back("Message");
-  if (test(mode, Debug::Callback))
-    sv.emplace_back("Callback");
-  if (test(mode, Debug::Gil))
-    sv.emplace_back("Gil");
-  if (sv.empty())
-    return "UNSUPPORTED_BITS_DETECTED";
-  return std::accumulate(
-      std::next(sv.begin()), sv.end(), sv[0],
-      [](const std::string &a, const std::string &b) { return a + " | " + b; });
-}
 
 std::string Quality_toString(const Quality &quality) {
   if (is_none(quality)) {
@@ -265,6 +207,23 @@ std::string FieldSet16_toString(const FieldSet16 &infos) {
          " }";
 }
 
+std::string InformationCategory_toString(const InformationCategory &cls) {
+  switch (cls) {
+  case MONITORING_STATUS:
+    return "MONITORING_STATUS";
+  case MONITORING_COUNTER:
+    return "MONITORING_COUNTER";
+  case MONITORING_EVENT:
+    return "MONITORING_EVENT";
+  case COMMAND:
+    return "COMMAND";
+  case PARAMETER:
+    return "PARAMETER";
+  default:
+    return "UNKNOWN";
+  }
+}
+
 std::string
 QualifierOfCommand_toString(const CS101_QualifierOfCommand &qualifier) {
   switch (qualifier) {
@@ -407,9 +366,7 @@ UnexpectedMessageCause_toString(const UnexpectedMessageCause &cause) {
     return "INVALID_COT";
   case INVALID_TYPE_ID:
     return "INVALID_TYPE_ID";
-  case MISMATCHED_TYPE_ID:
-    return "MISMATCHED_TYPE_ID";
-  case UNIMPLEMENTED_GROUP:
+  case CUSTOM_UNIMPLEMENTED_GROUP:
     return "UNIMPLEMENTED_GROUP";
   default:
     return "UNKNOWN";

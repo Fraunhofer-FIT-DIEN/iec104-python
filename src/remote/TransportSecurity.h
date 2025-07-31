@@ -33,7 +33,13 @@
 #define C104_REMOTE_TRANSPORTSECURITY_H
 
 #include "tls_config.h"
-#include "types.h"
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <optional>
+#include <vector>
+
+enum class TLSCipherSuite;
 
 namespace Remote {
 /**
@@ -64,11 +70,7 @@ public:
    * @return A shared pointer to the newly created TransportSecurity instance.
    */
   [[nodiscard]] static std::shared_ptr<TransportSecurity>
-  create(bool validate = true, bool only_known = true) {
-    // Not using std::make_shared because the constructor is private.
-    return std::shared_ptr<TransportSecurity>(
-        new TransportSecurity(validate, only_known));
-  }
+  create(bool validate = true, bool only_known = true);
 
   /**
    * @brief Destructor for the TransportSecurity class.
@@ -200,12 +202,7 @@ public:
    * @return A string describing the TransportSecurity object, including its
    * memory address.
    */
-  std::string toString() const {
-    std::ostringstream oss;
-    oss << "<104.TransportSecurity at " << std::hex << std::showbase
-        << reinterpret_cast<std::uintptr_t>(this) << ">";
-    return oss.str();
-  };
+  std::string toString() const;
 };
 } // namespace Remote
 

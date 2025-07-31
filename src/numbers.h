@@ -32,7 +32,11 @@
 #ifndef C104_NUMBERS_H
 #define C104_NUMBERS_H
 
+#include "variadic.h"
+#include <pybind11/pybind11.h>
 #include <stdexcept>
+
+namespace py = pybind11;
 
 /**
  * @brief integer representation with special restrictions in terms of size or
@@ -453,6 +457,37 @@ public:
    * this floating point class
    */
   explicit Byte32(const uint32_t v) : value(v) {}
+
+  /**
+   * @brief Constructs a Byte32 object and initializes its value.
+   * @param v The byte value to be set.
+   * @throws std::out_of_range If v is not compatible with the limitations of
+   * this floating point class
+   */
+  explicit Byte32(const std::variant<py::bytes, int32_t> v) {
+    const auto visitor = overloaded{
+        [this](py::bytes v) {
+          py::buffer_info info(py::buffer(v).request());
+
+          if (info.size > sizeof(uint32_t)) {
+            throw std::overflow_error(
+                "Invalid size of bytes object. Expected 4 bytes, got " +
+                std::to_string(info.size) + ".");
+          }
+
+          // Copy only the available bytes
+          std::memcpy(&value, info.ptr, info.size);
+        },
+        [this](int32_t v) {
+          if (v < 0) {
+            throw std::overflow_error(
+                "can't convert negative int to bytes. The "
+                "accepted range is from 0 to 4294967295.");
+          }
+          value = v;
+        }};
+    std::visit(visitor, v);
+  }
 
   /**
    * @brief getter for value

@@ -32,9 +32,21 @@
 #include "object/Station.h"
 #include "Client.h"
 #include "Server.h"
+#include "object/DataPoint.h"
+#include "object/Information/IInformation.h"
 #include "remote/Connection.h"
+#include <sstream>
 
 using namespace Object;
+
+std::shared_ptr<Station>
+Station::create(const std::uint_fast16_t st_commonAddress,
+                const std::shared_ptr<Server> &st_server,
+                const std::shared_ptr<Remote::Connection> &st_connection) {
+  // Not using std::make_shared because the constructor is private.
+  return std::shared_ptr<Station>(
+      new Station(st_commonAddress, st_server, st_connection));
+}
 
 Station::Station(const std::uint_fast16_t st_commonAddress,
                  const std::shared_ptr<Server> &st_server,
@@ -74,7 +86,7 @@ bool Station::hasPoints() const {
   return !points.empty();
 }
 
-DataPointVector Station::getPoints() const {
+std::vector<std::shared_ptr<DataPoint>> Station::getPoints() const {
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
 
   return points;
@@ -97,7 +109,8 @@ Station::getPoint(const std::uint_fast32_t informationObjectAddress) {
 
 std::shared_ptr<DataPoint> Station::addPoint(
     const std::uint_fast32_t informationObjectAddress,
-    const IEC60870_5_TypeID type, const std::uint_fast16_t reportInterval_ms,
+    std::shared_ptr<Information::IInformation> info,
+    const std::uint_fast16_t reportInterval_ms,
     const std::optional<std::uint_fast32_t> relatedInformationObjectAddress,
     const bool relatedInformationObjectAutoReturn,
     const CommandTransmissionMode commandMode) {
@@ -105,9 +118,8 @@ std::shared_ptr<DataPoint> Station::addPoint(
     return {nullptr};
   }
 
-  DEBUG_PRINT(Debug::Station,
-              "add_point] " + std::string(TypeID_toString(type)) + " | IOA " +
-                  std::to_string(informationObjectAddress));
+  DEBUG_PRINT(Debug::Station, "add_point] " + info->name() + " | IOA " +
+                                  std::to_string(informationObjectAddress));
 
   // forward tickRate_ms
   uint_fast16_t tickRate_ms = 0;
@@ -121,9 +133,9 @@ std::shared_ptr<DataPoint> Station::addPoint(
 
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
   auto point = DataPoint::create(
-      informationObjectAddress, type, shared_from_this(), reportInterval_ms,
-      relatedInformationObjectAddress, relatedInformationObjectAutoReturn,
-      commandMode, tickRate_ms);
+      informationObjectAddress, std::move(info), shared_from_this(),
+      reportInterval_ms, relatedInformationObjectAddress,
+      relatedInformationObjectAutoReturn, commandMode, tickRate_ms);
 
   points.push_back(point);
   return point;
@@ -181,7 +193,7 @@ void Station::setAutoTimeSubstituted(const bool enabled) {
   autoTimeSubstituted.store(enabled);
 }
 
-DataPointVector Station::getGroup(size_t index) const {
+std::vector<std::shared_ptr<DataPoint>> Station::getGroup(size_t index) const {
   if (index < 0 || index > NUM_GROUPS) {
     throw std::out_of_range("Station.get_group] Invalid group ID " +
                             std::to_string(index) + " (must be 0.." +
@@ -193,7 +205,7 @@ DataPointVector Station::getGroup(size_t index) const {
 
   std::scoped_lock<Module::GilAwareMutex> const lock(groups_mutex);
 
-  Object::DataPointVector result;
+  std::vector<std::shared_ptr<DataPoint>> result;
   for (const auto &weak_point : groups[index - 1]) {
     if (auto point = weak_point.lock()) {
       result.push_back(point);
@@ -258,4 +270,21 @@ void Station::sendEndOfInitialization(
 void Station::detach() {
   server.reset();
   connection.reset();
+}
+
+std::string Station::toString() const {
+  size_t len = 0;
+  {
+    std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
+    len = points.size();
+  }
+  std::ostringstream oss;
+  oss << "<104.Station common_address=" << std::to_string(commonAddress)
+      << ", #points=" << std::to_string(len)
+      << ", daylight_saving_time=" << bool_toString(daylightSavingTime)
+      << ", timezone_offset=" << std::to_string(timeZoneOffset.load().count())
+      << "min"
+      << " at " << std::hex << std::showbase
+      << reinterpret_cast<std::uintptr_t>(this) << ">";
+  return oss.str();
 }
