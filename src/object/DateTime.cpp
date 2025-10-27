@@ -32,8 +32,7 @@
 #include "DateTime.h"
 #include "types.h"
 
-DateTime::DateTime(const std::chrono::system_clock::time_point t =
-                       std::chrono::system_clock::now())
+DateTime::DateTime(const std::chrono::system_clock::time_point t)
     : time(t), substituted(false), invalid(false), summertime(false) {}
 
 DateTime::DateTime(CP56Time2a t) {

@@ -37,7 +37,7 @@
 
 class DateTime {
 public:
-  explicit DateTime(std::chrono::system_clock::time_point t);
+  explicit DateTime(std::chrono::system_clock::time_point t = std::chrono::system_clock::now());
 
   explicit DateTime(CP56Time2a t);
 
