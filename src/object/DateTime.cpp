@@ -32,10 +32,15 @@
 #include "DateTime.h"
 #include "types.h"
 
+#if defined(__APPLE__)
+DateTime::DateTime(const std::chrono::system_clock::time_point t)
+    : time(t), substituted(false), invalid(false), summertime(false) {}
+#else
+
 DateTime::DateTime(const std::chrono::system_clock::time_point t =
                        std::chrono::system_clock::now())
-    : time(t), substituted(false), invalid(false), summertime(false) {}
-
+                           : time(t), substituted(false), invalid(false), summertime(false) {}
+#endif
 DateTime::DateTime(CP56Time2a t) {
   time = to_time_point(t);
   invalid = CP56Time2a_isInvalid(t);
