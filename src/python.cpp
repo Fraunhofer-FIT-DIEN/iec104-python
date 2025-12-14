@@ -294,7 +294,15 @@ PY_MODULE(m) {
       .value("C_TS_NA_1", IEC60870_5_TypeID::C_TS_NA_1)
       .value("C_RP_NA_1", IEC60870_5_TypeID::C_RP_NA_1)
       .value("C_CD_NA_1", IEC60870_5_TypeID::C_CD_NA_1)
-      .value("C_TS_TA_1", IEC60870_5_TypeID::C_TS_TA_1);
+      .value("C_TS_TA_1", IEC60870_5_TypeID::C_TS_TA_1)
+      .value("F_FR_NA_1", IEC60870_5_TypeID::F_FR_NA_1)
+      .value("F_SR_NA_1", IEC60870_5_TypeID::F_SR_NA_1)
+      .value("F_SC_NA_1", IEC60870_5_TypeID::F_SC_NA_1)
+      .value("F_LS_NA_1", IEC60870_5_TypeID::F_LS_NA_1)
+      .value("F_AF_NA_1", IEC60870_5_TypeID::F_AF_NA_1)
+      .value("F_SG_NA_1", IEC60870_5_TypeID::F_SG_NA_1)
+      .value("F_DR_TA_1", IEC60870_5_TypeID::F_DR_TA_1)
+      .value("F_SC_NB_1", IEC60870_5_TypeID::F_SC_NB_1);
 
   py::enum_<CS101_CauseOfTransmission>(
       m, "Cot",
