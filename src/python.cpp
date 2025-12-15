@@ -2394,6 +2394,35 @@ Example
           "common_address"_a, "with_time"_a = true,
           "wait_for_response"_a = true, py::return_value_policy::copy)
       .def(
+          "file_select", &Remote::Connection::fileSelect,
+          R"def(file_select(self: c104.Connection, common_address: int, ioa: int, wait_for_response: bool = True) -> bool
+
+select a file on the remote terminal unit (server) for transfer
+sends F_SC_NA_1 (Type 122) with SCQ=1 (SELECT_FILE)
+server responds with F_FR_NA_1 (Type 120 - FILE_READY)
+
+Parameters
+----------
+common_address: int
+    station common address
+ioa: int
+    information object address of the file
+wait_for_response: bool
+    block call until response received?
+
+Returns
+-------
+bool
+    True, if file selection successful
+
+Example
+-------
+>>> if my_connection.file_select(common_address=1, ioa=30000):
+>>>     print("File selected successfully")
+)def",
+          "common_address"_a, "ioa"_a, "wait_for_response"_a = true,
+          py::return_value_policy::copy)
+      .def(
           "add_station", &Remote::Connection::addStation,
           R"def(add_station(self: c104.Connection, common_address: int) -> c104.Station | None
 

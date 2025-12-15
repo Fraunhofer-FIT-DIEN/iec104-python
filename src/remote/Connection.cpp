@@ -932,6 +932,51 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
   return result;
 }
 
+bool Connection::fileSelect(std::uint_fast16_t commonAddress,
+                            std::uint_fast32_t ioa,
+                            const bool wait_for_response) {
+  Module::ScopedGilRelease const scoped("Connection.fileSelect");
+
+  if (!isOpen())
+    return false;
+
+  std::string const cmdId =
+      std::to_string(commonAddress) + "-F_SC_NA_1-" + std::to_string(ioa);
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM);
+  }
+
+  // Create ASDU for directory request (F_SC_NA_1, Type 122)
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Create FileCallOrSelect information object
+  // SCQ = 1 means "select file" (CS101_SCQ_SELECT_FILE)
+  FileCallOrSelect io =
+      FileCallOrSelect_create(NULL, static_cast<int>(ioa), CS101_NOF_TRANSPARENT_FILE, 0, 1);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  if (wait_for_response) {
+    if (result) {
+      return awaitCommandSuccess(cmdId);
+    }
+    cancelCommandSuccess(cmdId);
+  }
+  return result;
+}
+
 bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
                           const CS101_CauseOfTransmission cause) {
   auto type = point->getType();

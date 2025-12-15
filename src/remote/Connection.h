@@ -394,6 +394,17 @@ public:
             bool wait_for_response = true);
 
   /**
+   * @brief select a file on remote server for transfer
+   * @param commonAddress station address
+   * @param ioa information object address of the file
+   * @param wait_for_response blocking or non-blocking
+   * @return success information
+   */
+  bool fileSelect(std::uint_fast16_t commonAddress,
+                  std::uint_fast32_t ioa,
+                  bool wait_for_response = true);
+
+  /**
    * @brief transmit a command to a remote server
    * @param point control point
    * @param cause reason for transmission

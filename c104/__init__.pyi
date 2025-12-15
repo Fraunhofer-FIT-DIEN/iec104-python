@@ -933,6 +933,31 @@ class Connection:
         >>> if not my_connection.test(common_address=47):
         >>>     raise ValueError("Cannot send test command")
         """
+    def file_select(self, common_address: int, ioa: int, wait_for_response: bool = True) -> bool:
+        """
+        select a file on the remote terminal unit (server) for transfer
+        sends F_SC_NA_1 (Type 122) with SCQ=1 (SELECT_FILE)
+        server responds with F_FR_NA_1 (Type 120 - FILE_READY)
+
+        Parameters
+        ----------
+        common_address: int
+            station common address
+        ioa: int
+            information object address of the file
+        wait_for_response: bool
+            block call until response received?
+
+        Returns
+        -------
+        bool
+            True, if file selection successful
+
+        Example
+        -------
+        >>> if my_connection.file_select(common_address=1, ioa=30000):
+        >>>     print("File selected successfully")
+        """
     def unmute(self) -> bool:
         """
         tell the remote terminal unit (server) that this connection is not muted, allow monitoring messages
