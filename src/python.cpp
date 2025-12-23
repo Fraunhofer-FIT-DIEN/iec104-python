@@ -35,6 +35,7 @@
 #include "Client.h"
 #include "Server.h"
 #include "remote/message/Batch.h"
+#include "serial/SerialMaster.h"
 
 #include <pybind11/chrono.h>
 #include <pybind11/operators.h>
@@ -4033,6 +4034,250 @@ Example
   ;
 
   //*/
+
+  // ==================== IEC 101 SERIAL BINDINGS ====================
+
+  py::enum_<Serial::LinkLayerMode>(m, "LinkLayerMode",
+      "Link layer mode for IEC 60870-5-101 serial communication")
+      .value("BALANCED", Serial::LinkLayerMode::BALANCED,
+             "Balanced transmission (point-to-point)")
+      .value("UNBALANCED", Serial::LinkLayerMode::UNBALANCED,
+             "Unbalanced transmission (master-slave)");
+
+  py::enum_<Serial::Parity>(m, "Parity",
+      "Serial port parity setting")
+      .value("NONE", Serial::Parity::NONE, "No parity")
+      .value("EVEN", Serial::Parity::EVEN, "Even parity")
+      .value("ODD", Serial::Parity::ODD, "Odd parity");
+
+  py::class_<Serial::SerialMaster, std::shared_ptr<Serial::SerialMaster>>(
+      m, "SerialMaster",
+      R"def(SerialMaster(port: str, baud_rate: int = 9600, parity: c104.Parity = c104.Parity.EVEN, data_bits: int = 8, stop_bits: int = 1, link_mode: c104.LinkLayerMode = c104.LinkLayerMode.UNBALANCED) -> None
+
+IEC 60870-5-101 master for serial communication
+
+This class implements a master (client) for IEC 60870-5-101 serial communication.
+It can communicate with IEC 101 slaves (outstations) over a serial port.
+
+Parameters
+----------
+port: str
+    Serial port path (e.g. "/dev/ttyUSB0" or "COM1")
+baud_rate: int
+    Baud rate (e.g. 9600, 19200, 115200)
+parity: c104.Parity
+    Parity setting (NONE, EVEN, ODD)
+data_bits: int
+    Number of data bits (usually 8)
+stop_bits: int
+    Number of stop bits (usually 1)
+link_mode: c104.LinkLayerMode
+    Link layer mode (BALANCED or UNBALANCED)
+
+Example
+-------
+>>> master = c104.SerialMaster.create(port="/dev/ttyUSB0", baud_rate=9600)
+>>> master.add_slave(address=1)
+>>> master.start()
+>>> master.send_interrogation_command(common_address=1)
+)def")
+      .def(py::init(&Serial::SerialMaster::create),
+           "port"_a,
+           "baud_rate"_a = 9600,
+           "parity"_a = Serial::Parity::EVEN,
+           "data_bits"_a = 8,
+           "stop_bits"_a = 1,
+           "link_mode"_a = Serial::LinkLayerMode::UNBALANCED)
+      .def_property_readonly("port", &Serial::SerialMaster::getPort,
+                             "str: Serial port path (read-only)")
+      .def_property_readonly("baud_rate", &Serial::SerialMaster::getBaudRate,
+                             "int: Baud rate (read-only)")
+      .def_property_readonly("link_mode", &Serial::SerialMaster::getLinkMode,
+                             "c104.LinkLayerMode: Link layer mode (read-only)")
+      .def_property_readonly("is_running", &Serial::SerialMaster::isRunning,
+                             "bool: Check if master is running (read-only)")
+      .def("start", &Serial::SerialMaster::start,
+           R"def(start(self) -> None
+
+Start the master communication thread
+
+Example
+-------
+>>> master.start()
+)def")
+      .def("stop", &Serial::SerialMaster::stop,
+           R"def(stop(self) -> None
+
+Stop the master communication thread
+
+Example
+-------
+>>> master.stop()
+)def")
+      .def("add_slave", &Serial::SerialMaster::addSlave,
+           R"def(add_slave(self, address: int) -> None
+
+Add a slave to communicate with
+
+Parameters
+----------
+address: int
+    Link layer address of the slave
+
+Example
+-------
+>>> master.add_slave(address=1)
+)def",
+           "address"_a)
+      .def("poll_slave", &Serial::SerialMaster::pollSlave,
+           R"def(poll_slave(self, address: int) -> None
+
+Poll a slave for data (unbalanced mode only)
+
+Parameters
+----------
+address: int
+    Link layer address of the slave to poll
+
+Example
+-------
+>>> master.poll_slave(address=1)
+)def",
+           "address"_a)
+      .def("use_slave_address", &Serial::SerialMaster::useSlaveAddress,
+           R"def(use_slave_address(self, address: int) -> None
+
+Set the slave address for subsequent commands
+
+Parameters
+----------
+address: int
+    Link layer address
+
+Example
+-------
+>>> master.use_slave_address(address=1)
+)def",
+           "address"_a)
+      .def("send_interrogation_command", &Serial::SerialMaster::sendInterrogationCommand,
+           R"def(send_interrogation_command(self, common_address: int, qoi: int = 20) -> None
+
+Send general interrogation command
+
+Parameters
+----------
+common_address: int
+    Common address of ASDU
+qoi: int
+    Qualifier of interrogation (20 = station interrogation)
+
+Example
+-------
+>>> master.send_interrogation_command(common_address=1)
+)def",
+           "common_address"_a, "qoi"_a = 20)
+      .def("send_counter_interrogation_command", &Serial::SerialMaster::sendCounterInterrogationCommand,
+           R"def(send_counter_interrogation_command(self, common_address: int, qcc: int = 5) -> None
+
+Send counter interrogation command
+
+Parameters
+----------
+common_address: int
+    Common address of ASDU
+qcc: int
+    Qualifier of counter interrogation
+
+Example
+-------
+>>> master.send_counter_interrogation_command(common_address=1)
+)def",
+           "common_address"_a, "qcc"_a = 0x05)
+      .def("send_read_command", &Serial::SerialMaster::sendReadCommand,
+           R"def(send_read_command(self, common_address: int, ioa: int) -> None
+
+Send read command
+
+Parameters
+----------
+common_address: int
+    Common address of ASDU
+ioa: int
+    Information object address
+
+Example
+-------
+>>> master.send_read_command(common_address=1, ioa=100)
+)def",
+           "common_address"_a, "ioa"_a)
+      .def("send_clock_sync_command", &Serial::SerialMaster::sendClockSyncCommand,
+           R"def(send_clock_sync_command(self, common_address: int) -> None
+
+Send clock synchronization command
+
+Parameters
+----------
+common_address: int
+    Common address of ASDU
+
+Example
+-------
+>>> master.send_clock_sync_command(common_address=1)
+)def",
+           "common_address"_a)
+      .def("on_receive", &Serial::SerialMaster::setOnReceiveCallback,
+           R"def(on_receive(self, callable: Callable[[c104.SerialMaster, dict], None]) -> None
+
+Set callback for received ASDUs
+
+Parameters
+----------
+callable: Callable[[c104.SerialMaster, dict], None]
+    Callback function that receives the master and ASDU info dict
+    Dict keys: type_id, common_address, cot, num_elements, payload
+
+Example
+-------
+>>> def on_asdu(master, asdu):
+...     print(f"Received type {asdu['type_id']} from CA {asdu['common_address']}")
+>>> master.on_receive(callable=on_asdu)
+)def",
+           "callable"_a)
+      .def("on_link_state_change", &Serial::SerialMaster::setOnLinkStateChangeCallback,
+           R"def(on_link_state_change(self, callable: Callable[[c104.SerialMaster, int, str], None]) -> None
+
+Set callback for link layer state changes
+
+Parameters
+----------
+callable: Callable[[c104.SerialMaster, int, str], None]
+    Callback function that receives master, address, and state string
+
+Example
+-------
+>>> def on_state(master, address, state):
+...     print(f"Link {address}: {state}")
+>>> master.on_link_state_change(callable=on_state)
+)def",
+           "callable"_a)
+      .def("on_raw_message", &Serial::SerialMaster::setOnRawMessageCallback,
+           R"def(on_raw_message(self, callable: Callable[[c104.SerialMaster, bytes, bool], None]) -> None
+
+Set callback for raw messages (debug)
+
+Parameters
+----------
+callable: Callable[[c104.SerialMaster, bytes, bool], None]
+    Callback function that receives master, raw bytes, and is_sent flag
+
+Example
+-------
+>>> def on_raw(master, data, is_sent):
+...     print(f"{'TX' if is_sent else 'RX'}: {data.hex()}")
+>>> master.on_raw_message(callable=on_raw)
+)def",
+           "callable"_a)
+      .def("__repr__", &Serial::SerialMaster::toString);
 
   m.attr("__version__") = VERSION_INFO;
 }
