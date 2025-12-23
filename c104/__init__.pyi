@@ -958,6 +958,239 @@ class Connection:
         >>> if my_connection.file_select(common_address=1, ioa=30000):
         >>>     print("File selected successfully")
         """
+    def file_call(self, common_address: int, ioa: int, nof: int) -> bool:
+        """
+        request file transfer from the remote terminal unit (server)
+        sends F_SC_NA_1 (Type 122) with SCQ=2 (REQUEST_FILE)
+        server responds with F_SR_NA_1 (Type 121 - SECTION_READY)
+
+        Parameters
+        ----------
+        common_address: int
+            station common address
+        ioa: int
+            information object address of the file
+        nof: int
+            name of file (file type identifier)
+
+        Returns
+        -------
+        bool
+            True, if message was sent successfully
+
+        Example
+        -------
+        >>> if my_connection.file_call(common_address=1, ioa=30000, nof=1):
+        >>>     print("File call sent")
+        """
+    def section_call(self, common_address: int, ioa: int, nof: int, nos: int) -> bool:
+        """
+        request section transfer from the remote terminal unit (server)
+        sends F_SC_NA_1 (Type 122) with SCQ=6 (REQUEST_SECTION)
+        server responds with F_SG_NA_1 (Type 125 - FILE_SEGMENT) messages
+
+        Parameters
+        ----------
+        common_address: int
+            station common address
+        ioa: int
+            information object address of the file
+        nof: int
+            name of file (file type identifier)
+        nos: int
+            name of section (section number, 0-255)
+
+        Returns
+        -------
+        bool
+            True, if message was sent successfully
+
+        Example
+        -------
+        >>> if my_connection.section_call(common_address=1, ioa=30000, nof=1, nos=0):
+        >>>     print("Section call sent")
+        """
+    def file_ack(self, common_address: int, ioa: int, nof: int, nos: int, afq: int) -> bool:
+        """
+        send file/section acknowledgment to the remote terminal unit (server)
+        sends F_AF_NA_1 (Type 124)
+
+        Parameters
+        ----------
+        common_address: int
+            station common address
+        ioa: int
+            information object address of the file
+        nof: int
+            name of file (file type identifier)
+        nos: int
+            name of section (0 for file acknowledgment)
+        afq: int
+            acknowledge file qualifier (1=pos_file, 2=neg_file, 3=pos_section, 4=neg_section)
+
+        Returns
+        -------
+        bool
+            True, if message was sent successfully
+
+        Example
+        -------
+        >>> if my_connection.file_ack(common_address=1, ioa=30000, nof=1, nos=0, afq=1):
+        >>>     print("File acknowledged")
+        """
+    def delete_file(self, common_address: int, ioa: int) -> bool:
+        """
+        send a file delete command to the remote terminal unit (server)
+
+        WARNING: This is a DESTRUCTIVE operation! The file will be permanently deleted
+        on the remote device. Use with extreme caution.
+
+        This sends F_SC_NA_1 (Type 122) with SCQ=4 (DELETE_FILE) and COT=FILE_TRANSFER.
+        The server should respond with F_AF_NA_1 (Type 124) acknowledgment.
+
+        Parameters
+        ----------
+        common_address: int
+            station common address (1-65534)
+        ioa: int
+            information object address of the file to delete
+
+        Returns
+        -------
+        bool
+            True if the delete command was sent successfully (NOT confirmation of deletion)
+
+        Example
+        -------
+        >>> # WARNING: This will delete the file!
+        >>> if my_connection.delete_file(common_address=1, ioa=10001):
+        >>>     print("Delete command sent")
+        >>> else:
+        >>>     print("Failed to send delete command")
+        """
+    def download_file(self, common_address: int, ioa: int, timeout_ms: int = 30000) -> bytes:
+        """
+        download a file from the remote terminal unit (server)
+        this is a blocking high-level API that handles the complete file transfer protocol:
+        1. SELECT file (F_SC_NA_1 SCQ=1) -> wait for FILE_READY (F_FR_NA_1)
+        2. CALL file (F_SC_NA_1 SCQ=2) -> wait for SECTION_READY (F_SR_NA_1)
+        3. For each section:
+           - CALL section (F_SC_NA_1 SCQ=6)
+           - Receive segments (F_SG_NA_1)
+           - Receive last segment (F_LS_NA_1) with checksum
+           - Send section ACK (F_AF_NA_1)
+        4. Send file ACK (F_AF_NA_1)
+
+        Parameters
+        ----------
+        common_address: int
+            station common address
+        ioa: int
+            information object address of the file
+        timeout_ms: int
+            maximum time to wait for complete transfer in milliseconds (default: 30000)
+
+        Returns
+        -------
+        bytes
+            file data as bytes, empty bytes on failure
+
+        Example
+        -------
+        >>> data = my_connection.download_file(common_address=1, ioa=30000, timeout_ms=30000)
+        >>> if data:
+        >>>     print(f"Downloaded {len(data)} bytes")
+        >>>     with open("downloaded_file.bin", "wb") as f:
+        >>>         f.write(data)
+        >>> else:
+        >>>     print("Download failed")
+        """
+    def browse_directory(self, common_address: int, ioa: int = 0, timeout_ms: int = 30000) -> list[dict]:
+        """
+        browse the remote terminal unit's file directory
+
+        this is a blocking high-level API that sends F_SC_NA_1 with COT=REQUEST
+        and waits for F_DR_TA_1 directory entries until the last entry (LFD=1) is received.
+
+        Parameters
+        ----------
+        common_address: int
+            station common address (1-65534)
+        ioa: int
+            information object address (typically 0 for root directory, default: 0)
+        timeout_ms: int
+            maximum time to wait for complete directory in milliseconds (default: 30000)
+
+        Returns
+        -------
+        list[dict]
+            list of directory entries, each dict contains:
+            - ioa (int): Information Object Address (file identifier)
+            - nof (int): Name Of File (file type: 1=transparent, 2=disturbance)
+            - length (int): File size in bytes
+            - sof (int): Status Of File byte (raw)
+            - last_file (bool): LFD flag - last file of directory
+            - is_directory (bool): FOR flag - True if directory, False if file
+            - file_active (bool): FA flag - True if file is being transferred
+            - creation_time (int): File creation timestamp in milliseconds since epoch
+            empty list on failure
+
+        Example
+        -------
+        >>> entries = my_connection.browse_directory(common_address=1, ioa=0, timeout_ms=30000)
+        >>> for entry in entries:
+        >>>     print(f"IOA: {entry['ioa']}, Size: {entry['length']}, Type: {entry['nof']}")
+        >>> if not entries:
+        >>>     print("Directory browsing failed or no files found")
+        """
+    def upload_file(self, common_address: int, ioa: int, nof: int, data: bytes, timeout_ms: int = 30000) -> bool:
+        """
+        upload a file to the remote terminal unit (server)
+
+        WARNING: This is a WRITE operation that modifies the remote device!
+        Only use this in authorized testing environments.
+
+        This is a blocking high-level API that handles the complete file upload protocol:
+        1. Send FILE_READY (F_FR_NA_1) with file length
+        2. Send SECTION_READY (F_SR_NA_1) with section length
+        3. Send file segments (F_SG_NA_1) in chunks of max 240 bytes
+        4. Send LAST_SEGMENT (F_LS_NA_1) with checksum
+        5. Wait for file ACK (F_AF_NA_1) from server
+
+        Parameters
+        ----------
+        common_address: int
+            station common address (1-65534)
+        ioa: int
+            information object address for the file (file identifier)
+        nof: int
+            name of file type (1=transparent file, 2=disturbance recording)
+        data: bytes
+            file content to upload
+        timeout_ms: int
+            maximum time to wait for acknowledgment in milliseconds (default: 30000)
+
+        Returns
+        -------
+        bool
+            True if upload completed successfully, False on error or timeout
+
+        Example
+        -------
+        >>> with open("config.bin", "rb") as f:
+        >>>     data = f.read()
+        >>> success = my_connection.upload_file(
+        >>>     common_address=1,
+        >>>     ioa=30000,
+        >>>     nof=1,  # transparent file
+        >>>     data=data,
+        >>>     timeout_ms=60000
+        >>> )
+        >>> if success:
+        >>>     print(f"Uploaded {len(data)} bytes successfully")
+        >>> else:
+        >>>     print("Upload failed")
+        """
     def unmute(self) -> bool:
         """
         tell the remote terminal unit (server) that this connection is not muted, allow monitoring messages

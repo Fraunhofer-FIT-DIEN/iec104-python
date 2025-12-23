@@ -302,7 +302,136 @@ PY_MODULE(m) {
       .value("F_AF_NA_1", IEC60870_5_TypeID::F_AF_NA_1)
       .value("F_SG_NA_1", IEC60870_5_TypeID::F_SG_NA_1)
       .value("F_DR_TA_1", IEC60870_5_TypeID::F_DR_TA_1)
-      .value("F_SC_NB_1", IEC60870_5_TypeID::F_SC_NB_1);
+      .value("F_SC_NB_1", IEC60870_5_TypeID::F_SC_NB_1)
+      // Vendor-specific types (128-255)
+      .value("VENDOR_128", static_cast<IEC60870_5_TypeID>(128))
+      .value("VENDOR_129", static_cast<IEC60870_5_TypeID>(129))
+      .value("VENDOR_130", static_cast<IEC60870_5_TypeID>(130))
+      .value("VENDOR_131", static_cast<IEC60870_5_TypeID>(131))
+      .value("VENDOR_132", static_cast<IEC60870_5_TypeID>(132))
+      .value("VENDOR_133", static_cast<IEC60870_5_TypeID>(133))
+      .value("VENDOR_134", static_cast<IEC60870_5_TypeID>(134))
+      .value("VENDOR_135", static_cast<IEC60870_5_TypeID>(135))
+      .value("VENDOR_136", static_cast<IEC60870_5_TypeID>(136))
+      .value("VENDOR_137", static_cast<IEC60870_5_TypeID>(137))
+      .value("VENDOR_138", static_cast<IEC60870_5_TypeID>(138))
+      .value("VENDOR_139", static_cast<IEC60870_5_TypeID>(139))
+      .value("VENDOR_140", static_cast<IEC60870_5_TypeID>(140))
+      .value("VENDOR_141", static_cast<IEC60870_5_TypeID>(141))
+      .value("VENDOR_142", static_cast<IEC60870_5_TypeID>(142))
+      .value("VENDOR_143", static_cast<IEC60870_5_TypeID>(143))
+      .value("VENDOR_144", static_cast<IEC60870_5_TypeID>(144))
+      .value("VENDOR_145", static_cast<IEC60870_5_TypeID>(145))
+      .value("VENDOR_146", static_cast<IEC60870_5_TypeID>(146))
+      .value("VENDOR_147", static_cast<IEC60870_5_TypeID>(147))
+      .value("VENDOR_148", static_cast<IEC60870_5_TypeID>(148))
+      .value("VENDOR_149", static_cast<IEC60870_5_TypeID>(149))
+      .value("VENDOR_150", static_cast<IEC60870_5_TypeID>(150))
+      .value("VENDOR_151", static_cast<IEC60870_5_TypeID>(151))
+      .value("VENDOR_152", static_cast<IEC60870_5_TypeID>(152))
+      .value("VENDOR_153", static_cast<IEC60870_5_TypeID>(153))
+      .value("VENDOR_154", static_cast<IEC60870_5_TypeID>(154))
+      .value("VENDOR_155", static_cast<IEC60870_5_TypeID>(155))
+      .value("VENDOR_156", static_cast<IEC60870_5_TypeID>(156))
+      .value("VENDOR_157", static_cast<IEC60870_5_TypeID>(157))
+      .value("VENDOR_158", static_cast<IEC60870_5_TypeID>(158))
+      .value("VENDOR_159", static_cast<IEC60870_5_TypeID>(159))
+      .value("VENDOR_160", static_cast<IEC60870_5_TypeID>(160))
+      .value("VENDOR_161", static_cast<IEC60870_5_TypeID>(161))
+      .value("VENDOR_162", static_cast<IEC60870_5_TypeID>(162))
+      .value("VENDOR_163", static_cast<IEC60870_5_TypeID>(163))
+      .value("VENDOR_164", static_cast<IEC60870_5_TypeID>(164))
+      .value("VENDOR_165", static_cast<IEC60870_5_TypeID>(165))
+      .value("VENDOR_166", static_cast<IEC60870_5_TypeID>(166))
+      .value("VENDOR_167", static_cast<IEC60870_5_TypeID>(167))
+      .value("VENDOR_168", static_cast<IEC60870_5_TypeID>(168))
+      .value("VENDOR_169", static_cast<IEC60870_5_TypeID>(169))
+      .value("VENDOR_170", static_cast<IEC60870_5_TypeID>(170))
+      .value("VENDOR_171", static_cast<IEC60870_5_TypeID>(171))
+      .value("VENDOR_172", static_cast<IEC60870_5_TypeID>(172))
+      .value("VENDOR_173", static_cast<IEC60870_5_TypeID>(173))
+      .value("VENDOR_174", static_cast<IEC60870_5_TypeID>(174))
+      .value("VENDOR_175", static_cast<IEC60870_5_TypeID>(175))
+      .value("VENDOR_176", static_cast<IEC60870_5_TypeID>(176))
+      .value("VENDOR_177", static_cast<IEC60870_5_TypeID>(177))
+      .value("VENDOR_178", static_cast<IEC60870_5_TypeID>(178))
+      .value("VENDOR_179", static_cast<IEC60870_5_TypeID>(179))
+      .value("VENDOR_180", static_cast<IEC60870_5_TypeID>(180))
+      .value("VENDOR_181", static_cast<IEC60870_5_TypeID>(181))
+      .value("VENDOR_182", static_cast<IEC60870_5_TypeID>(182))
+      .value("VENDOR_183", static_cast<IEC60870_5_TypeID>(183))
+      .value("VENDOR_184", static_cast<IEC60870_5_TypeID>(184))
+      .value("VENDOR_185", static_cast<IEC60870_5_TypeID>(185))
+      .value("VENDOR_186", static_cast<IEC60870_5_TypeID>(186))
+      .value("VENDOR_187", static_cast<IEC60870_5_TypeID>(187))
+      .value("VENDOR_188", static_cast<IEC60870_5_TypeID>(188))
+      .value("VENDOR_189", static_cast<IEC60870_5_TypeID>(189))
+      .value("VENDOR_190", static_cast<IEC60870_5_TypeID>(190))
+      .value("VENDOR_191", static_cast<IEC60870_5_TypeID>(191))
+      .value("VENDOR_192", static_cast<IEC60870_5_TypeID>(192))
+      .value("VENDOR_193", static_cast<IEC60870_5_TypeID>(193))
+      .value("VENDOR_194", static_cast<IEC60870_5_TypeID>(194))
+      .value("VENDOR_195", static_cast<IEC60870_5_TypeID>(195))
+      .value("VENDOR_196", static_cast<IEC60870_5_TypeID>(196))
+      .value("VENDOR_197", static_cast<IEC60870_5_TypeID>(197))
+      .value("VENDOR_198", static_cast<IEC60870_5_TypeID>(198))
+      .value("VENDOR_199", static_cast<IEC60870_5_TypeID>(199))
+      .value("VENDOR_200", static_cast<IEC60870_5_TypeID>(200))
+      .value("VENDOR_201", static_cast<IEC60870_5_TypeID>(201))
+      .value("VENDOR_202", static_cast<IEC60870_5_TypeID>(202))
+      .value("VENDOR_203", static_cast<IEC60870_5_TypeID>(203))
+      .value("VENDOR_204", static_cast<IEC60870_5_TypeID>(204))
+      .value("VENDOR_205", static_cast<IEC60870_5_TypeID>(205))
+      .value("VENDOR_206", static_cast<IEC60870_5_TypeID>(206))
+      .value("VENDOR_207", static_cast<IEC60870_5_TypeID>(207))
+      .value("VENDOR_208", static_cast<IEC60870_5_TypeID>(208))
+      .value("VENDOR_209", static_cast<IEC60870_5_TypeID>(209))
+      .value("VENDOR_210", static_cast<IEC60870_5_TypeID>(210))
+      .value("VENDOR_211", static_cast<IEC60870_5_TypeID>(211))
+      .value("VENDOR_212", static_cast<IEC60870_5_TypeID>(212))
+      .value("VENDOR_213", static_cast<IEC60870_5_TypeID>(213))
+      .value("VENDOR_214", static_cast<IEC60870_5_TypeID>(214))
+      .value("VENDOR_215", static_cast<IEC60870_5_TypeID>(215))
+      .value("VENDOR_216", static_cast<IEC60870_5_TypeID>(216))
+      .value("VENDOR_217", static_cast<IEC60870_5_TypeID>(217))
+      .value("VENDOR_218", static_cast<IEC60870_5_TypeID>(218))
+      .value("VENDOR_219", static_cast<IEC60870_5_TypeID>(219))
+      .value("VENDOR_220", static_cast<IEC60870_5_TypeID>(220))
+      .value("VENDOR_221", static_cast<IEC60870_5_TypeID>(221))
+      .value("VENDOR_222", static_cast<IEC60870_5_TypeID>(222))
+      .value("VENDOR_223", static_cast<IEC60870_5_TypeID>(223))
+      .value("VENDOR_224", static_cast<IEC60870_5_TypeID>(224))
+      .value("VENDOR_225", static_cast<IEC60870_5_TypeID>(225))
+      .value("VENDOR_226", static_cast<IEC60870_5_TypeID>(226))
+      .value("VENDOR_227", static_cast<IEC60870_5_TypeID>(227))
+      .value("VENDOR_228", static_cast<IEC60870_5_TypeID>(228))
+      .value("VENDOR_229", static_cast<IEC60870_5_TypeID>(229))
+      .value("VENDOR_230", static_cast<IEC60870_5_TypeID>(230))
+      .value("VENDOR_231", static_cast<IEC60870_5_TypeID>(231))
+      .value("VENDOR_232", static_cast<IEC60870_5_TypeID>(232))
+      .value("VENDOR_233", static_cast<IEC60870_5_TypeID>(233))
+      .value("VENDOR_234", static_cast<IEC60870_5_TypeID>(234))
+      .value("VENDOR_235", static_cast<IEC60870_5_TypeID>(235))
+      .value("VENDOR_236", static_cast<IEC60870_5_TypeID>(236))
+      .value("VENDOR_237", static_cast<IEC60870_5_TypeID>(237))
+      .value("VENDOR_238", static_cast<IEC60870_5_TypeID>(238))
+      .value("VENDOR_239", static_cast<IEC60870_5_TypeID>(239))
+      .value("VENDOR_240", static_cast<IEC60870_5_TypeID>(240))
+      .value("VENDOR_241", static_cast<IEC60870_5_TypeID>(241))
+      .value("VENDOR_242", static_cast<IEC60870_5_TypeID>(242))
+      .value("VENDOR_243", static_cast<IEC60870_5_TypeID>(243))
+      .value("VENDOR_244", static_cast<IEC60870_5_TypeID>(244))
+      .value("VENDOR_245", static_cast<IEC60870_5_TypeID>(245))
+      .value("VENDOR_246", static_cast<IEC60870_5_TypeID>(246))
+      .value("VENDOR_247", static_cast<IEC60870_5_TypeID>(247))
+      .value("VENDOR_248", static_cast<IEC60870_5_TypeID>(248))
+      .value("VENDOR_249", static_cast<IEC60870_5_TypeID>(249))
+      .value("VENDOR_250", static_cast<IEC60870_5_TypeID>(250))
+      .value("VENDOR_251", static_cast<IEC60870_5_TypeID>(251))
+      .value("VENDOR_252", static_cast<IEC60870_5_TypeID>(252))
+      .value("VENDOR_253", static_cast<IEC60870_5_TypeID>(253))
+      .value("VENDOR_254", static_cast<IEC60870_5_TypeID>(254))
+      .value("VENDOR_255", static_cast<IEC60870_5_TypeID>(255));
 
   py::enum_<CS101_CauseOfTransmission>(
       m, "Cot",
@@ -2422,6 +2551,336 @@ Example
 )def",
           "common_address"_a, "ioa"_a, "wait_for_response"_a = true,
           py::return_value_policy::copy)
+      .def(
+          "file_call", &Remote::Connection::fileCall,
+          R"def(file_call(self: c104.Connection, common_address: int, ioa: int, nof: int) -> bool
+
+request file transfer from the remote terminal unit (server)
+sends F_SC_NA_1 (Type 122) with SCQ=2 (REQUEST_FILE)
+server responds with F_SR_NA_1 (Type 121 - SECTION_READY)
+
+Parameters
+----------
+common_address: int
+    station common address
+ioa: int
+    information object address of the file
+nof: int
+    name of file (file type identifier)
+
+Returns
+-------
+bool
+    True, if message was sent successfully
+
+Example
+-------
+>>> if my_connection.file_call(common_address=1, ioa=30000, nof=1):
+>>>     print("File call sent")
+)def",
+          "common_address"_a, "ioa"_a, "nof"_a, py::return_value_policy::copy)
+      .def(
+          "section_call", &Remote::Connection::sectionCall,
+          R"def(section_call(self: c104.Connection, common_address: int, ioa: int, nof: int, nos: int) -> bool
+
+request section transfer from the remote terminal unit (server)
+sends F_SC_NA_1 (Type 122) with SCQ=6 (REQUEST_SECTION)
+server responds with F_SG_NA_1 (Type 125 - FILE_SEGMENT) messages
+
+Parameters
+----------
+common_address: int
+    station common address
+ioa: int
+    information object address of the file
+nof: int
+    name of file (file type identifier)
+nos: int
+    name of section (section number, 0-255)
+
+Returns
+-------
+bool
+    True, if message was sent successfully
+
+Example
+-------
+>>> if my_connection.section_call(common_address=1, ioa=30000, nof=1, nos=0):
+>>>     print("Section call sent")
+)def",
+          "common_address"_a, "ioa"_a, "nof"_a, "nos"_a,
+          py::return_value_policy::copy)
+      .def(
+          "file_ack", &Remote::Connection::fileAck,
+          R"def(file_ack(self: c104.Connection, common_address: int, ioa: int, nof: int, nos: int, afq: int) -> bool
+
+send file/section acknowledgment to the remote terminal unit (server)
+sends F_AF_NA_1 (Type 124)
+
+Parameters
+----------
+common_address: int
+    station common address
+ioa: int
+    information object address of the file
+nof: int
+    name of file (file type identifier)
+nos: int
+    name of section (0 for file acknowledgment)
+afq: int
+    acknowledge file qualifier (1=pos_file, 2=neg_file, 3=pos_section, 4=neg_section)
+
+Returns
+-------
+bool
+    True, if message was sent successfully
+
+Example
+-------
+>>> if my_connection.file_ack(common_address=1, ioa=30000, nof=1, nos=0, afq=1):
+>>>     print("File acknowledged")
+)def",
+          "common_address"_a, "ioa"_a, "nof"_a, "nos"_a, "afq"_a,
+          py::return_value_policy::copy)
+      .def(
+          "delete_file", &Remote::Connection::deleteFile,
+          R"def(delete_file(self: c104.Connection, common_address: int, ioa: int) -> bool
+
+send a file delete command to the remote terminal unit (server)
+
+WARNING: This is a DESTRUCTIVE operation! The file will be permanently deleted
+on the remote device. Use with extreme caution.
+
+This sends F_SC_NA_1 (Type 122) with SCQ=4 (DELETE_FILE) and COT=FILE_TRANSFER.
+The server should respond with F_AF_NA_1 (Type 124) acknowledgment.
+
+Parameters
+----------
+common_address: int
+    station common address (1-65534)
+ioa: int
+    information object address of the file to delete
+
+Returns
+-------
+bool
+    True if the delete command was sent successfully (NOT confirmation of deletion)
+
+Example
+-------
+>>> # WARNING: This will delete the file!
+>>> if my_connection.delete_file(common_address=1, ioa=10001):
+>>>     print("Delete command sent")
+>>> else:
+>>>     print("Failed to send delete command")
+)def",
+          "common_address"_a, "ioa"_a,
+          py::return_value_policy::copy)
+      .def(
+          "download_file", &Remote::Connection::downloadFile,
+          R"def(download_file(self: c104.Connection, common_address: int, ioa: int, timeout_ms: int = 30000) -> bytes
+
+download a file from the remote terminal unit (server)
+this is a blocking high-level API that handles the complete file transfer protocol:
+1. SELECT file (F_SC_NA_1 SCQ=1) -> wait for FILE_READY (F_FR_NA_1)
+2. CALL file (F_SC_NA_1 SCQ=2) -> wait for SECTION_READY (F_SR_NA_1)
+3. For each section:
+   - CALL section (F_SC_NA_1 SCQ=6)
+   - Receive segments (F_SG_NA_1)
+   - Receive last segment (F_LS_NA_1) with checksum
+   - Send section ACK (F_AF_NA_1)
+4. Send file ACK (F_AF_NA_1)
+
+Parameters
+----------
+common_address: int
+    station common address
+ioa: int
+    information object address of the file
+timeout_ms: int
+    maximum time to wait for complete transfer in milliseconds (default: 30000)
+
+Returns
+-------
+bytes
+    file data as bytes, empty bytes on failure
+
+Example
+-------
+>>> data = my_connection.download_file(common_address=1, ioa=30000, timeout_ms=30000)
+>>> if data:
+>>>     print(f"Downloaded {len(data)} bytes")
+>>>     with open("downloaded_file.bin", "wb") as f:
+>>>         f.write(data)
+>>> else:
+>>>     print("Download failed")
+)def",
+          "common_address"_a, "ioa"_a, "timeout_ms"_a = 30000,
+          py::return_value_policy::copy)
+      .def(
+          "browse_directory",
+          [](Remote::Connection &self, std::uint_fast16_t commonAddress,
+             std::uint_fast32_t ioa, std::uint_fast32_t timeout_ms) {
+            auto entries = self.browseDirectory(commonAddress, ioa, timeout_ms);
+            py::list result;
+            for (const auto &entry : entries) {
+              py::dict d;
+              d["ioa"] = entry.ioa;
+              d["nof"] = entry.nof;
+              d["length"] = entry.lengthOfFile;
+              d["sof"] = entry.sof;
+              d["last_file"] = entry.lastFile;
+              d["is_directory"] = entry.isDirectory;
+              d["file_active"] = entry.fileActive;
+              d["creation_time"] = entry.creationTime;
+              result.append(d);
+            }
+            return result;
+          },
+          R"def(browse_directory(self: c104.Connection, common_address: int, ioa: int = 0, timeout_ms: int = 30000) -> list[dict]
+
+browse the remote terminal unit's file directory
+
+this is a blocking high-level API that sends F_SC_NA_1 with COT=REQUEST
+and waits for F_DR_TA_1 directory entries until the last entry (LFD=1) is received.
+
+Parameters
+----------
+common_address: int
+    station common address (1-65534)
+ioa: int
+    information object address (typically 0 for root directory, default: 0)
+timeout_ms: int
+    maximum time to wait for complete directory in milliseconds (default: 30000)
+
+Returns
+-------
+list[dict]
+    list of directory entries, each dict contains:
+    - ioa (int): Information Object Address (file identifier)
+    - nof (int): Name Of File (file type: 1=transparent, 2=disturbance)
+    - length (int): File size in bytes
+    - sof (int): Status Of File byte (raw)
+    - last_file (bool): LFD flag - last file of directory
+    - is_directory (bool): FOR flag - True if directory, False if file
+    - file_active (bool): FA flag - True if file is being transferred
+    - creation_time (int): File creation timestamp in milliseconds since epoch
+    empty list on failure
+
+Example
+-------
+>>> entries = my_connection.browse_directory(common_address=1, ioa=0, timeout_ms=30000)
+>>> for entry in entries:
+>>>     print(f"IOA: {entry['ioa']}, Size: {entry['length']}, Type: {entry['nof']}")
+>>> if not entries:
+>>>     print("Directory browsing failed or no files found")
+)def",
+          "common_address"_a, "ioa"_a = 0, "timeout_ms"_a = 30000,
+          py::return_value_policy::copy)
+      .def(
+          "query_log", &Remote::Connection::queryLog,
+          R"def(query_log(self: c104.Connection, common_address: int, ioa: int, nof: int, start_time_ms: int, stop_time_ms: int) -> bool
+
+query archived log data with time range (F_SC_NB_1, Type 127)
+
+this sends F_SC_NB_1 (call/select with time tag) to request archived log data
+within a specified time range. the server should respond with F_FR_NA_1 (file ready)
+if matching data is available, which can then be downloaded using download_file().
+
+Parameters
+----------
+common_address: int
+    station common address (1-65534)
+ioa: int
+    information object address (log file identifier)
+nof: int
+    name of file (file type: 1=transparent, 2=disturbance, 3=events, 4=analogue, etc.)
+start_time_ms: int
+    start of time range in milliseconds since epoch (UTC)
+stop_time_ms: int
+    end of time range in milliseconds since epoch (UTC)
+
+Returns
+-------
+bool
+    True if query was sent successfully, False on error
+
+Example
+-------
+>>> from datetime import datetime, timezone
+>>> # Query disturbance records from last hour
+>>> end_time = int(datetime.now(timezone.utc).timestamp() * 1000)
+>>> start_time = end_time - 3600000  # 1 hour ago
+>>> success = my_connection.query_log(
+...     common_address=1,
+...     ioa=30000,
+...     nof=2,  # disturbance data
+...     start_time_ms=start_time,
+...     stop_time_ms=end_time
+... )
+>>> if success:
+...     print("Query sent - wait for file ready callback")
+)def",
+          "common_address"_a, "ioa"_a, "nof"_a, "start_time_ms"_a, "stop_time_ms"_a)
+      .def(
+          "upload_file",
+          [](Remote::Connection &self, std::uint_fast16_t commonAddress,
+             std::uint_fast32_t ioa, std::uint_fast16_t nof,
+             py::bytes data, std::uint_fast32_t timeout_ms) {
+            // Convert py::bytes to std::vector<uint8_t>
+            std::string s = data;
+            std::vector<uint8_t> vec(s.begin(), s.end());
+            return self.uploadFile(commonAddress, ioa, nof, vec, timeout_ms);
+          },
+          R"def(upload_file(self: c104.Connection, common_address: int, ioa: int, nof: int, data: bytes, timeout_ms: int = 30000) -> bool
+
+upload a file to the remote terminal unit (server)
+
+WARNING: This is a WRITE operation that modifies the remote device!
+Only use this in authorized testing environments.
+
+This is a blocking high-level API that handles the complete file upload protocol:
+1. Send FILE_READY (F_FR_NA_1) with file length
+2. Send SECTION_READY (F_SR_NA_1) with section length
+3. Send file segments (F_SG_NA_1) in chunks of max 240 bytes
+4. Send LAST_SEGMENT (F_LS_NA_1) with checksum
+5. Wait for file ACK (F_AF_NA_1) from server
+
+Parameters
+----------
+common_address: int
+    station common address (1-65534)
+ioa: int
+    information object address for the file (file identifier)
+nof: int
+    name of file type (1=transparent file, 2=disturbance recording)
+data: bytes
+    file content to upload
+timeout_ms: int
+    maximum time to wait for acknowledgment in milliseconds (default: 30000)
+
+Returns
+-------
+bool
+    True if upload completed successfully, False on error or timeout
+
+Example
+-------
+>>> with open("config.bin", "rb") as f:
+...     data = f.read()
+>>> success = my_connection.upload_file(
+...     common_address=1,
+...     ioa=30000,
+...     nof=1,  # transparent file
+...     data=data,
+...     timeout_ms=60000
+... )
+>>> if success:
+...     print(f"Uploaded {len(data)} bytes successfully")
+>>> else:
+...     print("Upload failed")
+)def",
+          "common_address"_a, "ioa"_a, "nof"_a, "data"_a, "timeout_ms"_a = 30000)
       .def(
           "add_station", &Remote::Connection::addStation,
           R"def(add_station(self: c104.Connection, common_address: int) -> c104.Station | None
