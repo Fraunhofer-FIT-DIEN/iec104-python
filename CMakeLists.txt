@@ -175,6 +175,8 @@ set(c104_SOURCES
     src/remote/TransportSecurity.h
     src/remote/Connection.cpp
     src/remote/Connection.h
+    src/remote/FileClient.cpp
+    src/remote/FileClient.h
     src/remote/message/IMessageInterface.h
     src/remote/message/IncomingMessage.cpp
     src/remote/message/IncomingMessage.h
