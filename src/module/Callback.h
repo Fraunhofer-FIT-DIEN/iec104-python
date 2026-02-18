@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -49,7 +49,7 @@ namespace Module {
  * function. This class provides functionality for setting, resetting, and
  * checking if the callback function is set.
  */
-class CallbackBase {
+class __attribute__((visibility("hidden"))) CallbackBase {
 public:
   CallbackBase(std::string cb_name, std::string cb_signature)
       : callback(py::none()), name(std::move(cb_name)) {

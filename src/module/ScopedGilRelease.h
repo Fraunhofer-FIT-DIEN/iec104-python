@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -45,7 +45,7 @@ namespace Module {
  * @brief The ScopedGilRelease class is used to release the Global Interpreter
  * Lock (GIL) in Python, and re-acquire it when the scope ends.
  */
-class ScopedGilRelease {
+class __attribute__((visibility("hidden"))) ScopedGilRelease {
 public:
   // noncopyable
   ScopedGilRelease(const ScopedGilRelease &) = delete;
@@ -63,7 +63,7 @@ public:
   explicit ScopedGilRelease(std::string callback_name)
       : name(std::move(callback_name)) {
     if (PyGILState_Check()) {
-      gil = new py::gil_scoped_release(false);
+      gil = new py::gil_scoped_release();
       DEBUG_PRINT(Debug::Gil, "<--| Release GIL | " + name);
     } else {
       DEBUG_PRINT(Debug::Gil, "?--| (Release) GIL | " + name);

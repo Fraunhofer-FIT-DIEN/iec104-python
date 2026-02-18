@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -48,7 +48,7 @@ namespace Module {
  * specific scope, ensuring that the Python interpreter is protected from
  * concurrent access by multiple threads.
  */
-class ScopedGilAcquire {
+class __attribute__((visibility("hidden"))) ScopedGilAcquire {
 public:
   // noncopyable
   ScopedGilAcquire(const ScopedGilAcquire &) = delete;
