@@ -921,8 +921,9 @@ bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
   throw std::invalid_argument("Invalid point type");
 }
 
-bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
-                  IMasterConnection connection) {
+bool Server::send(
+    const std::shared_ptr<Remote::Message::OutgoingMessage> &message,
+    IMasterConnection connection) {
   if (!enabled.load() || !hasActiveConnections())
     return false;
 
@@ -968,7 +969,7 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
   return true;
 }
 
-bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
+bool Server::sendBatch(const std::shared_ptr<Remote::Message::Batch> &batch,
                        IMasterConnection connection) {
   if (!enabled.load() || !hasActiveConnections())
     return false;
@@ -1011,11 +1012,13 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
         // @todo high vs low priority messages
         if (!connection ||
             CS101_COT_PERIODIC == batch->getCauseOfTransmission() ||
-            CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission())
+            CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission()) {
           // low priority
+          DEBUG_PRINT(Debug::Server, "Send batch low priority (part)");
           CS104_Slave_enqueueASDU(slave, asdu);
-        else {
+        } else {
           // high priority
+          DEBUG_PRINT(Debug::Server, "Send batch high priority (part)");
           IMasterConnection_sendASDU(connection, asdu);
         }
 
@@ -1047,11 +1050,13 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
   if (CS101_ASDU_getNumberOfElements(asdu) > 0) {
     // @todo high vs low priority messages
     if (!connection || CS101_COT_PERIODIC == batch->getCauseOfTransmission() ||
-        CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission())
+        CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission()) {
       // low priority
+      DEBUG_PRINT(Debug::Server, "Send batch low priority (fin)");
       CS104_Slave_enqueueASDU(slave, asdu);
-    else {
+    } else {
       // high priority
+      DEBUG_PRINT(Debug::Server, "Send batch high priority (fin)");
       IMasterConnection_sendASDU(connection, asdu);
     }
   }
@@ -1108,13 +1113,15 @@ void Server::sendActivationTermination(IMasterConnection connection,
   CS101_ASDU_setCOT(cp, CS101_COT_ACTIVATION_TERMINATION);
 
   if (isGlobalCommonAddress(CS101_ASDU_getCA(asdu))) {
-
+    // DEBUG_PRINT(Debug::Server, "send_activation_termination] to all MTUs");
     std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
     for (auto &s : stations) {
       CS101_ASDU_setCA(cp, s->getCommonAddress());
       IMasterConnection_sendASDU(connection, cp);
     }
   } else {
+    // DEBUG_PRINT(Debug::Server, "send_activation_termination] to requesting
+    // MTU");
     IMasterConnection_sendASDU(connection, cp);
   }
   CS101_ASDU_destroy(cp);
@@ -1295,8 +1302,7 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
         batchMap;
 
     const size_t group_id = qoi - IEC60870_QOI_STATION;
-    const CS101_CauseOfTransmission cot =
-        static_cast<CS101_CauseOfTransmission>(qoi);
+    const auto cot = static_cast<CS101_CauseOfTransmission>(qoi);
 
     for (const auto &station : instance->getStations()) {
       if (isGlobalCommonAddress(commonAddress) ||

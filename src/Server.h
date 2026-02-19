@@ -387,7 +387,7 @@ public:
    * connection object
    * @return information on operation success
    */
-  bool send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
+  bool send(const std::shared_ptr<Remote::Message::OutgoingMessage> &message,
             IMasterConnection connection = nullptr);
 
   /**
@@ -411,7 +411,7 @@ public:
    * @return True if the batch is successfully processed and transmitted,
    *         otherwise false.
    */
-  bool sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
+  bool sendBatch(const std::shared_ptr<Remote::Message::Batch> &batch,
                  IMasterConnection connection = nullptr);
 
   /**

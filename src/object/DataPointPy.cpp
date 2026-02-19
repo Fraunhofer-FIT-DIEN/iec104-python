@@ -330,8 +330,9 @@ Example
 >>>     print("read command successful")
 )def",
            py::return_value_policy::copy)
-      .def("transmit", &Object::DataPoint::transmit,
-           R"def(transmit(self: c104.Point, cause: c104.Cot, originator: int = 0) -> bool
+      .def(
+          "transmit", &Object::DataPoint::transmit,
+          R"def(transmit(self: c104.Point, cause: c104.Cot, originator: int = 0) -> bool
 
 **Server-side point**
 report a measurement value to connected clients
@@ -361,6 +362,6 @@ Example
 >>> sv_measurement_point.transmit(cause=c104.Cot.SPONTANEOUS)
 >>> cl_single_command_point.transmit(cause=c104.Cot.ACTIVATION)
 )def",
-           "cause"_a, "originator"_a = 0, py::return_value_policy::copy)
+          "cause"_a, "originator"_a = 0, py::return_value_policy::copy)
       .def("__repr__", &Object::DataPoint::toString);
 }
