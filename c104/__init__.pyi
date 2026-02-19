@@ -1954,7 +1954,7 @@ class Point:
         >>> if cl_step_point.read():
         >>>     print("read command successful")
         """
-    def transmit(self, cause: Cot) -> bool:
+    def transmit(self, cause: Cot, originator: int = 0) -> bool:
         """
         **Server-side point**
         report a measurement value to connected clients
@@ -1966,6 +1966,8 @@ class Point:
         ----------
         cause: c104.Cot
             cause of the transmission
+        originator: int, optional
+            set originator address other than 0 to specify a recipient in server context, not available in client context
 
         Raises
         ------

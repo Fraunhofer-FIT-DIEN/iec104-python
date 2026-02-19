@@ -372,12 +372,14 @@ public:
    * @brief transmit a datapoint related message to a remote client
    * @param point datapoint that should be send via server
    * @param cause reason for transmission
+   * @param originator address of originator
    * @return information on operation success
    * @throws std::invalid_argument if point type is not supported for this
    * operation
    */
   bool transmit(std::shared_ptr<Object::DataPoint> point,
-                CS101_CauseOfTransmission cause);
+                CS101_CauseOfTransmission cause,
+                std::optional<uint_fast8_t> originator = std::nullopt);
 
   /**
    * @brief send a message object to a remote client
@@ -386,7 +388,7 @@ public:
    * connection object
    * @return information on operation success
    */
-  bool send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
+  bool send(const std::shared_ptr<Remote::Message::OutgoingMessage> &message,
             IMasterConnection connection = nullptr);
 
   /**
@@ -410,7 +412,7 @@ public:
    * @return True if the batch is successfully processed and transmitted,
    *         otherwise false.
    */
-  bool sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
+  bool sendBatch(const std::shared_ptr<Remote::Message::Batch> &batch,
                  IMasterConnection connection = nullptr);
 
   /**

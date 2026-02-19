@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -898,13 +898,17 @@ void Server::connectionEventHandler(void *parameter,
 }
 
 bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
-                      const CS101_CauseOfTransmission cause) {
+                      const CS101_CauseOfTransmission cause,
+                      const std::optional<uint_fast8_t> originator) {
   auto type = point->getType();
 
   // report monitoring point
   if (type < S_IT_TC_1) {
     auto message = Message::PointMessage::create(std::move(point));
     message->setCauseOfTransmission(cause);
+    if (originator.has_value()) {
+      message->setOriginatorAddress(originator.value());
+    }
     return send(std::move(message));
   }
 
@@ -912,14 +916,18 @@ bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
   if (type > S_IT_TC_1 && type < M_EI_NA_1) {
     auto message = Message::PointCommand::create(std::move(point));
     message->setCauseOfTransmission(cause);
+    if (originator.has_value()) {
+      message->setOriginatorAddress(originator.value());
+    }
     return send(std::move(message));
   }
 
   throw std::invalid_argument("Invalid point type");
 }
 
-bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
-                  IMasterConnection connection) {
+bool Server::send(
+    const std::shared_ptr<Remote::Message::OutgoingMessage> &message,
+    IMasterConnection connection) {
   if (!enabled.load() || !hasActiveConnections())
     return false;
 
@@ -929,11 +937,6 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
   std::chrono::steady_clock::time_point begin, end;
   if (debug) {
     begin = std::chrono::steady_clock::now();
-  }
-
-  if (connection) {
-    auto param = IMasterConnection_getApplicationLayerParameters(connection);
-    message->setOriginatorAddress(param->originatorAddress);
   }
 
   CS101_ASDU asdu = CS101_ASDU_create(
@@ -970,7 +973,7 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
   return true;
 }
 
-bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
+bool Server::sendBatch(const std::shared_ptr<Remote::Message::Batch> &batch,
                        IMasterConnection connection) {
   if (!enabled.load() || !hasActiveConnections())
     return false;
@@ -986,11 +989,6 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
   if (!batch->hasPoints()) {
     DEBUG_PRINT(Debug::Server, "Empty batch");
     return false;
-  }
-
-  if (connection) {
-    auto param = IMasterConnection_getApplicationLayerParameters(connection);
-    batch->setOriginatorAddress(param->originatorAddress);
   }
 
   CS101_ASDU asdu = CS101_ASDU_create(
@@ -1018,11 +1016,13 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
         // @todo high vs low priority messages
         if (!connection ||
             CS101_COT_PERIODIC == batch->getCauseOfTransmission() ||
-            CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission())
+            CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission()) {
           // low priority
+          DEBUG_PRINT(Debug::Server, "Send batch low priority (part)");
           CS104_Slave_enqueueASDU(slave, asdu);
-        else {
+        } else {
           // high priority
+          DEBUG_PRINT(Debug::Server, "Send batch high priority (part)");
           IMasterConnection_sendASDU(connection, asdu);
         }
 
@@ -1054,11 +1054,13 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
   if (CS101_ASDU_getNumberOfElements(asdu) > 0) {
     // @todo high vs low priority messages
     if (!connection || CS101_COT_PERIODIC == batch->getCauseOfTransmission() ||
-        CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission())
+        CS101_COT_SPONTANEOUS == batch->getCauseOfTransmission()) {
       // low priority
+      DEBUG_PRINT(Debug::Server, "Send batch low priority (fin)");
       CS104_Slave_enqueueASDU(slave, asdu);
-    else {
+    } else {
       // high priority
+      DEBUG_PRINT(Debug::Server, "Send batch high priority (fin)");
       IMasterConnection_sendASDU(connection, asdu);
     }
   }
@@ -1115,13 +1117,15 @@ void Server::sendActivationTermination(IMasterConnection connection,
   CS101_ASDU_setCOT(cp, CS101_COT_ACTIVATION_TERMINATION);
 
   if (isGlobalCommonAddress(CS101_ASDU_getCA(asdu))) {
-
+    // DEBUG_PRINT(Debug::Server, "send_activation_termination] to all MTUs");
     std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
     for (auto &s : stations) {
       CS101_ASDU_setCA(cp, s->getCommonAddress());
       IMasterConnection_sendASDU(connection, cp);
     }
   } else {
+    // DEBUG_PRINT(Debug::Server, "send_activation_termination] to requesting
+    // MTU");
     IMasterConnection_sendASDU(connection, cp);
   }
   CS101_ASDU_destroy(cp);
@@ -1302,8 +1306,7 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
         batchMap;
 
     const size_t group_id = qoi - IEC60870_QOI_STATION;
-    const CS101_CauseOfTransmission cot =
-        static_cast<CS101_CauseOfTransmission>(qoi);
+    const auto cot = static_cast<CS101_CauseOfTransmission>(qoi);
 
     for (const auto &station : instance->getStations()) {
       if (isGlobalCommonAddress(commonAddress) ||
@@ -1321,6 +1324,7 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
             auto g = batchMap.find(type);
             if (g == batchMap.end()) {
               auto b = Remote::Message::Batch::create(cot);
+              b->setOriginatorAddress(message->getOriginatorAddress());
               b->addPoint(point);
               batchMap[type] = std::move(b);
             } else {
@@ -1443,6 +1447,7 @@ bool Server::counterInterrogationHandler(void *parameter,
             auto g = batchMap.find(type);
             if (g == batchMap.end()) {
               auto b = Remote::Message::Batch::create(cot);
+              b->setOriginatorAddress(message->getOriginatorAddress());
               b->addPoint(point);
               batchMap[type] = std::move(b);
             } else {
@@ -1519,7 +1524,8 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
           success = true;
 
           try {
-            instance->transmit(point, CS101_COT_REQUEST);
+            instance->transmit(point, CS101_COT_REQUEST,
+                               message->getOriginatorAddress());
           } catch (const std::exception &e) {
             std::cerr << "[c104.Server] read] Auto respond failed for "
                       << TypeID_toString(point->getType()) << " at IOA "
@@ -1639,13 +1645,13 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                   // send related point info in case of auto return
                   if (related_ioa.has_value()) {
                     auto related_point = station->getPoint(related_ioa.value());
-
+                    auto originator = message->getOriginatorAddress();
                     std::weak_ptr<Server> weakSelf =
                         instance; // Weak reference to Server
                     std::weak_ptr<Object::DataPoint> weakPoint =
                         related_point; // Weak reference to Point
                     instance->scheduleTask(
-                        [weakSelf, weakPoint]() {
+                        [weakSelf, weakPoint, originator]() {
                           auto self = weakSelf.lock();
                           if (!self)
                             return; // Prevent running if `this` was destroyed
@@ -1657,7 +1663,8 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
 
                           try {
                             self->transmit(related,
-                                           CS101_COT_RETURN_INFO_REMOTE);
+                                           CS101_COT_RETURN_INFO_REMOTE,
+                                           originator);
                           } catch (const std::exception &e) {
                             std::cerr
                                 << "[c104.Server] asdu_handler] Auto transmit "
