@@ -7,14 +7,16 @@ v2.2.2
 Features
 ^^^^^^^^
 
-- add **TransportSecurity.set_hostname_verification(hostname: str)** to verify the peers hostname in their certificate.
-- server or client debug mode enables SSL/TLS debug message output to stderr to identify handshake issues
+- add **TransportSecurity.set_hostname_verification(hostname: str)** to verify the peer’s hostname in its certificate.
+- server and client debug modes now enable SSL/TLS debug message output to stderr to help identify handshake issues.
+- allow setting **Batch.originator_address** to manually send a batch to a specific originator.
 
 Fixes
 ^^^^^^
 
-- server sends all messages as a response to a command (not only ACK and TERM), using the originator address from the command (#74)
-- disable hostname verification per default (#64)
+- server using the originator address from the command in all response messages (not only ACK and TERM) #74
+- fix tls handshake failures by disabling hostname verification per default #64
+- fix compilation issues on macOS
 
 v2.2.1
 -------

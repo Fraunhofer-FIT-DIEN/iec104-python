@@ -4016,10 +4016,10 @@ Example
                              &Remote::Message::Batch::getCommonAddress,
                              "int: common address (1-65534) (read-only)",
                              py::return_value_policy::copy)
-      .def_property_readonly("originator_address",
-                             &Remote::Message::Batch::getOriginatorAddress,
-                             "int: originator address (0-255) (read-only)",
-                             py::return_value_policy::copy)
+      .def_property(
+          "originator_address", &Remote::Message::Batch::getOriginatorAddress,
+          &Remote::Message::Batch::setOriginatorAddress,
+          "int: originator address (0-255)", py::return_value_policy::copy)
       .def_property_readonly("cot",
                              &Remote::Message::Batch::getCauseOfTransmission,
                              "c104.Cot: cause of transmission (read-only)",
