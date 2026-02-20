@@ -37,8 +37,14 @@
 
 class DateTime {
 public:
+#if defined(__APPLE__)
+  // On Apple platforms, default to system_clock::now()
+  explicit DateTime(std::chrono::system_clock::time_point t =
+                        std::chrono::system_clock::now());
+#else
+  // On all other platforms, require explicit timestamp
   explicit DateTime(std::chrono::system_clock::time_point t);
-
+#endif
   explicit DateTime(CP56Time2a t);
 
   [[nodiscard]] std::chrono::system_clock::time_point getTime() const {
