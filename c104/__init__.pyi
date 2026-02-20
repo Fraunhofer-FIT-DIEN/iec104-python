@@ -3700,6 +3700,33 @@ class TransportSecurity:
         >>>   c104.TlsCipher.TLS1_3_CHACHA20_POLY1305_SHA256
         >>> ])
         """
+    def set_hostname_verification(self, hostname: str | None = None) -> None:
+        """
+        set up hostname verification
+
+        Configure a hostname to verify the peers certificate by validating the CN or SAN records (with wildcard support).
+
+        Parameters
+        ----------
+        hostname: str, optional
+            The hostname that belongs to the peers certificate. If ``None``, verification is disabled.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            config is readonly and cannot be modified further
+        ValueError
+            empty string provided, use ``None`` to disable hostname validation
+
+        Example
+        -------
+        >>> tls = c104.TransportSecurity(validate=True, only_known=False)
+        >>> tls.set_hostname_verification(hostname="example.com")
+        """
     def set_renegotiation_time(self, interval: datetime.timedelta | None = None) -> None:
         """
         sets the renegotiation interval

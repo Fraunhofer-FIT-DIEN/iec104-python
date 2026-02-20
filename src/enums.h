@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -117,6 +117,34 @@ test(const T &lhs, const T &rhs) {
     return false;
   }
   return (l & r) == r;
+}
+
+/**
+ * @brief Tests if two bitsets share at least one common flag.
+ *
+ * This function is enabled only for types that are enums and meet the criteria
+ * defined by the `enum_bitmask` trait.
+ *
+ * This function operates on enum types and checks if the bitwise AND operation
+ * between the underlying values of `lhs` and `rhs` results in `rhs`.
+ * Additionally, it ensures that neither `lhs` nor `rhs` is zero.
+ *
+ * @param lhs The left-hand-side enum value for the comparison.
+ * @param rhs The right-hand-side enum value to check for containment in `lhs`.
+ * @return true if the bitwise AND of `lhs` and `rhs` is non-zero.
+ * @return false if the bitwise AND operation is zero.
+ */
+template <typename T>
+typename std::enable_if<
+    std::conjunction_v<
+        std::is_enum<T>,
+        std::is_same<bool, decltype(enum_bitmask(std::declval<T>()))>>,
+    bool>::type
+any_of(const T &lhs, const T &rhs) {
+  using underlying = std::underlying_type_t<T>;
+  auto l = static_cast<underlying>(lhs);
+  auto r = static_cast<underlying>(rhs);
+  return (l & r) > 0;
 }
 
 /**

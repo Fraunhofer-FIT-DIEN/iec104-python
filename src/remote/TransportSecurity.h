@@ -145,6 +145,14 @@ public:
   void addAllowedRemoteCertificate(const std::string &cert);
 
   /**
+   * @brief configure hostname verification
+   * @param hostname set the hostname that must match the peers certificate or
+   * NULL to disable verification
+   * @throws std::invalid_argument if loading the certificate fails
+   */
+  void setHostnameVerification(std::optional<std::string> hostname);
+
+  /**
    * @brief set the supported min and/or max TLS version
    * @param min minimum required TLS version for communication
    * @param max maximum allowed TLS version for communication

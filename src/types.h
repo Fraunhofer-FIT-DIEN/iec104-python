@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -64,6 +64,7 @@
   (::test(GLOBAL_DEBUG_MODE.load(), mode) ? printDebugMessage(mode, (Y))       \
                                           : (void)0)
 #define DEBUG_TEST(mode) ::test(GLOBAL_DEBUG_MODE.load(), mode)
+#define DEBUG_ANY(mode) ::any_of(GLOBAL_DEBUG_MODE.load(), mode)
 
 #define MICRO_SEC_STR u8" \xc2\xb5s"
 #define DIFF_MS(begin, end)                                                    \

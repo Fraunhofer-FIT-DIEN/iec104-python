@@ -111,6 +111,7 @@ int main(int argc, char *argv[]) {
                             ROOT + "certs/client1.key");
     tlsconf->setCACertificate(ROOT + "certs/ca.crt");
     tlsconf->setVersion(TLS_VERSION_TLS_1_2, TLS_VERSION_TLS_1_2);
+    tlsconf->setHostnameVerification("Local Test Server 1");
     tlsconf->addAllowedRemoteCertificate(ROOT + "certs/server1.crt");
   }
 

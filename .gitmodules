@@ -1,20 +1,20 @@
 [submodule "depends/lib60870"]
 	path = depends/lib60870
 	url = https://github.com/m-unkel/lib60870.git
-	update = rebase
+	update = checkout
 	ignore = all
 [submodule "depends/pybind11"]
 	path = depends/pybind11
 	url = https://github.com/pybind/pybind11.git
-	update = rebase
+	update = checkout
 	ignore = all
 [submodule "depends/catch"]
 	path = depends/catch
 	url = https://github.com/catchorg/Catch2.git
-	update = rebase
+	update = checkout
 	ignore = all
 [submodule "depends/mbedtls"]
 	path = depends/mbedtls
 	url = https://github.com/Mbed-TLS/mbedtls.git
-	update = rebase
+	update = checkout
 	ignore = all

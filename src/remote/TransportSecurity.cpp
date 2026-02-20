@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -34,6 +34,11 @@
 
 using namespace Remote;
 
+static void debug_handler(void *ctx, int level, const char *file, int line,
+                          const char *str) {
+  fprintf(stderr, "[c104.TransportSecurity] TLS(%d): %s", level, str);
+}
+
 void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
                                      int eventCode, const char *msg,
                                      TLSConnection con) {
@@ -41,7 +46,7 @@ void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
   try {
     instance = static_cast<TransportSecurity *>(parameter)->shared_from_this();
   } catch (const std::bad_weak_ptr &e) {
-    if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
+    if (DEBUG_ANY(Debug::Server | Debug::Client)) {
       std::cout << "[c104.TransportSecurity] failed to handle event: instance "
                    "already removed"
                 << std::endl;
@@ -58,7 +63,7 @@ void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
     tlsVersion = TLSConfigVersion_toString(TLSConnection_getTLSVersion(con));
   }
 
-  if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
+  if (DEBUG_ANY(Debug::Server | Debug::Client)) {
     printf("[c104.TransportSecurity] %s (t: %i, c: %i, version: %s remote-ip: "
            "%s)\n",
            msg, eventLevel, eventCode, tlsVersion, peerAddr);
@@ -74,7 +79,7 @@ TransportSecurity::TransportSecurity(const bool validate,
   TLSConfiguration_setTimeValidation(config, validate);
   TLSConfiguration_setAllowOnlyKnownCertificates(config, only_known);
 
-  if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
+  if (DEBUG_ANY(Debug::Server | Debug::Client)) {
     std::cout << "[c104.TransportSecurity] Created" << std::endl;
   }
 }
@@ -82,7 +87,7 @@ TransportSecurity::TransportSecurity(const bool validate,
 TransportSecurity::~TransportSecurity() {
   TLSConfiguration_destroy(config);
 
-  if (DEBUG_TEST(Debug::Server) || DEBUG_TEST(Debug::Client)) {
+  if (DEBUG_ANY(Debug::Server | Debug::Client)) {
     std::cout << "[c104.TransportSecurity] Removed" << std::endl;
   }
 }
@@ -214,6 +219,23 @@ void TransportSecurity::addAllowedRemoteCertificate(const std::string &cert) {
   TLSConfiguration_addAllowedCertificateFromFile(config, cert.c_str());
 }
 
+void TransportSecurity::setHostnameVerification(
+    std::optional<std::string> hostname) {
+  if (hostname.has_value()) {
+    if (hostname.value().empty()) {
+      throw std::invalid_argument("Provided hostname is empty, please provide "
+                                  "explicitly None to disable verification");
+    }
+    if (!TLSConfiguration_setHostnameVerification(config,
+                                                  hostname.value().c_str())) {
+      throw std::invalid_argument(
+          "Failed to set hostname verification, failed to allocate memory");
+    }
+  } else {
+    TLSConfiguration_setHostnameVerification(config, nullptr);
+  }
+}
+
 void TransportSecurity::setVersion(const TLSConfigVersion min,
                                    const TLSConfigVersion max) {
   if (readonly.load()) {
@@ -227,5 +249,11 @@ void TransportSecurity::setVersion(const TLSConfigVersion min,
 
 TLSConfiguration TransportSecurity::get() {
   readonly.store(true);
+  // set the debug handler for the whole lifetime of this configuration
+  if (DEBUG_ANY(Debug::Server | Debug::Client)) {
+    TLSConfiguration_setDebugHandler(config, debug_handler);
+  } else {
+    TLSConfiguration_setDebugHandler(config, nullptr);
+  }
   return config;
 }

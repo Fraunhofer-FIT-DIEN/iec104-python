@@ -1245,6 +1245,37 @@ Example
 )def",
           "ciphers"_a)
       .def(
+          "set_hostname_verification",
+          &Remote::TransportSecurity::setHostnameVerification,
+          R"def(set_hostname_verification(self: c104.TransportSecurity, hostname: str | None = None) -> None
+
+set up hostname verification
+
+Configure a hostname to verify the peers certificate by validating the CN or SAN records (with wildcard support).
+
+Parameters
+----------
+hostname: str, optional
+    The hostname that belongs to the peers certificate. If ``None``, verification is disabled.
+
+Returns
+-------
+None
+
+Raises
+------
+ValueError
+    config is readonly and cannot be modified further
+ValueError
+    empty string provided, use ``None`` to disable hostname validation
+
+Example
+-------
+>>> tls = c104.TransportSecurity(validate=True, only_known=False)
+>>> tls.set_hostname_verification(hostname="example.com")
+)def",
+          "hostname"_a)
+      .def(
           "set_renegotiation_time",
           &Remote::TransportSecurity::setRenegotiationTime,
           R"def(set_renegotiation_time(self: c104.TransportSecurity, interval: datetime.timedelta | None = None) -> None
