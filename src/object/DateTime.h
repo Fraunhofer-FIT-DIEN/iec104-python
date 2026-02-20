@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2024-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -37,7 +37,8 @@
 
 class DateTime {
 public:
-  explicit DateTime(std::chrono::system_clock::time_point t);
+  explicit DateTime(std::chrono::system_clock::time_point t =
+                        std::chrono::system_clock::now());
 
   explicit DateTime(CP56Time2a t);
 
