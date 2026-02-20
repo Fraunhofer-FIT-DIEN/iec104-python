@@ -215,7 +215,7 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/depends/catch/src"
     c104_tests
     ${c104_SOURCES} tests/test_object_datapoint.cpp
     tests/test_object_station.cpp tests/test_remote_message_batch.cpp
-    tests/main.cpp)
+    tests/test_server_interrogation.cpp tests/main.cpp)
 
   if(TARGET c104_tests)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)

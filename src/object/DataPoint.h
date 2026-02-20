@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -308,6 +308,7 @@ public:
 
   /**
    * @brief set timestamp of last local processing operation (receiving/sending)
+   * @param val datetime of processing
    */
   void setProcessedAt(std::chrono::system_clock::time_point val);
 
@@ -387,11 +388,13 @@ public:
   /**
    * @brief transmit point
    * @param cause cause of transmission
+   * @param originator address of originator (only as server)
    * @return success information
    * @throws std::invalid_argument if parent station or connection reference is
    * invalid
    */
-  bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT);
+  bool transmit(CS101_CauseOfTransmission cause = CS101_COT_UNKNOWN_COT,
+                uint_fast8_t originator = 0);
 
   /**
    * @brief Remove reference to station, do not call this method, this is called

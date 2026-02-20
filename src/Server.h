@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -374,12 +374,13 @@ public:
    * @brief transmit a datapoint related message to a remote client
    * @param point datapoint that should be send via server
    * @param cause reason for transmission
+   * @param originator address of originator
    * @return information on operation success
    * @throws std::invalid_argument if point type is not supported for this
    * operation
    */
   bool transmit(std::shared_ptr<Object::DataPoint> point,
-                CS101_CauseOfTransmission cause);
+                CS101_CauseOfTransmission cause, uint_fast8_t originator = 0);
 
   /**
    * @brief send a message object to a remote client

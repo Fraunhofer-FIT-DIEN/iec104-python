@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -1210,7 +1210,8 @@ bool DataPoint::read() {
   return _connection->read(shared_from_this());
 }
 
-bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
+bool DataPoint::transmit(const CS101_CauseOfTransmission cause,
+                         const uint_fast8_t originator) {
   DEBUG_PRINT(Debug::Point,
               "transmit_ex] " + std::string(TypeID_toString(type)) +
                   " at IOA " + std::to_string(informationObjectAddress));
@@ -1226,13 +1227,18 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause) {
     if (!server) {
       throw std::invalid_argument("Server reference deleted");
     }
-    return server->transmit(shared_from_this(), cause);
+    return server->transmit(shared_from_this(), cause, originator);
   }
 
   // as client
   auto connection = _station->getConnection();
   if (!connection) {
     throw std::invalid_argument("Client connection reference deleted");
+  }
+  if (originator != 0) {
+    throw std::invalid_argument(
+        "Cannot use originator argument in client context. Set "
+        "originator_address at connection instance instead.");
   }
   return connection->transmit(shared_from_this(), cause);
 }

@@ -10,11 +10,11 @@ if read_the_docs_build:
 # -- Project information -----------------------------------------------------
 
 project = "iec104-python"
-copyright = "2020-2025, Fraunhofer Institute for Applied Information Technology FIT"
+copyright = "2020-2026, Fraunhofer Institute for Applied Information Technology FIT"
 author = "Martin Unkel <martin.unkel@fit.fraunhofer.de>"
 
 release = "2.2"
-version = "2.2.1"
+version = "2.2.2"
 
 
 # -- General configuration ---------------------------------------------------

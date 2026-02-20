@@ -1,6 +1,21 @@
 Change log
 ==========
 
+v2.2.2
+-------
+
+Features
+^^^^^^^^
+
+- add **TransportSecurity.set_hostname_verification(hostname: str)** to verify the peers hostname in their certificate.
+- server or client debug mode enables SSL/TLS debug message output to stderr to identify handshake issues
+
+Fixes
+^^^^^^
+
+- server sends all messages as a response to a command (not only ACK and TERM), using the originator address from the command (#74)
+- disable hostname verification per default (#64)
+
 v2.2.1
 -------
 

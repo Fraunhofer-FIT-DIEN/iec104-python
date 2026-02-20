@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -915,13 +915,15 @@ void Server::connectionEventHandler(void *parameter,
 }
 
 bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
-                      const CS101_CauseOfTransmission cause) {
+                      const CS101_CauseOfTransmission cause,
+                      const uint_fast8_t originator) {
   auto type = point->getType();
 
   // report monitoring point
   if (type < S_IT_TC_1) {
     auto message = Message::PointMessage::create(std::move(point));
     message->setCauseOfTransmission(cause);
+    message->setOriginatorAddress(originator);
     return send(std::move(message));
   }
 
@@ -929,6 +931,7 @@ bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
   if (type > S_IT_TC_1 && type < M_EI_NA_1) {
     auto message = Message::PointCommand::create(std::move(point));
     message->setCauseOfTransmission(cause);
+    message->setOriginatorAddress(originator);
     return send(std::move(message));
   }
 
@@ -946,11 +949,6 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
   std::chrono::steady_clock::time_point begin, end;
   if (debug) {
     begin = std::chrono::steady_clock::now();
-  }
-
-  if (connection) {
-    auto param = IMasterConnection_getApplicationLayerParameters(connection);
-    message->setOriginatorAddress(param->originatorAddress);
   }
 
   CS101_ASDU asdu = CS101_ASDU_create(
@@ -1003,11 +1001,6 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
   if (!batch->hasPoints()) {
     DEBUG_PRINT(Debug::Server, "Empty batch");
     return false;
-  }
-
-  if (connection) {
-    auto param = IMasterConnection_getApplicationLayerParameters(connection);
-    batch->setOriginatorAddress(param->originatorAddress);
   }
 
   CS101_ASDU asdu = CS101_ASDU_create(
@@ -1331,6 +1324,7 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
               if (g == batchMap.end()) {
                 auto b = Remote::Message::Batch::create(
                     CS101_COT_INTERROGATED_BY_STATION);
+                b->setOriginatorAddress(message->getOriginatorAddress());
                 b->addPoint(point);
                 batchMap[type] = std::move(b);
               } else {
@@ -1430,6 +1424,7 @@ bool Server::counterInterrogationHandler(void *parameter,
               if (g == batchMap.end()) {
                 auto b = Remote::Message::Batch::create(
                     CS101_COT_REQUESTED_BY_GENERAL_COUNTER);
+                b->setOriginatorAddress(message->getOriginatorAddress());
                 b->addPoint(point);
                 batchMap[type] = std::move(b);
               } else {
@@ -1512,7 +1507,8 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
           success = true;
 
           try {
-            instance->transmit(point, CS101_COT_REQUEST);
+            instance->transmit(point, CS101_COT_REQUEST,
+                               message->getOriginatorAddress());
           } catch (const std::exception &e) {
             std::cerr << "[c104.Server] read] Auto respond failed for "
                       << TypeID_toString(point->getType()) << " at IOA "
@@ -1615,13 +1611,13 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                   // send related point info in case of auto return
                   if (related_ioa.has_value()) {
                     auto related_point = station->getPoint(related_ioa.value());
-
+                    auto originator = message->getOriginatorAddress();
                     std::weak_ptr<Server> weakSelf =
                         instance; // Weak reference to Server
                     std::weak_ptr<Object::DataPoint> weakPoint =
                         related_point; // Weak reference to Point
                     instance->scheduleTask(
-                        [weakSelf, weakPoint]() {
+                        [weakSelf, weakPoint, originator]() {
                           auto self = weakSelf.lock();
                           if (!self)
                             return; // Prevent running if `this` was destroyed
@@ -1633,7 +1629,8 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
 
                           try {
                             self->transmit(related,
-                                           CS101_COT_RETURN_INFO_REMOTE);
+                                           CS101_COT_RETURN_INFO_REMOTE,
+                                           originator);
                           } catch (const std::exception &e) {
                             std::cerr
                                 << "[c104.Server] asdu_handler] Auto transmit "
