@@ -46,6 +46,7 @@ def main():
         c104.TlsCipher.TLS1_3_CHACHA20_POLY1305_SHA256
     ])
     tlsconf.add_allowed_remote_certificate(cert=str(CERTIFICATE_DIR / "server1.crt"))
+    tlsconf.set_hostname_verification(hostname="Local Test Server 1")
 
     # client, connection and station preparation
     client = c104.Client(transport_security=tlsconf)

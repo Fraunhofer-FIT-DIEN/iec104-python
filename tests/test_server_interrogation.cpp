@@ -69,7 +69,7 @@ TEST_CASE("Server interrogation originator address",
                                         .sizeOfIOA = 3,
                                         .maxSizeOfASDU = 249};
 
-  sIMasterConnection iMasterConnection = {
+  sIPeerConnection iMasterConnection = {
       .isReady = [](IMasterConnection self) { return true; },
       .sendASDU =
           [](IMasterConnection self, CS101_ASDU asdu) {
@@ -106,7 +106,7 @@ TEST_CASE("Server interrogation originator address",
       &alParams, false, CS101_COT_ACTIVATION, 123, 1, false, false);
 
   // Create an IncomingMessage from the ASDU
-  server->connectionEventHandler(server.get(), mockConnection,
+  Server::connectionEventHandler(server.get(), mockConnection,
                                  CS104_CON_EVENT_ACTIVATED);
   REQUIRE(server->isExistingConnection(mockConnection) == true);
   auto incomingMessage =
@@ -114,7 +114,7 @@ TEST_CASE("Server interrogation originator address",
   REQUIRE(incomingMessage->getOriginatorAddress() == 123);
 
   // We need to pass the raw pointer of server to interrogationHandler
-  server->interrogationHandler(server.get(), mockConnection, interrogationAsdu,
+  Server::interrogationHandler(server.get(), mockConnection, interrogationAsdu,
                                IEC60870_QOI_STATION);
   REQUIRE(data.con == 0);
   REQUIRE(data.term == 0);
