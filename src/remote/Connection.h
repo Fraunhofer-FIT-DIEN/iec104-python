@@ -35,6 +35,7 @@
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
 #include "object/Station.h"
+#include "remote/FileClient.h"
 #include "types.h"
 
 namespace Remote {
@@ -394,6 +395,196 @@ public:
             bool wait_for_response = true);
 
   /**
+   * @brief select a file on remote server for transfer
+   * @param commonAddress station address
+   * @param ioa information object address of the file
+   * @param wait_for_response blocking or non-blocking
+   * @return success information
+   */
+  bool fileSelect(std::uint_fast16_t commonAddress,
+                  std::uint_fast32_t ioa,
+                  bool wait_for_response = true);
+
+  /**
+   * @brief call a file on remote server (request file transfer)
+   * @param commonAddress station address
+   * @param ioa information object address of the file
+   * @param nof name of file
+   * @return success information
+   */
+  bool fileCall(std::uint_fast16_t commonAddress,
+                std::uint_fast32_t ioa,
+                std::uint_fast16_t nof);
+
+  /**
+   * @brief call a section on remote server (request section transfer)
+   * @param commonAddress station address
+   * @param ioa information object address of the file
+   * @param nof name of file
+   * @param nos name of section (section number)
+   * @return success information
+   */
+  bool sectionCall(std::uint_fast16_t commonAddress,
+                   std::uint_fast32_t ioa,
+                   std::uint_fast16_t nof,
+                   std::uint_fast8_t nos);
+
+  /**
+   * @brief send file/section acknowledgment
+   * @param commonAddress station address
+   * @param ioa information object address of the file
+   * @param nof name of file
+   * @param nos name of section (0 for file ack)
+   * @param afq acknowledge file qualifier (1=pos_file, 2=neg_file, 3=pos_section, 4=neg_section)
+   * @return success information
+   */
+  bool fileAck(std::uint_fast16_t commonAddress,
+               std::uint_fast32_t ioa,
+               std::uint_fast16_t nof,
+               std::uint_fast8_t nos,
+               std::uint_fast8_t afq);
+
+  /**
+   * @brief delete a file on remote server (F_SC_NA_1 with SCQ=4)
+   * WARNING: This is a destructive operation!
+   * @param commonAddress station address
+   * @param ioa information object address of the file to delete
+   * @return success information (whether command was sent)
+   */
+  bool deleteFile(std::uint_fast16_t commonAddress,
+                  std::uint_fast32_t ioa);
+
+  /**
+   * @brief download a file from remote server (blocking high-level API)
+   * @param commonAddress station address
+   * @param ioa information object address of the file
+   * @param timeout_ms maximum time to wait for transfer completion
+   * @return vector containing file data, empty on failure
+   */
+  std::vector<std::uint8_t> downloadFile(std::uint_fast16_t commonAddress,
+                                         std::uint_fast32_t ioa,
+                                         std::uint_fast32_t timeout_ms = 30000);
+
+  /**
+   * @brief send directory request to remote server (F_SC_NA_1 with COT=REQUEST)
+   * @param commonAddress station address
+   * @param ioa information object address (typically 0 for root)
+   * @return success information
+   */
+  bool directoryRequest(std::uint_fast16_t commonAddress,
+                        std::uint_fast32_t ioa);
+
+  /**
+   * @brief browse remote server directory (blocking high-level API)
+   * @param commonAddress station address
+   * @param ioa information object address (typically 0 for root)
+   * @param timeout_ms maximum time to wait for response
+   * @return vector of directory entries, empty on failure
+   */
+  std::vector<DirectoryEntry> browseDirectory(std::uint_fast16_t commonAddress,
+                                               std::uint_fast32_t ioa,
+                                               std::uint_fast32_t timeout_ms = 30000);
+
+  /**
+   * @brief upload a file to remote server (blocking high-level API)
+   * WARNING: This is a WRITE operation that modifies the remote device!
+   * @param commonAddress station address
+   * @param ioa information object address for the file
+   * @param nof name of file (1=transparent, 2=disturbance)
+   * @param data file data to upload
+   * @param timeout_ms maximum time to wait for acknowledgment
+   * @return true if upload completed successfully
+   */
+  bool uploadFile(std::uint_fast16_t commonAddress,
+                  std::uint_fast32_t ioa,
+                  std::uint_fast16_t nof,
+                  const std::vector<std::uint8_t>& data,
+                  std::uint_fast32_t timeout_ms = 30000);
+
+  /**
+   * @brief send F_FR_NA_1 (File Ready) to server for upload
+   * @param commonAddress station address
+   * @param ioa information object address
+   * @param nof name of file
+   * @param length total file length in bytes
+   * @return success information
+   */
+  bool sendFileReady(std::uint_fast16_t commonAddress,
+                     std::uint_fast32_t ioa,
+                     std::uint_fast16_t nof,
+                     std::uint_fast32_t length);
+
+  /**
+   * @brief send F_SR_NA_1 (Section Ready) to server for upload
+   * @param commonAddress station address
+   * @param ioa information object address
+   * @param nof name of file
+   * @param nos name of section (section number)
+   * @param length section length in bytes
+   * @return success information
+   */
+  bool sendSectionReady(std::uint_fast16_t commonAddress,
+                        std::uint_fast32_t ioa,
+                        std::uint_fast16_t nof,
+                        std::uint_fast8_t nos,
+                        std::uint_fast32_t length);
+
+  /**
+   * @brief send F_SG_NA_1 (File Segment) to server for upload
+   * @param commonAddress station address
+   * @param ioa information object address
+   * @param nof name of file
+   * @param nos name of section
+   * @param data pointer to segment data
+   * @param length length of segment data
+   * @return success information
+   */
+  bool sendSegment(std::uint_fast16_t commonAddress,
+                   std::uint_fast32_t ioa,
+                   std::uint_fast16_t nof,
+                   std::uint_fast8_t nos,
+                   const std::uint8_t* data,
+                   std::size_t length);
+
+  /**
+   * @brief send F_LS_NA_1 (Last Segment) to server for upload
+   * @param commonAddress station address
+   * @param ioa information object address
+   * @param nof name of file
+   * @param nos name of section
+   * @param lsq last segment qualifier
+   * @param checksum section checksum
+   * @return success information
+   */
+  bool sendLastSegment(std::uint_fast16_t commonAddress,
+                       std::uint_fast32_t ioa,
+                       std::uint_fast16_t nof,
+                       std::uint_fast8_t nos,
+                       std::uint_fast8_t lsq,
+                       std::uint_fast8_t checksum);
+
+  /**
+   * @brief query log with time range (F_SC_NB_1)
+   * @param commonAddress station address
+   * @param ioa information object address
+   * @param nof name of file (file type: 1=transparent, 2=disturbance, etc.)
+   * @param startTime_ms start of time range (milliseconds since epoch)
+   * @param stopTime_ms end of time range (milliseconds since epoch)
+   * @return success information
+   */
+  bool queryLog(std::uint_fast16_t commonAddress,
+                std::uint_fast32_t ioa,
+                std::uint_fast16_t nof,
+                std::uint_fast64_t startTime_ms,
+                std::uint_fast64_t stopTime_ms);
+
+  /**
+   * @brief get the file client instance for this connection
+   * @return shared pointer to the FileClient
+   */
+  std::shared_ptr<FileClient> getFileClient();
+
+  /**
    * @brief transmit a command to a remote server
    * @param point control point
    * @param cause reason for transmission
@@ -587,6 +778,9 @@ private:
   Module::Callback<void> py_onStateChange{
       "Connection.on_state_change",
       "(connection: c104.Connection, state: c104.ConnectionState) -> None"};
+
+  /// @brief file transfer client instance
+  std::shared_ptr<FileClient> fileClient{};
 
   /**
    * @brief update the connection state and trigger the on state change callback

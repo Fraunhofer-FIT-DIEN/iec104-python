@@ -31,6 +31,7 @@
 
 #include "Connection.h"
 #include "Client.h"
+#include "FileClient.h"
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
 #include "remote/Helper.h"
@@ -932,6 +933,503 @@ bool Connection::test(std::uint_fast16_t commonAddress, bool with_time,
   return result;
 }
 
+bool Connection::fileSelect(std::uint_fast16_t commonAddress,
+                            std::uint_fast32_t ioa,
+                            const bool wait_for_response) {
+  Module::ScopedGilRelease const scoped("Connection.fileSelect");
+
+  if (!isOpen())
+    return false;
+
+  std::string const cmdId =
+      std::to_string(commonAddress) + "-F_SC_NA_1-" + std::to_string(ioa);
+  if (wait_for_response) {
+    prepareCommandSuccess(cmdId, COMMAND_AWAIT_CON_TERM);
+  }
+
+  // Create ASDU for directory request (F_SC_NA_1, Type 122)
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Create FileCallOrSelect information object
+  // SCQ = 1 means "select file" (CS101_SCQ_SELECT_FILE)
+  FileCallOrSelect io =
+      FileCallOrSelect_create(NULL, static_cast<int>(ioa), CS101_NOF_TRANSPARENT_FILE, 0, 1);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  if (wait_for_response) {
+    if (result) {
+      return awaitCommandSuccess(cmdId);
+    }
+    cancelCommandSuccess(cmdId);
+  }
+  return result;
+}
+
+bool Connection::fileCall(std::uint_fast16_t commonAddress,
+                          std::uint_fast32_t ioa,
+                          std::uint_fast16_t nof) {
+  Module::ScopedGilRelease const scoped("Connection.fileCall");
+
+  if (!isOpen())
+    return false;
+
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // SCQ = 2 means "request file" (call file)
+  FileCallOrSelect io =
+      FileCallOrSelect_create(NULL, static_cast<int>(ioa), nof, 0, 2);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "fileCall] CA=" + std::to_string(commonAddress) +
+              " IOA=" + std::to_string(ioa) + " NOF=" + std::to_string(nof) +
+              " Result=" + std::to_string(result));
+  return result;
+}
+
+bool Connection::sectionCall(std::uint_fast16_t commonAddress,
+                             std::uint_fast32_t ioa,
+                             std::uint_fast16_t nof,
+                             std::uint_fast8_t nos) {
+  Module::ScopedGilRelease const scoped("Connection.sectionCall");
+
+  if (!isOpen())
+    return false;
+
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // SCQ = 6 means "request section" (call section)
+  FileCallOrSelect io =
+      FileCallOrSelect_create(NULL, static_cast<int>(ioa), nof, nos, 6);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "sectionCall] CA=" + std::to_string(commonAddress) +
+              " IOA=" + std::to_string(ioa) + " NOF=" + std::to_string(nof) +
+              " NOS=" + std::to_string(nos) + " Result=" + std::to_string(result));
+  return result;
+}
+
+bool Connection::fileAck(std::uint_fast16_t commonAddress,
+                         std::uint_fast32_t ioa,
+                         std::uint_fast16_t nof,
+                         std::uint_fast8_t nos,
+                         std::uint_fast8_t afq) {
+  Module::ScopedGilRelease const scoped("Connection.fileAck");
+
+  if (!isOpen())
+    return false;
+
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Create FileACK information object
+  FileACK io = FileACK_create(NULL, static_cast<int>(ioa), nof, nos, afq);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "fileAck] CA=" + std::to_string(commonAddress) +
+              " IOA=" + std::to_string(ioa) + " NOF=" + std::to_string(nof) +
+              " NOS=" + std::to_string(nos) + " AFQ=" + std::to_string(afq) +
+              " Result=" + std::to_string(result));
+  return result;
+}
+
+bool Connection::deleteFile(std::uint_fast16_t commonAddress,
+                            std::uint_fast32_t ioa) {
+  Module::ScopedGilRelease const scoped("Connection.deleteFile");
+
+  if (!isOpen())
+    return false;
+
+  // Create ASDU for file delete (F_SC_NA_1, Type 122)
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Create FileCallOrSelect information object
+  // SCQ = 4 means "delete file" (IEC60870_SCQ_DELETE_FILE)
+  FileCallOrSelect io =
+      FileCallOrSelect_create(NULL, static_cast<int>(ioa), CS101_NOF_TRANSPARENT_FILE, 0, 4);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "deleteFile] CA=" + std::to_string(commonAddress) +
+              " IOA=" + std::to_string(ioa) + " Result=" + std::to_string(result));
+  return result;
+}
+
+std::vector<std::uint8_t> Connection::downloadFile(std::uint_fast16_t commonAddress,
+                                                   std::uint_fast32_t ioa,
+                                                   std::uint_fast32_t timeout_ms) {
+  Module::ScopedGilRelease const scoped("Connection.downloadFile");
+
+  if (!isOpen())
+    return {};
+
+  // Create FileClient if needed
+  if (!fileClient) {
+    fileClient = FileClient::create(weak_from_this());
+  }
+
+  return fileClient->downloadFile(static_cast<uint16_t>(commonAddress),
+                                  static_cast<uint32_t>(ioa),
+                                  static_cast<uint32_t>(timeout_ms));
+}
+
+std::shared_ptr<FileClient> Connection::getFileClient() {
+  if (!fileClient) {
+    fileClient = FileClient::create(weak_from_this());
+  }
+  return fileClient;
+}
+
+bool Connection::directoryRequest(std::uint_fast16_t commonAddress,
+                                  std::uint_fast32_t ioa) {
+  Module::ScopedGilRelease const scoped("Connection.directoryRequest");
+
+  if (!isOpen())
+    return false;
+
+  // Create ASDU for directory request (F_SC_NA_1, Type 122 with COT=REQUEST)
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  // COT=REQUEST (5) triggers directory listing
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_REQUEST, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Create FileCallOrSelect information object
+  // SCQ = 1 (select) with COT=REQUEST signals directory request
+  FileCallOrSelect io =
+      FileCallOrSelect_create(NULL, static_cast<int>(ioa), CS101_NOF_DEFAULT, 0, 1);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "directoryRequest] CA=" +
+              std::to_string(commonAddress) + " IOA=" + std::to_string(ioa) +
+              " Result=" + std::to_string(result));
+  return result;
+}
+
+bool Connection::queryLog(std::uint_fast16_t commonAddress,
+                          std::uint_fast32_t ioa,
+                          std::uint_fast16_t nof,
+                          std::uint_fast64_t startTime_ms,
+                          std::uint_fast64_t stopTime_ms) {
+  Module::ScopedGilRelease const scoped("Connection.queryLog");
+
+  if (!isOpen())
+    return false;
+
+  // Create ASDU for query log (F_SC_NB_1, Type 127)
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  // COT=FILE_TRANSFER for log query
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Convert timestamps to CP56Time2a format
+  struct sCP56Time2a startTime;
+  struct sCP56Time2a stopTime;
+  CP56Time2a_setFromMsTimestamp(&startTime, startTime_ms);
+  CP56Time2a_setFromMsTimestamp(&stopTime, stopTime_ms);
+
+  // Create QueryLog information object (F_SC_NB_1 = Type 127)
+  QueryLog io = QueryLog_create(NULL, static_cast<int>(ioa),
+                                static_cast<uint16_t>(nof),
+                                &startTime, &stopTime);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "queryLog] CA=" +
+              std::to_string(commonAddress) + " IOA=" + std::to_string(ioa) +
+              " NOF=" + std::to_string(nof) +
+              " StartTime=" + std::to_string(startTime_ms) +
+              " StopTime=" + std::to_string(stopTime_ms) +
+              " Result=" + std::to_string(result));
+  return result;
+}
+
+std::vector<DirectoryEntry> Connection::browseDirectory(std::uint_fast16_t commonAddress,
+                                                        std::uint_fast32_t ioa,
+                                                        std::uint_fast32_t timeout_ms) {
+  Module::ScopedGilRelease const scoped("Connection.browseDirectory");
+
+  if (!isOpen())
+    return {};
+
+  // Create FileClient if needed
+  if (!fileClient) {
+    fileClient = FileClient::create(weak_from_this());
+  }
+
+  return fileClient->browseDirectory(static_cast<uint16_t>(commonAddress),
+                                     static_cast<uint32_t>(ioa),
+                                     static_cast<uint32_t>(timeout_ms));
+}
+
+bool Connection::uploadFile(std::uint_fast16_t commonAddress,
+                            std::uint_fast32_t ioa,
+                            std::uint_fast16_t nof,
+                            const std::vector<std::uint8_t>& data,
+                            std::uint_fast32_t timeout_ms) {
+  Module::ScopedGilRelease const scoped("Connection.uploadFile");
+
+  if (!isOpen())
+    return false;
+
+  // Create FileClient if needed
+  if (!fileClient) {
+    fileClient = FileClient::create(weak_from_this());
+  }
+
+  return fileClient->uploadFile(static_cast<uint16_t>(commonAddress),
+                                static_cast<uint32_t>(ioa),
+                                static_cast<uint16_t>(nof),
+                                data,
+                                static_cast<uint32_t>(timeout_ms));
+}
+
+bool Connection::sendFileReady(std::uint_fast16_t commonAddress,
+                               std::uint_fast32_t ioa,
+                               std::uint_fast16_t nof,
+                               std::uint_fast32_t length) {
+  Module::ScopedGilRelease const scoped("Connection.sendFileReady");
+
+  if (!isOpen())
+    return false;
+
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  // Create ASDU for File Ready (F_FR_NA_1, Type 120)
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Create FileReady information object
+  // FRQ = 0 for positive file ready
+  FileReady io = FileReady_create(NULL, static_cast<int>(ioa),
+                                  static_cast<uint16_t>(nof),
+                                  static_cast<uint32_t>(length), 0);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "sendFileReady] CA=" + std::to_string(commonAddress) +
+              " IOA=" + std::to_string(ioa) + " NOF=" + std::to_string(nof) +
+              " Length=" + std::to_string(length) + " Result=" + std::to_string(result));
+  return result;
+}
+
+bool Connection::sendSectionReady(std::uint_fast16_t commonAddress,
+                                  std::uint_fast32_t ioa,
+                                  std::uint_fast16_t nof,
+                                  std::uint_fast8_t nos,
+                                  std::uint_fast32_t length) {
+  Module::ScopedGilRelease const scoped("Connection.sendSectionReady");
+
+  if (!isOpen())
+    return false;
+
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  // Create ASDU for Section Ready (F_SR_NA_1, Type 121)
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Create SectionReady information object
+  // SRQ = 0 for section ready
+  SectionReady io = SectionReady_create(NULL, static_cast<int>(ioa),
+                                        static_cast<uint16_t>(nof),
+                                        static_cast<uint8_t>(nos),
+                                        static_cast<uint32_t>(length), 0);
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "sendSectionReady] CA=" + std::to_string(commonAddress) +
+              " IOA=" + std::to_string(ioa) + " NOF=" + std::to_string(nof) +
+              " NOS=" + std::to_string(nos) + " Length=" + std::to_string(length) +
+              " Result=" + std::to_string(result));
+  return result;
+}
+
+bool Connection::sendSegment(std::uint_fast16_t commonAddress,
+                             std::uint_fast32_t ioa,
+                             std::uint_fast16_t nof,
+                             std::uint_fast8_t nos,
+                             const std::uint8_t* data,
+                             std::size_t length) {
+  Module::ScopedGilRelease const scoped("Connection.sendSegment");
+
+  if (!isOpen())
+    return false;
+
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  // Create ASDU for File Segment (F_SG_NA_1, Type 125)
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Create FileSegment information object
+  FileSegment io = FileSegment_create(NULL, static_cast<int>(ioa),
+                                      static_cast<uint16_t>(nof),
+                                      static_cast<uint8_t>(nos),
+                                      const_cast<uint8_t*>(data),
+                                      static_cast<uint8_t>(length));
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "sendSegment] CA=" + std::to_string(commonAddress) +
+              " IOA=" + std::to_string(ioa) + " NOF=" + std::to_string(nof) +
+              " NOS=" + std::to_string(nos) + " Length=" + std::to_string(length) +
+              " Result=" + std::to_string(result));
+  return result;
+}
+
+bool Connection::sendLastSegment(std::uint_fast16_t commonAddress,
+                                 std::uint_fast32_t ioa,
+                                 std::uint_fast16_t nof,
+                                 std::uint_fast8_t nos,
+                                 std::uint_fast8_t lsq,
+                                 std::uint_fast8_t checksum) {
+  Module::ScopedGilRelease const scoped("Connection.sendLastSegment");
+
+  if (!isOpen())
+    return false;
+
+  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
+  CS101_AppLayerParameters alParams =
+      CS104_Connection_getAppLayerParameters(connection);
+
+  // Create ASDU for Last Segment/Section (F_LS_NA_1, Type 123)
+  CS101_ASDU asdu =
+      CS101_ASDU_create(alParams, false, CS101_COT_FILE_TRANSFER, 0,
+                        static_cast<int>(commonAddress), false, false);
+
+  // Create FileLastSegmentOrSection information object
+  FileLastSegmentOrSection io = FileLastSegmentOrSection_create(
+      NULL, static_cast<int>(ioa),
+      static_cast<uint16_t>(nof),
+      static_cast<uint8_t>(nos),
+      static_cast<uint8_t>(lsq),
+      static_cast<uint8_t>(checksum));
+
+  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  InformationObject_destroy((InformationObject)io);
+
+  bool const result = CS104_Connection_sendASDU(connection, asdu);
+  lock.unlock();
+
+  CS101_ASDU_destroy(asdu);
+
+  DEBUG_PRINT(Debug::Connection, "sendLastSegment] CA=" + std::to_string(commonAddress) +
+              " IOA=" + std::to_string(ioa) + " NOF=" + std::to_string(nof) +
+              " NOS=" + std::to_string(nos) + " LSQ=" + std::to_string(lsq) +
+              " CHS=" + std::to_string(checksum) + " Result=" + std::to_string(result));
+  return result;
+}
+
 bool Connection::transmit(std::shared_ptr<Object::DataPoint> point,
                           const CS101_CauseOfTransmission cause) {
   auto type = point->getType();
@@ -1137,6 +1635,105 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
     const auto parameters =
         CS104_Connection_getAppLayerParameters(instance->connection);
 
+    // Check for file transfer types BEFORE creating IncomingMessage
+    // (IncomingMessage throws exception for file transfer types)
+    IEC60870_5_TypeID rawType = CS101_ASDU_getTypeID(asdu);
+
+    if (rawType >= F_FR_NA_1 && rawType <= F_DR_TA_1) {
+      auto fc = instance->getFileClient();
+      if (fc) {
+        switch (rawType) {
+        case F_FR_NA_1: { // File Ready (120)
+          const auto io = reinterpret_cast<FileReady>(
+              CS101_ASDU_getElement(asdu, 0));
+          if (io) {
+            fc->handleFileReady(
+                FileReady_getNOF(io),
+                FileReady_getLengthOfFile(io),
+                FileReady_getFRQ(io),
+                FileReady_isPositive(io));
+            handled = true;
+          }
+          break;
+        }
+        case F_SR_NA_1: { // Section Ready (121)
+          const auto io = reinterpret_cast<SectionReady>(
+              CS101_ASDU_getElement(asdu, 0));
+          if (io) {
+            fc->handleSectionReady(
+                SectionReady_getNOF(io),
+                SectionReady_getNameOfSection(io),
+                SectionReady_getLengthOfSection(io),
+                SectionReady_getSRQ(io),
+                SectionReady_isNotReady(io));
+            handled = true;
+          }
+          break;
+        }
+        case F_SG_NA_1: { // File Segment (125)
+          const auto io = reinterpret_cast<FileSegment>(
+              CS101_ASDU_getElement(asdu, 0));
+          if (io) {
+            fc->handleSegment(
+                FileSegment_getNOF(io),
+                FileSegment_getNameOfSection(io),
+                FileSegment_getSegmentData(io),
+                FileSegment_getLengthOfSegment(io));
+            handled = true;
+          }
+          break;
+        }
+        case F_LS_NA_1: { // Last Segment/Section (123)
+          const auto io = reinterpret_cast<FileLastSegmentOrSection>(
+              CS101_ASDU_getElement(asdu, 0));
+          if (io) {
+            fc->handleLastSegmentOrSection(
+                FileLastSegmentOrSection_getNOF(io),
+                FileLastSegmentOrSection_getNameOfSection(io),
+                FileLastSegmentOrSection_getLSQ(io),
+                FileLastSegmentOrSection_getCHS(io));
+            handled = true;
+          }
+          break;
+        }
+        case F_DR_TA_1: { // Directory (126)
+          const auto io = reinterpret_cast<FileDirectory>(
+              CS101_ASDU_getElement(asdu, 0));
+          if (io) {
+            fc->handleDirectoryEntry(
+                InformationObject_getObjectAddress((InformationObject)io),
+                FileDirectory_getNOF(io),
+                FileDirectory_getLengthOfFile(io),
+                FileDirectory_getSOF(io),
+                CP56Time2a_toMsTimestamp(FileDirectory_getCreationTime(io)));
+            handled = true;
+          }
+          break;
+        }
+        case F_AF_NA_1: { // File ACK (124)
+          const auto io = reinterpret_cast<FileACK>(
+              CS101_ASDU_getElement(asdu, 0));
+          if (io) {
+            uint8_t afq = FileACK_getAFQ(io);
+            // Positive if AFQ is 1 (pos_file) or 3 (pos_section)
+            bool positive = (afq == 1 || afq == 3);
+            fc->handleFileAck(
+                FileACK_getNOF(io),
+                FileACK_getNameOfSection(io),
+                afq,
+                positive);
+            handled = true;
+          }
+          break;
+        }
+        default:
+          break;
+        }
+      }
+      // Return early for file transfer messages
+      return handled;
+    }
+
     const auto message =
         Remote::Message::IncomingMessage::create(asdu, parameters);
 
@@ -1150,6 +1747,8 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
     IEC60870_5_TypeID const type = message->getType();
     CS101_CauseOfTransmission const cot = message->getCauseOfTransmission();
     std::uint_fast16_t commonAddress = message->getCommonAddress();
+    fprintf(stderr, "[DEBUG] asduHandler type=%d, cot=%d, ca=%d\n", (int)type, (int)cot, (int)commonAddress);
+    fflush(stderr);
 
     std::shared_ptr<Object::Station> station{};
 
