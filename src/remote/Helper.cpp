@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -41,11 +41,27 @@ bool Remote::isGlobalCommonAddress(const std::uint_fast16_t commonAddress) {
   return IEC60870_GLOBAL_COMMON_ADDRESS == commonAddress;
 }
 
-std::string Remote::rawMessageFormatter(uint_fast8_t *msg, const int msgSize) {
+std::string Remote::rawMessageFormatter(const uint_fast8_t *msg,
+                                        const int msgSize) {
   std::string s;
 
+  // Guard: the buffer must be long enough to safely read the start octet,
+  // the length octet and the first control-field octet (offset 0..2). A
+  // shorter buffer cannot be parsed and would otherwise cause an out-of-bounds
+  // read (CWE-125) when fed from e.g. an on_receive_raw handler.
+  if (msgSize < 4) {
+    s += "INVALID_MESSAGE";
+    return s;
+  }
+
+  // clamp to max apdu length
+  const auto clampedMsgSize = static_cast<size_t>(std::min(msgSize, 255));
+  // authoritative APDU length: 2 start/length octets plus the length octet
+  const auto messageSize =
+      std::min(clampedMsgSize, static_cast<size_t>(2) + msg[1]);
+
   /*
-  for (int i = 0; i < msgSize; i++) {
+  for (int i = 0; i < messageSize; i++) {
       char buffer[6];
       snprintf(buffer, 5, "%02x ", msg[i]);
       s += buffer;
@@ -78,42 +94,49 @@ std::string Remote::rawMessageFormatter(uint_fast8_t *msg, const int msgSize) {
     }
   } else {
     s += "I-Format";
-    auto typeId = (IEC60870_5_TypeID)msg[IEC60870_TYPEID_OFFSET];
-    s += " | " + std::string(TypeID_toString(typeId));
 
-    auto numberOfObjects =
-        (uint8_t)(msg[IEC60870_STRUCTURE_OFFSET] & 0b01111111);
-    auto sequence = (bool)(msg[IEC60870_STRUCTURE_OFFSET] & 0b10000000);
+    uint8_t numberOfObjects = 0;
+    bool sequence = false;
 
-    auto cot =
-        (CS101_CauseOfTransmission)(msg[IEC60870_MSGINFO_OFFSET] & 0b00111111);
-    s += " | " + std::string(CS101_CauseOfTransmission_toString(cot));
+    // The I-format ASDU header spans offsets 6..11 and needs at least 12
+    // octets in the buffer to be read safely.
+    if (messageSize >= 12) {
+      auto typeId = (IEC60870_5_TypeID)msg[IEC60870_TYPEID_OFFSET];
+      s += " | " + std::string(TypeID_toString(typeId));
 
-    if (msg[IEC60870_MSGINFO_OFFSET] & 0b01000000) {
-      s += " | NEGATIVE";
-    } else {
-      s += " | POSITIVE";
+      numberOfObjects = (uint8_t)(msg[IEC60870_STRUCTURE_OFFSET] & 0b01111111);
+      sequence = (bool)(msg[IEC60870_STRUCTURE_OFFSET] & 0b10000000);
+
+      auto cot = (CS101_CauseOfTransmission)(msg[IEC60870_MSGINFO_OFFSET] &
+                                             0b00111111);
+      s += " | " + std::string(CS101_CauseOfTransmission_toString(cot));
+
+      if (msg[IEC60870_MSGINFO_OFFSET] & 0b01000000) {
+        s += " | NEGATIVE";
+      } else {
+        s += " | POSITIVE";
+      }
+
+      if (msg[IEC60870_MSGINFO_OFFSET] & 0b10000000) {
+        s += " | TEST";
+      }
+
+      uint_fast16_t targetCommonAddress = msg[IEC60870_TARGETCA1_OFFSET] +
+                                          (msg[IEC60870_TARGETCA2_OFFSET] << 8);
+      if (targetCommonAddress == IEC60870_GLOBAL_COMMON_ADDRESS) {
+        s += " | GLOBAL";
+      } else {
+        s += " | CA " + std::to_string(targetCommonAddress);
+      }
+
+      uint_fast16_t sourceCommonAddress = msg[IEC60870_SOURCECA_OFFSET];
+      if (sourceCommonAddress > 0)
+        s += " | OA " + std::to_string(sourceCommonAddress);
     }
 
-    if (msg[IEC60870_MSGINFO_OFFSET] & 0b10000000) {
-      s += " | TEST";
-    }
+    if (messageSize > IEC60870_OBJECT_OFFSET) {
 
-    uint_fast16_t targetCommonAddress =
-        msg[IEC60870_TARGETCA1_OFFSET] + (msg[IEC60870_TARGETCA2_OFFSET] << 8);
-    if (targetCommonAddress == IEC60870_GLOBAL_COMMON_ADDRESS) {
-      s += " | GLOBAL";
-    } else {
-      s += " | CA " + std::to_string(targetCommonAddress);
-    }
-
-    uint_fast16_t sourceCommonAddress = msg[IEC60870_SOURCECA_OFFSET];
-    if (sourceCommonAddress > 0)
-      s += " | OA " + std::to_string(sourceCommonAddress);
-
-    if (msgSize > IEC60870_OBJECT_OFFSET) {
-
-      if (msgSize > IEC60870_OBJECT_OFFSET + 2) {
+      if (messageSize > IEC60870_OBJECT_OFFSET + 2) {
         uint_fast16_t firstIOA = msg[IEC60870_OBJECT_OFFSET] +
                                  (msg[IEC60870_OBJECT_OFFSET + 1] << 8) +
                                  (msg[IEC60870_OBJECT_OFFSET + 2] << 16);
@@ -129,10 +152,13 @@ std::string Remote::rawMessageFormatter(uint_fast8_t *msg, const int msgSize) {
       }
       s += " (";
       int i;
-      for (i = IEC60870_OBJECT_OFFSET; i < msgSize; i++) {
+      for (i = IEC60870_OBJECT_OFFSET; i < static_cast<int>(messageSize); i++) {
         char buffer[6];
         snprintf(buffer, 5, "%02x ", msg[i]);
         s += buffer;
+      }
+      if (static_cast<int>(messageSize) < msgSize) {
+        s += "...APDU_LENGTH_EXCEEDED";
       }
       s += ")";
     }
@@ -141,13 +167,28 @@ std::string Remote::rawMessageFormatter(uint_fast8_t *msg, const int msgSize) {
   return s;
 }
 
-py::dict Remote::rawMessageDictionaryFormatter(uint_fast8_t *msg,
+py::dict Remote::rawMessageDictionaryFormatter(const uint_fast8_t *msg,
                                                const int msgSize) {
   Module::ScopedGilAcquire gilAcquire("rawMessageDictionaryFormatter");
   py::dict d;
 
+  // Guard: the buffer must be long enough to safely read the start octet,
+  // the length octet and the first control-field octet (offset 0..2). A
+  // shorter buffer cannot be parsed and would otherwise cause an out-of-bounds
+  // read (CWE-125) when fed from e.g. an on_receive_raw handler.
+  if (msgSize < 4) {
+    d["format"] = "INVALID";
+    return d;
+  }
+
+  // clamp to max apdu length
+  const auto clampedMsgSize = static_cast<size_t>(std::min(msgSize, 255));
+  // authoritative APDU length: 2 start/length octets plus the length octet
+  const auto messageSize =
+      std::min(clampedMsgSize, static_cast<size_t>(2) + msg[1]);
+
   /*
-  for (int i = 0; i < msgSize; i++) {
+  for (int i = 0; i < messageSize; i++) {
       char buffer[6];
       snprintf(buffer, 5, "%02x ", msg[i]);
       s += buffer;
@@ -183,42 +224,52 @@ py::dict Remote::rawMessageDictionaryFormatter(uint_fast8_t *msg,
       }
     } else {
       d["format"] = "S";
-      d["rx"] = ((uint16_t)msg[IEC60870_FORMAT_OFFSET + 2] +
-                 (msg[IEC60870_FORMAT_OFFSET + 3] << 8)) >>
-                1;
+      if (messageSize >= 6) {
+        d["rx"] = ((uint16_t)msg[IEC60870_FORMAT_OFFSET + 2] +
+                   (msg[IEC60870_FORMAT_OFFSET + 3] << 8)) >>
+                  1;
+      }
     }
   } else {
     d["format"] = "I";
 
-    uint16_t rx = ((uint16_t)msg[IEC60870_FORMAT_OFFSET + 2] +
-                   (msg[IEC60870_FORMAT_OFFSET + 3] << 8)) >>
-                  1;
-    d["tx"] = ((uint16_t)msg[IEC60870_FORMAT_OFFSET] +
-               (msg[IEC60870_FORMAT_OFFSET + 1] << 8)) >>
-              1;
-    d["rx"] = ((uint16_t)msg[IEC60870_FORMAT_OFFSET + 2] +
-               (msg[IEC60870_FORMAT_OFFSET + 3] << 8)) >>
-              1;
+    // the frame sequence (tx/rx) counters live at offsets 2..5 and need at
+    // least 6 octets to be read safely
+    if (messageSize >= 6) {
+      uint16_t rx = ((uint16_t)msg[IEC60870_FORMAT_OFFSET + 2] +
+                     (msg[IEC60870_FORMAT_OFFSET + 3] << 8)) >>
+                    1;
+      d["tx"] = ((uint16_t)msg[IEC60870_FORMAT_OFFSET] +
+                 (msg[IEC60870_FORMAT_OFFSET + 1] << 8)) >>
+                1;
+      d["rx"] = rx;
+    }
 
-    IEC60870_5_TypeID type = (IEC60870_5_TypeID)msg[IEC60870_TYPEID_OFFSET];
-    d["type"] = type;
+    IEC60870_5_TypeID type = IEC60870_5_TypeID::M_SP_NA_1;
 
-    d["numberOfObjects"] =
-        (uint8_t)(msg[IEC60870_STRUCTURE_OFFSET] & 0b01111111);
-    d["sequence"] = (bool)(msg[IEC60870_STRUCTURE_OFFSET] & 0b10000000);
+    // the ASDU header spans offsets 6..11 and needs at least 12 octets to be
+    // read safely
+    if (messageSize >= 12) {
+      type = (IEC60870_5_TypeID)msg[IEC60870_TYPEID_OFFSET];
+      d["type"] = type;
 
-    d["cot"] =
-        (CS101_CauseOfTransmission)(msg[IEC60870_MSGINFO_OFFSET] & 0b00111111);
-    d["negative"] = (bool)(msg[IEC60870_MSGINFO_OFFSET] & 0b01000000);
-    d["test"] = (bool)(msg[IEC60870_MSGINFO_OFFSET] & 0b10000000);
+      d["numberOfObjects"] =
+          (uint8_t)(msg[IEC60870_STRUCTURE_OFFSET] & 0b01111111);
+      d["sequence"] = (bool)(msg[IEC60870_STRUCTURE_OFFSET] & 0b10000000);
 
-    d["commonAddress"] = (uint16_t)msg[IEC60870_TARGETCA1_OFFSET] +
-                         (msg[IEC60870_TARGETCA2_OFFSET] << 8);
-    d["originatorAddress"] = (uint8_t)msg[IEC60870_SOURCECA_OFFSET];
+      d["cot"] = (CS101_CauseOfTransmission)(msg[IEC60870_MSGINFO_OFFSET] &
+                                             0b00111111);
+      d["negative"] = (bool)(msg[IEC60870_MSGINFO_OFFSET] & 0b01000000);
+      d["test"] = (bool)(msg[IEC60870_MSGINFO_OFFSET] & 0b10000000);
 
-    if (msgSize > IEC60870_OBJECT_OFFSET) {
+      d["commonAddress"] = (uint16_t)msg[IEC60870_TARGETCA1_OFFSET] +
+                           (msg[IEC60870_TARGETCA2_OFFSET] << 8);
+      d["originatorAddress"] = (uint8_t)msg[IEC60870_SOURCECA_OFFSET];
+    }
 
-      if (msgSize > IEC60870_OBJECT_OFFSET + 2) {
+    if (messageSize > IEC60870_OBJECT_OFFSET) {
+
+      if (messageSize > IEC60870_OBJECT_OFFSET + 2) {
         d["firstInformationObjectAddress"] =
             (uint32_t)msg[IEC60870_OBJECT_OFFSET] +
             (msg[IEC60870_OBJECT_OFFSET + 1] << 8) +
@@ -226,13 +277,15 @@ py::dict Remote::rawMessageDictionaryFormatter(uint_fast8_t *msg,
 
         if ((type >= C_SC_NA_1 && type <= C_SE_NC_1) ||
             (type >= C_SC_TA_1 && type <= C_SE_TC_1)) {
-          d["select"] = (bool)(msg[IEC60870_OBJECT_OFFSET + 3] >> 7);
+          if (messageSize > IEC60870_OBJECT_OFFSET + 3) {
+            d["select"] = (bool)(msg[IEC60870_OBJECT_OFFSET + 3] >> 7);
+          }
         }
       }
 
       std::string s;
       int i;
-      for (i = IEC60870_OBJECT_OFFSET; i < msgSize; i++) {
+      for (i = IEC60870_OBJECT_OFFSET; i < static_cast<int>(messageSize); i++) {
         char buffer[6];
         snprintf(buffer, 5, "%02x ", msg[i]);
         s += buffer;

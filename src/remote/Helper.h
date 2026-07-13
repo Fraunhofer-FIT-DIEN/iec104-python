@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -72,7 +72,7 @@ bool isGlobalCommonAddress(std::uint_fast16_t commonAddress);
  * @param msgSize character count of message
  * @return string
  */
-std::string rawMessageFormatter(uint_fast8_t *msg, int msgSize);
+std::string rawMessageFormatter(const uint_fast8_t *msg, int msgSize);
 
 /**
  * @brief convert a raw message byte stream to a humanly readable string
@@ -80,7 +80,7 @@ std::string rawMessageFormatter(uint_fast8_t *msg, int msgSize);
  * @param msgSize character count of message
  * @return string
  */
-py::dict rawMessageDictionaryFormatter(uint_fast8_t *msg, int msgSize);
+py::dict rawMessageDictionaryFormatter(const uint_fast8_t *msg, int msgSize);
 
 /**
  * @brief convert a CP56Time2a timestamp to a readable date time string

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -87,7 +87,8 @@ ValueError
 
   if (with_float) {
     py_number
-        .def(py::init<float>(), R"def(__init__(self, value: int | float) -> None
+        .def(py::init<float>(),
+             R"def(__init__(self, value: int | float) -> None
 
 create a fixed-length float instance
 
@@ -175,10 +176,12 @@ test if no bits are set)def");
  */
 py::bytes
 IncomingMessage_getRawBytes(const Remote::Message::IncomingMessage *message) {
-  unsigned char *msg = message->getRawBytes();
-  unsigned char msgSize = 2 + msg[1];
+  auto msg = message->getRawBytes();
+  const auto msgSize = static_cast<size_t>(2 + msg[1]);
 
-  return {reinterpret_cast<const char *>(msg), msgSize};
+  py::bytes result{reinterpret_cast<const char *>(msg), msgSize};
+  delete[] msg;
+  return result;
 }
 
 /**
@@ -192,15 +195,10 @@ IncomingMessage_getRawBytes(const Remote::Message::IncomingMessage *message) {
  * @param obj A Python bytes object to be processed and explained.
  * @return std::string A formatted string representation of the raw byte data.
  */
-std::string explain_bytes(const py::bytes &obj) {
-
-  // PyObject * pymemview = PyMemoryView_FromObject(obj);
-  // Py_buffer *buffer = PyMemoryView_GET_BUFFER(pymemview);
-  py::memoryview memview(obj);
-  Py_buffer *buffer = PyMemoryView_GET_BUFFER(memview.ptr());
-
-  return Remote::rawMessageFormatter((unsigned char *)buffer->buf,
-                                     (unsigned char)buffer->len);
+std::string explain_bytes(std::string_view obj) {
+  return Remote::rawMessageFormatter(
+      reinterpret_cast<const unsigned char *>(obj.data()),
+      static_cast<int>(obj.size()));
 }
 
 /**
@@ -217,15 +215,10 @@ std::string explain_bytes(const py::bytes &obj) {
  * @return py::dict A Python dictionary representing the structured format of
  * the raw byte data.
  */
-py::dict explain_bytes_dict(const py::bytes &obj) {
-
-  // PyObject * pymemview = PyMemoryView_FromObject(obj);
-  // Py_buffer *buffer = PyMemoryView_GET_BUFFER(pymemview);
-  py::memoryview memview(obj);
-  Py_buffer *buffer = PyMemoryView_GET_BUFFER(memview.ptr());
-
-  return Remote::rawMessageDictionaryFormatter((unsigned char *)buffer->buf,
-                                               (unsigned char)buffer->len);
+py::dict explain_bytes_dict(std::string_view obj) {
+  return Remote::rawMessageDictionaryFormatter(
+      reinterpret_cast<const unsigned char *>(obj.data()),
+      static_cast<int>(obj.size()));
 }
 
 PY_MODULE(m) {
@@ -1008,8 +1001,7 @@ PY_MODULE(m) {
   py::class_<Byte32>(m, "Byte32",
                      "This object is compatible to native bytes and ensures "
                      "that the length of the bytes is exactly 32 bit.")
-      .def(py::init([](const int &number) {
-        uint32_t value = 0;
+      .def(py::init([](const long &number) {
         if (number < 0) {
           throw std::overflow_error("can't convert negative int to bytes. The "
                                     "accepted range is from 0 to 4294967295.");
@@ -1019,7 +1011,7 @@ PY_MODULE(m) {
                                     "accepted range is from 0 to 4294967295.");
         }
 
-        return Byte32(static_cast<uint32_t>(value));
+        return Byte32(static_cast<uint32_t>(number));
       }))
       .def(py::init<uint32_t>(),
            R"def(__init__(self, value: typing.Union[bytes, int]) -> None
@@ -1405,7 +1397,8 @@ Example
           "max"_a = TLS_VERSION_NOT_SELECTED)
       .def("__repr__", &Remote::TransportSecurity::toString);
 
-  m.def("explain_bytes", &explain_bytes, R"def(explain_bytes(apdu: bytes) -> str
+  m.def("explain_bytes", &explain_bytes,
+        R"def(explain_bytes(apdu: bytes) -> str
 
 analyse 104er APDU bytes and convert it into a human readable interpretation
 
@@ -2759,8 +2752,9 @@ Example
 >>> sv_station_1.remove_point(io_address=17)
 )def",
            "io_address"_a)
-      .def("signal_initialized", &Object::Station::sendEndOfInitialization,
-           R"def(signal_initialized(self: c104.Station, cause: c104.Coi) -> None
+      .def(
+          "signal_initialized", &Object::Station::sendEndOfInitialization,
+          R"def(signal_initialized(self: c104.Station, cause: c104.Coi) -> None
 
 signal end of initialization for this station to connected clients
 
@@ -2777,7 +2771,7 @@ Example
 -------
 >>> my_station.signal_initialized(cause=c104.Coi.REMOTE_RESET)
 )def",
-           "cause"_a)
+          "cause"_a)
       .def("__repr__", &Object::Station::toString);
 
   py::class_<Object::DataPoint, std::shared_ptr<Object::DataPoint>>(

@@ -5,7 +5,7 @@ project(c104 LANGUAGES CXX)
 # COMPILE FLAGS
 # ##############################################################################
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -213,9 +213,13 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/depends/catch/src"
 
   add_executable(
     c104_tests
-    ${c104_SOURCES} tests/test_object_datapoint.cpp
-    tests/test_object_station.cpp tests/test_remote_message_batch.cpp
-    tests/test_server_interrogation.cpp tests/main.cpp)
+    ${c104_SOURCES}
+    tests/test_object_datapoint.cpp
+    tests/test_object_station.cpp
+    tests/test_remote_message_batch.cpp
+    tests/test_remote_message_helper.cpp
+    tests/test_server_interrogation.cpp
+    tests/main.cpp)
 
   if(TARGET c104_tests)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)

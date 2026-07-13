@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -35,6 +35,9 @@
 #include "object/Information.h"
 #include "remote/Helper.h"
 #include <memory>
+
+#define APDU_OFFSET 0
+#define ASDU_OFFSET 6
 
 using namespace Remote::Message;
 
@@ -139,33 +142,35 @@ void IncomingMessage::extractMetaData() {
 CS101_ASDU IncomingMessage::getAsdu() const { return asdu; }
 
 unsigned char *IncomingMessage::getRawBytes() const {
-  unsigned char *payload = CS101_ASDU_getPayload(asdu);
-  unsigned char payloadSize = CS101_ASDU_getPayloadSize(asdu);
-
-  // max total len 255 octets ^= 255 * 8 byte = 255 * 64 bit
-  // content len = 4 (control) + number of asdu's
-  // start = 68 | len | control1 | control2 | control3 | control 4 ^= 4 octet
-  // asdu | ... ^= up to 249 octet
+  // max APDU len 255 octets ^= 255 * 8 byte
   // start octet = 68
+  // start = 68 | len | control1 | control2 | control3 | control 4 ^= 4 octet
+  // ASDU (max len 249 octet)
+  //  - HEADER
+  //  - PAYLOAD
 
-  unsigned char asduHeaderLength =
-      2 + parameters->sizeOfCOT + parameters->sizeOfCA;
-  unsigned char msgSize = 6 + asduHeaderLength + payloadSize;
+  const auto asduHeaderLength =
+      static_cast<size_t>(2 + parameters->sizeOfCOT + parameters->sizeOfCA);
+  const size_t PAYLOAD_OFFSET = ASDU_OFFSET + asduHeaderLength;
+  // clamp payloadSize to max allowed length
+  const auto clampedPayloadSize = static_cast<size_t>(std::min(
+      CS101_ASDU_getPayloadSize(asdu), 255 - static_cast<int>(PAYLOAD_OFFSET)));
+  const size_t msgSize = PAYLOAD_OFFSET + clampedPayloadSize;
 
-  const unsigned char HEADER_OFFSET = 0;
-  const unsigned char ASDU_OFFSET = 6;
-  const unsigned char PAYLOAD_OFFSET = ASDU_OFFSET + asduHeaderLength;
-
-  auto msg = new unsigned char[msgSize];
+  unsigned char *payload = CS101_ASDU_getPayload(asdu);
+  const auto msg = new unsigned char[msgSize];
 
   // initialize to zero
-  for (unsigned char i = 0; i < msgSize; i++) {
+  for (size_t i = 0; i < msgSize; i++) {
     msg[i] = 0;
   }
 
-  msg[HEADER_OFFSET + 0] = 104;
-  msg[HEADER_OFFSET + 1] = 4 + asduHeaderLength +
-                           payloadSize; // length following behind length field
+  msg[APDU_OFFSET + 0] = 104;         // start octet = 68
+  msg[APDU_OFFSET + 1] = msgSize - 2; // length octet (without start octet)
+  // msg[APDU_OFFSET + 2] = 0; // control 1
+  // msg[APDU_OFFSET + 3] = 0; // control 2
+  // msg[APDU_OFFSET + 4] = 0; // control 3
+  // msg[APDU_OFFSET + 5] = 0; // control 4
 
   msg[ASDU_OFFSET + 0] = type; // typeId
   msg[ASDU_OFFSET + 1] = numberOfObjects;
@@ -184,13 +189,13 @@ unsigned char *IncomingMessage::getRawBytes() const {
   }
   int caIndex = ASDU_OFFSET + 2 + parameters->sizeOfCOT;
   if (parameters->sizeOfCA == 1) {
-    msg[caIndex] = (uint8_t)commonAddress;
+    msg[caIndex] = static_cast<uint8_t>(commonAddress);
   } else {
-    msg[caIndex] = (uint8_t)(commonAddress % 0x100);
-    msg[caIndex + 1] = (uint8_t)(commonAddress / 0x100);
+    msg[caIndex] = static_cast<uint8_t>(commonAddress % 0x100);
+    msg[caIndex + 1] = static_cast<uint8_t>(commonAddress / 0x100);
   }
 
-  for (unsigned char i = 0; i < payloadSize; i++) {
+  for (size_t i = 0; i < clampedPayloadSize; i++) {
     msg[PAYLOAD_OFFSET + i] = payload[i];
   }
 
@@ -198,11 +203,11 @@ unsigned char *IncomingMessage::getRawBytes() const {
 }
 
 std::string IncomingMessage::getRawMessageString() const {
-  unsigned char *msg = getRawBytes();
-  unsigned char msgSize = 2 + msg[1];
+  const unsigned char *msg = getRawBytes();
+  const int msgSize = 2 + msg[1];
 
   std::string formatted = rawMessageFormatter(msg, msgSize);
-  delete msg;
+  delete[] msg;
   return formatted;
 }
 
@@ -870,7 +875,8 @@ std::string IncomingMessage::toString() const {
   oss << "<c104.IncomingMessage common_address="
       << std::to_string(commonAddress)
       << ", io_address=" << std::to_string(informationObjectAddress)
-      << ", type=" << TypeID_toString(type) << ", info=" << info->name()
+      << ", type=" << TypeID_toString(type)
+      << ", info=" << (info ? info->name() : "none")
       << ", cot=" << CS101_CauseOfTransmission_toString(causeOfTransmission)
       << ", number_of_objects=" << std::to_string(numberOfObjects)
       << ", test=" << bool_toString(test)

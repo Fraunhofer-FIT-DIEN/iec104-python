@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -23,6 +23,7 @@
  */
 
 #include <catch2/catch_session.hpp>
+#include <iostream>
 #include <pybind11/embed.h> // everything needed for embedding
 namespace py = pybind11;
 
@@ -32,6 +33,20 @@ int main(int argc, char *argv[]) {
 #endif
 
   py::scoped_interpreter guard{};
+
+  // Load the c104 module so its C++ types (e.g. the IEC60870_5_TypeID enum)
+  // are registered in this embedded interpreter, mirroring a normal Python
+  // import. This lets the C++ tests exercise the py::dict-based helpers (such
+  // as Remote::rawMessageDictionaryFormatter) with the same type registration
+  // as production.
+  try {
+    py::module_::import("c104");
+  } catch (const std::exception &e) {
+    std::cerr << "[c104_tests] warning: could not import c104 module: "
+              << e.what()
+              << " (py::dict helpers relying on registered enum types may not "
+                 "be fully exercisable)\n";
+  }
 
   int result = Catch::Session().run(argc, argv);
 
