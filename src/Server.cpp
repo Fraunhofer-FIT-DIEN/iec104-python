@@ -642,11 +642,7 @@ void Server::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
 
       DEBUG_PRINT(Debug::Server, "CALLBACK on_receive_raw");
       Module::ScopedGilAcquire const scoped("Server.on_receive_raw");
-      PyObject *pymemview =
-          PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
-      PyObject *pybytes = PyBytes_FromObject(pymemview);
-
-      self->py_onReceiveRaw.call(self, py::handle(pybytes));
+      self->py_onReceiveRaw.call(self, py::bytes(cp.get(), msgSize));
     });
   }
 }
@@ -670,11 +666,7 @@ void Server::onSendRaw(unsigned char *msg, unsigned char msgSize) {
 
       DEBUG_PRINT(Debug::Server, "CALLBACK on_send_raw");
       Module::ScopedGilAcquire const scoped("Server.on_send_raw");
-      PyObject *pymemview =
-          PyMemoryView_FromMemory(cp.get(), msgSize, PyBUF_READ);
-      PyObject *pybytes = PyBytes_FromObject(pymemview);
-
-      self->py_onSendRaw.call(self, py::handle(pybytes));
+      self->py_onSendRaw.call(self, py::bytes(cp.get(), msgSize));
     });
   }
 }
