@@ -39,6 +39,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -172,6 +173,20 @@ TimePoint_toString(const std::chrono::system_clock::time_point &time);
  */
 std::string TimePoint_toString(
     const std::optional<std::chrono::system_clock::time_point> &time);
+
+/**
+ * @brief Thread-safe replacement for std::localtime()/localtime().
+ *
+ * std::localtime() (and std::localtime on some platforms) is not thread-safe:
+ * it returns a pointer to a process-shared static buffer, so concurrent calls
+ * can race and yield corrupted time fields. This helper returns the broken-down
+ * time in a caller-provided buffer using the thread-safe platform variant
+ * (localtime_r on POSIX, localtime_s on Windows).
+ * @param timep pointer to the time_t value to convert
+ * @param result caller-provided std::tm buffer that receives the result
+ * @return true on success, false if the conversion failed
+ */
+bool localtime_safe(const std::time_t *timep, std::tm *result);
 
 /**
  * @brief Converts a CP56Time2a timestamp to a

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -61,6 +61,14 @@ std::string Byte32_toString(const Byte32 &byte) {
   return "0b" + bits.to_string();
 }
 
+bool localtime_safe(const std::time_t *timep, std::tm *result) {
+#if defined(_WIN32)
+  return localtime_s(result, timep) == 0;
+#else
+  return localtime_r(timep, result) != nullptr;
+#endif
+}
+
 std::string
 TimePoint_toString(const std::chrono::system_clock::time_point &time) {
   using us_t = std::chrono::duration<int, std::micro>;
@@ -74,7 +82,10 @@ TimePoint_toString(const std::chrono::system_clock::time_point &time) {
       std::chrono::time_point_cast<std::chrono::system_clock::duration>(time -
                                                                         us));
 
-  std::tm local_tt = *std::localtime(&tt);
+  std::tm local_tt{};
+  if (!localtime_safe(&tt, &local_tt)) {
+    return "INVALID_TIME";
+  }
 
   std::ostringstream oss;
   oss << std::put_time(&local_tt, "%Y-%m-%dT%H:%M:%S");

@@ -699,7 +699,12 @@ Server::onClockSync(const std::string _ip,
         std::chrono::time_point_cast<std::chrono::system_clock::duration>(time -
                                                                           us));
 
-    std::tm localtime = *std::localtime(&tt);
+    // Use the thread-safe localtime
+    // todo use UTC in future?
+    std::tm localtime{};
+    if (!localtime_safe(&tt, &localtime)) {
+      return RESPONSE_STATE_FAILURE;
+    }
 
     PyObject *pydate = PyDateTime_FromDateAndTime(
         localtime.tm_year + 1900, localtime.tm_mon + 1, localtime.tm_mday,
