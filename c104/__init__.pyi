@@ -270,6 +270,11 @@ class Byte32:
         -------
         >>> fixed_byte32 = c104.Byte32(0b10101010111)
         """
+    @property
+    def value(self) -> int:
+        """
+        the numeric value (read-only)
+        """
 class Client:
     """
     This class represents a local client and provides access to meta-information and connected remote servers
@@ -1414,6 +1419,17 @@ class Int16:
         """
         minimum value
         """
+    @property
+    def value(self) -> int:
+        """
+        the numeric value (read-only)
+        """
+    def __eq__(self, other: object) -> bool:
+        ...
+    def __ne__(self, other: object) -> bool:
+        ...
+    def __hash__(self) -> int:
+        ...
 class Int7:
     def __init__(self, value: int) -> None:
         """
@@ -1439,6 +1455,17 @@ class Int7:
         """
         minimum value
         """
+    @property
+    def value(self) -> int:
+        """
+        the numeric value (read-only)
+        """
+    def __eq__(self, other: object) -> bool:
+        ...
+    def __ne__(self, other: object) -> bool:
+        ...
+    def __hash__(self) -> int:
+        ...
 class NormalizedCmd(Information):
     """
     This class represents all specific normalized set point command information
@@ -1507,6 +1534,25 @@ class NormalizedFloat:
         """
         minimum value
         """
+    @property
+    def value(self) -> float:
+        """
+        the numeric value (read-only)
+        """
+    def __add__(self, other: NormalizedFloat) -> NormalizedFloat:
+        ...
+    def __sub__(self, other: NormalizedFloat) -> NormalizedFloat:
+        ...
+    def __mul__(self, other: NormalizedFloat) -> NormalizedFloat:
+        ...
+    def __truediv__(self, other: NormalizedFloat) -> NormalizedFloat:
+        ...
+    def __eq__(self, other: object) -> bool:
+        ...
+    def __ne__(self, other: object) -> bool:
+        ...
+    def __hash__(self) -> int:
+        ...
 class NormalizedInfo(Information):
     """
     This class represents all specific normalized measurement point information
@@ -3915,6 +3961,17 @@ class UInt16:
         """
         minimum value
         """
+    @property
+    def value(self) -> int:
+        """
+        the numeric value (read-only)
+        """
+    def __eq__(self, other: object) -> bool:
+        ...
+    def __ne__(self, other: object) -> bool:
+        ...
+    def __hash__(self) -> int:
+        ...
 class UInt5:
     def __init__(self, value: int) -> None:
         """
@@ -3940,6 +3997,17 @@ class UInt5:
         """
         minimum value
         """
+    @property
+    def value(self) -> int:
+        """
+        the numeric value (read-only)
+        """
+    def __eq__(self, other: object) -> bool:
+        ...
+    def __ne__(self, other: object) -> bool:
+        ...
+    def __hash__(self) -> int:
+        ...
 class UInt7:
     def __init__(self, value: int) -> None:
         """
@@ -3965,6 +4033,17 @@ class UInt7:
         """
         minimum value
         """
+    @property
+    def value(self) -> int:
+        """
+        the numeric value (read-only)
+        """
+    def __eq__(self, other: object) -> bool:
+        ...
+    def __ne__(self, other: object) -> bool:
+        ...
+    def __hash__(self) -> int:
+        ...
 class Umc:
     """
     This enum contains all unexpected message cause identifier to interpret error context.

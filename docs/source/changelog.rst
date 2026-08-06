@@ -10,6 +10,8 @@ Features
 - add **TransportSecurity.set_hostname_verification(hostname: str)** to verify the peer’s hostname in its certificate.
 - server and client debug modes now enable SSL/TLS debug message output to stderr to help identify handshake issues.
 - allow setting **Batch.originator_address** to manually send a batch to a specific originator.
+- support mathematical operations between instances of the same number class (UInt*, Int* and NormalizedFloat); the result will be of type int
+- support comparison between instances of the same number class (UInt*, Int* and NormalizedFloat)
 
 Fixes
 ^^^^^^

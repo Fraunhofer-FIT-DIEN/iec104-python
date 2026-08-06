@@ -40,6 +40,8 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
+#include <functional>
+
 #ifdef VERSION_INFO
 #define PY_MODULE(var) PYBIND11_MODULE(_c104, var, py::mod_gil_not_used())
 #else
@@ -80,9 +82,31 @@ OverflowError
           .def("__int__", [](T &a) { return static_cast<int>(a.get()); })
           .def("__float__", [](T &a) { return static_cast<float>(a.get()); })
           .def("__str__", [name](T &a) { return std::to_string(a.get()); })
-          .def("__repr__", [name](const T &a) {
-            return "<c104." + name + " value=" + std::to_string(a.get()) + ">";
-          });
+          .def("__repr__",
+               [name](const T &a) {
+                 return "<c104." + name + " value=" + std::to_string(a.get()) +
+                        ">";
+               })
+          // Comparison operators between two instances of the same class
+          .def("__eq__",
+               [](const T &a, const T &b) { return a.get() == b.get(); })
+          .def("__ne__",
+               [](const T &a, const T &b) { return a.get() != b.get(); })
+          .def("__lt__",
+               [](const T &a, const T &b) { return a.get() < b.get(); })
+          .def("__le__",
+               [](const T &a, const T &b) { return a.get() <= b.get(); })
+          .def("__gt__",
+               [](const T &a, const T &b) { return a.get() > b.get(); })
+          .def("__ge__",
+               [](const T &a, const T &b) { return a.get() >= b.get(); })
+          .def("__hash__",
+               [](const T &a) {
+                 return std::hash<decltype(a.get())>{}(a.get());
+               })
+          .def_property_readonly(
+              "value", [](const T &a) { return a.get(); },
+              "the numeric value (read-only)");
 
   if constexpr (WITH_FLOAT) {
     py_number
@@ -111,7 +135,15 @@ ValueError
         .def(py::self += float())
         .def(py::self -= float())
         .def(py::self *= float())
-        .def(py::self /= float());
+        .def(py::self /= float())
+        .def(py::self + py::self)
+        .def(py::self - py::self)
+        .def(py::self * py::self)
+        .def(py::self / py::self)
+        .def(py::self += py::self)
+        .def(py::self -= py::self)
+        .def(py::self *= py::self)
+        .def(py::self /= py::self);
   } else {
     py_number
         .def_property_readonly("min", &T::getMin,
