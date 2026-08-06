@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -106,20 +106,21 @@ public:
   bool next();
 
   /**
-   * @brief test if cause of transmission is compatible with information type
+   * @brief test if the cause of transmission is compatible with information
+   * type
    * @return if cause is valid
-   * @throws std::invalid_argument if feature is not yet implemented for that
-   * information type
+   * @throws std::invalid_argument if the feature is not yet implemented for
+   * that information type
    */
   bool isValidCauseOfTransmission() const;
 
   /**
-   * @brief test if message is a command and requires a confirmation (ACK)
+   * @brief test if the message is a command and requires a confirmation (ACK)
    */
   bool requireConfirmation() const;
 
   /**
-   * @brief test if message is a command and requires a confirmation (ACK)
+   * @brief test if the message is a command and requires a confirmation (ACK)
    */
   bool isSelectCommand() const;
 

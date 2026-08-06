@@ -182,7 +182,7 @@ public:
   void stop();
 
   /**
-   * @brief test if server is currently active
+   * @brief test if the server is currently active
    * @return information on active state of server
    */
   bool isRunning();

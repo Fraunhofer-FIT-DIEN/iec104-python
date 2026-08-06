@@ -53,9 +53,9 @@ namespace py = pybind11;
 
 namespace Remote {
 /**
- * @brief test if common address is valid and identifies a single station
+ * @brief test if the common address is valid and identifies a single station
  * @param commonAddress address to be tested
- * @return if common address identifies a single station
+ * @return if the common address identifies a single station
  */
 bool isSingleCommonAddress(std::uint_fast16_t commonAddress);
 

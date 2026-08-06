@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -108,19 +108,19 @@ public:
   virtual std::shared_ptr<Object::Information> getInfo() const { return info; }
 
   /**
-   * @brief test if message test flag is set
+   * @brief test if the message test flag is set
    * @return information if message has a value
    */
   virtual bool isTest() const { return test.load(); }
 
   /**
-   * @brief test if message negative flag is set
+   * @brief test if the message negative flag is set
    * @return information if message has a value
    */
   virtual bool isNegative() const { return negative.load(); }
 
   /**
-   * @brief test if message sequence flag is set
+   * @brief test if the message sequence flag is set
    * @return information if message has a value
    */
   virtual bool isSequence() const { return sequence.load(); }

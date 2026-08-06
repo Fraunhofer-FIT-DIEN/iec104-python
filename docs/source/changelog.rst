@@ -17,6 +17,17 @@ Fixes
 - server using the originator address from the command in all response messages (not only ACK and TERM) #74
 - fix tls handshake failures by disabling hostname verification per default #64
 - fix compilation issues on macOS
+- fix restricted integer and float classes throw OverflowError instead of IndexError (the documentation state ValueError what was wrong)
+- fix missing default arguments **TransportSecurity.set_hostname_verification**,  **TransportSecurity.set_renegotiation_time** and **TransportSecurity.set_resumption_interval**
+- fix missing argument name interval_ms in **Point.on_timer**
+- add note that **Point.on_timer** will NOT trigger, if the server has no connection!
+- fix wrong name for position argument in **StepInfo** constructor (previously: state)
+- add note on accuracy of ShortInfo.actual and ShortCmd.target values
+- fix typing: **ProtectionEventInfo.elapsed_ms** type is UInt16, **ProtectionStartInfo.relay_duration_ms** type is UInt16 and **ProtectionCircuitInfo.relay_operating_ms** type is UInt16,
+- fix memory leak in **on_send_raw** and **on_recv_raw** handler, thanks to rayannott #77
+- fix memory leak in **IncomingMessage.raw**
+- fix potential memory out-of-bound read (up to 4 bytes) via crafted invalid ASDU in debug function **explain_bytes** and **explain_bytes_dict**, where the APDU length is manipulated.
+
 
 v2.2.1
 -------

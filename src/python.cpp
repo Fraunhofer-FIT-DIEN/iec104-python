@@ -51,9 +51,8 @@
 using namespace pybind11::literals;
 
 // Bind Number with Template
-template <typename T>
-void bind_Number(py::module &m, const std::string &name,
-                 const bool with_float = false) {
+template <typename T, bool WITH_FLOAT = false>
+void bind_Number(py::module &m, const std::string &name) {
   auto py_number =
       py::class_<T, std::shared_ptr<T>>(m, name.c_str())
           .def(py::init<int>(), R"def(__init__(self, value: int) -> None
@@ -67,7 +66,7 @@ value: int
 
 Raises
 ------
-ValueError
+OverflowError
     cannot convert value to fixed-length integer)def")
           // Overloading operators with different types
           .def(py::self + int())
@@ -85,7 +84,7 @@ ValueError
             return "<c104." + name + " value=" + std::to_string(a.get()) + ">";
           });
 
-  if (with_float) {
+  if constexpr (WITH_FLOAT) {
     py_number
         .def(py::init<float>(),
              R"def(__init__(self, value: int | float) -> None
@@ -291,7 +290,7 @@ PY_MODULE(m) {
 
   py::enum_<CS101_CauseOfTransmission>(
       m, "Cot",
-      "This enum contains all valid IEC60870 transmission cause identifier to "
+      "This enum contains all valid IEC60870 transmission cause identifiers to "
       "interpret message context.")
       .value("PERIODIC", CS101_CauseOfTransmission::CS101_COT_PERIODIC)
       .value("BACKGROUND_SCAN",
@@ -429,7 +428,7 @@ PY_MODULE(m) {
   py::enum_<CommandResponseState>(
       m, "ResponseState",
       "This enum contains all command response states, that add the ability to "
-      "control the servers command response behaviour via python callbacks "
+      "control the server command response behaviour via python callbacks "
       "return value.")
       .value("FAILURE", RESPONSE_STATE_FAILURE)
       .value("SUCCESS", RESPONSE_STATE_SUCCESS)
@@ -437,7 +436,7 @@ PY_MODULE(m) {
 
   py::enum_<CommandTransmissionMode>(
       m, "CommandMode",
-      "This enum contains all command transmission modes a client"
+      "This enum contains all command transmission modes a client "
       "may use to send commands.")
       .value("DIRECT", DIRECT_COMMAND,
              "The value can be set without any selection procedure")
@@ -537,7 +536,7 @@ PY_MODULE(m) {
       .value("TLS_1_3", TLS_VERSION_TLS_1_3);
 
   py::enum_<TLSCipherSuite>(
-      m, "TlsCipher", "This enum contains all supported TLS ciphersuites.")
+      m, "TlsCipher", "This enum contains all supported TLS cipher suites.")
       .value("RSA_WITH_NULL_MD5", TLSCipherSuite::RSA_WITH_NULL_MD5)
       .value("RSA_WITH_NULL_SHA", TLSCipherSuite::RSA_WITH_NULL_SHA)
       .value("PSK_WITH_NULL_SHA", TLSCipherSuite::PSK_WITH_NULL_SHA)
@@ -996,27 +995,28 @@ PY_MODULE(m) {
   bind_Number<LimitedUInt16>(m, "UInt16");
   bind_Number<LimitedInt7>(m, "Int7");
   bind_Number<LimitedInt16>(m, "Int16");
-  bind_Number<NormalizedFloat>(m, "NormalizedFloat", true);
+  bind_Number<NormalizedFloat, true>(m, "NormalizedFloat");
 
   py::class_<Byte32>(m, "Byte32",
                      "This object is compatible to native bytes and ensures "
                      "that the length of the bytes is exactly 32 bit.")
-      .def(py::init([](const long &number) {
-        if (number < 0) {
-          throw std::overflow_error("can't convert negative int to bytes. The "
-                                    "accepted range is from 0 to 4294967295.");
-        }
-        if (number > 4294967295) {
-          throw std::overflow_error("can't convert long int to bytes. The "
-                                    "accepted range is from 0 to 4294967295.");
-        }
+      .def(py::init([](const long long &number) {
+             if (number < 0) {
+               throw std::overflow_error(
+                   "can't convert negative int to bytes. The "
+                   "accepted range is from 0 to 4294967295.");
+             }
+             if (number > 4294967295) {
+               throw std::overflow_error(
+                   "can't convert int to bytes. The accepted "
+                   "range is from 0 to 4294967295.");
+             }
 
-        return Byte32(static_cast<uint32_t>(number));
-      }))
-      .def(py::init<uint32_t>(),
+             return Byte32(static_cast<uint32_t>(number));
+           }),
            R"def(__init__(self, value: typing.Union[bytes, int]) -> None
 
-create a new fixed-length bytes representation
+create a fixed-length bytes representation
 
 Parameters
 ----------
@@ -1056,12 +1056,15 @@ Example
           },
           R"def(__bytes__(self: c104.Byte32) -> bytes
 
-convert to native bytes
+convert to native bytes (big-endian, the most significant byte first)
 )def")
       .def("__str__", &Byte32_toString)
-      .def("__repr__", [](const Byte32 &b) {
-        return "<c104.Byte32 value=" + Byte32_toString(b) + ">";
-      });
+      .def("__repr__",
+           [](const Byte32 &b) {
+             return "<c104.Byte32 value=" + Byte32_toString(b) + ">";
+           })
+      .def_property_readonly("value", &Byte32::get,
+                             "int: the numeric value (read-only)");
 
   py::class_<sCS104_APCIParameters>(m, "ProtocolParameters",
                                     "This class is used to configure protocol "
@@ -1084,7 +1087,7 @@ convert to native bytes
       .def_readwrite(
           "keep_alive_interval", &sCS104_APCIParameters::t3,
           "int: maximum interval without communication, send test "
-          "frame message to prove liveness (seconds) (property name: t3)")
+          "frame messages to prove liveness (seconds) (property name: t3)")
       .def("__str__",
            [](const sCS104_APCIParameters parameters) {
              std::ostringstream oss;
@@ -1119,7 +1122,7 @@ convert to native bytes
           py::init(&Remote::TransportSecurity::create),
           R"def(__init__(self: c104.TransportSecurity, validate: bool = True, only_known: bool = True) -> None
 
-Create a new transport layer configuration
+Create a transport layer configuration
 
 Parameters
 ----------
@@ -1266,7 +1269,7 @@ Example
 >>> tls = c104.TransportSecurity(validate=True, only_known=False)
 >>> tls.set_hostname_verification(hostname="example.com")
 )def",
-          "hostname"_a)
+          "hostname"_a = std::nullopt)
       .def(
           "set_renegotiation_time",
           &Remote::TransportSecurity::setRenegotiationTime,
@@ -1299,7 +1302,7 @@ Example
 >>> tls = c104.TransportSecurity(validate=True, only_known=False)
 >>> tls.set_renegotiation_time(interval=datetime.timedelta(minutes=30))
 )def",
-          "interval"_a)
+          "interval"_a = std::nullopt)
       .def(
           "set_resumption_interval",
           &Remote::TransportSecurity::setResumptionInterval,
@@ -1333,7 +1336,7 @@ Example
 >>> tls = c104.TransportSecurity(validate=True, only_known=False)
 >>> tls.set_resumption_interval(interval=datetime.timedelta(hours=6))
 )def",
-          "interval"_a)
+          "interval"_a = std::nullopt)
       .def(
           "add_allowed_remote_certificate",
           &Remote::TransportSecurity::addAllowedRemoteCertificate,
@@ -1400,7 +1403,7 @@ Example
   m.def("explain_bytes", &explain_bytes,
         R"def(explain_bytes(apdu: bytes) -> str
 
-analyse 104er APDU bytes and convert it into a human readable interpretation
+analyze protocol APDU bytes and convert it into a human-readable interpretation
 
 Parameters
 ----------
@@ -1422,7 +1425,7 @@ Example
   m.def("explain_bytes_dict", &explain_bytes_dict,
         R"def(explain_bytes_dict(apdu: bytes) -> dict[str, typing.Any]
 
-analyse 104er APDU bytes and extract information into a dictionary
+analyze protocol APDU bytes and extract information into a dictionary
 
 Parameters
 ----------
@@ -1516,7 +1519,7 @@ Example
           py::init(&Client::create),
           R"def(__init__(self: c104.Client, tick_rate_ms: int = 100, command_timeout_ms: int = 10000, transport_security: c104.TransportSecurity = None) -> None
 
-create a new 104er client
+create a c104 communication client
 
 Parameters
 ----------
@@ -1537,21 +1540,22 @@ Example
           "tick_rate_ms", &Client::getTickRate_ms,
           "int: the clients tick rate in milliseconds (read-only)")
       .def_property_readonly("is_running", &Client::isRunning,
-                             "bool: test if client is running (read-only)")
+                             "bool: test if the client is running (read-only)")
       .def_property_readonly("has_connections", &Client::hasConnections,
-                             "bool: test if client has at least one remote "
+                             "bool: test if the client has at least one remote "
                              "server connection (read-only)")
-      .def_property_readonly(
-          "has_open_connections", &Client::hasOpenConnections,
-          "bool: test if client has open connections to servers (read-only)")
+      .def_property_readonly("has_open_connections",
+                             &Client::hasOpenConnections,
+                             "bool: test if the client has open connections to "
+                             "servers (read-only)")
       .def_property_readonly("open_connection_count",
                              &Client::getOpenConnectionCount,
                              "int: represents the number of open connections "
                              "to servers (read-only)")
-      .def_property_readonly("has_active_connections",
-                             &Client::hasActiveConnections,
-                             "bool: test if client has active (open and not "
-                             "muted) connections to servers (read-only)")
+      .def_property_readonly(
+          "has_active_connections", &Client::hasActiveConnections,
+          "bool: test if the client has active (open and not "
+          "muted) connections to servers (read-only)")
       .def_property_readonly("active_connection_count",
                              &Client::getActiveConnectionCount,
                              "int: get number of active (open and not muted) "
@@ -1584,7 +1588,7 @@ Example
           "add_connection", &Client::addConnection,
           R"def(add_connection(self: c104.Client, ip: str, port: int = 2404, init = c104.Init.ALL) -> c104.Connection | None
 
-add a new remote server connection to this client and return the new connection object
+add a remote server connection to this client and return the connection object
 
 Parameters
 ----------
@@ -1671,7 +1675,7 @@ Example
           "on_station_initialized", &Client::setOnEndOfInitializationCallback,
           R"def(on_station_initialized(self: c104.Client, callable: collections.abc.Callable[[c104.Client, c104.Station, c104.Coi], None]) -> None
 
-set python callback that will be executed on incoming end of initialization message from stations
+set python callback that will be executed on incoming end-of-initialization messages from stations
 
 Parameters
 ----------
@@ -1714,7 +1718,7 @@ Example
           "on_new_station", &Client::setOnNewStationCallback,
           R"def(on_new_station(self: c104.Client, callable: collections.abc.Callable[[c104.Client, c104.Connection, int], None]) -> None
 
-set python callback that will be executed on incoming message from unknown station
+set python callback that will be executed on incoming messages from unknown station
 
 Parameters
 ----------
@@ -1758,7 +1762,7 @@ Example
           "on_new_point", &Client::setOnNewPointCallback,
           R"def(on_new_point(self: c104.Client, callable: collections.abc.Callable[[c104.Client, c104.Station, int, c104.Type], None]) -> None
 
-set python callback that will be executed on incoming message from unknown point
+set python callback that will be executed on incoming messages from unknown point
 
 Parameters
 ----------
@@ -1810,7 +1814,7 @@ Example
           py::init(&Server::create),
           R"def(__init__(self: c104.Server, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 100, select_timeout_ms = 10000, max_connections: int = 0, transport_security: c104.TransportSecurity = None) -> None
 
-create a new 104er server
+create a c104 communication server
 
 Parameters
 ----------
@@ -1844,25 +1848,26 @@ Example
           "port", &Server::getPort,
           "int: port number the server will accept connections on (read-only)")
       .def_property_readonly("is_running", &Server::isRunning,
-                             "bool: test if server is running (read-only)")
-      .def_property_readonly(
-          "has_open_connections", &Server::hasOpenConnections,
-          "bool: test if server has open connections to clients (read-only)")
+                             "bool: test if the server is running (read-only)")
+      .def_property_readonly("has_open_connections",
+                             &Server::hasOpenConnections,
+                             "bool: test if the server has open connections to "
+                             "clients (read-only)")
       .def_property_readonly("open_connection_count",
                              &Server::getOpenConnectionCount,
                              "int: represents the number of open connections "
                              "to clients (read-only)")
-      .def_property_readonly("has_active_connections",
-                             &Server::hasActiveConnections,
-                             "bool: test if server has active (open and not "
-                             "muted) connections to clients (read-only)")
+      .def_property_readonly(
+          "has_active_connections", &Server::hasActiveConnections,
+          "bool: test if the server has active (open and not "
+          "muted) connections to clients (read-only)")
       .def_property_readonly("active_connection_count",
                              &Server::getActiveConnectionCount,
                              "int: get number of active (open and not muted) "
                              "connections to clients (read-only)")
       .def_property_readonly(
           "has_stations", &Server::hasStations,
-          "bool: test if server has at least one station (read-only)")
+          "bool: test if the server has at least one station (read-only)")
       .def_property_readonly("stations", &Server::getStations,
                              "list[c104.Station]: list of all local "
                              "Station objects (read-only)")
@@ -1899,7 +1904,7 @@ Example
           "add_station", &Server::addStation,
           R"def(add_station(self: c104.Server, common_address: int) -> c104.Station | None
 
-add a new station to this server and return the new station object
+add a station to this server and return the station object
 
 Parameters
 ----------
@@ -1985,7 +1990,7 @@ Example
           "on_receive_raw", &Server::setOnReceiveRawCallback,
           R"def(on_receive_raw(self: c104.Server, callable: collections.abc.Callable[[c104.Server, bytes], None]) -> None
 
-set python callback that will be executed on incoming message
+set python callback that will be executed on incoming messages
 
 Parameters
 ----------
@@ -2201,7 +2206,7 @@ Example
   py::class_<Remote::Connection, std::shared_ptr<Remote::Connection>>(
       m, "Connection",
       "This class represents connections from a client to a remote server and "
-      "provides access to meta information and containing stations")
+      "provides access to meta-information and containing stations")
       .def_property_readonly(
           "ip", &Remote::Connection::getIP,
           "str: remote terminal units (server) ip (read-only)")
@@ -2211,16 +2216,18 @@ Example
       .def_property_readonly(
           "state", &Remote::Connection::getState,
           "c104.ConnectionState: current connection state (read-only)")
-      .def_property_readonly(
-          "has_stations", &Remote::Connection::hasStations,
-          "bool: test if remote server has at least one station (read-only)")
+      .def_property_readonly("has_stations", &Remote::Connection::hasStations,
+                             "bool: test if the remote server has at least one "
+                             "station (read-only)")
       .def_property_readonly(
           "stations", &Remote::Connection::getStations,
           "list[c104.Station]: list of all Station objects (read-only)")
-      .def_property_readonly("is_connected", &Remote::Connection::isOpen,
-                             "bool: test if connection is opened (read-only)")
-      .def_property_readonly("is_muted", &Remote::Connection::isMuted,
-                             "bool: test if connection is muted (read-only)")
+      .def_property_readonly(
+          "is_connected", &Remote::Connection::isOpen,
+          "bool: test if the connection is opened (read-only)")
+      .def_property_readonly(
+          "is_muted", &Remote::Connection::isMuted,
+          "bool: test if the connection is muted (read-only)")
       .def_property("originator_address",
                     &Remote::Connection::getOriginatorAddress,
                     &Remote::Connection::setOriginatorAddress,
@@ -2360,7 +2367,7 @@ Example
           R"def(clock_sync(self: c104.Connection, common_address: int, wait_for_response: bool = True) -> bool
 
 send a clock synchronization command to the remote terminal unit (server)
-the clients OS time is used
+the client's OS time is used
 
 Parameters
 ----------
@@ -2386,7 +2393,7 @@ Example
           R"def(test(self: c104.Connection, common_address: int, with_time: bool = True, wait_for_response: bool = True) -> bool
 
 send a test command to the remote terminal unit (server)
-the clients OS time is used
+the client's OS time is used
 
 Parameters
 ----------
@@ -2413,7 +2420,7 @@ Example
           "add_station", &Remote::Connection::addStation,
           R"def(add_station(self: c104.Connection, common_address: int) -> c104.Station | None
 
-add a new station to this connection and return the new station object
+add a station to this connection and return the station object
 
 Parameters
 ----------
@@ -2476,7 +2483,7 @@ Example
           "on_receive_raw", &Remote::Connection::setOnReceiveRawCallback,
           R"def(on_receive_raw(self: c104.Connection, callable: collections.abc.Callable[[c104.Connection, bytes], None]) -> None
 
-set python callback that will be executed on incoming message
+set python callback that will be executed on incoming messages
 
 Parameters
 ----------
@@ -2645,7 +2652,7 @@ Example
   py::class_<Object::Station, std::shared_ptr<Object::Station>>(
       m, "Station",
       "This class represents local or remote stations and provides access to "
-      "meta information and containing points")
+      "meta-information and containing points")
       .def_property_readonly("server", &Object::Station::getServer,
                              "c104.Server | None : parent Server of "
                              "local station (read-only)")
@@ -2656,12 +2663,13 @@ Example
           "common_address", &Object::Station::getCommonAddress,
           "int: common address of this station (1-65534) (read-only)",
           py::return_value_policy::copy)
-      .def_property_readonly("is_local", &Object::Station::isLocal,
-                             "bool: test if station is local (has sever) or "
-                             "remote (has connection) one (read-only)")
+      .def_property_readonly(
+          "is_local", &Object::Station::isLocal,
+          "bool: test if the station is local (has sever) or "
+          "remote (has connection) one (read-only)")
       .def_property_readonly(
           "has_points", &Object::Station::hasPoints,
-          "bool: test if station has at least one point (read-only)")
+          "bool: test if the station has at least one point (read-only)")
       .def_property_readonly(
           "points", &Object::Station::getPoints,
           "list[c104.Point]: list of all Point objects (read-only)")
@@ -2690,7 +2698,7 @@ Example
           "add_point", &Object::Station::addPoint,
           R"def(add_point(self: c104.Station, io_address: int, type: c104.Type, report_ms: int = 0, related_io_address: int = None, related_io_autoreturn: bool = False, command_mode: c104.CommandMode = c104.CommandMode.DIRECT) -> c104.Point | None
 
-add a new point to this station and return the new point object
+add a point to this station and return the point object
 
 Parameters
 ----------
@@ -2752,9 +2760,8 @@ Example
 >>> sv_station_1.remove_point(io_address=17)
 )def",
            "io_address"_a)
-      .def(
-          "signal_initialized", &Object::Station::sendEndOfInitialization,
-          R"def(signal_initialized(self: c104.Station, cause: c104.Coi) -> None
+      .def("signal_initialized", &Object::Station::sendEndOfInitialization,
+           R"def(signal_initialized(self: c104.Station, cause: c104.Coi) -> None
 
 signal end of initialization for this station to connected clients
 
@@ -2771,7 +2778,7 @@ Example
 -------
 >>> my_station.signal_initialized(cause=c104.Coi.REMOTE_RESET)
 )def",
-          "cause"_a)
+           "cause"_a)
       .def("__repr__", &Object::Station::toString);
 
   py::class_<Object::DataPoint, std::shared_ptr<Object::DataPoint>>(
@@ -2851,7 +2858,7 @@ Example
           R"def(on_receive(self: c104.Point, callable: collections.abc.Callable[[c104.Point, c104.Information, c104.IncomingMessage], c104.ResponseState]) -> None
 
 set python callback that will be executed on every incoming message
-this can be either a command or an monitoring message
+this can be either a command or a monitoring message
 
 Parameters
 ----------
@@ -2921,7 +2928,7 @@ None
 Raises
 ------
 ValueError
-    callable signature does not match exactly, parent station reference is invalid or function is called from client context
+    callable signature does not match exactly, parent station reference is invalid, or function is called from client context
 
 **Callable signature**
 
@@ -2963,7 +2970,7 @@ None
 Raises
 ------
 ValueError
-    callable signature does not match exactly, parent station reference is invalid or function is called from client context
+    callable signature does not match exactly, parent station reference is invalid, or function is called from client context
 
 **Callable signature**
 
@@ -2982,6 +2989,12 @@ The difference between **on_before_read** and **on_before_auto_transmit** is the
 **on_before_read** is called when a client sends a command to report a point (interrogation or read).
 **on_before_auto_transmit** is called when the server reports a measured value interval-based.
 
+Note
+----
+Interval-based (``report_ms``-driven) dispatch only happens while the server has at least one active
+client connection. With no connected client the periodic timers do not fire and this callback is not
+called until a client is connected again.
+
 Example
 -------
 >>> def on_before_auto_transmit_step(point: c104.Point) -> None:
@@ -2994,7 +3007,7 @@ Example
           "callable"_a)
       .def(
           "on_timer", &Object::DataPoint::setOnTimerCallback,
-          R"def(on_timer(self: c104.Point, callable: collections.abc.Callable[[c104.Point], None], int) -> None
+          R"def(on_timer(self: c104.Point, callable: collections.abc.Callable[[c104.Point], None], interval_ms: int) -> None
 
 set python callback that will be called in a fixed delay (timer_ms)
 
@@ -3012,7 +3025,7 @@ None
 Raises
 ------
 ValueError
-    callable signature does not match exactly, parent station reference is invalid or function is called from client context
+    callable signature does not match exactly, parent station reference is invalid, or function is called from client context
 
 **Callable signature**
 
@@ -3026,6 +3039,12 @@ interval_ms: int
 Callable Returns
 ----------------
 None
+
+Note
+----
+The timer callback only fires while the server has at least one active client connection. With no
+connected client the periodic timer is not dispatched and this callback is not called until a client
+is connected again.
 
 Example
 -------
@@ -3095,7 +3114,7 @@ Example
 
   py::class_<Object::Information, std::shared_ptr<Object::Information>>(
       m, "Information",
-      "This class represents all specialized kind of information a specific "
+      "This class represents all specialized kinds of information a specific "
       "point may have")
       .def_property_readonly(
           "value", &Object::Information::getValue,
@@ -3129,7 +3148,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::SingleInfo::create),
           R"def(__init__(self: c104.SingleInfo, on: bool, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new single info
+create single information
 
 Parameters
 ----------
@@ -3165,7 +3184,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::SingleCmd::create),
           R"def(__init__(self: c104.SingleCmd, on: bool, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: datetime.datetime = None) -> None
 
-create a new single command
+create a single command
 
 Parameters
 ----------
@@ -3204,7 +3223,7 @@ The setter is available via point.value=xyz)def")
           py::init(&Object::DoubleInfo::create),
           R"def(__init__(self: c104.DoubleInfo, state: c104.Double, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new double info
+create double information
 
 Parameters
 ----------
@@ -3241,7 +3260,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::DoubleCmd::create),
           R"def(__init__(self: c104.DoubleCmd, state: c104.Double, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: datetime.datetime = None) -> None
 
-create a new double command
+create a double command
 
 Parameters
 ----------
@@ -3281,7 +3300,7 @@ The setter is available via point.value=xyz)def")
           py::init(&Object::StepInfo::create),
           R"def(__init__(self: c104.StepInfo, position: c104.Int7, transient: bool, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new step info
+create step information
 
 Parameters
 ----------
@@ -3298,7 +3317,7 @@ Example
 -------
 >>> step_info = c104.StepInfo(position=c104.Int7(2), transient=False, quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now(datetime.utc))
 )def",
-          "state"_a, "transient"_a = false, "quality"_a = Quality::None,
+          "position"_a, "transient"_a = false, "quality"_a = Quality::None,
           "recorded_at"_a = py::none())
       .def_property_readonly("position", &Object::StepInfo::getPosition,
                              "c104.Int7: the value (read-only)")
@@ -3323,7 +3342,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::StepCmd::create),
           R"def(__init__(self: c104.StepCmd, direction: c104.Step, qualifier: c104.Qoc = c104.Qoc.NONE, recorded_at: datetime.datetime = None) -> None
 
-create a new step command
+create a step command
 
 Parameters
 ----------
@@ -3363,7 +3382,7 @@ The setter is available via point.value=xyz)def")
           py::init(&Object::BinaryInfo::create),
           R"def(__init__(self: c104.BinaryInfo, blob: c104.Byte32, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new binary info
+create binary information
 
 Parameters
 ----------
@@ -3400,7 +3419,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::BinaryCmd::create),
           R"def(__init__(self: c104.BinaryCmd, blob: c104.Byte32, recorded_at: datetime.datetime = None) -> None
 
-create a new binary command
+create a binary command
 
 Parameters
 ----------
@@ -3435,7 +3454,7 @@ The setter is available via point.value=xyz)def")
           py::init(&Object::NormalizedInfo::create),
           R"def(__init__(self: c104.NormalizedInfo, actual: c104.NormalizedFloat, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new normalized measurement info
+create normalized measurement information
 
 Parameters
 ----------
@@ -3473,7 +3492,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::NormalizedCmd::create),
           R"def(__init__(self: c104.NormalizedCmd, target: c104.NormalizedFloat, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: datetime.datetime = None) -> None
 
-create a new normalized set point command
+create a normalized set point command
 
 Parameters
 ----------
@@ -3513,7 +3532,7 @@ The setter is available via point.value=xyz)def")
           py::init(&Object::ScaledInfo::create),
           R"def(__init__(self: c104.ScaledInfo, actual: c104.Int16, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new scaled measurement info
+create scaled measurement information
 
 Parameters
 ----------
@@ -3550,7 +3569,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::ScaledCmd::create),
           R"def(__init__(self: c104.ScaledCmd, target: c104.Int16, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: datetime.datetime = None) -> None
 
-create a new scaled set point command
+create a scaled set point command
 
 Parameters
 ----------
@@ -3590,7 +3609,7 @@ The setter is available via point.value=xyz)def")
           py::init(&Object::ShortInfo::create),
           R"def(__init__(self: c104.ShortInfo, actual: float, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new short measurement info
+create short measurement information
 
 Parameters
 ----------
@@ -3607,7 +3626,12 @@ Example
 )def",
           "actual"_a, "quality"_a = Quality::None, "recorded_at"_a = py::none())
       .def_property_readonly("actual", &Object::ShortInfo::getActual,
-                             "float: the value (read-only)")
+                             R"def(float: the value (read-only)
+
+This short float is stored as IEEE-754 single precision (32 bit), so values
+that are not exactly representable lose precision (e.g. 23.45 becomes
+23.450000762939453). Compare with a tolerance (e.g. assertAlmostEqual),
+not with ==.)def")
       .def_property_readonly(
           "value", &Object::ShortInfo::getValue,
           R"def(float: references property ``actual`` (read-only)
@@ -3627,7 +3651,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::ShortCmd::create),
           R"def(__init__(self: c104.ShortCmd, target: float, qualifier: c104.UInt7 = c104.UInt7(0), recorded_at: datetime.datetime = None) -> None
 
-create a new short set point command
+create a short set point command
 
 Parameters
 ----------
@@ -3645,7 +3669,12 @@ Example
           "target"_a, "qualifier"_a = LimitedUInt7(0),
           "recorded_at"_a = py::none())
       .def_property_readonly("target", &Object::ShortCmd::getTarget,
-                             "float: the value (read-only)")
+                             R"def(float: the value (read-only)
+
+This short float is stored as IEEE-754 single precision (32 bit), so values
+that are not exactly representable lose precision (e.g. 23.45 becomes
+23.450000762939453). Compare with a tolerance (e.g. assertAlmostEqual),
+not with ==.)def")
       .def_property_readonly(
           "qualifier", &Object::ShortCmd::getQualifier,
           "c104.UInt7: the command qualifier information (read-only)")
@@ -3663,12 +3692,12 @@ The setter is available via point.value=xyz)def")
              std::shared_ptr<Object::BinaryCounterInfo>>(
       m, "BinaryCounterInfo",
       "This class represents all specific integrated totals of binary counter "
-      "point information")
+      "information point")
       .def(
           py::init(&Object::BinaryCounterInfo::create),
           R"def(__init__(self: c104.BinaryCounterInfo, counter: int, sequence: c104.UInt5, quality: c104.BinaryCounterQuality = c104.BinaryCounterQuality(), recorded_at: datetime.datetime = None) -> None
 
-create a new short measurement info
+create binary counter information
 
 Parameters
 ----------
@@ -3713,7 +3742,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::ProtectionEquipmentEventInfo::create),
           R"def(__init__(self: c104.ProtectionEventInfo, state: c104.EventState, elapsed_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new event info raised by protection equipment
+create event information raised by protection equipment
 
 Parameters
 ----------
@@ -3747,7 +3776,7 @@ The setter is available via point.value=xyz)def")
 The setter is available via point.quality=xyz)def")
       .def_property_readonly(
           "elapsed_ms", &Object::ProtectionEquipmentEventInfo::getElapsed_ms,
-          "int: the elapsed time in milliseconds (read-only)")
+          "c104.UInt16: the elapsed time in milliseconds (read-only)")
       .def("__repr__", &Object::ProtectionEquipmentEventInfo::toString);
 
   py::class_<Object::ProtectionEquipmentStartEventsInfo, Object::Information,
@@ -3759,7 +3788,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::ProtectionEquipmentStartEventsInfo::create),
           R"def(__init__(self: c104.ProtectionStartInfo, events: c104.StartEvents, relay_duration_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new packed event start info raised by protection equipment
+create packed event start information raised by protection equipment
 
 Parameters
 ----------
@@ -3784,7 +3813,7 @@ Example
       .def_property_readonly(
           "relay_duration_ms",
           &Object::ProtectionEquipmentStartEventsInfo::getRelayDuration_ms,
-          "int: the relay duration information (read-only)")
+          "c104.UInt16: the relay duration information (read-only)")
       .def_property_readonly(
           "value", &Object::ProtectionEquipmentStartEventsInfo::getValue,
           R"def(c104.StartEvents: references property ``events`` (read-only)
@@ -3806,7 +3835,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::ProtectionEquipmentOutputCircuitInfo::create),
           R"def(__init__(self: c104.ProtectionCircuitInfo, circuits: c104.OutputCircuits, relay_operating_ms: c104.UInt16, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new output circuits info raised by protection equipment
+create output circuits information raised by protection equipment
 
 Parameters
 ----------
@@ -3832,7 +3861,7 @@ Example
       .def_property_readonly(
           "relay_operating_ms",
           &Object::ProtectionEquipmentOutputCircuitInfo::getRelayOperating_ms,
-          "int: the relay operation duration information (read-only)")
+          "c104.UInt16: the relay operation duration information (read-only)")
       .def_property_readonly(
           "value", &Object::ProtectionEquipmentOutputCircuitInfo::getValue,
           R"def(c104.OutputCircuits: references property ``circuits`` (read-only)
@@ -3854,7 +3883,7 @@ The setter is available via point.quality=xyz)def")
           py::init(&Object::StatusWithChangeDetection::create),
           R"def(__init__(self: c104.StatusAndChanged, status: c104.PackedSingle, changed: c104.PackedSingle, quality: c104.Quality = c104.Quality(), recorded_at: datetime.datetime = None) -> None
 
-create a new event info raised by protection equipment
+create event information raised by protection equipment
 
 Parameters
 ----------
@@ -3921,13 +3950,13 @@ The setter is available via point.quality=xyz)def")
                              "c104.Information: value (read-only)")
       .def_property_readonly("is_test",
                              &Remote::Message::IncomingMessage::isTest,
-                             "bool: test if test flag is set (read-only)")
-      .def_property_readonly("is_sequence",
-                             &Remote::Message::IncomingMessage::isSequence,
-                             "bool: test if sequence flag is set (read-only)")
-      .def_property_readonly("is_negative",
-                             &Remote::Message::IncomingMessage::isNegative,
-                             "bool: test if negative flag is set (read-only)")
+                             "bool: test if the test flag is set (read-only)")
+      .def_property_readonly(
+          "is_sequence", &Remote::Message::IncomingMessage::isSequence,
+          "bool: test if the sequence flag is set (read-only)")
+      .def_property_readonly(
+          "is_negative", &Remote::Message::IncomingMessage::isNegative,
+          "bool: test if the negative flag is set (read-only)")
       .def_property_readonly("raw", &IncomingMessage_getRawBytes,
                              "bytes: raw ASDU message bytes (read-only)",
                              py::return_value_policy::take_ownership)
@@ -3948,11 +3977,12 @@ The setter is available via point.quality=xyz)def")
           "int: represents the number of information objects contained in this "
           "message (read-only)",
           py::return_value_policy::copy)
-      .def_property_readonly("is_select_command",
-                             &Remote::Message::IncomingMessage::isSelectCommand,
-                             "bool: test if message is a point command and has "
-                             "select flag set (read-only)",
-                             py::return_value_policy::copy)
+      .def_property_readonly(
+          "is_select_command",
+          &Remote::Message::IncomingMessage::isSelectCommand,
+          "bool: test if the message is a point command and has "
+          "the select flag set (read-only)",
+          py::return_value_policy::copy)
       .def("first", &Remote::Message::IncomingMessage::first,
            R"def(first(self: c104.IncomingMessage) -> None
 
@@ -3983,7 +4013,7 @@ bool
           py::init(&Remote::Message::Batch::create),
           R"def(__init__(self, cause: c104.Cot, points: list[c104.Point] | None = None) -> None
 
-create a new batch of monitoring messages of the same station and the same type
+create a batch of monitoring messages of the same station and the same type
 
 Parameters
 ----------
@@ -4019,24 +4049,27 @@ Example
                              "c104.Cot: cause of transmission (read-only)",
                              py::return_value_policy::copy)
       .def_property_readonly("is_test", &Remote::Message::Batch::isTest,
-                             "bool: test if test flag is set (read-only)")
-      .def_property_readonly("is_sequence", &Remote::Message::Batch::isSequence,
-                             "bool: test if sequence flag is set (read-only)")
-      .def_property_readonly("is_negative", &Remote::Message::Batch::isNegative,
-                             "bool: test if negative flag is set (read-only)")
+                             "bool: test if the test flag is set (read-only)")
+      .def_property_readonly(
+          "is_sequence", &Remote::Message::Batch::isSequence,
+          "bool: test if the sequence flag is set (read-only)")
+      .def_property_readonly(
+          "is_negative", &Remote::Message::Batch::isNegative,
+          "bool: test if the negative flag is set (read-only)")
       .def_property_readonly(
           "number_of_objects", &Remote::Message::Batch::getNumberOfObjects,
           "int: represents the number of information objects (read-only)",
           py::return_value_policy::copy)
-      .def_property_readonly("has_points", &Remote::Message::Batch::hasPoints,
-                             "bool: test if batch contains points (read-only)")
+      .def_property_readonly(
+          "has_points", &Remote::Message::Batch::hasPoints,
+          "bool: test if the batch contains points (read-only)")
       .def_property_readonly(
           "points", &Remote::Message::Batch::getPoints,
           "list[c104.Point]: get a list of contained points (read-only)")
       .def("add_point", &Remote::Message::Batch::addPoint,
            R"def(add_point(self: c104.Batch, point: c104.Point) -> None
 
-add a new point to this Batch
+add a point to this Batch
 
 Parameters
 ----------

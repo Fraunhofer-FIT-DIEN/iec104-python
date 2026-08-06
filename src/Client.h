@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -87,7 +87,7 @@ public:
   void stop();
 
   /**
-   * @brief test if client is currently active
+   * @brief test if the client is currently active
    * @return information on active state of client
    */
   bool isRunning();

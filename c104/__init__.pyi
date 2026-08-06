@@ -9,7 +9,7 @@ class Batch:
     """
     def __init__(self, cause: Cot, points: list[Point] | None = None) -> None:
         """
-        create a new batch of monitoring messages of the same station and the same type
+        create a batch of monitoring messages of the same station and the same type
 
         Parameters
         ----------
@@ -29,7 +29,7 @@ class Batch:
         """
     def add_point(self, point: Point) -> None:
         """
-        add a new point to this Batch
+        add a point to this Batch
 
         Parameters
         ----------
@@ -62,22 +62,22 @@ class Batch:
     @property
     def has_points(self) -> bool:
         """
-        test if batch contains points
+        test if the batch contains points
         """
     @property
     def is_negative(self) -> bool:
         """
-        test if negative flag is set
+        test if the negative flag is set
         """
     @property
     def is_sequence(self) -> bool:
         """
-        test if sequence flag is set
+        test if the sequence flag is set
         """
     @property
     def is_test(self) -> bool:
         """
-        test if test flag is set
+        test if the test flag is set
         """
     @property
     def number_of_objects(self) -> int:
@@ -105,7 +105,7 @@ class BinaryCmd(Information):
     """
     def __init__(self, blob: Byte32, recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new binary command
+        create a binary command
 
         Parameters
         ----------
@@ -137,11 +137,11 @@ class BinaryCmd(Information):
         """
 class BinaryCounterInfo(Information):
     """
-    This class represents all specific integrated totals of binary counter point information
+    This class represents all specific integrated totals of binary counter information point
     """
     def __init__(self, counter: int, sequence: UInt5, quality: BinaryCounterQuality = BinaryCounterQuality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new short measurement info
+        create binary counter information
 
         Parameters
         ----------
@@ -210,7 +210,7 @@ class BinaryInfo(Information):
     """
     def __init__(self, blob: Byte32, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new binary info
+        create binary information
 
         Parameters
         ----------
@@ -250,11 +250,11 @@ class Byte32:
     """
     def __bytes__(self) -> bytes:
         """
-        convert to native bytes
+        convert to native bytes (big-endian, the most significant byte first)
         """
     def __init__(self, value: bytes | int) -> None:
         """
-        create a new fixed-length bytes representation
+        create a fixed-length bytes representation
 
         Parameters
         ----------
@@ -272,11 +272,11 @@ class Byte32:
         """
 class Client:
     """
-    This class represents a local client and provides access to meta information and connected remote servers
+    This class represents a local client and provides access to meta-information and connected remote servers
     """
     def __init__(self, tick_rate_ms: int = 100, command_timeout_ms: int = 10000, transport_security: TransportSecurity | None = None) -> None:
         """
-        create a new 104er client
+        create a c104 communication client
 
         Parameters
         ----------
@@ -293,7 +293,7 @@ class Client:
         """
     def add_connection(self, ip: str, port: int = 2404, init: Init | None = Init.ALL) -> Connection | None:
         """
-        add a new remote server connection to this client and return the new connection object
+        add a remote server connection to this client and return the connection object
 
         Parameters
         ----------
@@ -351,7 +351,7 @@ class Client:
         """
     def on_new_point(self, callable: collections.abc.Callable[[Client, Station, int, Type], None]) -> None:
         """
-        set python callback that will be executed on incoming message from unknown point
+        set python callback that will be executed on incoming messages from unknown point
 
         Parameters
         ----------
@@ -394,7 +394,7 @@ class Client:
         """
     def on_new_station(self, callable: collections.abc.Callable[[Client, Connection, int], None]) -> None:
         """
-        set python callback that will be executed on incoming message from unknown station
+        set python callback that will be executed on incoming messages from unknown station
 
         Parameters
         ----------
@@ -435,7 +435,7 @@ class Client:
         """
     def on_station_initialized(self, callable: collections.abc.Callable[[Client, Station, Coi], None]) -> None:
         """
-        set python callback that will be executed on incoming end of initialization message from stations
+        set python callback that will be executed on incoming end-of-initialization messages from stations
 
         Parameters
         ----------
@@ -510,22 +510,22 @@ class Client:
     @property
     def has_active_connections(self) -> bool:
         """
-        test if client has active (open and not muted) connections to servers
+        test if the client has active (open and not muted) connections to servers
         """
     @property
     def has_connections(self) -> bool:
         """
-        test if client has at least one remote server connection
+        test if the client has at least one remote server connection
         """
     @property
     def has_open_connections(self) -> bool:
         """
-        test if client has open connections to servers
+        test if the client has open connections to servers
         """
     @property
     def is_running(self) -> bool:
         """
-        test if client is running
+        test if the client is running
         """
     @property
     def open_connection_count(self) -> int:
@@ -559,7 +559,7 @@ class Client:
     @property
     def tick_rate_ms(self) -> int:
         """
-        the clients tick rate in milliseconds
+        the client's tick rate in milliseconds
         """
 class Coi:
     """
@@ -577,7 +577,7 @@ class Coi:
         ...
 class CommandMode:
     """
-    This enum contains all command transmission modes a clientmay use to send commands.
+    This enum contains all command transmission modes a client may use to send commands.
     """
     DIRECT: typing.ClassVar[CommandMode]
     SELECT_AND_EXECUTE: typing.ClassVar[CommandMode]
@@ -590,11 +590,11 @@ class CommandMode:
         ...
 class Connection:
     """
-    This class represents connections from a client to a remote server and provides access to meta information and containing stations
+    This class represents connections from a client to a remote server and provides access to meta-information and containing stations
     """
     def add_station(self, common_address: int) -> Station | None:
         """
-        add a new station to this connection and return the new station object
+        add a station to this connection and return the station object
 
         Parameters
         ----------
@@ -613,7 +613,7 @@ class Connection:
     def clock_sync(self, common_address: int, wait_for_response: bool = True) -> bool:
         """
         send a clock synchronization command to the remote terminal unit (server)
-        the clients OS time is used
+        the client's OS time is used
 
         Parameters
         ----------
@@ -739,7 +739,7 @@ class Connection:
         """
     def on_receive_raw(self, callable: collections.abc.Callable[[Connection, bytes], None]) -> None:
         """
-        set python callback that will be executed on incoming message
+        set python callback that will be executed on incoming messages
 
         Parameters
         ----------
@@ -912,14 +912,14 @@ class Connection:
     def test(self, common_address: int, with_time: bool = True, wait_for_response: bool = True) -> bool:
         """
         send a test command to the remote terminal unit (server)
-        the clients OS time is used
+        the client's OS time is used
 
         Parameters
         ----------
         common_address: int
             station common address (The valid range is 0 to 65535. Using the values 0 or 65535 sends the command to all stations, acting as a wildcard.)
         with_time: bool
-            send with or without timestamp
+            send with or without a timestamp
         wait_for_response: bool
             block call until command success or failure response received?
 
@@ -960,7 +960,7 @@ class Connection:
     @property
     def has_stations(self) -> bool:
         """
-        test if remote server has at least one station
+        test if the remote server has at least one station
         """
     @property
     def ip(self) -> str:
@@ -970,12 +970,12 @@ class Connection:
     @property
     def is_connected(self) -> bool:
         """
-        test if connection is opened
+        test if the connection is opened
         """
     @property
     def is_muted(self) -> bool:
         """
-        test if connection is muted
+        test if the connection is muted
         """
     @property
     def originator_address(self) -> int:
@@ -1040,7 +1040,7 @@ class ConnectionState:
         ...
 class Cot:
     """
-    This enum contains all valid IEC60870 transmission cause identifier to interpret message context.
+    This enum contains all valid IEC60870 transmission cause identifiers to interpret message context.
     """
     ACTIVATION: typing.ClassVar[Cot]
     ACTIVATION_CON: typing.ClassVar[Cot]
@@ -1139,7 +1139,7 @@ class DoubleCmd(Information):
     """
     def __init__(self, state: Double, qualifier: Qoc = Qoc.NONE, recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new double command
+        create a double command
 
         Parameters
         ----------
@@ -1182,7 +1182,7 @@ class DoubleInfo(Information):
     """
     def __init__(self, state: Double, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new double info
+        create double information
 
         Parameters
         ----------
@@ -1290,22 +1290,22 @@ class IncomingMessage:
     @property
     def is_negative(self) -> bool:
         """
-        test if negative flag is set
+        test if the negative flag is set
         """
     @property
     def is_select_command(self) -> bool:
         """
-        test if message is a point command and has select flag set
+        test if the message is a point command and has the select flag set
         """
     @property
     def is_sequence(self) -> bool:
         """
-        test if sequence flag is set
+        test if the sequence flag is set
         """
     @property
     def is_test(self) -> bool:
         """
-        test if test flag is set
+        test if the test flag is set
         """
     @property
     def number_of_object(self) -> int:
@@ -1342,7 +1342,7 @@ class IncomingMessage:
         """
 class Information:
     """
-    This class represents all specialized kind of information a specific point may have
+    This class represents all specialized kinds of information a specific point may have
     """
     @property
     def is_readonly(self) -> bool:
@@ -1401,7 +1401,7 @@ class Int16:
 
         Raises
         ------
-        ValueError
+        OverflowError
             cannot convert value to 16 bit signed integer
         """
     @property
@@ -1426,7 +1426,7 @@ class Int7:
 
         Raises
         ------
-        ValueError
+        OverflowError
             cannot convert value to 7 bit signed integer
         """
     @property
@@ -1445,7 +1445,7 @@ class NormalizedCmd(Information):
     """
     def __init__(self, target: NormalizedFloat, qualifier: UInt7 = UInt7(0), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new normalized set point command
+        create a normalized set point command
 
         Parameters
         ----------
@@ -1494,7 +1494,7 @@ class NormalizedFloat:
 
         Raises
         ------
-        ValueError
+        OverflowError
             cannot convert value to normalized float
         """
     @property
@@ -1513,7 +1513,7 @@ class NormalizedInfo(Information):
     """
     def __init__(self, actual: NormalizedFloat, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new normalized measurement info
+        create normalized measurement information
 
         Parameters
         ----------
@@ -1623,7 +1623,7 @@ class Point:
         Raises
         ------
         ValueError
-            callable signature does not match exactly, parent station reference is invalid or function is called from client context
+            callable signature does not match exactly, parent station reference is invalid, or function is called from client context
 
         **Callable signature**
 
@@ -1667,7 +1667,7 @@ class Point:
         Raises
         ------
         ValueError
-            callable signature does not match exactly, parent station reference is invalid or function is called from client context
+            callable signature does not match exactly, parent station reference is invalid, or function is called from client context
 
         **Callable signature**
 
@@ -1692,7 +1692,7 @@ class Point:
     def on_receive(self, callable: collections.abc.Callable[[Point, Information, IncomingMessage], ResponseState]) -> None:
         """
         set python callback that will be executed on every incoming message
-        this can be either a command or an monitoring message
+        this can be either a command or a monitoring message
 
         Parameters
         ----------
@@ -1743,7 +1743,7 @@ class Point:
         >>> sv_command_point = sv_station_2.add_point(io_address=12, type=c104.Type.C_SE_NC_1, report_ms=0, related_io_address=sv_measurement_point.io_address, related_io_autoreturn=True, command_mode=c104.CommandMode.SELECT_AND_EXECUTE)
         >>> sv_command_point.on_receive(callable=on_setpoint_command)
         """
-    def on_timer(self, callable: collections.abc.Callable[[Point], None], int) -> None:
+    def on_timer(self, callable: collections.abc.Callable[[Point], None], interval_ms: int) -> None:
         """
         set python callback that will be called in a fixed delay (timer_ms)
 
@@ -1761,7 +1761,7 @@ class Point:
         Raises
         ------
         ValueError
-            callable signature does not match exactly, parent station reference is invalid or function is called from client context
+            callable signature does not match exactly, parent station reference is invalid, or function is called from client context
 
         **Callable signature**
 
@@ -2043,7 +2043,7 @@ class ProtectionCircuitInfo(Information):
     """
     def __init__(self, circuits: OutputCircuits, relay_operating_ms: UInt16, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new output circuits info raised by protection equipment
+        create output circuits information raised by protection equipment
 
         Parameters
         ----------
@@ -2073,7 +2073,7 @@ class ProtectionCircuitInfo(Information):
         The setter is available via point.quality=xyz
         """
     @property
-    def relay_operating_ms(self) -> int:
+    def relay_operating_ms(self) -> UInt16:
         """
         the relay operation duration information
         """
@@ -2090,7 +2090,7 @@ class ProtectionEventInfo(Information):
     """
     def __init__(self, state: EventState, elapsed_ms: UInt16, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new event info raised by protection equipment
+        create event information raised by protection equipment
 
         Parameters
         ----------
@@ -2108,7 +2108,7 @@ class ProtectionEventInfo(Information):
         >>> single_event = c104.ProtectionEventInfo(state=c104.EventState.ON, elapsed_ms=c104.UInt16(35000), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now(datetime.utc))
         """
     @property
-    def elapsed_ms(self) -> int:
+    def elapsed_ms(self) -> UInt16:
         """
         the elapsed time in milliseconds
         """
@@ -2137,7 +2137,7 @@ class ProtectionStartInfo(Information):
     """
     def __init__(self, events: StartEvents, relay_duration_ms: UInt16, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new packed event start info raised by protection equipment
+        create packed event start information raised by protection equipment
 
         Parameters
         ----------
@@ -2167,7 +2167,7 @@ class ProtectionStartInfo(Information):
         The setter is available via point.quality=xyz
         """
     @property
-    def relay_duration_ms(self) -> int:
+    def relay_duration_ms(self) -> UInt16:
         """
         the relay duration information
         """
@@ -2223,12 +2223,12 @@ class ProtocolParameters:
     @property
     def keep_alive_interval(self) -> int:
         """
-        maximum interval without communication, send test frame message to prove liveness (seconds) (property name: t3)
+        maximum interval without communication, send test frame messages to prove liveness (seconds) (property name: t3)
         """
     @keep_alive_interval.setter
     def keep_alive_interval(self, value: int) -> None:
         """
-        set timeout to send test frame message to prove liveness, if connection silent (property name: t3)
+        set timeout to send test frame messages to prove liveness if connection silent (property name: t3)
 
         Parameters
         ----------
@@ -2365,7 +2365,7 @@ class Quality:
         """
 class ResponseState:
     """
-    This enum contains all command response states, that add the ability to control the servers command response behaviour via python callbacks return value.
+    This enum contains all command response states, that add the ability to control the server command response behaviour via python callbacks return value.
     """
     FAILURE: typing.ClassVar[ResponseState]
     NONE: typing.ClassVar[ResponseState]
@@ -2399,7 +2399,7 @@ class ScaledCmd(Information):
     """
     def __init__(self, target: Int16, qualifier: UInt7 = UInt7(0), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new scaled set point command
+        create a scaled set point command
 
         Parameters
         ----------
@@ -2442,7 +2442,7 @@ class ScaledInfo(Information):
     """
     def __init__(self, actual: Int16, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new scaled measurement info
+        create scaled measurement information
 
         Parameters
         ----------
@@ -2478,11 +2478,11 @@ class ScaledInfo(Information):
         """
 class Server:
     """
-    This class represents a local server and provides access to meta information and containing stations
+    This class represents a local server and provides access to meta-information and containing stations
     """
     def __init__(self, ip: str = "0.0.0.0", port: int = 2404, tick_rate_ms: int = 100, select_timeout_ms = 10000, max_connections: int = 0, transport_security: TransportSecurity | None = None) -> None:
         """
-        create a new 104er server
+        create a c104 communication server
 
         Parameters
         ----------
@@ -2505,7 +2505,7 @@ class Server:
         """
     def add_station(self, common_address: int) -> Station | None:
         """
-        add a new station to this server and return the new station object
+        add a station to this server and return the station object
 
         Parameters
         ----------
@@ -2625,7 +2625,7 @@ class Server:
         """
     def on_receive_raw(self, callable: collections.abc.Callable[[Server, bytes], None]) -> None:
         """
-        set python callback that will be executed on incoming message
+        set python callback that will be executed on incoming messages
 
         Parameters
         ----------
@@ -2663,7 +2663,7 @@ class Server:
         """
     def on_send_raw(self, callable: collections.abc.Callable[[Server, bytes], None]) -> None:
         """
-        set python callback that will be executed on outgoing message
+        set python callback that will be executed on outgoing messages
 
         Parameters
         ----------
@@ -2804,17 +2804,17 @@ class Server:
     @property
     def has_active_connections(self) -> bool:
         """
-        test if server has active (open and not muted) connections to clients
+        test if the server has active (open and not muted) connections to clients
         """
     @property
     def has_open_connections(self) -> bool:
         """
-        test if server has open connections to clients
+        test if the server has open connections to clients
         """
     @property
     def has_stations(self) -> bool:
         """
-        test if server has at least one station
+        test if the server has at least one station
         """
     @property
     def ip(self) -> str:
@@ -2824,7 +2824,7 @@ class Server:
     @property
     def is_running(self) -> bool:
         """
-        test if server is running
+        test if the server is running
         """
     @property
     def max_connections(self) -> int:
@@ -2881,7 +2881,7 @@ class ShortCmd(Information):
     """
     def __init__(self, target: float, qualifier: UInt7 = UInt7(0), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new short set point command
+        create a short set point command
 
         Parameters
         ----------
@@ -2910,6 +2910,10 @@ class ShortCmd(Information):
     def target(self) -> float:
         """
         the value
+
+        Transmitted as IEEE-754 single precision (32 bit), so values that are not
+        exactly representable lose precision (e.g. 23.45 becomes
+        23.450000762939453). Compare with a tolerance (e.g. assertAlmostEqual).
         """
     @property
     def value(self) -> float:
@@ -2924,7 +2928,7 @@ class ShortInfo(Information):
     """
     def __init__(self, actual: float, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new short measurement info
+        create short measurement information
 
         Parameters
         ----------
@@ -2943,6 +2947,10 @@ class ShortInfo(Information):
     def actual(self) -> float:
         """
         the value
+
+        Transmitted as IEEE-754 single precision (32 bit), so values that are not
+        exactly representable lose precision (e.g. 23.45 becomes
+        23.450000762939453). Compare with a tolerance (e.g. assertAlmostEqual).
         """
     @property
     def quality(self) -> Quality:
@@ -2964,7 +2972,7 @@ class SingleCmd(Information):
     """
     def __init__(self, on: bool, qualifier: Qoc = Qoc.NONE, recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new single command
+        create a single command
 
         Parameters
         ----------
@@ -3007,7 +3015,7 @@ class SingleInfo(Information):
     """
     def __init__(self, on: bool, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new single info
+        create single information
 
         Parameters
         ----------
@@ -3071,7 +3079,7 @@ class Station:
     """
     def add_point(self, io_address: int, type: Type, report_ms: int = 0, related_io_address: int | None = None, related_io_autoreturn: bool = False, command_mode: CommandMode = CommandMode.DIRECT) -> Point | None:
         """
-        add a new point to this station and return the new point object
+        add a point to this station and return the point object
 
         Parameters
         ----------
@@ -3176,12 +3184,12 @@ class Station:
     @property
     def has_points(self) -> bool:
         """
-        test if station has at least one point
+        test if the station has at least one point
         """
     @property
     def is_local(self) -> bool:
         """
-        test if station is local (has sever) or remote (has connection) one
+        test if the station is local (has sever) or remote (has connection) one
         """
     @property
     def points(self) -> list[Point]:
@@ -3199,7 +3207,7 @@ class StatusAndChanged(Information):
     """
     def __init__(self, status: PackedSingle, changed: PackedSingle, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new event info raised by protection equipment
+        create event information raised by protection equipment
 
         Parameters
         ----------
@@ -3261,7 +3269,7 @@ class StepCmd(Information):
     """
     def __init__(self, direction: Step, qualifier: Qoc = Qoc.NONE, recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new step command
+        create a step command
 
         Parameters
         ----------
@@ -3304,7 +3312,7 @@ class StepInfo(Information):
     """
     def __init__(self, position: Int7, transient: bool, quality: Quality = Quality(), recorded_at: datetime.datetime | None = None) -> None:
         """
-        create a new step info
+        create step information
 
         Parameters
         ----------
@@ -3347,7 +3355,7 @@ class StepInfo(Information):
         """
 class TlsCipher:
     """
-    This enum contains all supported TLS ciphersuites.
+    This enum contains all supported TLS cipher suites.
     """
     RSA_WITH_NULL_MD5: typing.ClassVar[TlsCipher]
     RSA_WITH_NULL_SHA: typing.ClassVar[TlsCipher]
@@ -3570,7 +3578,7 @@ class TransportSecurity:
     """
     def __init__(self, validate: bool = True, only_known: bool = True) -> None:
         """
-        Create a new transport layer configuration
+        Create a transport layer configuration
 
         Parameters
         ----------
@@ -3894,8 +3902,8 @@ class UInt16:
 
         Raises
         ------
-        ValueError
-            cannot convert value to 16 bit unsigned integer
+        OverflowError
+            cannot convert value to 16-bit unsigned integer
         """
     @property
     def max(self) -> int:
@@ -3919,8 +3927,8 @@ class UInt5:
 
         Raises
         ------
-        ValueError
-            cannot convert value to 5 bit unsigned integer
+        OverflowError
+            cannot convert value to 5-bit unsigned integer
         """
     @property
     def max(self) -> int:
@@ -3944,8 +3952,8 @@ class UInt7:
 
         Raises
         ------
-        ValueError
-            cannot convert value to 7 bit unsigned integer
+        OverflowError
+            cannot convert value to 7-bit unsigned integer
         """
     @property
     def max(self) -> int:
@@ -4009,7 +4017,7 @@ def enable_debug(mode: Debug) -> None:
     """
 def explain_bytes(apdu: bytes) -> str:
     """
-    analyse 104er APDU bytes and convert it into a human readable interpretation
+    analyze protocol APDU bytes and convert it into a human-readable interpretation
 
     Parameters
     ----------
@@ -4028,7 +4036,7 @@ def explain_bytes(apdu: bytes) -> str:
     """
 def explain_bytes_dict(apdu: bytes) -> dict[str, typing.Any]:
     """
-    analyse 104er APDU bytes and extract information into a dictionary
+    analyze protocol APDU bytes and extract information into a dictionary
 
     Parameters
     ----------

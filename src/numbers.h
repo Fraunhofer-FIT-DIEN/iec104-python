@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2024-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -111,7 +111,7 @@ public:
   /**
    * @brief setter for value
    * @param v The integer value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this integer class
    */
   void set(int v) { value = check_range(v); }
@@ -125,12 +125,13 @@ protected:
    * it.
    * @param v The value to check against the defined range.
    * @return The validated value if it is within the range.
-   * @throws std::out_of_range If the value is outside the range defined by
+   * @throws std::overflow_error If the value is outside the range defined by
    * getMin() and getMax().
    */
   [[nodiscard]] T check_range(int v) const {
     if (v < getMin() || v > getMax()) {
-      throw std::out_of_range("Value is out of range.");
+      throw std::overflow_error(
+          "Value does not fit into this specific integer representation.");
     }
     return v;
   }
@@ -147,7 +148,7 @@ public:
   /**
    * @brief Constructs a LimitedUInt5 object and initializes its value.
    * @param v The integer value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this integer class
    */
   explicit LimitedUInt5(int v) { set(v); }
@@ -176,7 +177,7 @@ public:
   /**
    * @brief Constructs a LimitedUInt7 object and initializes its value.
    * @param v The integer value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this integer class
    */
   explicit LimitedUInt7(int v) { set(v); }
@@ -205,7 +206,7 @@ public:
   /**
    * @brief Constructs a LimitedUInt16 object and initializes its value.
    * @param v The integer value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this integer class
    */
   explicit LimitedUInt16(int v) { set(v); }
@@ -234,7 +235,7 @@ public:
   /**
    * @brief Constructs a LimitedInt7 object and initializes its value.
    * @param v The integer value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this integer class
    */
   explicit LimitedInt7(int v) { set(v); }
@@ -263,7 +264,7 @@ public:
   /**
    * @brief Constructs a LimitedInt16 object and initializes its value.
    * @param v The integer value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this integer class
    */
   explicit LimitedInt16(int v) { set(v); }
@@ -292,7 +293,7 @@ public:
   /**
    * @brief Constructs a NormalizedFloat object and initializes its value.
    * @param v The integer value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this floating point class
    */
   explicit NormalizedFloat(int v) { set(v); }
@@ -300,7 +301,7 @@ public:
   /**
    * @brief Constructs a NormalizedFloat object and initializes its value.
    * @param v The float value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this floating point class
    */
   explicit NormalizedFloat(float v) { set(v); }
@@ -390,6 +391,50 @@ public:
     return *this;
   }
 
+  // Overloading operators with another NormalizedFloat (returns a
+  // NormalizedFloat and enforces the [-1, 1] range)
+  NormalizedFloat operator+(const NormalizedFloat &other) const {
+    return NormalizedFloat(check_range(value + other.value));
+  }
+
+  NormalizedFloat operator-(const NormalizedFloat &other) const {
+    return NormalizedFloat(check_range(value - other.value));
+  }
+
+  NormalizedFloat operator*(const NormalizedFloat &other) const {
+    return NormalizedFloat(check_range(value * other.value));
+  }
+
+  NormalizedFloat operator/(const NormalizedFloat &other) const {
+    if (other.value == 0) {
+      throw std::runtime_error("Division by zero");
+    }
+    return NormalizedFloat(check_range(value / other.value));
+  }
+
+  NormalizedFloat &operator+=(const NormalizedFloat &other) {
+    value = check_range(value + other.value);
+    return *this;
+  }
+
+  NormalizedFloat &operator-=(const NormalizedFloat &other) {
+    value = check_range(value - other.value);
+    return *this;
+  }
+
+  NormalizedFloat &operator*=(const NormalizedFloat &other) {
+    value = check_range(value * other.value);
+    return *this;
+  }
+
+  NormalizedFloat &operator/=(const NormalizedFloat &other) {
+    if (other.value == 0) {
+      throw std::runtime_error("Division by zero");
+    }
+    value = check_range(value / other.value);
+    return *this;
+  }
+
   /**
    * @brief getter for value
    * @return the underlying floating point type
@@ -399,7 +444,7 @@ public:
   /**
    * @brief setter for value
    * @param v The float value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this floating point class
    */
   void set(float v) { value = check_range(v); }
@@ -413,12 +458,13 @@ protected:
    * it.
    * @param v The value to check against the defined range.
    * @return The validated value if it is within the range.
-   * @throws std::out_of_range If the value is outside the range defined by
+   * @throws std::overflow_error If the value is outside the range defined by
    * getMin() and getMax().
    */
   [[nodiscard]] float check_range(float v) const {
     if (v < getMin() || v > getMax()) {
-      throw std::out_of_range("Value is out of range.");
+      throw std::overflow_error(
+          "Value does not fit into this specific float representation.");
     }
     return v;
   }
@@ -435,7 +481,7 @@ public:
   /**
    * @brief Constructs a Byte32 object and initializes its value.
    * @param v The byte value to be set.
-   * @throws std::out_of_range If v is not compatible with the limitations of
+   * @throws std::overflow_error If v is not compatible with the limitations of
    * this floating point class
    */
   explicit Byte32(uint32_t v) : value(v) {}
