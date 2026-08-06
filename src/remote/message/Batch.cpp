@@ -135,7 +135,7 @@ bool Batch::isSequence() const {
   // Iterator-based traversal to test key sequences
   // std::map is always ordered, therefore sorting is not necessary
   auto it = pointMap.begin();
-  while (it->second.expired() && it != pointMap.end()) {
+  while (it != pointMap.end() && it->second.expired()) {
     ++it;
   }
   if (it == pointMap.end()) {
