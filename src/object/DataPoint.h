@@ -111,8 +111,10 @@ private:
   /// @brief parent Station object (not owning pointer)
   std::weak_ptr<Station> station;
 
-  /// @brief IEC60870-5 remote address of a related measurement DataPoint
-  std::atomic_uint_fast32_t relatedInformationObjectAddress{0};
+  /// @brief IEC60870-5 remote address of a related measurement DataPoint,
+  /// UNDEFINED_INFORMATION_OBJECT_ADDRESS if no related point is configured
+  std::atomic_uint_fast32_t relatedInformationObjectAddress{
+      UNDEFINED_INFORMATION_OBJECT_ADDRESS};
 
   /// @brief configure if related point should be auto transmitted if this point
   /// is a command point that was updated via client

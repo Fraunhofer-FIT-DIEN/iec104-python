@@ -221,6 +221,11 @@ void TransportSecurity::addAllowedRemoteCertificate(const std::string &cert) {
 
 void TransportSecurity::setHostnameVerification(
     std::optional<std::string> hostname) {
+  if (readonly.load()) {
+    throw std::invalid_argument(
+        "The configuration has already been passed to a client or server and "
+        "can no longer be modified.");
+  }
   if (hostname.has_value()) {
     if (hostname.value().empty()) {
       throw std::invalid_argument("Provided hostname is empty, please provide "

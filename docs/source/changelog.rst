@@ -27,6 +27,8 @@ Fixes
 - fix memory leak in **on_send_raw** and **on_recv_raw** handler, thanks to rayannott #77
 - fix memory leak in **IncomingMessage.raw**
 - fix potential memory out-of-bound read (up to 4 bytes) via crafted invalid ASDU in debug function **explain_bytes** and **explain_bytes_dict**, where the APDU length is manipulated.
+- **Point.related_io_address** is initialized with valid IOA 0 instead of None
+- **TransportSecurity.set_hostname_verification** is readonly once used in server or connection
 
 
 v2.2.1
