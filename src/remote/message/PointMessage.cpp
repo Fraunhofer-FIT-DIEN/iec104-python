@@ -99,16 +99,18 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
 
   case M_BO_NA_1: {
     auto i = std::dynamic_pointer_cast<Object::BinaryInfo>(info);
-    io = (InformationObject)BitString32_create(
-        nullptr, informationObjectAddress, i->getBlob().get());
+    io = (InformationObject)BitString32_createEx(
+        nullptr, informationObjectAddress, i->getBlob().get(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())));
   } break;
 
   case M_BO_TB_1: {
     auto i = std::dynamic_pointer_cast<Object::BinaryInfo>(info);
     sCP56Time2a time{};
     from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
-    io = (InformationObject)Bitstring32WithCP56Time2a_create(
-        nullptr, informationObjectAddress, i->getBlob().get(), &time);
+    io = (InformationObject)Bitstring32WithCP56Time2a_createEx(
+        nullptr, informationObjectAddress, i->getBlob().get(),
+        static_cast<uint8_t>(std::get<Quality>(i->getQuality())), &time);
   } break;
 
     // Valid cause of transmission: 1,2,3,5,20-36
