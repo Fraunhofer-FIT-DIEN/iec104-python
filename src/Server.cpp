@@ -1114,21 +1114,32 @@ void Server::sendActivationConfirmation(IMasterConnection connection,
 
 void Server::sendActivationTermination(IMasterConnection connection,
                                        CS101_ASDU asdu) {
-  if (!isExistingConnection(connection))
+  if (!isExistingConnection(connection)) {
+    DEBUG_PRINT(Debug::Server,
+                "send_activation_termination] Connection not found, skip");
     return;
+  }
 
   // manipulate copy instead of original asdu
   CS101_ASDU cp = CS101_ASDU_clone(asdu, nullptr);
   CS101_ASDU_setCOT(cp, CS101_COT_ACTIVATION_TERMINATION);
 
   if (isGlobalCommonAddress(CS101_ASDU_getCA(asdu))) {
+    DEBUG_PRINT(Debug::Server,
+                "send_activation_termination] to all MTUs (global CA)");
 
     std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
     for (auto &s : stations) {
       CS101_ASDU_setCA(cp, s->getCommonAddress());
       IMasterConnection_sendASDU(connection, cp);
+      DEBUG_PRINT(Debug::Server,
+                  "send_activation_termination] sent ACT_TERM CA=" +
+                      std::to_string(s->getCommonAddress()));
     }
   } else {
+    DEBUG_PRINT(Debug::Server,
+                "send_activation_termination] to requesting MTU CA=" +
+                    std::to_string(CS101_ASDU_getCA(asdu)));
     IMasterConnection_sendASDU(connection, cp);
   }
   CS101_ASDU_destroy(cp);

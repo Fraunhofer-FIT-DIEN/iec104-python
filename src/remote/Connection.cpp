@@ -573,11 +573,18 @@ void Connection::setCommandSuccess(
                                            : COMMAND_FAILURE;
           break;
         case COMMAND_AWAIT_REQUEST:
-          expectedResponseMap[cmdId] =
-              (message->getCauseOfTransmission() == CS101_COT_ACTIVATION_CON ||
-               message->getCauseOfTransmission() == CS101_COT_REQUEST)
-                  ? COMMAND_SUCCESS
-                  : COMMAND_FAILURE;
+          // The server responds to a read command with TWO ASDUs: the value
+          // (COT=REQUEST, low-priority queue) and ACT_CON (COT=ACTIVATION_CON,
+          // high-priority queue).  ACT_CON can arrive first.  Only the value
+          // (COT=REQUEST) completes the read; a positive ACT_CON is an
+          // intermediate confirmation, not success.  A negative ACT_CON is an
+          // error.
+          if (message->getCauseOfTransmission() == CS101_COT_REQUEST) {
+            expectedResponseMap[cmdId] = COMMAND_SUCCESS;
+          } else if (message->isNegative()) {
+            expectedResponseMap[cmdId] = COMMAND_FAILURE;
+          }
+          // else: positive ACT_CON — stay in COMMAND_AWAIT_REQUEST
           break;
         default:
           expectedResponseMap[cmdId] = COMMAND_SUCCESS;
@@ -1161,11 +1168,6 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
         throw std::domain_error("Unknown station");
       }
 
-      // read command success
-      if (cot == CS101_COT_REQUEST) {
-        instance->setCommandSuccess(message);
-      }
-
       while (message->next()) {
         auto point = station->getPoint(message->getIOA());
         if (!point) {
@@ -1184,6 +1186,12 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
         }
         point->onReceive(message);
         handled = true;
+      }
+
+      // read command success — called after onReceive so the value is stored
+      // before the waiting thread (read()) is notified
+      if (cot == CS101_COT_REQUEST) {
+        instance->setCommandSuccess(message);
       }
     }
 

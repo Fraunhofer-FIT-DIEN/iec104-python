@@ -250,7 +250,7 @@ class Byte32:
     """
     def __bytes__(self) -> bytes:
         """
-        convert to native bytes (big-endian, the most significant byte first)
+        convert to native bytes (little-endian, least significant byte first) matching the IEC 60870-5-4 wire format
         """
     def __init__(self, value: bytes | int) -> None:
         """

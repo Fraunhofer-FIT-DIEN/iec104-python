@@ -36,7 +36,7 @@ TEST_CASE("Create point", "[object::point]") {
   auto point = station->addPoint(11, IEC60870_5_TypeID::M_SP_NA_1);
   REQUIRE(point->getStation().get() == station.get());
   REQUIRE(point->getInformationObjectAddress() == 11);
-  REQUIRE(point->getRelatedInformationObjectAddress() == 0);
+  REQUIRE(point->getRelatedInformationObjectAddress() == std::nullopt);
   REQUIRE(point->getRelatedInformationObjectAutoReturn() == false);
   REQUIRE(point->getType() == IEC60870_5_TypeID::M_SP_NA_1);
   REQUIRE(point->getReportInterval_ms() == 0);

@@ -219,6 +219,18 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/depends/catch/src"
     tests/test_remote_message_batch.cpp
     tests/test_remote_message_helper.cpp
     tests/test_server_interrogation.cpp
+    tests/test_enums_types.cpp
+    tests/test_message.cpp
+    tests/test_transport_security.cpp
+    tests/test_object.cpp
+    tests/test_server.cpp
+    tests/test_connection_client.cpp
+    tests/test_loopback.cpp
+    tests/test_protocol_parameters.cpp
+    tests/test_module_functions.cpp
+    tests/test_callback_signature.cpp
+    tests/test_point_logic.cpp
+    tests/test_enum_sweep.cpp
     tests/main.cpp)
 
   if(TARGET c104_tests)

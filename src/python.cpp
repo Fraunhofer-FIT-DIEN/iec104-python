@@ -1067,15 +1067,18 @@ Example
       .def(py::init([](const py::bytes &byte_obj) {
         py::buffer_info info(py::buffer(byte_obj).request());
 
-        if (info.size > sizeof(uint32_t)) {
+        if (info.size != sizeof(uint32_t)) {
           throw std::overflow_error(
               "Invalid size of bytes object. Expected 4 bytes, got " +
               std::to_string(info.size) + ".");
         }
-        uint32_t value = 0;
-
-        // Copy only the available bytes
-        std::memcpy(&value, info.ptr, info.size);
+        // Interpret input as little-endian (least significant byte first)
+        // to match the IEC 60870-5-4 wire format used by lib60870.
+        auto *p = static_cast<const uint8_t *>(info.ptr);
+        uint32_t value = static_cast<uint32_t>(p[0]) |
+                         (static_cast<uint32_t>(p[1]) << 8) |
+                         (static_cast<uint32_t>(p[2]) << 16) |
+                         (static_cast<uint32_t>(p[3]) << 24);
 
         return Byte32(value);
       }))
@@ -1083,12 +1086,18 @@ Example
           "__bytes__",
           [](const Byte32 &b) {
             uint32_t value = b.get();
-            return py::bytes(reinterpret_cast<const char *>(&value),
-                             sizeof(value));
+            // Emit little-endian (least significant byte first) to match the
+            // IEC 60870-5-4 wire format used by lib60870's
+            // BitString32_encode / Bitstring32Command_encode.
+            uint8_t out[4] = {static_cast<uint8_t>(value & 0xFF),
+                              static_cast<uint8_t>((value >> 8) & 0xFF),
+                              static_cast<uint8_t>((value >> 16) & 0xFF),
+                              static_cast<uint8_t>((value >> 24) & 0xFF)};
+            return py::bytes(reinterpret_cast<const char *>(out), sizeof(out));
           },
           R"def(__bytes__(self: c104.Byte32) -> bytes
 
-convert to native bytes (big-endian, the most significant byte first)
+convert to native bytes (little-endian, least significant byte first) matching the IEC 60870-5-4 wire format
 )def")
       .def("__str__", &Byte32_toString)
       .def("__repr__",

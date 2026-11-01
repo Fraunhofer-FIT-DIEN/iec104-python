@@ -27,6 +27,11 @@
 #include <pybind11/embed.h> // everything needed for embedding
 namespace py = pybind11;
 
+// Implemented in test_message.cpp. Releases the process-lifetime test Servers
+// while the embedded interpreter is still alive (see
+// c104_tests_release_servers).
+void c104_tests_release_servers();
+
 int main(int argc, char *argv[]) {
 #ifdef _WIN32
   system("chcp 65001 > nul");
@@ -49,6 +54,11 @@ int main(int argc, char *argv[]) {
   }
 
   int result = Catch::Session().run(argc, argv);
+
+  // Destroy the process-lifetime test Servers *before* the interpreter below is
+  // finalized: their destructors acquire the GIL and would segfault if they ran
+  // at static-teardown (after the interpreter is gone).
+  c104_tests_release_servers();
 
   return result;
 }
