@@ -682,7 +682,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
         causeOfTransmission != CS101_COT_REQUEST &&
         causeOfTransmission != CS101_COT_RETURN_INFO_REMOTE &&
         causeOfTransmission != CS101_COT_RETURN_INFO_LOCAL &&
-        (causeOfTransmission < CS101_COT_INTERROGATED_BY_STATION &&
+        (causeOfTransmission < CS101_COT_INTERROGATED_BY_STATION ||
          causeOfTransmission > CS101_COT_INTERROGATED_BY_GROUP_16)) {
       result = false;
     }
@@ -692,7 +692,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
     if (causeOfTransmission != CS101_COT_BACKGROUND_SCAN &&
         causeOfTransmission != CS101_COT_SPONTANEOUS &&
         causeOfTransmission != CS101_COT_REQUEST &&
-        (causeOfTransmission < CS101_COT_INTERROGATED_BY_STATION &&
+        (causeOfTransmission < CS101_COT_INTERROGATED_BY_STATION ||
          causeOfTransmission > CS101_COT_INTERROGATED_BY_GROUP_16)) {
       result = false;
     }
@@ -705,7 +705,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
         causeOfTransmission != CS101_COT_BACKGROUND_SCAN &&
         causeOfTransmission != CS101_COT_SPONTANEOUS &&
         causeOfTransmission != CS101_COT_REQUEST &&
-        (causeOfTransmission < CS101_COT_INTERROGATED_BY_STATION &&
+        (causeOfTransmission < CS101_COT_INTERROGATED_BY_STATION ||
          causeOfTransmission > CS101_COT_INTERROGATED_BY_GROUP_16)) {
       result = false;
     }
@@ -713,7 +713,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
   case M_IT_NA_1:
   case M_IT_TB_1: {
     if (causeOfTransmission != CS101_COT_SPONTANEOUS &&
-        (causeOfTransmission < CS101_COT_REQUESTED_BY_GENERAL_COUNTER &&
+        (causeOfTransmission < CS101_COT_REQUESTED_BY_GENERAL_COUNTER ||
          causeOfTransmission > CS101_COT_REQUESTED_BY_GROUP_4_COUNTER)) {
       result = false;
     }
@@ -758,9 +758,9 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
   case C_SE_NC_1:
   case C_SE_TC_1:
   case C_IC_NA_1: {
-    if ((causeOfTransmission < CS101_COT_ACTIVATION &&
+    if ((causeOfTransmission < CS101_COT_ACTIVATION ||
          causeOfTransmission > CS101_COT_ACTIVATION_TERMINATION) &&
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
@@ -771,7 +771,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
     if ((causeOfTransmission != CS101_COT_ACTIVATION &&
          causeOfTransmission != CS101_COT_ACTIVATION_CON &&
          causeOfTransmission != CS101_COT_ACTIVATION_TERMINATION) &&
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
@@ -782,8 +782,13 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
     }
   } break;
   case C_RD_NA_1: {
+    // Read commands are sent with COT=REQUEST (5) per IEC 60870-5.
+    // The server responds with the value (COT=REQUEST) and ACT_CON
+    // (COT=ACTIVATION_CON=7).
+    // Error responses use the range [UNKNOWN_TYPE_ID..UNKNOWN_IOA] = [44..47].
     if (causeOfTransmission != CS101_COT_REQUEST &&
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        causeOfTransmission != CS101_COT_ACTIVATION_CON &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
@@ -793,7 +798,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
         causeOfTransmission != CS101_COT_ACTIVATION_CON &&
         // causeOfTransmission != CS101_COT_SPONTANEOUS && only cs 101, not
         // allowed in 104
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
@@ -802,7 +807,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
   case C_TS_TA_1: {
     if (causeOfTransmission != CS101_COT_ACTIVATION &&
         causeOfTransmission != CS101_COT_ACTIVATION_CON &&
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
@@ -812,17 +817,17 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
   case P_ME_NC_1: {
     if (causeOfTransmission != CS101_COT_ACTIVATION &&
         causeOfTransmission != CS101_COT_ACTIVATION_CON &&
-        (causeOfTransmission < CS101_COT_INTERROGATED_BY_STATION &&
+        (causeOfTransmission < CS101_COT_INTERROGATED_BY_STATION ||
          causeOfTransmission > CS101_COT_INTERROGATED_BY_GROUP_16) &&
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
   } break;
   case P_AC_NA_1: {
-    if ((causeOfTransmission < CS101_COT_ACTIVATION &&
+    if ((causeOfTransmission < CS101_COT_ACTIVATION ||
          causeOfTransmission > CS101_COT_DEACTIVATION_CON) &&
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
@@ -833,7 +838,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
   case F_AF_NA_1:
   case F_SG_NA_1: {
     if (causeOfTransmission != CS101_COT_FILE_TRANSFER &&
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
@@ -841,7 +846,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
   case F_SC_NA_1: {
     if (causeOfTransmission != CS101_COT_REQUEST &&
         causeOfTransmission != CS101_COT_FILE_TRANSFER &&
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
@@ -850,7 +855,7 @@ bool IncomingMessage::isValidCauseOfTransmission() const {
     if (causeOfTransmission != CS101_COT_SPONTANEOUS &&
         causeOfTransmission != CS101_COT_REQUEST &&
         causeOfTransmission != CS101_COT_FILE_TRANSFER &&
-        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID &&
+        (causeOfTransmission < CS101_COT_UNKNOWN_TYPE_ID ||
          causeOfTransmission > CS101_COT_UNKNOWN_IOA)) {
       result = false;
     }
