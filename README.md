@@ -36,7 +36,7 @@ See the [examples](https://github.com/Fraunhofer-FIT-DIEN/iec104-python/tree/mai
 Install via PyPI: `pip install c104` or from Git: `pip install c104@git+https://github.com/fraunhofer-fit-dien/iec104-python.git`
 
 ### Building from Source
-**System Requirements**: Python $\ge 3.7, < 3.13$.
+**System Requirements**: Python $\ge 3.9, <= 3.15$.
 
 1. **Clone & Init**:
    ```bash

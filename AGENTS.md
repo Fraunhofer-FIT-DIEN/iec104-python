@@ -28,7 +28,7 @@ The `c104` package wraps `lib60870-C` (+ mbedtls) via pybind11.
 - **Submodules**: `git submodule update --init`
 - **Linux/Windows (Wheel)**: `python3 -m pip wheel .`
 - **Windows (MSVC/Pyd)**: Use `cmake -G "Visual Studio 17 2022" -B cmake-build-release ...`
-- **Python Version**: $\ge 3.7, < 3.13$ (Free-threaded 3.13t supported).
+- **Python Version**: $\ge 3.9, <= 3.15$ (Free-threaded 3.13t supported).
 
 ### Testing
 - **C++ Tests**: Built as `c104_tests` (Catch2). Run via `ctest` or `./c104_tests`.
@@ -36,7 +36,7 @@ The `c104` package wraps `lib60870-C` (+ mbedtls) via pybind11.
 - **Integration**: `server.py` $\to$ `client.py` $\to$ `loop.py` smoke tests.
 
 ## Standards
-- **Python**: Black (`line-length=120`), `py37-py313`.
+- **Python**: Black (`line-length=120`), `py39-py315`.
 - **C++**: `CMAKE_CXX_STANDARD 17`, clang-format.
 - **CI**: GitHub Actions $\to$ PyPI (via trusted publishing).
 - **License**: GPLv3.

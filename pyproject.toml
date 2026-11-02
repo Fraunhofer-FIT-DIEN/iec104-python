@@ -1,6 +1,6 @@
 [project]
 name = "c104"
-version = "2.2.2"
+version = "2.3.0"
 description = "A Python module to simulate SCADA and RTU communication over protocol 60870-5-104 to research ICT behavior in power grids."
 readme = {file = "README.md", content-type = "text/markdown"}
 license = "GPL-3.0-only"
@@ -32,14 +32,13 @@ classifiers = [
     "Programming Language :: C",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Emulators",
@@ -47,7 +46,7 @@ classifiers = [
     "Topic :: Utilities",
     "Typing :: Typed"
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.9"
 
 [project.urls]
 Documentation = "https://iec104-python.readthedocs.io/latest/python/index.html"
@@ -73,5 +72,5 @@ build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 120
-target-version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312', 'py313', 'py314']
+target-version = ['py39', 'py310', 'py311', 'py312', 'py313', 'py313t', 'py314', 'py315']
 skip-string-normalization = true
