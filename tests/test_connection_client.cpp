@@ -297,7 +297,7 @@ TEST_CASE("Connection setClosed paths", "[connection][state]") {
 TEST_CASE("Connection connectionHandler drives states", "[connection][state]") {
   auto client = Client::create();
   auto conn = client->addConnection("127.0.0.1", 2404);
-  void *key = static_cast<void *>(conn.get());
+  void *key = conn->getCallbackKey();
 
   // OPENED -> setOpen() -> OPEN_MUTED
   Remote::Connection::connectionHandler(key, nullptr, CS104_CONNECTION_OPENED);
@@ -838,7 +838,7 @@ TEST_CASE("Connection asduHandler: client not running -> drop",
   auto client = Client::create();
   auto conn = client->addConnection("127.0.0.1", 2404);
   conn->setOpen(); // isOpen, but client is NOT running
-  void *key = static_cast<void *>(conn.get());
+  void *key = conn->getCallbackKey();
 
   auto asdu = Test::makeASDU(IEC60870_5_TypeID::M_SP_NA_1, 1,
                              CS101_COT_SPONTANEOUS, 0, 3);

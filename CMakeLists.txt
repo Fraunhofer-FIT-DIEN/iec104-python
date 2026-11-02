@@ -163,6 +163,7 @@ set(c104_SOURCES
     src/module/Callback.h
     src/module/ScopedGilAcquire.h
     src/module/ScopedGilRelease.h
+    src/module/ThreadOwner.h
     src/module/GilAwareMutex.h
     src/object/DateTime.cpp
     src/object/DateTime.h
@@ -231,6 +232,7 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/depends/catch/src"
     tests/test_callback_signature.cpp
     tests/test_point_logic.cpp
     tests/test_enum_sweep.cpp
+    tests/test_teardown.cpp
     tests/main.cpp)
 
   if(TARGET c104_tests)

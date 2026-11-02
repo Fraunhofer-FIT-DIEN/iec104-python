@@ -74,10 +74,8 @@ public:
                        std::move(transport_security), originator_address));
 
     // track reference as weak pointer for safe static callbacks
-    void *key =
-        static_cast<void *>(connection.get()); // Use `this` as a unique key
     std::lock_guard<std::mutex> lock(instanceMapMutex);
-    instanceMap[key] = connection;
+    instanceMap[connection->instanceKey] = connection;
 
     return connection;
   }
@@ -452,6 +450,14 @@ public:
   static std::shared_ptr<Connection> getInstance(void *key);
 
   /**
+   * @brief Key under which this instance is registered for the static lib60870
+   * callbacks, see getInstance().
+   *
+   * @return opaque, process-wide unique token (not the object address)
+   */
+  [[nodiscard]] void *getCallbackKey() const noexcept { return instanceKey; }
+
+  /**
    * @brief Callback for logging incoming and outgoing byteStreams
    * @param parameter reference to custom bound connection data
    * @param msg pointer to first character of message
@@ -508,6 +514,10 @@ private:
   /// connection (which holds a raw pointer to it) exists, independent of the
   /// owning client's lifetime
   std::shared_ptr<Remote::TransportSecurity> security{nullptr};
+
+  /// @brief unique key passed to lib60870 as handler parameter and used in
+  /// instanceMap, see Module::nextCallbackKey()
+  void *const instanceKey;
 
   /// @brief guards client, which is reset by detach() while other threads
   /// read it

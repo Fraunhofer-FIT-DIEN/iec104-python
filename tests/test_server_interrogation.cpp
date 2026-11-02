@@ -111,7 +111,7 @@ TEST_CASE("Server interrogation originator address",
   InformationObject_destroy(qoi);
 
   // Create an IncomingMessage from the ASDU
-  Server::connectionEventHandler(server.get(), mockConnection,
+  Server::connectionEventHandler(server->getCallbackKey(), mockConnection,
                                  CS104_CON_EVENT_ACTIVATED);
   REQUIRE(server->isExistingConnection(mockConnection) == true);
   auto incomingMessage =
@@ -119,8 +119,8 @@ TEST_CASE("Server interrogation originator address",
   REQUIRE(incomingMessage->getOriginatorAddress() == 123);
 
   // We need to pass the raw pointer of server to interrogationHandler
-  Server::interrogationHandler(server.get(), mockConnection, interrogationAsdu,
-                               IEC60870_QOI_STATION);
+  Server::interrogationHandler(server->getCallbackKey(), mockConnection,
+                               interrogationAsdu, IEC60870_QOI_STATION);
   REQUIRE(data.con == 0);
   REQUIRE(data.term == 0);
   REQUIRE(data.send == 4); // con, batch1-part1, batch1-part2, term

@@ -33,6 +33,7 @@
 #include "Client.h"
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
+#include "module/ThreadOwner.h"
 #include "remote/Helper.h"
 #include "remote/message/IncomingMessage.h"
 #include "remote/message/OutgoingMessage.h"
@@ -51,8 +52,9 @@ Connection::Connection(
     const ConnectionInit _init,
     std::shared_ptr<Remote::TransportSecurity> transport_security,
     const uint_fast8_t originator_address)
-    : client(_client), security(std::move(transport_security)), ip(_ip),
-      port(_port), init(_init), commandTimeout_ms(command_timeout_ms) {
+    : client(_client), security(std::move(transport_security)),
+      instanceKey(Module::nextCallbackKey()), ip(_ip), port(_port), init(_init),
+      commandTimeout_ms(command_timeout_ms) {
   Assert_IPv4(_ip);
   Assert_Port(_port);
 
@@ -74,7 +76,7 @@ Connection::Connection(
     setOriginatorAddress(originator_address);
   }
 
-  void *key = static_cast<void *>(this);
+  void *key = instanceKey;
   CS104_Connection_setRawMessageHandler(connection,
                                         &Connection::rawMessageHandler, key);
   CS104_Connection_setConnectionHandler(connection,
@@ -85,22 +87,33 @@ Connection::Connection(
 }
 
 Connection::~Connection() {
+  // unregister first: lib60870 callbacks arriving from now on find no instance
+  {
+    std::lock_guard<std::mutex> lock(instanceMapMutex);
+    instanceMap.erase(instanceKey);
+  }
+
   {
     std::scoped_lock<Module::GilAwareMutex> const lock(stations_mutex);
     stations.clear();
   }
 
-  {
-    std::lock_guard<std::mutex> lock(instanceMapMutex);
-    instanceMap.erase(
-        static_cast<void *>(this)); // Remove from map on destruction
-  }
-
-  {
+  if (Module::ScopedThreadOwner::isCurrentThreadOwnedBy(instanceKey)) {
+    // The last reference was dropped on our own receive thread (python
+    // callback inside a handler). CS104_Connection_destroy() joins that thread
+    // and then frees memory it still executes on, so destroy on a neutral
+    // thread once the handler returned. The tls configuration must outlive
+    // the lib60870 connection.
+    std::thread([connection = this->connection, security = this->security]() {
+      CS104_Connection_destroy(connection);
+    }).detach();
+  } else {
     // joins the receive thread, which may be waiting for the GIL
     Module::ScopedGilRelease const scoped("Connection.destroy");
     CS104_Connection_destroy(connection);
   }
+  connection = nullptr;
+
   DEBUG_PRINT(Debug::Connection, "Removed");
 }
 
@@ -1070,6 +1083,11 @@ void Connection::rawMessageHandler(void *parameter, uint_fast8_t *msg,
     begin = std::chrono::steady_clock::now();
   }
 
+  // ~Connection() / ~Client() must not join this thread, see
+  // Module::ScopedThreadOwner. Keyed by parameter and declared before
+  // instance, so the marker is still active when the shared_ptr is
+  // released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Connection, "Ignore raw message in shutdown");
@@ -1101,6 +1119,11 @@ void Connection::connectionHandler(void *parameter, CS104_Connection connection,
     begin = std::chrono::steady_clock::now();
   }
 
+  // ~Connection() / ~Client() must not join this thread, see
+  // Module::ScopedThreadOwner. Keyed by parameter and declared before
+  // instance, so the marker is still active when the shared_ptr is
+  // released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Connection, "Ignore connection event " +
@@ -1147,6 +1170,11 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
   }
   bool handled = false;
 
+  // ~Connection() / ~Client() must not join this thread, see
+  // Module::ScopedThreadOwner. Keyed by parameter and declared before
+  // instance, so the marker is still active when the shared_ptr is
+  // released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT_CONDITION(debug, Debug::Connection,

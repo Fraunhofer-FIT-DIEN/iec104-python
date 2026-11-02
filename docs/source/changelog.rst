@@ -35,6 +35,9 @@ Breaking changes
 Fixes
 ^^^^^^
 
+- document on every callback setter that **Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()** must not be called from within a callback
+- fix process abort when an internal mutex was contended for more than 100 ms inside a lib60870 callback (the mutex now blocks instead of throwing)
+- fix self-join and use-after-free when the last reference to a **Server**, **Client** or **Connection** is dropped inside a callback (e.g. ``server = None`` in ``on_connect``): the blocking part of the teardown is handed to a separate thread
 - server using the originator address from the command in all response messages (not only ACK and TERM) #74
 - fix tls handshake failures by disabling hostname verification per default #64
 - fix compilation issues on macOS

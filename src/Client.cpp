@@ -35,6 +35,7 @@
 
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
+#include "module/ThreadOwner.h"
 #include "remote/Helper.h"
 #include "remote/message/IncomingMessage.h"
 #include "remote/message/OutgoingMessage.h"
@@ -53,13 +54,51 @@ Client::Client(const std::uint_fast16_t tick_rate_ms,
 }
 
 Client::~Client() {
-  // stops and destroys the slave
-  stop();
+  // The last reference may have been dropped by a python callback, so this
+  // can run on a connection's receive thread (on_new_station, on_new_point,
+  // on_station_initialized) or on the run thread itself. Neither may be
+  // joined from itself, see Module::ScopedThreadOwner.
+  bool const onRunThread =
+      runThread && runThread->get_id() == std::this_thread::get_id();
 
+  enabled.store(false);
+  if (onRunThread) {
+    // thread_run() returns right after the current task, see ownerDestroyed()
+    Module::ScopedThreadOwner::markDestroyed(this);
+    runThread->detach();
+    delete runThread;
+    runThread = nullptr;
+  } else {
+    stopRunThread();
+  }
+
+  // close all connections; the one whose receive thread we are running on
+  // cannot be closed here (CS104_Connection_close() would self-join), it is
+  // closed on a neutral thread once the handler returned
+  Remote::ConnectionVector deferred;
   {
+    Module::ScopedGilRelease const scoped("Client.destroy");
     std::lock_guard<Module::GilAwareMutex> const con_lock(connections_mutex);
+    for (auto &c : connections) {
+      if (Module::ScopedThreadOwner::isCurrentThreadOwnedBy(
+              c->getCallbackKey())) {
+        deferred.push_back(c);
+      } else {
+        c->disconnect();
+      }
+    }
     connections.clear();
   }
+  if (!deferred.empty()) {
+    std::thread([deferred = std::move(deferred)]() mutable {
+      for (auto &c : deferred) {
+        c->disconnect();
+      }
+      // may run ~Connection() here, on a thread lib60870 can be joined from
+      deferred.clear();
+    }).detach();
+  }
+
   DEBUG_PRINT(Debug::Client, "Removed");
 }
 
@@ -98,6 +137,18 @@ void Client::start() {
   DEBUG_PRINT(Debug::Client, "start] Started");
 }
 
+void Client::stopRunThread() {
+  if (running.load()) {
+    runThread_wait.notify_all();
+  }
+
+  if (runThread) {
+    runThread->join();
+    delete runThread;
+    runThread = nullptr;
+  }
+}
+
 void Client::stop() {
   Module::ScopedGilRelease const scoped("Client.stop");
 
@@ -108,15 +159,7 @@ void Client::stop() {
     return;
   }
 
-  if (running.load()) {
-    runThread_wait.notify_all();
-  }
-
-  if (runThread) {
-    runThread->join();
-    delete runThread;
-    runThread = nullptr;
-  }
+  stopRunThread();
 
   // stop all connections
   disconnectAll();
@@ -430,6 +473,8 @@ void Client::scheduleTask(const std::function<void()> &task,
 }
 
 void Client::thread_run() {
+  // lets ~Client() detect that it runs on this thread, see ownerDestroyed()
+  Module::ScopedThreadOwner const owner(this);
   bool const debug = DEBUG_TEST(Debug::Client);
   running.store(true);
   while (enabled.load()) {
@@ -469,6 +514,12 @@ void Client::thread_run() {
     } catch (const std::exception &e) {
       std::cerr << "[c104.Client] loop] Task aborted: " << e.what()
                 << std::endl;
+    }
+
+    if (owner.ownerDestroyed()) {
+      // the task dropped the last reference to this client: ~Client()
+      // detached this thread, the object is gone, leave without touching it
+      return;
     }
   }
   {

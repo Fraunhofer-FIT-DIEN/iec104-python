@@ -387,6 +387,9 @@ private:
   /// @brief client thread function
   void thread_run();
 
+  /// @brief stop and join the client thread, must not be called from it
+  void stopRunThread();
+
   /**
    * @brief Get Connection object for a certain connection identified via
    * connectionString

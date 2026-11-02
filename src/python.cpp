@@ -1772,6 +1772,10 @@ Callable Returns
 -----------------
 None
 
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
 Example
 -------
 >>> def cl_on_station_initialized(client: c104.Client, station: c104.Station, cause: c104.Coi) -> None:
@@ -1814,6 +1818,10 @@ common_address: int
 Callable Returns
 -----------------
 None
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
 Example
 -------
@@ -1860,6 +1868,10 @@ point_type: c104.Type
 Callable Returns
 ----------------
 None
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
 Example
 -------
@@ -2085,6 +2097,10 @@ Callable Returns
 ----------------
 None
 
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
 Example
 -------
 >>> def sv_on_receive_raw(server: c104.Server, data: bytes) -> None:
@@ -2125,6 +2141,10 @@ data: bytes
 Callable Returns
 ----------------
 None
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
 Example
 -------
@@ -2170,6 +2190,10 @@ bool
 
 If the callable raises an exception or returns a non-bool value, the connection request is rejected and the callable stays registered.
 The exception is passed to **sys.unraisablehook** with the callable as object.
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
 Example
 -------
@@ -2219,6 +2243,10 @@ c104.ResponseState
 If the callable raises an exception or returns an invalid value, the clock sync command is answered with a negative confirmation and the callable stays registered.
 The exception is passed to **sys.unraisablehook** with the callable as object.
 
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
 Example
 -------
 >>> import datetime
@@ -2264,6 +2292,10 @@ cause: c104.Umc
 Callable Returns
 ----------------
 None
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
 Example
 -------
@@ -2584,6 +2616,10 @@ Callable Returns
 ----------------
 None
 
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
 Example
 -------
 >>> def con_on_receive_raw(connection: c104.Connection, data: bytes) -> None:
@@ -2625,6 +2661,10 @@ Callable Returns
 ----------------
 None
 
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
 Example
 -------
 >>> def con_on_send_raw(connection: c104.Connection, data: bytes) -> None:
@@ -2665,6 +2705,10 @@ state: c104.ConnectionState
 Callable Returns
 ----------------
 None
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
 Example
 -------
@@ -2709,6 +2753,10 @@ cause: c104.Umc
 Callable Returns
 ----------------
 None
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
 Example
 -------
@@ -2965,6 +3013,10 @@ c104.ResponseState
 If the callable returns FAILURE, raises an exception or returns an invalid value, the previous information is restored in the point afterwards and the callable stays registered.
 SUCCESS and NONE keep the received value. Exceptions are passed to **sys.unraisablehook** with the callable as object.
 
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
 Example
 -------
 >>> def on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
@@ -3015,6 +3067,10 @@ point: c104.Point
 Callable Returns
 ----------------
 None
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
 Example
 -------
@@ -3070,6 +3126,10 @@ Interval-based (``report_ms``-driven) dispatch only happens while the server has
 client connection. With no connected client the periodic timers do not fire and this callback is not
 called until a client is connected again.
 
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
 Example
 -------
 >>> def on_before_auto_transmit_step(point: c104.Point) -> None:
@@ -3120,6 +3180,10 @@ Note
 The timer callback only fires while the server has at least one active client connection. With no
 connected client the periodic timer is not dispatched and this callback is not called until a client
 is connected again.
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
 Example
 -------

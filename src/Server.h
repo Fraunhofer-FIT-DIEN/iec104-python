@@ -116,9 +116,8 @@ public:
                    max_open_connections, std::move(transport_security)));
 
     // track reference as weak pointer for safe static callbacks
-    void *key = static_cast<void *>(server.get());
     std::lock_guard<std::mutex> lock(instanceMapMutex);
-    instanceMap[key] = server;
+    instanceMap[server->instanceKey] = server;
 
     return server;
   }
@@ -642,6 +641,10 @@ private:
   /// @brief tls handler
   const std::shared_ptr<Remote::TransportSecurity> security{nullptr};
 
+  /// @brief unique key passed to lib60870 as handler parameter and used in
+  /// instanceMap, see Module::nextCallbackKey()
+  void *const instanceKey;
+
   /// @brief vector of stations accessible via this connection
   Object::StationVector stations{};
 
@@ -725,6 +728,9 @@ private:
   /// @brief server thread function
   void thread_run();
 
+  /// @brief stop and join the server thread, must not be called from it
+  void stopRunThread();
+
   /// @brief server thread function
   // @todo use callback thread
   // void thread_callback();
@@ -764,6 +770,14 @@ public:
    * been deallocated.
    */
   static std::shared_ptr<Server> getInstance(void *key);
+
+  /**
+   * @brief Key under which this instance is registered for the static lib60870
+   * callbacks, see getInstance().
+   *
+   * @return opaque, process-wide unique token (not the object address)
+   */
+  [[nodiscard]] void *getCallbackKey() const noexcept { return instanceKey; }
 
   /**
    * @brief Callback to accept or decline incoming client connections

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -34,6 +34,7 @@
 #ifndef C104_MODULE_GILAWAREMUTEX_H
 #define C104_MODULE_GILAWAREMUTEX_H
 
+#include <iostream>
 #include <mutex>
 #include <utility>
 
@@ -63,19 +64,31 @@ public:
   /**
    * @brief Locks the GilAwareMutex.
    *
-   * This function acquires the GilAwareMutex lock. If the lock is not available
-   * within 100 milliseconds, it throws a std::runtime_error with a potential
-   * deadlock message.
+   * An uncontended lock is taken without touching the GIL. Otherwise the GIL
+   * is released while waiting, so a holder that needs the GIL to finish its
+   * critical section can make progress: no thread ever waits for this mutex
+   * while holding the GIL, which makes "mutex, then GIL" a consistent lock
+   * order. The GIL is re-acquired before returning, callers see their GIL
+   * state unchanged.
    *
-   * @throws std::runtime_error If the GilAwareMutex is unable to acquire the
-   * lock within 100ms.
+   * This call blocks until the lock is available. It used to throw
+   * std::runtime_error after 100 ms, but lib60870 invokes our handlers from C
+   * code and several callers are noexcept, so the exception terminated the
+   * process; a remote peer could provoke that by timing a request while a
+   * python thread held a mutex. A wait beyond 100 ms is reported on stderr
+   * (once per call) so that a genuine lock order deadlock stays diagnosable.
    */
   inline void lock() {
-    ScopedGilRelease const scoped_gil(name + "::lock_gil_aware");
-    if (!this->wrapped_mutex.try_lock_for(100ms)) {
-      throw std::runtime_error("Potential Deadlock: mutex " + name +
-                               " waiting for lock > 100ms");
+    if (this->wrapped_mutex.try_lock()) {
+      return;
     }
+    ScopedGilRelease const scoped_gil(name + "::lock_gil_aware");
+    if (this->wrapped_mutex.try_lock_for(100ms)) {
+      return;
+    }
+    std::cerr << "[c104] Potential Deadlock: mutex " << name
+              << " waiting for lock > 100ms" << std::endl;
+    this->wrapped_mutex.lock();
   }
 
   /**
@@ -91,16 +104,11 @@ public:
   /**
    * @brief Tries to lock the GilAwareMutex.
    *
-   * This function attempts to acquire the GilAwareMutex lock. If the lock is
-   * available, it will be acquired and the function will return true. If the
-   * lock is not available, the function will return false.
+   * Never blocks, so the GIL is left untouched.
    *
    * @return True if the lock was acquired successfully, false otherwise.
    */
-  inline bool try_lock() {
-    ScopedGilRelease const scoped_gil(name + "::try_lock_gil_aware");
-    return this->wrapped_mutex.try_lock();
-  }
+  inline bool try_lock() { return this->wrapped_mutex.try_lock(); }
 
 private:
   /// @brief name of the mutex, used for debug logging

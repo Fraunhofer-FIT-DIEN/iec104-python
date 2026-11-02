@@ -32,6 +32,7 @@
 #include "Server.h"
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
+#include "module/ThreadOwner.h"
 #include "remote/TransportSecurity.h"
 #include "remote/message/Batch.h"
 #include "remote/message/PointCommand.h"
@@ -75,7 +76,8 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
     : ip(bind_ip), port(tcp_port), tickRate_ms(tick_rate_ms),
       selectTimeout_ms(select_timeout_ms),
       maxOpenConnections(max_open_connections),
-      security(std::move(transport_security)) {
+      security(std::move(transport_security)),
+      instanceKey(Module::nextCallbackKey()) {
   if (tickRate_ms < 50)
     throw std::range_error("tickRate_ms must be 50 or greater");
 
@@ -107,7 +109,7 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
   // param->t2 = 10; // acknowledgement interval
 
   // Function pointers for custom handler functions
-  void *key = static_cast<void *>(this);
+  void *key = instanceKey;
   CS104_Slave_setConnectionRequestHandler(
       slave, &Server::connectionRequestHandler, key);
   CS104_Slave_setConnectionEventHandler(slave, &Server::connectionEventHandler,
@@ -124,8 +126,33 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
 }
 
 Server::~Server() {
-  // stops and destroys the slave
-  stop();
+  // unregister first: lib60870 callbacks arriving from now on find no instance
+  {
+    std::lock_guard<std::mutex> lock(instanceMapMutex);
+    instanceMap.erase(instanceKey);
+  }
+
+  // The last reference may have been dropped by a python callback, so this
+  // can run on a lib60870 thread (listening or connection thread) or on the
+  // run thread itself. Neither may be joined from itself: CS104_Slave_stop()
+  // would self-join and then free the stack the current thread still executes
+  // on, std::thread::join() would throw. Hand such work to a neutral thread.
+  bool const onRunThread =
+      runThread && runThread->get_id() == std::this_thread::get_id();
+  bool const onCallbackThread =
+      !onRunThread &&
+      Module::ScopedThreadOwner::isCurrentThreadOwnedBy(instanceKey);
+
+  enabled.store(false);
+  if (onRunThread) {
+    // thread_run() returns right after the current task, see ownerDestroyed()
+    Module::ScopedThreadOwner::markDestroyed(this);
+    runThread->detach();
+    delete runThread;
+    runThread = nullptr;
+  } else {
+    stopRunThread();
+  }
 
   {
     std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
@@ -133,12 +160,24 @@ Server::~Server() {
   }
 
   {
-    std::lock_guard<std::mutex> lock(instanceMapMutex);
-    instanceMap.erase(
-        static_cast<void *>(this)); // Remove from map on destruction
+    std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+    connectionMap.clear();
   }
 
-  CS104_Slave_destroy(slave);
+  if (onCallbackThread) {
+    // stop joins the current thread as soon as the handler returned; the tls
+    // configuration must outlive the slave, which holds a raw pointer to it
+    std::thread([slave = this->slave, security = this->security]() {
+      CS104_Slave_stop(slave);
+      CS104_Slave_destroy(slave);
+    }).detach();
+  } else {
+    // joins lib60870 threads, which may be waiting for the GIL in a callback
+    Module::ScopedGilRelease const scoped("Server.destroy");
+    CS104_Slave_stop(slave);
+    CS104_Slave_destroy(slave);
+  }
+  slave = nullptr;
 
   DEBUG_PRINT(Debug::Server, "Removed");
 }
@@ -284,6 +323,8 @@ void Server::scheduleTask(const std::function<void()> &task,
 }
 
 void Server::thread_run() {
+  // lets ~Server() detect that it runs on this thread, see ownerDestroyed()
+  Module::ScopedThreadOwner const owner(this);
   bool const debug = DEBUG_TEST(Debug::Server);
   running.store(true);
   while (enabled.load()) {
@@ -324,6 +365,12 @@ void Server::thread_run() {
       std::cerr << "[c104.Server] loop] Task aborted: " << e.what()
                 << std::endl;
     }
+
+    if (owner.ownerDestroyed()) {
+      // the task dropped the last reference to this server: ~Server()
+      // detached this thread, the object is gone, leave without touching it
+      return;
+    }
   }
   {
     std::unique_lock<std::mutex> lock(runThread_mutex);
@@ -338,14 +385,7 @@ void Server::thread_run() {
   running.store(false);
 }
 
-void Server::stop() {
-  Module::ScopedGilRelease const scoped("Server.stop");
-  bool expected = true;
-  if (!enabled.compare_exchange_strong(expected, false)) {
-    DEBUG_PRINT(Debug::Server, "stop] Already stopped");
-    return;
-  }
-
+void Server::stopRunThread() {
   if (running.load()) {
     runThread_wait.notify_all();
   }
@@ -355,6 +395,17 @@ void Server::stop() {
     delete runThread;
     runThread = nullptr;
   }
+}
+
+void Server::stop() {
+  Module::ScopedGilRelease const scoped("Server.stop");
+  bool expected = true;
+  if (!enabled.compare_exchange_strong(expected, false)) {
+    DEBUG_PRINT(Debug::Server, "stop] Already stopped");
+    return;
+  }
+
+  stopRunThread();
 
   CS104_Slave_stop(slave);
 
@@ -802,6 +853,10 @@ void Server::setOnConnectCallback(py::object &callable) {
 std::uint_fast16_t Server::getTickRate_ms() const { return tickRate_ms; }
 
 bool Server::connectionRequestHandler(void *parameter, const char *ipAddress) {
+  // ~Server() must not join this thread, see Module::ScopedThreadOwner.
+  // Keyed by parameter and declared before instance, so the marker is
+  // still active when the shared_ptr is released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Server, "Reject connection request in shutdown");
@@ -829,6 +884,10 @@ void Server::connectionEventHandler(void *parameter,
     begin = std::chrono::steady_clock::now();
   }
 
+  // ~Server() must not join this thread, see Module::ScopedThreadOwner.
+  // Keyed by parameter and declared before instance, so the marker is
+  // still active when the shared_ptr is released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Server, "Ignore connection event " +
@@ -1269,6 +1328,10 @@ Server::getValidMessage(IMasterConnection connection, CS101_ASDU asdu) {
 
 void Server::rawMessageHandler(void *parameter, IMasterConnection connection,
                                uint_fast8_t *msg, int msgSize, bool sent) {
+  // ~Server() must not join this thread, see Module::ScopedThreadOwner.
+  // Keyed by parameter and declared before instance, so the marker is
+  // still active when the shared_ptr is released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Server, "Ignore raw message in shutdown");
@@ -1291,6 +1354,10 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
+  // ~Server() must not join this thread, see Module::ScopedThreadOwner.
+  // Keyed by parameter and declared before instance, so the marker is
+  // still active when the shared_ptr is released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Server, "Reject interrogation command in shutdown");
@@ -1386,6 +1453,10 @@ bool Server::counterInterrogationHandler(void *parameter,
     begin = std::chrono::steady_clock::now();
   }
 
+  // ~Server() must not join this thread, see Module::ScopedThreadOwner.
+  // Keyed by parameter and declared before instance, so the marker is
+  // still active when the shared_ptr is released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Server,
@@ -1485,6 +1556,10 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
+  // ~Server() must not join this thread, see Module::ScopedThreadOwner.
+  // Keyed by parameter and declared before instance, so the marker is
+  // still active when the shared_ptr is released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Server, "Reject read command in shutdown");
@@ -1563,6 +1638,10 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
     begin = std::chrono::steady_clock::now();
   }
 
+  // ~Server() must not join this thread, see Module::ScopedThreadOwner.
+  // Keyed by parameter and declared before instance, so the marker is
+  // still active when the shared_ptr is released at the end of scope.
+  Module::ScopedThreadOwner const owner(parameter);
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Server, "Reject asdu in shutdown");

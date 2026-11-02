@@ -222,8 +222,8 @@ TEST_CASE("Server: rawMessageHandler without callbacks", "[server][raw]") {
 
   uint_fast8_t msg[8] = {0x68, 0x04, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
   // no callbacks configured -> onReceiveRaw / onSendRaw early-out
-  Server::rawMessageHandler(server.get(), mock, msg, 8, false);
-  Server::rawMessageHandler(server.get(), mock, msg, 8, true);
+  Server::rawMessageHandler(server->getCallbackKey(), mock, msg, 8, false);
+  Server::rawMessageHandler(server->getCallbackKey(), mock, msg, 8, true);
   REQUIRE(state.sendASDU_count == 0);
 }
 
@@ -239,8 +239,10 @@ TEST_CASE("Server: rawMessageHandler with callbacks", "[server][raw]") {
   IMasterConnection mock = &peer;
 
   uint_fast8_t msg[8] = {0x68, 0x04, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00};
-  Server::rawMessageHandler(server.get(), mock, msg, 8, false); // recv
-  Server::rawMessageHandler(server.get(), mock, msg, 8, true);  // send
+  Server::rawMessageHandler(server->getCallbackKey(), mock, msg, 8,
+                            false); // recv
+  Server::rawMessageHandler(server->getCallbackKey(), mock, msg, 8,
+                            true); // send
 
   // callbacks are queued as tasks; give the queue a moment (best effort)
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -272,41 +274,44 @@ TEST_CASE(
   REQUIRE(server->getActiveConnectionCount() == 0);
 
   // OPENED: adds to map as invalid receiver
-  Server::connectionEventHandler(server.get(), mock,
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_OPENED);
   REQUIRE(server->isExistingConnection(mock) == true);
   REQUIRE(server->getActiveConnectionCount() == 0);
 
   // OPENED again (already in map, second==false) -> no downcount
-  Server::connectionEventHandler(server.get(), mock,
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_OPENED);
   REQUIRE(server->getActiveConnectionCount() == 0);
 
   // ACTIVATED: mark valid -> activeConnections++
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 1);
   REQUIRE(server->hasActiveConnections() == true);
 
   // ACTIVATED again (already active) -> no double increment
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 1);
 
   // DEACTIVATED: active -> false, decrement
-  Server::connectionEventHandler(server.get(), mock,
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_DEACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 0);
 
   // DEACTIVATED again (second==false) -> no change
-  Server::connectionEventHandler(server.get(), mock,
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_DEACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 0);
 
   // reopen + activate, then CLOSED removes entry + active--
-  Server::connectionEventHandler(server.get(), mock,
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_OPENED);
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 1);
-  Server::connectionEventHandler(server.get(), mock,
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_CLOSED);
   REQUIRE(server->isExistingConnection(mock) == false);
   REQUIRE(server->getActiveConnectionCount() == 0);
@@ -320,14 +325,14 @@ TEST_CASE("Server: connection event CLOSED on active entry & unknown close",
   IMasterConnection mock = &peer;
 
   // CLOSED on a connection NOT in map -> no-op, still schedules drop
-  Server::connectionEventHandler(server.get(), mock,
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_CLOSED);
 
   // OPENED then CLOSED (not active at close time) -> no downcount, entry
   // removed
-  Server::connectionEventHandler(server.get(), mock,
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_OPENED);
-  Server::connectionEventHandler(server.get(), mock,
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_CLOSED);
   REQUIRE(server->isExistingConnection(mock) == false);
 }
@@ -352,7 +357,8 @@ TEST_CASE("Server: connectionRequestHandler null instance and default accept",
 
   auto server = Server::create("127.0.0.1", 2404);
   // no on_connect callback -> returns true
-  REQUIRE(Server::connectionRequestHandler(server.get(), "127.0.0.1") == true);
+  REQUIRE(Server::connectionRequestHandler(server->getCallbackKey(),
+                                           "127.0.0.1") == true);
 }
 
 TEST_CASE("Server: connectionRequestHandler with python callback",
@@ -361,7 +367,8 @@ TEST_CASE("Server: connectionRequestHandler with python callback",
   auto server = Server::create("127.0.0.1", 2404);
   auto cb = getCallable("_srv_connect");
   server->setOnConnectCallback(cb);
-  REQUIRE(Server::connectionRequestHandler(server.get(), "127.0.0.1") == true);
+  REQUIRE(Server::connectionRequestHandler(server->getCallbackKey(),
+                                           "127.0.0.1") == true);
 }
 
 // ---------------------------------------------------------------------------
@@ -375,7 +382,8 @@ TEST_CASE("Server: onUnexpectedMessage all causes", "[server][unexpected]") {
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_ACTIVATION, 0,
@@ -437,7 +445,8 @@ TEST_CASE("Server: getValidMessage valid / invalid CA / invalid COT",
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
 
@@ -521,7 +530,8 @@ TEST_CASE("Server: transmit monitoring + control + high-priority send",
   IMasterConnection mock = &peer;
 
   server->start();
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
   REQUIRE(server->hasActiveConnections() == true);
 
   // transmit monitoring point -> PointMessage, low-priority enqueue
@@ -560,7 +570,8 @@ TEST_CASE("Server: sendBatch branches", "[server][send]") {
   REQUIRE(server->sendBatch(batch) == false);
 
   server->start();
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   // empty batch -> false (after enabled+active)
   auto empty = Remote::Message::Batch::create(CS101_COT_SPONTANEOUS);
@@ -611,7 +622,8 @@ TEST_CASE("Server: sendActivationConfirmation / Termination",
   CS101_ASDU_destroy(a);
 
   // make connection existing
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   // non-global CA -> single send
   CS101_ASDU b = Test::makeASDU(IEC60870_5_TypeID::C_SC_NA_1, 11,
@@ -688,7 +700,8 @@ TEST_CASE("Server: sendPeriodicInventory fills batch",
   IMasterConnection mock = &peer;
 
   server->start();
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
   // timing sensitive: periodic may or may not be due yet
   server->sendPeriodicInventory();
   server->sendPeriodicInventory();
@@ -724,7 +737,8 @@ TEST_CASE("Server: interrogationHandler STATION group with points",
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   CS101_ASDU asdu = Test::makeASDU(IEC60870_5_TypeID::C_IC_NA_1, 11,
@@ -732,7 +746,7 @@ TEST_CASE("Server: interrogationHandler STATION group with points",
   InformationObject io = (InformationObject)InterrogationCommand_create(
       nullptr, 11, IEC60870_QOI_STATION);
   CS101_ASDU_addInformationObject(asdu, io);
-  REQUIRE(Server::interrogationHandler(server.get(), mock, asdu,
+  REQUIRE(Server::interrogationHandler(server->getCallbackKey(), mock, asdu,
                                        IEC60870_QOI_STATION) == true);
   REQUIRE(state.sendASDU_count >= 1);
   CS101_ASDU_destroy(asdu);
@@ -747,7 +761,8 @@ TEST_CASE("Server: interrogationHandler special (non-station) group",
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   CS101_ASDU asdu = Test::makeASDU(IEC60870_5_TypeID::C_IC_NA_1, 11,
@@ -756,7 +771,7 @@ TEST_CASE("Server: interrogationHandler special (non-station) group",
       nullptr, 11, IEC60870_QOI_STATION);
   CS101_ASDU_addInformationObject(asdu, io);
   // group 1 -> negative confirmation + UNIMPLEMENTED_GROUP
-  REQUIRE(Server::interrogationHandler(server.get(), mock, asdu,
+  REQUIRE(Server::interrogationHandler(server->getCallbackKey(), mock, asdu,
                                        IEC60870_QOI_GROUP_1) == true);
   REQUIRE(state.sendASDU_count >= 1);
   CS101_ASDU_destroy(asdu);
@@ -774,7 +789,8 @@ TEST_CASE("Server: counterInterrogationHandler branches", "[server][counter]") {
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
 
@@ -791,8 +807,8 @@ TEST_CASE("Server: counterInterrogationHandler branches", "[server][counter]") {
   InformationObject io =
       (InformationObject)CounterInterrogationCommand_create(nullptr, 11, 0);
   CS101_ASDU_addInformationObject(b, io);
-  REQUIRE(Server::counterInterrogationHandler(server.get(), mock, b, 0) ==
-          true);
+  REQUIRE(Server::counterInterrogationHandler(server->getCallbackKey(), mock, b,
+                                              0) == true);
   REQUIRE(state.sendASDU_count >= 1);
   CS101_ASDU_destroy(b);
 }
@@ -806,7 +822,8 @@ TEST_CASE("Server: counterInterrogationHandler unsupported group",
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   // rqt=group1 (1), frz=READ(0) -> NOT GENERAL && frz==READ -> unsupported
@@ -816,8 +833,8 @@ TEST_CASE("Server: counterInterrogationHandler unsupported group",
       (InformationObject)CounterInterrogationCommand_create(nullptr, 11, 1);
   CS101_ASDU_addInformationObject(asdu, io);
   uint8_t qcc = 1; // RQT_GROUP_1
-  REQUIRE(Server::counterInterrogationHandler(server.get(), mock, asdu, qcc) ==
-          true);
+  REQUIRE(Server::counterInterrogationHandler(server->getCallbackKey(), mock,
+                                              asdu, qcc) == true);
   REQUIRE(state.sendASDU_count >= 1);
   CS101_ASDU_destroy(asdu);
 }
@@ -836,12 +853,14 @@ TEST_CASE("Server: readHandler read allowed monitoring point",
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
   server->start();
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   CS101_ASDU asdu =
       Test::makeASDU(IEC60870_5_TypeID::M_SP_NA_1, 11, CS101_COT_REQUEST, 4, 1);
-  REQUIRE(Server::readHandler(server.get(), mock, asdu, 11) == true);
+  REQUIRE(Server::readHandler(server->getCallbackKey(), mock, asdu, 11) ==
+          true);
   CS101_ASDU_destroy(asdu);
 
   server->stop();
@@ -858,7 +877,8 @@ TEST_CASE(
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
 
@@ -877,7 +897,7 @@ TEST_CASE(
   InformationObject io =
       (InformationObject)IntegratedTotals_create(nullptr, 11, bcr);
   CS101_ASDU_addInformationObject(b, io);
-  REQUIRE(Server::readHandler(server.get(), mock, b, 11) == true);
+  REQUIRE(Server::readHandler(server->getCallbackKey(), mock, b, 11) == true);
   InformationObject_destroy(io);
   BinaryCounterReading_destroy(bcr);
   CS101_ASDU_destroy(b);
@@ -888,7 +908,7 @@ TEST_CASE(
   InformationObject io2 = (InformationObject)SinglePointInformation_create(
       nullptr, 999, true, IEC60870_QUALITY_GOOD);
   CS101_ASDU_addInformationObject(c, io2);
-  REQUIRE(Server::readHandler(server.get(), mock, c, 999) == true);
+  REQUIRE(Server::readHandler(server->getCallbackKey(), mock, c, 999) == true);
   InformationObject_destroy(io2);
   CS101_ASDU_destroy(c);
 
@@ -898,7 +918,7 @@ TEST_CASE(
   InformationObject io3 = (InformationObject)SinglePointInformation_create(
       nullptr, 11, true, IEC60870_QUALITY_GOOD);
   CS101_ASDU_addInformationObject(d, io3);
-  REQUIRE(Server::readHandler(server.get(), mock, d, 11) == true);
+  REQUIRE(Server::readHandler(server->getCallbackKey(), mock, d, 11) == true);
   InformationObject_destroy(io3);
   CS101_ASDU_destroy(d);
 }
@@ -927,12 +947,13 @@ TEST_CASE("Server: asduHandler clock sync (C_CS_NA_1)", "[server][asdu]") {
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_CS_NA_1, 1, 1,
                                     CS101_COT_ACTIVATION, 0, false);
-  REQUIRE(Server::asduHandler(server.get(), mock, asdu) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, asdu) == true);
   CS101_ASDU_destroy(asdu);
 }
 
@@ -945,13 +966,14 @@ TEST_CASE("Server: asduHandler direct command execute success",
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   // execute command (select=false) on DIRECT point -> success
   CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
                                     CS101_COT_ACTIVATION, 3, false);
-  REQUIRE(Server::asduHandler(server.get(), mock, asdu) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, asdu) == true);
   REQUIRE(state.sendASDU_count >= 1);
   CS101_ASDU_destroy(asdu);
 }
@@ -965,13 +987,14 @@ TEST_CASE("Server: asduHandler select in DIRECT mode -> failure",
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   // select command on DIRECT point -> failure (negative confirmation sent)
   CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
                                     CS101_COT_ACTIVATION, 3, true);
-  REQUIRE(Server::asduHandler(server.get(), mock, asdu) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, asdu) == true);
   REQUIRE(state.sendASDU_count >= 1);
   CS101_ASDU_destroy(asdu);
 }
@@ -986,14 +1009,15 @@ TEST_CASE("Server: asduHandler select-and-execute select + execute",
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
 
   // select command on S&E point -> SUCCESS -> getSelector reflects selection
   CS101_ASDU s = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
                                  CS101_COT_ACTIVATION, 9, true);
-  REQUIRE(Server::asduHandler(server.get(), mock, s) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, s) == true);
   REQUIRE(server->getSelector(1, 11).has_value() == true);
   REQUIRE(server->getSelector(1, 11).value() == 9);
   CS101_ASDU_destroy(s);
@@ -1001,7 +1025,7 @@ TEST_CASE("Server: asduHandler select-and-execute select + execute",
   // execute command on S&E point (selected) -> success
   CS101_ASDU e = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
                                  CS101_COT_ACTIVATION, 9, false);
-  REQUIRE(Server::asduHandler(server.get(), mock, e) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, e) == true);
   CS101_ASDU_destroy(e);
 }
 
@@ -1015,13 +1039,14 @@ TEST_CASE("Server: asduHandler S&E execute without selection -> failure",
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   // execute without prior selection -> FAILURE
   CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_DC_NA_1, 11, 1,
                                     CS101_COT_ACTIVATION, 3, false);
-  REQUIRE(Server::asduHandler(server.get(), mock, asdu) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, asdu) == true);
   CS101_ASDU_destroy(asdu);
 }
 
@@ -1035,26 +1060,27 @@ TEST_CASE("Server: asduHandler mismatched type / unknown ioa / unknown ca / "
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
 
   // mismatched type: point type C_SC_NA_1(45), message type C_DC_NA_1(46)
   CS101_ASDU m = makeCommandAsdu(params, IEC60870_5_TypeID::C_DC_NA_1, 11, 1,
                                  CS101_COT_ACTIVATION, 0, false);
-  REQUIRE(Server::asduHandler(server.get(), mock, m) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, m) == true);
   CS101_ASDU_destroy(m);
 
   // unknown IOA (no point at 999)
   CS101_ASDU u = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 999, 1,
                                  CS101_COT_ACTIVATION, 0, false);
-  REQUIRE(Server::asduHandler(server.get(), mock, u) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, u) == true);
   CS101_ASDU_destroy(u);
 
   // unknown CA (no station 999)
   CS101_ASDU c = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 999,
                                  CS101_COT_ACTIVATION, 0, false);
-  REQUIRE(Server::asduHandler(server.get(), mock, c) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, c) == true);
   CS101_ASDU_destroy(c);
 
   // monitoring message type (not a command) -> INVALID_TYPE_ID
@@ -1063,7 +1089,7 @@ TEST_CASE("Server: asduHandler mismatched type / unknown ioa / unknown ca / "
   InformationObject io = (InformationObject)SinglePointInformation_create(
       nullptr, 11, true, IEC60870_QUALITY_GOOD);
   CS101_ASDU_addInformationObject(mo, io);
-  REQUIRE(Server::asduHandler(server.get(), mock, mo) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, mo) == true);
   InformationObject_destroy(io);
   CS101_ASDU_destroy(mo);
 }
@@ -1079,12 +1105,13 @@ TEST_CASE("Server: asduHandler related auto return path", "[server][asdu]") {
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
   CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
                                     CS101_COT_ACTIVATION, 3, false);
-  REQUIRE(Server::asduHandler(server.get(), mock, asdu) == true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, asdu) == true);
   CS101_ASDU_destroy(asdu);
 }
 
@@ -1100,7 +1127,8 @@ TEST_CASE("Server: getSelector not found", "[server][selector]") {
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
 
   sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
 
@@ -1130,7 +1158,8 @@ TEST_CASE("Server: scheduleDataPointTimer via server thread",
   Test::MockPeerState state;
   sIPeerConnection peer = Test::makeMockPeer(state);
   IMasterConnection mock = &peer;
-  Server::connectionEventHandler(server.get(), mock, CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
   // the periodic thread calls scheduleDataPointTimer automatically
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
   server->stop();
@@ -1179,11 +1208,14 @@ TEST_CASE("Server: on_connect raising handler rejects and stays registered",
   server->setOnConnectCallback(cb);
 
   // unknown ip -> KeyError in the handler -> connection rejected
-  REQUIRE(Server::connectionRequestHandler(server.get(), "192.0.2.7") == false);
+  REQUIRE(Server::connectionRequestHandler(server->getCallbackKey(),
+                                           "192.0.2.7") == false);
   // the handler was NOT removed, so the next unknown peer is rejected too ...
-  REQUIRE(Server::connectionRequestHandler(server.get(), "192.0.2.8") == false);
+  REQUIRE(Server::connectionRequestHandler(server->getCallbackKey(),
+                                           "192.0.2.8") == false);
   // ... and an allowed peer is still accepted by the very same handler
-  REQUIRE(Server::connectionRequestHandler(server.get(), "10.0.0.1") == true);
+  REQUIRE(Server::connectionRequestHandler(server->getCallbackKey(),
+                                           "10.0.0.1") == true);
 }
 
 TEST_CASE("Server: on_connect ill-typed return rejects and stays registered",
@@ -1193,8 +1225,10 @@ TEST_CASE("Server: on_connect ill-typed return rejects and stays registered",
   auto cb = getCallable("_srv_connect_bad_return");
   server->setOnConnectCallback(cb);
 
-  REQUIRE(Server::connectionRequestHandler(server.get(), "127.0.0.1") == false);
-  REQUIRE(Server::connectionRequestHandler(server.get(), "127.0.0.1") == false);
+  REQUIRE(Server::connectionRequestHandler(server->getCallbackKey(),
+                                           "127.0.0.1") == false);
+  REQUIRE(Server::connectionRequestHandler(server->getCallbackKey(),
+                                           "127.0.0.1") == false);
 }
 
 TEST_CASE("Server: on_clock_sync raising or ill-typed handler fails closed",
