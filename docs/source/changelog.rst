@@ -14,6 +14,24 @@ Features
 - support comparison between instances of the same number class (UInt*, Int* and NormalizedFloat)
 - add **Client.remove_connection(ip: str, port: int = 2404)** to close and remove a connection from a client
 
+Breaking changes
+^^^^^^^^^^^^^^^^
+
+- **BC callbacks fail closed instead of being removed** \
+  A callback that raises an exception or returns a value of the wrong type is no longer unregistered after the first error.
+  The exception (a ``TypeError`` for an invalid return value) is passed to ``sys.unraisablehook`` with the callable as ``object``, the handler stays active and the triggering request is rejected:
+
+  - **Server.on_connect**: the connection request is rejected (previously: handler removed, this and all further connections accepted)
+  - **Server.on_clock_sync**: the clock sync command is answered with a negative confirmation (previously: handler removed, confirmed positive)
+  - **Point.on_receive**: the message is answered with ``c104.ResponseState.FAILURE`` (previously: handler removed, confirmed positive)
+
+  A remote peer could previously strip a validation hook by provoking an exception in it (e.g. ``KeyError`` on an unknown ip) and pass unchecked afterwards.
+  The default ``sys.unraisablehook`` prints the traceback to stderr as before; install your own hook to alert, count or terminate the process on callback errors.
+- **BC Point.on_receive restores the previous value on failure** \
+  If the callback returns ``c104.ResponseState.FAILURE``, raises or returns an invalid value, the point's information is restored to ``previous_info`` after the callback returned.
+  Inside the callback ``point.value`` still shows the received value and ``previous_info`` the old one, as before.
+  Returning ``c104.ResponseState.SUCCESS`` or ``c104.ResponseState.NONE`` keeps the received value as before.
+
 Fixes
 ^^^^^^
 

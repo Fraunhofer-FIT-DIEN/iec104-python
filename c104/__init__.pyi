@@ -1792,6 +1792,9 @@ class Point:
         c104.ResponseState
             send command SUCCESS or FAILURE response
 
+        If the callable returns FAILURE, raises an exception or returns an invalid value, the previous information is restored in the point afterwards and the callable stays registered.
+        SUCCESS and NONE keep the received value. Exceptions are passed to **sys.unraisablehook** with the callable as object.
+
         Example
         -------
         >>> def on_setpoint_command(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
@@ -2641,6 +2644,9 @@ class Server:
         c104.ResponseState
             success or failure of clock sync command
 
+        If the callable raises an exception or returns an invalid value, the clock sync command is answered with a negative confirmation and the callable stays registered.
+        The exception is passed to **sys.unraisablehook** with the callable as object.
+
         Example
         -------
         >>> import datetime
@@ -2682,6 +2688,9 @@ class Server:
         ----------------
         bool
             accept or reject the connection request
+
+        If the callable raises an exception or returns a non-bool value, the connection request is rejected and the callable stays registered.
+        The exception is passed to **sys.unraisablehook** with the callable as object.
 
         Example
         -------

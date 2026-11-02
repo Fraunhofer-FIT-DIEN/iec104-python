@@ -718,15 +718,10 @@ Server::onClockSync(const std::string _ip,
       return RESPONSE_STATE_FAILURE;
     }
 
-    if (py_onClockSync.call(shared_from_this(), _ip, pydate)) {
-      try {
-        return py_onClockSync.getResult();
-      } catch (const std::exception &e) {
-        DEBUG_PRINT(Debug::Server, "on_clock_sync] Invalid callback result: " +
-                                       std::string(e.what()));
-        return RESPONSE_STATE_FAILURE;
-      }
-    }
+    // fail closed: a raising handler or an invalid return value rejects the
+    // clock sync, the handler itself stays registered
+    return py_onClockSync.call(shared_from_this(), _ip, pydate)
+        .value_or(RESPONSE_STATE_FAILURE);
   }
 
   return RESPONSE_STATE_SUCCESS;
@@ -817,15 +812,9 @@ bool Server::connectionRequestHandler(void *parameter, const char *ipAddress) {
     DEBUG_PRINT(Debug::Server, "CALLBACK on_connect");
     Module::ScopedGilAcquire const scoped("Server.on_connect");
     std::string const ip(ipAddress);
-    if (instance->py_onConnect.call(instance, ip)) {
-      try {
-        return instance->py_onConnect.getResult();
-      } catch (const std::exception &e) {
-        DEBUG_PRINT(Debug::Server, "on_connect] Invalid callback result: " +
-                                       std::string(e.what()));
-        return false;
-      }
-    }
+    // fail closed: a raising handler or an invalid return value rejects the
+    // connection, the handler itself stays registered
+    return instance->py_onConnect.call(instance, ip).value_or(false);
   }
 
   return true;

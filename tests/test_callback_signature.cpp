@@ -147,7 +147,44 @@ TEST_CASE("Callback<void>: resetting with None unsets without throwing",
 // Execution and result retrieval
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Callback<T>: valid call returns true and getResult returns T",
+namespace {
+
+// Callables that misbehave at call time. Registered separately so the
+// signature tests above stay independent of them.
+const char *kRaisingScript = R"(
+import c104
+
+_sig_cb_raise_count = 0
+
+# raises on every call, signature matches "() -> None"
+def _sig_cb_void_raising() -> None:
+    global _sig_cb_raise_count
+    _sig_cb_raise_count += 1
+    raise RuntimeError("boom")
+
+# raises on every call, signature matches "() -> c104.ResponseState"
+def _sig_cb_state_raising() -> c104.ResponseState:
+    global _sig_cb_raise_count
+    _sig_cb_raise_count += 1
+    raise KeyError("unknown peer")
+)";
+
+void ensureRaisingCallbacks() {
+  static bool inited = false;
+  if (inited)
+    return;
+  inited = true;
+  py::exec(kRaisingScript);
+}
+
+int raiseCount() {
+  return py::cast<int>(
+      py::module_::import("__main__").attr("_sig_cb_raise_count"));
+}
+
+} // namespace
+
+TEST_CASE("Callback<T>: valid call returns the converted result",
           "[callback][execution]") {
   ensureCallbacks();
   // Given: a typed callback and a callable returning a ResponseState
@@ -158,14 +195,14 @@ TEST_CASE("Callback<T>: valid call returns true and getResult returns T",
   REQUIRE(cb.is_set() == true);
 
   // When: invoking the callback
-  bool ok = cb.call();
+  auto res = cb.call();
 
-  // Then: the call succeeded and the expected result is available
-  REQUIRE(ok == true);
-  REQUIRE(cb.getResult() == CommandResponseState::RESPONSE_STATE_SUCCESS);
+  // Then: the converted result is returned
+  REQUIRE(res.has_value() == true);
+  REQUIRE(res.value() == CommandResponseState::RESPONSE_STATE_SUCCESS);
 }
 
-TEST_CASE("Callback<T>: call with no callable set returns false",
+TEST_CASE("Callback<T>: call with no callable set returns nullopt",
           "[callback][execution]") {
   ensureCallbacks();
   // Given: a typed callback that has never been set
@@ -173,15 +210,16 @@ TEST_CASE("Callback<T>: call with no callable set returns false",
                                             "() -> c104.ResponseState"};
 
   // When: invoking the callback without a callable
-  // Then: the call reports failure
-  REQUIRE(cb.call() == false);
+  // Then: there is no result
+  REQUIRE(cb.call().has_value() == false);
 }
 
 // ---------------------------------------------------------------------------
 // Return-cast failure path (py::builtin_exception)
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Callback<T>: incompatible return value unsets and loses the result",
+TEST_CASE("Callback<T>: incompatible return value yields no result and keeps "
+          "the handler",
           "[callback][execution][return-cast]") {
   ensureCallbacks();
   // Given: a typed callback whose declared annotation matches, but the python
@@ -194,17 +232,169 @@ TEST_CASE("Callback<T>: incompatible return value unsets and loses the result",
   REQUIRE(cb.is_set() == true);
 
   // When: invoking the callback (the return cast fails)
-  bool ok = cb.call();
+  auto res = cb.call();
 
-  // Then: the call reports failure, the callback is auto-unset, and no result
-  // is available
-  REQUIRE(ok == false);
-  REQUIRE(cb.is_set() == false);
-  REQUIRE_THROWS_AS(cb.getResult(), std::invalid_argument);
-  try {
-    cb.getResult();
-    FAIL("getResult() after a failed return cast must throw");
-  } catch (const std::invalid_argument &e) {
-    REQUIRE(std::string(e.what()) == "No result set!");
+  // Then: no result is available, but the handler is NOT removed: a peer
+  // must not be able to strip a validation hook by provoking a bad return
+  REQUIRE(res.has_value() == false);
+  REQUIRE(cb.is_set() == true);
+
+  // And: a second call behaves identically (no fail-open after the first one)
+  REQUIRE(cb.call().has_value() == false);
+  REQUIRE(cb.is_set() == true);
+}
+
+// ---------------------------------------------------------------------------
+// Raising callback path (py::error_already_set) — regression for SECURITY H2
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Callback<T>: raising callable yields no result and keeps the "
+          "handler",
+          "[callback][execution][raising]") {
+  ensureRaisingCallbacks();
+  // Given: a typed callback whose callable raises on every invocation
+  Module::Callback<CommandResponseState> cb{"test.state",
+                                            "() -> c104.ResponseState"};
+  py::object callable = getCallable("_sig_cb_state_raising");
+  REQUIRE_NOTHROW(cb.reset(callable));
+  REQUIRE(cb.is_set() == true);
+  int const before = raiseCount();
+
+  // When: invoking the callback twice
+  auto first = cb.call();
+  auto second = cb.call();
+
+  // Then: both calls report no result, the handler stayed registered and
+  // was really invoked both times, and no python error is left pending
+  REQUIRE(first.has_value() == false);
+  REQUIRE(second.has_value() == false);
+  REQUIRE(cb.is_set() == true);
+  REQUIRE(raiseCount() == before + 2);
+  REQUIRE(PyErr_Occurred() == nullptr);
+}
+
+TEST_CASE("Callback<void>: raising callable returns false and keeps the "
+          "handler",
+          "[callback][execution][raising]") {
+  ensureRaisingCallbacks();
+  // Given: a void callback whose callable raises on every invocation
+  Module::Callback<void> cb{"test.void", "() -> None"};
+  py::object callable = getCallable("_sig_cb_void_raising");
+  REQUIRE_NOTHROW(cb.reset(callable));
+  REQUIRE(cb.is_set() == true);
+  int const before = raiseCount();
+
+  // When: invoking the callback twice
+  bool const first = cb.call();
+  bool const second = cb.call();
+
+  // Then: both calls report failure, the handler stayed registered and was
+  // invoked both times
+  REQUIRE(first == false);
+  REQUIRE(second == false);
+  REQUIRE(cb.is_set() == true);
+  REQUIRE(raiseCount() == before + 2);
+  REQUIRE(PyErr_Occurred() == nullptr);
+}
+
+TEST_CASE("Callback<void>: valid call returns true", "[callback][execution]") {
+  ensureCallbacks();
+  // Given: a void callback with a matching callable
+  Module::Callback<void> cb{"test.void", "() -> None"};
+  py::object callable = getCallable("_sig_cb_void");
+  cb.reset(callable);
+
+  // When / Then: the call succeeds
+  REQUIRE(cb.call() == true);
+}
+
+// ---------------------------------------------------------------------------
+// sys.unraisablehook integration: the application decides the error policy
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Installs a recording sys.unraisablehook for the lifetime of the object.
+struct ScopedUnraisableHook {
+  ScopedUnraisableHook() {
+    py::exec(R"(
+import sys
+_sig_hook_calls = []
+_sig_hook_prev = sys.unraisablehook
+def _sig_hook(unraisable):
+    _sig_hook_calls.append((unraisable.exc_type, unraisable.exc_value, unraisable.object))
+sys.unraisablehook = _sig_hook
+)");
   }
+  ~ScopedUnraisableHook() {
+    py::exec("import sys\nsys.unraisablehook = _sig_hook_prev");
+  }
+  py::list calls() const {
+    return py::module_::import("__main__").attr("_sig_hook_calls");
+  }
+};
+
+} // namespace
+
+TEST_CASE("Callback<T>: raising callable is reported via sys.unraisablehook",
+          "[callback][execution][raising][unraisablehook]") {
+  ensureRaisingCallbacks();
+  ScopedUnraisableHook const hook;
+  Module::Callback<CommandResponseState> cb{"test.state",
+                                            "() -> c104.ResponseState"};
+  py::object callable = getCallable("_sig_cb_state_raising");
+  cb.reset(callable);
+
+  REQUIRE(cb.call().has_value() == false);
+
+  // the hook received the original exception with the callable as context
+  auto calls = hook.calls();
+  REQUIRE(py::len(calls) == 1);
+  auto entry = py::tuple(calls[0]);
+  REQUIRE(py::object(entry[0]).is(
+      py::reinterpret_borrow<py::object>(PyExc_KeyError)));
+  REQUIRE(py::object(entry[2]).is(callable));
+  REQUIRE(PyErr_Occurred() == nullptr);
+}
+
+TEST_CASE("Callback<T>: incompatible return value is reported as TypeError "
+          "via sys.unraisablehook",
+          "[callback][execution][return-cast][unraisablehook]") {
+  ensureCallbacks();
+  ScopedUnraisableHook const hook;
+  Module::Callback<CommandResponseState> cb{"test.state",
+                                            "() -> c104.ResponseState"};
+  py::object callable = getCallable("_sig_cb_state_bad_return");
+  cb.reset(callable);
+
+  REQUIRE(cb.call().has_value() == false);
+
+  auto calls = hook.calls();
+  REQUIRE(py::len(calls) == 1);
+  auto entry = py::tuple(calls[0]);
+  REQUIRE(py::object(entry[0]).is(
+      py::reinterpret_borrow<py::object>(PyExc_TypeError)));
+  std::string const msg = py::cast<std::string>(py::str(entry[1]));
+  REQUIRE(msg.find("cannot convert returned type") != std::string::npos);
+  REQUIRE(msg.find("c104.ResponseState") != std::string::npos);
+  REQUIRE(py::object(entry[2]).is(callable));
+  REQUIRE(PyErr_Occurred() == nullptr);
+}
+
+TEST_CASE("Callback<void>: raising callable is reported via sys.unraisablehook",
+          "[callback][execution][raising][unraisablehook]") {
+  ensureRaisingCallbacks();
+  ScopedUnraisableHook const hook;
+  Module::Callback<void> cb{"test.void", "() -> None"};
+  py::object callable = getCallable("_sig_cb_void_raising");
+  cb.reset(callable);
+
+  REQUIRE(cb.call() == false);
+
+  auto calls = hook.calls();
+  REQUIRE(py::len(calls) == 1);
+  auto entry = py::tuple(calls[0]);
+  REQUIRE(py::object(entry[0]).is(
+      py::reinterpret_borrow<py::object>(PyExc_RuntimeError)));
+  REQUIRE(py::object(entry[2]).is(callable));
 }

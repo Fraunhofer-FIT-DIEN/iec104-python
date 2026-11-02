@@ -1120,23 +1120,34 @@ CommandResponseState DataPoint::onReceive(
     info.swap(prev);
   }
 
-  if (py_onReceive.is_set()) {
-    DEBUG_PRINT(Debug::Point, "CALLBACK on_receive at IOA " +
-                                  std::to_string(informationObjectAddress));
-    Module::ScopedGilAcquire const scoped("Point.on_receive");
-
-    if (py_onReceive.call(shared_from_this(), prev, message)) {
-      try {
-        return py_onReceive.getResult();
-      } catch (const std::exception &e) {
-        DEBUG_PRINT(Debug::Point, "on_receive] Invalid callback result: " +
-                                      std::string(e.what()));
-        return RESPONSE_STATE_FAILURE;
-      }
-    }
+  if (!py_onReceive.is_set()) {
+    return RESPONSE_STATE_SUCCESS;
   }
 
-  return RESPONSE_STATE_SUCCESS;
+  DEBUG_PRINT(Debug::Point, "CALLBACK on_receive at IOA " +
+                                std::to_string(informationObjectAddress));
+  CommandResponseState res = RESPONSE_STATE_FAILURE;
+  {
+    Module::ScopedGilAcquire const scoped("Point.on_receive");
+    // the handler sees the new value via point and the old one via prev;
+    // fail closed: a raising handler or an invalid return value rejects the
+    // message, the handler itself stays registered
+    res = py_onReceive.call(shared_from_this(), prev, message)
+              .value_or(RESPONSE_STATE_FAILURE);
+  }
+
+  if (res == RESPONSE_STATE_FAILURE) {
+    // rejected: restore the previous information, so a refused command
+    // never leaves its value behind in the point (NONE keeps the value, the
+    // handler takes over the response via transmit)
+    DEBUG_PRINT(Debug::Point, "on_receive] Rejected, restore previous "
+                              "information at IOA " +
+                                  std::to_string(informationObjectAddress));
+    std::lock_guard<std::mutex> const lock(info_mutex);
+    info.swap(prev);
+  }
+
+  return res;
 }
 
 void DataPoint::setOnBeforeReadCallback(py::object &callable) {

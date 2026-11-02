@@ -2168,6 +2168,9 @@ Callable Returns
 bool
     accept or reject the connection request
 
+If the callable raises an exception or returns a non-bool value, the connection request is rejected and the callable stays registered.
+The exception is passed to **sys.unraisablehook** with the callable as object.
+
 Example
 -------
 >>> def sv_on_connect(server: c104.Server, ip: str) -> bool:
@@ -2212,6 +2215,9 @@ Callable Returns
 ----------------
 c104.ResponseState
     success or failure of clock sync command
+
+If the callable raises an exception or returns an invalid value, the clock sync command is answered with a negative confirmation and the callable stays registered.
+The exception is passed to **sys.unraisablehook** with the callable as object.
 
 Example
 -------
@@ -2955,6 +2961,9 @@ Callable Returns
 ----------------
 c104.ResponseState
     send command SUCCESS or FAILURE response
+
+If the callable returns FAILURE, raises an exception or returns an invalid value, the previous information is restored in the point afterwards and the callable stays registered.
+SUCCESS and NONE keep the received value. Exceptions are passed to **sys.unraisablehook** with the callable as object.
 
 Example
 -------

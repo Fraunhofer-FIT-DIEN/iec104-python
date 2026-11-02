@@ -1135,3 +1135,91 @@ TEST_CASE("Server: scheduleDataPointTimer via server thread",
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
   server->stop();
 }
+
+// ---------------------------------------------------------------------------
+// Fail-closed callbacks (regression for SECURITY H2): a raising or
+// ill-typed python handler must reject the request and stay registered.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+void ensureFailClosedCallbacks() {
+  static bool inited = false;
+  if (inited)
+    return;
+  inited = true;
+  py::exec(R"(
+import c104
+from datetime import datetime
+
+# raises KeyError for every ip that is not in the allow list
+_srv_allowed = {"10.0.0.1": True}
+def _srv_connect_raising(server: c104.Server, ip: str) -> bool:
+    return _srv_allowed[ip]
+
+# declared bool, returns something that cannot be cast to bool
+def _srv_connect_bad_return(server: c104.Server, ip: str) -> bool:
+    return object()
+
+def _srv_clock_raising(server: c104.Server, ip: str, date_time: datetime) -> c104.ResponseState:
+    raise ValueError("clock rejected")
+
+def _srv_clock_none(server: c104.Server, ip: str, date_time: datetime) -> c104.ResponseState:
+    return None
+)");
+}
+
+} // namespace
+
+TEST_CASE("Server: on_connect raising handler rejects and stays registered",
+          "[server][connect][fail-closed]") {
+  ensureFailClosedCallbacks();
+  auto server = Server::create("127.0.0.1", 2404);
+  auto cb = getCallable("_srv_connect_raising");
+  server->setOnConnectCallback(cb);
+
+  // unknown ip -> KeyError in the handler -> connection rejected
+  REQUIRE(Server::connectionRequestHandler(server.get(), "192.0.2.7") == false);
+  // the handler was NOT removed, so the next unknown peer is rejected too ...
+  REQUIRE(Server::connectionRequestHandler(server.get(), "192.0.2.8") == false);
+  // ... and an allowed peer is still accepted by the very same handler
+  REQUIRE(Server::connectionRequestHandler(server.get(), "10.0.0.1") == true);
+}
+
+TEST_CASE("Server: on_connect ill-typed return rejects and stays registered",
+          "[server][connect][fail-closed]") {
+  ensureFailClosedCallbacks();
+  auto server = Server::create("127.0.0.1", 2404);
+  auto cb = getCallable("_srv_connect_bad_return");
+  server->setOnConnectCallback(cb);
+
+  REQUIRE(Server::connectionRequestHandler(server.get(), "127.0.0.1") == false);
+  REQUIRE(Server::connectionRequestHandler(server.get(), "127.0.0.1") == false);
+}
+
+TEST_CASE("Server: on_clock_sync raising or ill-typed handler fails closed",
+          "[server][clock][fail-closed]") {
+  ensureFailClosedCallbacks();
+  auto server = Server::create("127.0.0.1", 2404);
+  auto const now = std::chrono::system_clock::now();
+
+  // no handler -> success (unchanged default)
+  REQUIRE(server->onClockSync("127.0.0.1", now) == RESPONSE_STATE_SUCCESS);
+
+  // raising handler -> failure, twice (handler kept)
+  auto raising = getCallable("_srv_clock_raising");
+  server->setOnClockSyncCallback(raising);
+  REQUIRE(server->onClockSync("127.0.0.1", now) == RESPONSE_STATE_FAILURE);
+  REQUIRE(server->onClockSync("127.0.0.1", now) == RESPONSE_STATE_FAILURE);
+
+  // handler without return statement (None) -> failure
+  auto none = getCallable("_srv_clock_none");
+  server->setOnClockSyncCallback(none);
+  REQUIRE(server->onClockSync("127.0.0.1", now) == RESPONSE_STATE_FAILURE);
+
+  // well-behaved handler -> success
+  ensureServerCallbacks();
+  auto good = getCallable("_srv_clock");
+  server->setOnClockSyncCallback(good);
+  REQUIRE(server->onClockSync("127.0.0.1", now) == RESPONSE_STATE_SUCCESS);
+}

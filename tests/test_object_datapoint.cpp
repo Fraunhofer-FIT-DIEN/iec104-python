@@ -27,6 +27,8 @@
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
+#include <pybind11/eval.h>
+#include <pybind11/pybind11.h>
 
 #include "Server.h"
 #include "object/DataPoint.h"
@@ -170,4 +172,136 @@ TEST_CASE("Concurrent point info access", "[object::point]") {
 
   REQUIRE(reads > 0);
   REQUIRE(point->getInfo() != nullptr);
+}
+
+// ---------------------------------------------------------------------------
+// on_receive fail-closed semantics (regression for SECURITY H2)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+void ensureReceiveCallbacks() {
+  static bool inited = false;
+  if (inited)
+    return;
+  inited = true;
+  py::exec(R"(
+import c104
+
+_rx_seen_new_value = None
+_rx_seen_prev_value = None
+
+def _rx_record(point: c104.Point, previous_info: c104.Information) -> None:
+    global _rx_seen_new_value, _rx_seen_prev_value
+    _rx_seen_new_value = point.value
+    _rx_seen_prev_value = previous_info.value
+
+def _rx_success(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    _rx_record(point, previous_info)
+    return c104.ResponseState.SUCCESS
+
+def _rx_failure(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    _rx_record(point, previous_info)
+    return c104.ResponseState.FAILURE
+
+def _rx_none(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    _rx_record(point, previous_info)
+    return c104.ResponseState.NONE
+
+def _rx_raising(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    _rx_record(point, previous_info)
+    raise RuntimeError("validator crashed")
+
+def _rx_no_return(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    _rx_record(point, previous_info)
+    if point.value == 99:
+        return c104.ResponseState.SUCCESS
+)");
+}
+
+py::object rxCallable(const char *name) {
+  return py::module_::import("__main__").attr(name);
+}
+
+py::object rxGlobal(const char *name) {
+  return py::module_::import("__main__").attr(name);
+}
+
+// single command (C_SC_NA_1) carrying @p value for IOA 11 at CA 10
+std::shared_ptr<Remote::Message::IncomingMessage>
+makeSingleCommand(sCS101_AppLayerParameters &params, bool value) {
+  CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_ACTIVATION, 0,
+                                      10, false, false);
+  InformationObject io =
+      (InformationObject)SingleCommand_create(nullptr, 11, value, false, 0);
+  CS101_ASDU_addInformationObject(asdu, io);
+  auto message = Remote::Message::IncomingMessage::create(asdu, &params);
+  InformationObject_destroy(io);
+  CS101_ASDU_destroy(asdu);
+  return message;
+}
+
+} // namespace
+
+TEST_CASE("DataPoint onReceive applies the value only on SUCCESS or NONE",
+          "[object::point][on_receive][fail-closed]") {
+  ensureReceiveCallbacks();
+  auto server = Server::create();
+  auto station = server->addStation(10);
+  auto point = station->addPoint(11, IEC60870_5_TypeID::C_SC_NA_1);
+  point->setInfo(Object::SingleCmd::create(false));
+
+  sCS101_AppLayerParameters params{.sizeOfTypeId = 1,
+                                   .sizeOfVSQ = 1,
+                                   .sizeOfCOT = 2,
+                                   .originatorAddress = 0,
+                                   .sizeOfCA = 2,
+                                   .sizeOfIOA = 3,
+                                   .maxSizeOfASDU = 249};
+  auto on_message = makeSingleCommand(params, true);
+  REQUIRE(on_message->next());
+
+  SECTION("SUCCESS keeps the new value") {
+    auto cb = rxCallable("_rx_success");
+    point->setOnReceiveCallback(cb);
+    REQUIRE(point->onReceive(on_message) == RESPONSE_STATE_SUCCESS);
+    REQUIRE(std::get<bool>(point->getValue()) == true);
+  }
+
+  SECTION("NONE keeps the new value (handler responds manually)") {
+    auto cb = rxCallable("_rx_none");
+    point->setOnReceiveCallback(cb);
+    REQUIRE(point->onReceive(on_message) == RESPONSE_STATE_NONE);
+    REQUIRE(std::get<bool>(point->getValue()) == true);
+  }
+
+  SECTION("FAILURE restores the previous value") {
+    auto cb = rxCallable("_rx_failure");
+    point->setOnReceiveCallback(cb);
+    REQUIRE(point->onReceive(on_message) == RESPONSE_STATE_FAILURE);
+    REQUIRE(std::get<bool>(point->getValue()) == false);
+  }
+
+  SECTION("raising handler fails closed, restores value, stays registered") {
+    auto cb = rxCallable("_rx_raising");
+    point->setOnReceiveCallback(cb);
+    REQUIRE(point->onReceive(on_message) == RESPONSE_STATE_FAILURE);
+    REQUIRE(std::get<bool>(point->getValue()) == false);
+    // second attempt is rejected as well: the handler was not removed
+    REQUIRE(point->onReceive(on_message) == RESPONSE_STATE_FAILURE);
+    REQUIRE(std::get<bool>(point->getValue()) == false);
+    REQUIRE(PyErr_Occurred() == nullptr);
+  }
+
+  SECTION("missing return statement (None) fails closed") {
+    auto cb = rxCallable("_rx_no_return");
+    point->setOnReceiveCallback(cb);
+    REQUIRE(point->onReceive(on_message) == RESPONSE_STATE_FAILURE);
+    REQUIRE(std::get<bool>(point->getValue()) == false);
+  }
+
+  // in every section the handler observed the documented view: the point
+  // already carried the new value, previous_info the old one
+  REQUIRE(py::cast<bool>(rxGlobal("_rx_seen_new_value")) == true);
+  REQUIRE(py::cast<bool>(rxGlobal("_rx_seen_prev_value")) == false);
 }

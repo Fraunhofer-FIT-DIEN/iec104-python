@@ -32,6 +32,7 @@
 #ifndef C104_MODULE_CALLBACK_H
 #define C104_MODULE_CALLBACK_H
 
+#include <optional>
 #include <utility>
 
 #include "module/GilAwareMutex.h"
@@ -158,13 +159,82 @@ protected:
    */
   void unset() noexcept(true) {
     DEBUG_PRINT(Debug::Callback, "CLEAR " + name);
-    {
-      std::lock_guard<Module::GilAwareMutex> const lock(callback_mutex);
-      if (!callback.is_none()) {
-        callback = py::none();
-      }
+    std::lock_guard<Module::GilAwareMutex> const lock(callback_mutex);
+    if (!callback.is_none()) {
+      callback = py::none();
     }
-    success = false;
+  }
+
+  /**
+   * @brief Take a snapshot of the callback reference.
+   *
+   * @return the callable, or py::none() if no callback is set
+   */
+  py::object snapshot() const {
+    std::lock_guard<Module::GilAwareMutex> const lock(callback_mutex);
+    return callback;
+  }
+
+  /**
+   * @brief Report an exception raised by the python callback.
+   *
+   * The handler stays registered: a remote peer must not be able to strip a
+   * validation hook by provoking an exception in it (callers treat a failed
+   * call as a rejected request instead). The exception is handed to
+   * sys.unraisablehook with the callable as context, exactly like python does
+   * for exceptions in __del__ or ctypes callbacks: the default hook prints
+   * the traceback to stderr, applications may install their own hook to
+   * alert, count or terminate. Must not throw, because call() is noexcept and
+   * runs on lib60870 threads.
+   *
+   * @param cb the callable that raised
+   * @param e the exception fetched by pybind11
+   */
+  void reportException(const py::object &cb, py::error_already_set &e) const
+      noexcept(true) {
+    DEBUG_PRINT(Debug::Callback,
+                name + "] raised, request rejected, handler kept");
+    try {
+      e.discard_as_unraisable(cb);
+    } catch (...) {
+      // the hook itself failed; python already dropped the error
+    }
+  }
+
+  /**
+   * @brief Report a return value that cannot be converted to the expected type.
+   *
+   * Raises a TypeError through sys.unraisablehook, see reportException() for
+   * the no-throw and keep-handler rationale.
+   *
+   * @param cb the callable that produced the value
+   * @param result_type the python type name of the returned value
+   */
+  void reportCastError(const py::object &cb,
+                       const std::string &result_type) const noexcept(true) {
+    DEBUG_PRINT(Debug::Callback, name + "] incompatible return value, "
+                                        "request rejected, handler kept");
+    try {
+      std::string expected = signature.substr(signature.find("->") + 2);
+      try {
+        auto inspect = py::module_::import("inspect");
+        auto sig = inspect.attr("signature")(cb);
+        expected =
+            py::cast<std::string>(py::str(sig.attr("return_annotation")));
+      } catch (...) {
+        // fall back to the annotation of the registered signature
+      }
+      std::string const msg =
+          name + ": cannot convert returned type " + result_type +
+          " to expected type " + expected +
+          ". Please make sure your callback function is returning an "
+          "instance of " +
+          expected + " or a compatible type.";
+      PyErr_SetString(PyExc_TypeError, msg.c_str());
+      PyErr_WriteUnraisable(cb.ptr());
+    } catch (...) {
+      PyErr_Clear();
+    }
   }
 
   /// @brief callback function reference
@@ -175,9 +245,6 @@ protected:
 
   /// @brief callback function signature, used for validation
   std::string signature{"() -> None"};
-
-  /// @brief store if last execution was successfully
-  std::atomic_bool success{false};
 
   /// @brief mutex for accessing the callback object
   mutable Module::GilAwareMutex callback_mutex{"Callback::callback_mutex"};
@@ -199,17 +266,21 @@ public:
   /**
    * @brief Calls the callback function with the given values.
    *
+   * The result is returned by value instead of being stored in the object, so
+   * concurrent calls (free-threaded builds) can never observe each other's
+   * result. A callback that raises or returns an incompatible value stays
+   * registered; the caller decides what a missing result means (fail closed).
+   *
    * @tparam Types The types of the values to pass to the callback
    * @param values The values to pass to the callback
-   * @return bool True if the callback was called successfully, false otherwise
+   * @return the converted return value, or std::nullopt if no callback is set,
+   * the callback raised or the return value could not be converted to T
    */
-  template <typename... Types> bool call(Types &&...values) noexcept(true) {
-    std::unique_lock<Module::GilAwareMutex> lock(this->callback_mutex);
-    auto const cb = this->callback;
-    lock.unlock();
-
+  template <typename... Types>
+  std::optional<T> call(Types &&...values) noexcept(true) {
+    auto const cb = this->snapshot();
     if (cb.is_none()) {
-      return false;
+      return std::nullopt;
     }
 
     // locals, not members: call() may run concurrently in free-threaded builds
@@ -218,6 +289,7 @@ public:
       begin = std::chrono::steady_clock::now();
     }
 
+    std::optional<T> result;
     std::string result_type{"None"};
     try {
       py::object res = cb(std::forward<Types>(values)...);
@@ -226,57 +298,11 @@ public:
       result_type = py::cast<std::string>(py::str(res.get_type()));
 
       // Cast the result to the expected type
-      T const value = res.cast<T>();
-      lock.lock();
-      result = value;
-      lock.unlock();
-      this->success = true;
+      result = res.cast<T>();
     } catch (py::error_already_set &e) {
-      this->success = PyErr_Occurred();
-      if (!this->success) {
-        std::cerr
-            << '\n'
-            << "------------------------------------------------------------"
-            << '\n'
-            << '\n'
-            << this->name << "] Error:" << std::endl;
-
-        auto traceback = py::module_::import("traceback");
-        traceback.attr("print_exception")(e.type(), e.value(), e.trace());
-
-        std::cerr
-            << "\nRemoved erroneous callback handler!\n\n"
-            << "------------------------------------------------------------"
-            << '\n'
-            << std::endl;
-        this->unset();
-      }
+      this->reportException(cb, e);
     } catch (py::builtin_exception &e) {
-      this->success = false;
-      std::cerr
-          << '\n'
-          << "------------------------------------------------------------"
-          << '\n'
-          << '\n'
-          << this->name << "] Error:\n"
-          << "TypeError: incompatible return value" << std::endl;
-
-      auto inspect = py::module_::import("inspect");
-      auto sig = inspect.attr("signature")(cb);
-      auto expected =
-          py::cast<std::string>(py::str(sig.attr("return_annotation")));
-      std::cerr << "Cannot convert returned type " << result_type
-                << " to expected type " << expected << ".\n"
-                << "Please make sure your callback function is returning an "
-                   "instance of "
-                << expected << " or a compatible type." << std::endl;
-
-      std::cerr
-          << "\nRemoved erroneous callback handler!\n\n"
-          << "------------------------------------------------------------"
-          << '\n'
-          << std::endl;
-      this->unset();
+      this->reportCastError(cb, result_type);
     }
 
     if (DEBUG_TEST(Debug::Callback)) {
@@ -284,29 +310,8 @@ public:
                             name + "] Stats | TOTAL " + TICTOCNOW(begin));
     }
 
-    return this->success;
-  }
-
-  /**
-   * @brief Retrieves the result of a callback.
-   *
-   * @tparam T The type of the result
-   * @return T The result of the callback
-   * @throws std::invalid_argument if no result is set
-   */
-  T getResult() {
-    std::lock_guard<Module::GilAwareMutex> lock(this->callback_mutex);
-
-    if (!this->success) {
-      throw std::invalid_argument("No result set!");
-    }
-
     return result;
   }
-
-protected:
-  /// @brief callback return value (must be accessed with callback_mutex)
-  T result;
 };
 
 /**
@@ -325,16 +330,15 @@ public:
   /**
    * @brief Calls the callback function with the given values.
    *
+   * A callback that raises stays registered.
+   *
    * @tparam Types The types of the values.
    * @param values The values to pass to the callback function.
    * @return bool Returns true if the callback function is called successfully,
-   * false otherwise.
+   * false if no callback is set or the callback raised.
    */
   template <typename... Types> bool call(Types &&...values) noexcept(true) {
-    std::unique_lock<Module::GilAwareMutex> lock(this->callback_mutex);
-    auto const cb = this->callback;
-    lock.unlock();
-
+    auto const cb = this->snapshot();
     if (cb.is_none()) {
       return false;
     }
@@ -345,29 +349,12 @@ public:
       begin = std::chrono::steady_clock::now();
     }
 
+    bool success = false;
     try {
       cb(std::forward<Types>(values)...);
-      this->success = true;
+      success = true;
     } catch (py::error_already_set &e) {
-      this->success = PyErr_Occurred();
-      if (!this->success) {
-        std::cerr
-            << '\n'
-            << "------------------------------------------------------------"
-            << '\n'
-            << '\n'
-            << this->name << "] Error:" << std::endl;
-
-        auto traceback = py::module_::import("traceback");
-        traceback.attr("print_exception")(e.type(), e.value(), e.trace());
-
-        std::cerr
-            << "\nRemoved erroneous callback handler!\n\n"
-            << "------------------------------------------------------------"
-            << '\n'
-            << std::endl;
-        this->unset();
-      }
+      this->reportException(cb, e);
     }
 
     if (DEBUG_TEST(Debug::Callback)) {
@@ -375,13 +362,8 @@ public:
                             name + "] Stats | TOTAL " + TICTOCNOW(begin));
     }
 
-    return this->success;
+    return success;
   }
-
-  /**
-   * @brief This callback does not provide a result
-   */
-  void getResult() {}
 };
 
 } // namespace Module
