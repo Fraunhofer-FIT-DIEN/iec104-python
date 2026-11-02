@@ -33,6 +33,7 @@
 #include "types.h"
 
 #include "Client.h"
+#include "ProtocolParameters.h"
 #include "Server.h"
 #include "remote/message/Batch.h"
 
@@ -1107,51 +1108,45 @@ convert to native bytes (little-endian, least significant byte first) matching t
       .def_property_readonly("value", &Byte32::get,
                              "int: the numeric value (read-only)");
 
-  py::class_<sCS104_APCIParameters>(m, "ProtocolParameters",
-                                    "This class is used to configure protocol "
-                                    "parameters for server and client")
-      .def_readwrite("send_window_size", &sCS104_APCIParameters::k,
-                     "int: threshold of unconfirmed outgoing messages, before "
-                     "waiting for acknowledgments (property name: k)")
-      .def_readwrite("receive_window_size", &sCS104_APCIParameters::w,
-                     "int: threshold of unconfirmed incoming messages to send "
-                     "acknowledgments (property name: w)")
-      .def_readwrite(
-          "connection_timeout", &sCS104_APCIParameters::t0,
-          "int: socket connection timeout (seconds) (property name: t0)")
-      .def_readwrite("message_timeout", &sCS104_APCIParameters::t1,
-                     "int: timeout for sent messages to be acknowledged by "
-                     "counterparty (seconds) (property name: t1)")
-      .def_readwrite("confirm_interval", &sCS104_APCIParameters::t2,
-                     "int: maximum interval to acknowledge received messages "
-                     "(seconds) (property name: t2)")
-      .def_readwrite(
-          "keep_alive_interval", &sCS104_APCIParameters::t3,
-          "int: maximum interval without communication, send test "
-          "frame messages to prove liveness (seconds) (property name: t3)")
-      .def("__str__",
-           [](const sCS104_APCIParameters parameters) {
-             std::ostringstream oss;
-             oss << "<104.ProtocolParameters send_window_size=" << parameters.k
-                 << ", receive_window_size=" << parameters.w
-                 << ", connection_timeout=" << parameters.t0
-                 << ", message_timeout=" << parameters.t1
-                 << ", confirm_interval=" << parameters.t2
-                 << ", keep_alive_interval=" << parameters.t3 << ">";
-             return oss.str();
-           })
-      .def("__repr__", [](const sCS104_APCIParameters parameters) {
-        std::ostringstream oss;
-        oss << "<104.ProtocolParameters send_window_size=" << parameters.k
-            << ", receive_window_size=" << parameters.w
-            << ", connection_timeout=" << parameters.t0
-            << ", message_timeout=" << parameters.t1
-            << ", confirm_interval=" << parameters.t2
-            << ", keep_alive_interval=" << parameters.t3 << " at " << std::hex
-            << std::showbase << reinterpret_cast<std::uintptr_t>(&parameters)
-            << ">";
-        return oss.str();
-      });
+  py::class_<ProtocolParameters, std::shared_ptr<ProtocolParameters>>(
+      m, "ProtocolParameters",
+      "This class is used to configure protocol parameters for server and "
+      "client. Values are validated against the IEC 60870-5-104 ranges and "
+      "can only be modified while the owning server is stopped or the owning "
+      "connection is closed.")
+      .def_property(
+          "send_window_size", &ProtocolParameters::getSendWindowSize,
+          &ProtocolParameters::setSendWindowSize,
+          "int: threshold of unconfirmed outgoing messages, before waiting "
+          "for acknowledgments (property name: k), range 1..32767 and not "
+          "smaller than receive_window_size")
+      .def_property(
+          "receive_window_size", &ProtocolParameters::getReceiveWindowSize,
+          &ProtocolParameters::setReceiveWindowSize,
+          "int: threshold of unconfirmed incoming messages to send "
+          "acknowledgments (property name: w), range 1..32767 and not larger "
+          "than send_window_size")
+      .def_property("connection_timeout",
+                    &ProtocolParameters::getConnectionTimeout,
+                    &ProtocolParameters::setConnectionTimeout,
+                    "int: socket connection timeout (seconds) (property name: "
+                    "t0), range 1..255")
+      .def_property("message_timeout", &ProtocolParameters::getMessageTimeout,
+                    &ProtocolParameters::setMessageTimeout,
+                    "int: timeout for sent messages to be acknowledged by "
+                    "counterparty (seconds) (property name: t1), range 1..255")
+      .def_property("confirm_interval", &ProtocolParameters::getConfirmInterval,
+                    &ProtocolParameters::setConfirmInterval,
+                    "int: maximum interval to acknowledge received messages "
+                    "(seconds) (property name: t2), range 1..255")
+      .def_property(
+          "keep_alive_interval", &ProtocolParameters::getKeepAliveInterval,
+          &ProtocolParameters::setKeepAliveInterval,
+          "int: maximum interval without communication, send test frame "
+          "messages to prove liveness (seconds) (property name: t3), range "
+          "1..172800")
+      .def("__str__", &ProtocolParameters::toString)
+      .def("__repr__", &ProtocolParameters::toRepr);
 
   py::class_<Remote::TransportSecurity,
              std::shared_ptr<Remote::TransportSecurity>>(
@@ -1950,9 +1945,12 @@ Example
                              "list[c104.Station]: list of all local "
                              "Station objects (read-only)")
       .def_property_readonly(
-          "protocol_parameters", &Server::getParameters,
-          "c104.ProtocolParameters: read and update protocol parameters",
-          py::return_value_policy::reference_internal)
+          "protocol_parameters",
+          // the view keeps the C++ server alive via shared_ptr; keep_alive
+          // additionally ties the python wrapper's lifetime to the view
+          py::cpp_function(&Server::getParameters, py::keep_alive<0, 1>()),
+          "c104.ProtocolParameters: read and update protocol parameters "
+          "(writes are only allowed while the server is stopped)")
       .def_property("max_connections", &Server::getMaxOpenConnections,
                     &Server::setMaxOpenConnections,
                     "int: maximum number of open connections, 0 = no limit",
@@ -2345,9 +2343,13 @@ Example
           "datetime.datetime | None : datetime of last connection closing, if "
           "connection is closed (read-only)")
       .def_property_readonly(
-          "protocol_parameters", &Remote::Connection::getParameters,
-          "c104.ProtocolParameters: read and update protocol parameters",
-          py::return_value_policy::reference_internal)
+          "protocol_parameters",
+          // the view keeps the C++ connection alive via shared_ptr; keep_alive
+          // additionally ties the python wrapper's lifetime to the view
+          py::cpp_function(&Remote::Connection::getParameters,
+                           py::keep_alive<0, 1>()),
+          "c104.ProtocolParameters: read and update protocol parameters "
+          "(writes are only allowed while the connection is closed)")
       .def("connect", &Remote::Connection::connect,
            R"def(connect(self: c104.Connection) -> None
 

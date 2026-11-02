@@ -32,6 +32,7 @@
 #ifndef C104_SERVER_H
 #define C104_SERVER_H
 
+#include "ProtocolParameters.h"
 #include "remote/Helper.h"
 #include "types.h"
 
@@ -301,10 +302,11 @@ public:
   bool removeStation(std::uint_fast16_t commonAddress);
 
   /**
-   * @brief Get a reference to the protocol parameters to be able to read and
-   * update these
+   * @brief Get a validated view onto the protocol parameters to be able to
+   * read and update these. Writes are range checked and rejected while the
+   * server is running; the view keeps the server alive.
    */
-  CS104_APCIParameters getParameters() const;
+  std::shared_ptr<ProtocolParameters> getParameters() const;
 
   /**
    * @brief set python callback that will be executed on incoming message

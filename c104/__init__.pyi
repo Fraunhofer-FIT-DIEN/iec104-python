@@ -1064,7 +1064,7 @@ class Connection:
     @property
     def protocol_parameters(self) -> ProtocolParameters:
         """
-        read and update protocol parameters
+        read and update protocol parameters (writes are only allowed while the connection is closed)
         """
     @property
     def state(self) -> ConnectionState:
@@ -2295,12 +2295,14 @@ class ProtectionStartInfo(Information):
         """
 class ProtocolParameters:
     """
-    This class is used to configure protocol parameters for server and client
+    This class is used to configure protocol parameters for server and client.
+    Values are validated against the IEC 60870-5-104 ranges and can only be modified
+    while the owning server is stopped or the owning connection is closed.
     """
     @property
     def confirm_interval(self) -> int:
         """
-        maximum interval to acknowledge received messages (seconds) (property name: t2)
+        maximum interval to acknowledge received messages (seconds) (property name: t2), range 1..255
         """
     @confirm_interval.setter
     def confirm_interval(self, value: int) -> None:
@@ -2310,16 +2312,23 @@ class ProtocolParameters:
         Parameters
         ----------
         value: int
-            new timeout in seconds
+            new timeout in seconds, range 1..255
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            value is out of range
+        RuntimeError
+            the owning server is running or the owning connection is not closed
         """
     @property
     def connection_timeout(self) -> int:
         """
-        socket connection timeout (seconds) (property name: t0)
+        socket connection timeout (seconds) (property name: t0), range 1..255
         """
     @connection_timeout.setter
     def connection_timeout(self, value: int) -> None:
@@ -2329,16 +2338,23 @@ class ProtocolParameters:
         Parameters
         ----------
         value: int
-            new timeout in seconds
+            new timeout in seconds, range 1..255
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            value is out of range
+        RuntimeError
+            the owning server is running or the owning connection is not closed
         """
     @property
     def keep_alive_interval(self) -> int:
         """
-        maximum interval without communication, send test frame messages to prove liveness (seconds) (property name: t3)
+        maximum interval without communication, send test frame messages to prove liveness (seconds) (property name: t3), range 1..172800
         """
     @keep_alive_interval.setter
     def keep_alive_interval(self, value: int) -> None:
@@ -2348,16 +2364,23 @@ class ProtocolParameters:
         Parameters
         ----------
         value: int
-            new timeout in seconds
+            new timeout in seconds, range 1..172800 (48 hours)
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            value is out of range
+        RuntimeError
+            the owning server is running or the owning connection is not closed
         """
     @property
     def message_timeout(self) -> int:
         """
-        timeout for sent messages to be acknowledged by counterparty (seconds) (property name: t1)
+        timeout for sent messages to be acknowledged by counterparty (seconds) (property name: t1), range 1..255
         """
     @message_timeout.setter
     def message_timeout(self, value: int) -> None:
@@ -2367,16 +2390,23 @@ class ProtocolParameters:
         Parameters
         ----------
         value: int
-            new timeout in seconds
+            new timeout in seconds, range 1..255
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            value is out of range
+        RuntimeError
+            the owning server is running or the owning connection is not closed
         """
     @property
     def receive_window_size(self) -> int:
         """
-        threshold of unconfirmed incoming messages to send acknowledgments (property name: w)
+        threshold of unconfirmed incoming messages to send acknowledgments (property name: w), range 1..32767 and not larger than send_window_size
         """
     @receive_window_size.setter
     def receive_window_size(self, value: int) -> None:
@@ -2386,16 +2416,23 @@ class ProtocolParameters:
         Parameters
         ----------
         value: int
-            new threshold
+            new threshold, range 1..32767 and not larger than send_window_size (k)
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            value is out of range or larger than send_window_size
+        RuntimeError
+            the owning server is running or the owning connection is not closed
         """
     @property
     def send_window_size(self) -> int:
         """
-        threshold of unconfirmed outgoing messages, before waiting for acknowledgments (property name: k)
+        threshold of unconfirmed outgoing messages, before waiting for acknowledgments (property name: k), range 1..32767 and not smaller than receive_window_size
         """
     @send_window_size.setter
     def send_window_size(self, value: int) -> None:
@@ -2405,11 +2442,18 @@ class ProtocolParameters:
         Parameters
         ----------
         value: int
-            new threshold
+            new threshold, range 1..32767 and not smaller than receive_window_size (w)
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        ValueError
+            value is out of range or smaller than receive_window_size
+        RuntimeError
+            the owning server is running or the owning connection is not closed
         """
 class Qoc:
     """
@@ -3004,7 +3048,7 @@ class Server:
     @property
     def protocol_parameters(self) -> ProtocolParameters:
         """
-        read and update protocol parameters
+        read and update protocol parameters (writes are only allowed while the server is stopped)
         """
     @property
     def stations(self) -> list[Station]:

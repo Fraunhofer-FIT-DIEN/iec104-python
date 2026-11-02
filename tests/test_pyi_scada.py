@@ -667,6 +667,114 @@ class ProtocolParametersTestCase(unittest.TestCase):
         finally:
             client.stop()
 
+    def test_server_protocol_parameters_validation(self):
+        server = c104.Server(ip="127.0.0.1", port=24224, tick_rate_ms=100)
+        try:
+            self._assert_validation(server.protocol_parameters)
+        finally:
+            server.stop()
+
+    def test_client_protocol_parameters_validation(self):
+        client = c104.Client(tick_rate_ms=100)
+        try:
+            connection = client.add_connection(ip="127.0.0.1", port=24225)
+            self._assert_validation(connection.protocol_parameters)
+        finally:
+            client.stop()
+
+    def test_server_protocol_parameters_locked_while_running(self):
+        server = c104.Server(ip="127.0.0.1", port=24226, tick_rate_ms=100)
+        try:
+            pp = server.protocol_parameters
+            pp.message_timeout = 12
+            server.start()
+            self.assertTrue(server.is_running)
+            with self.assertRaises(RuntimeError):
+                pp.message_timeout = 13
+            with self.assertRaises(RuntimeError):
+                server.protocol_parameters.send_window_size = 16
+            # reads keep working, nothing changed
+            self.assertEqual(pp.message_timeout, 12)
+            server.stop()
+            pp.message_timeout = 13
+            self.assertEqual(pp.message_timeout, 13)
+        finally:
+            server.stop()
+
+    def test_connection_protocol_parameters_locked_unless_closed(self):
+        client = c104.Client(tick_rate_ms=100)
+        try:
+            connection = client.add_connection(ip="127.0.0.1", port=24227)
+            pp = connection.protocol_parameters
+            self.assertEqual(connection.state, c104.ConnectionState.CLOSED)
+            pp.message_timeout = 12
+            # a closed port is not always refused immediately, keep the attempt short
+            pp.connection_timeout = 1
+            # nobody listens on the port: the connection is pending/reconnecting
+            connection.connect()
+            self.assertNotEqual(connection.state, c104.ConnectionState.CLOSED)
+            with self.assertRaises(RuntimeError):
+                pp.message_timeout = 13
+            self.assertEqual(pp.message_timeout, 12)
+            connection.disconnect()
+            for _ in range(200):
+                if connection.state == c104.ConnectionState.CLOSED:
+                    break
+                time.sleep(0.025)
+            self.assertEqual(connection.state, c104.ConnectionState.CLOSED)
+            pp.message_timeout = 13
+            self.assertEqual(pp.message_timeout, 13)
+        finally:
+            client.stop()
+
+    def _assert_validation(self, pp):
+        before = str(pp)
+        k = pp.send_window_size
+        w = pp.receive_window_size
+        self.assertGreaterEqual(k, w)
+
+        # lib60870 uses k as malloc size and modulo divisor
+        for value in (0, -1, 32768, -(2**31)):
+            with self.assertRaises(ValueError, msg=f"send_window_size={value}"):
+                pp.send_window_size = value
+        with self.assertRaises(ValueError):
+            pp.send_window_size = w - 1
+        for value in (0, -1, 32768, k + 1):
+            with self.assertRaises(ValueError, msg=f"receive_window_size={value}"):
+                pp.receive_window_size = value
+        for name, upper in (
+            ("connection_timeout", 255),
+            ("message_timeout", 255),
+            ("confirm_interval", 255),
+            ("keep_alive_interval", 172800),
+        ):
+            for value in (0, -1, upper + 1, 2**31 - 1):
+                with self.assertRaises(ValueError, msg=f"{name}={value}"):
+                    setattr(pp, name, value)
+
+        # non-int values are rejected by the type system
+        with self.assertRaises(TypeError):
+            pp.send_window_size = "12"
+
+        # rejected writes leave everything untouched
+        self.assertEqual(str(pp), before)
+
+        # inclusive bounds
+        pp.receive_window_size = 1
+        pp.send_window_size = 1
+        pp.send_window_size = 32767
+        pp.receive_window_size = 32767
+        pp.connection_timeout = 1
+        pp.message_timeout = 255
+        pp.confirm_interval = 255
+        pp.keep_alive_interval = 172800
+        self.assertEqual(pp.send_window_size, 32767)
+        self.assertEqual(pp.receive_window_size, 32767)
+        self.assertEqual(pp.connection_timeout, 1)
+        self.assertEqual(pp.message_timeout, 255)
+        self.assertEqual(pp.confirm_interval, 255)
+        self.assertEqual(pp.keep_alive_interval, 172800)
+
     def _assert_get_set(self, pp):
         # getters
         self.assertIsInstance(pp.confirm_interval, int)
@@ -676,20 +784,20 @@ class ProtocolParametersTestCase(unittest.TestCase):
         self.assertIsInstance(pp.receive_window_size, int)
         self.assertIsInstance(pp.send_window_size, int)
 
-        # setters
+        # setters (k before w, k >= w must hold)
         pp.confirm_interval = 15
         pp.connection_timeout = 30
         pp.keep_alive_interval = 20
         pp.message_timeout = 10
-        pp.receive_window_size = 12
-        pp.send_window_size = 8
+        pp.send_window_size = 16
+        pp.receive_window_size = 10
 
         self.assertEqual(pp.confirm_interval, 15)
         self.assertEqual(pp.connection_timeout, 30)
         self.assertEqual(pp.keep_alive_interval, 20)
         self.assertEqual(pp.message_timeout, 10)
-        self.assertEqual(pp.receive_window_size, 12)
-        self.assertEqual(pp.send_window_size, 8)
+        self.assertEqual(pp.send_window_size, 16)
+        self.assertEqual(pp.receive_window_size, 10)
 
 
 # ---------------------------------------------------------------------------

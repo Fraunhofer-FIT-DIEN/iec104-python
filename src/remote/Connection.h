@@ -32,6 +32,7 @@
 #ifndef C104_REMOTE_CONNECTION_H
 #define C104_REMOTE_CONNECTION_H
 
+#include "ProtocolParameters.h"
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
 #include "object/Station.h"
@@ -269,10 +270,11 @@ public:
   bool removeStation(std::uint_fast16_t commonAddress);
 
   /**
-   * @brief Get a reference to the protocol parameters to be able to read and
-   * update these
+   * @brief Get a validated view onto the protocol parameters to be able to
+   * read and update these. Writes are range checked and rejected unless the
+   * connection is CLOSED; the view keeps the connection alive.
    */
-  CS104_APCIParameters getParameters() const;
+  std::shared_ptr<ProtocolParameters> getParameters() const;
 
   /**
    * @brief set python callback that will be executed on incoming message

@@ -160,6 +160,8 @@ set(c104_SOURCES
     src/enums.cpp
     src/types.cpp
     src/types.h
+    src/ProtocolParameters.cpp
+    src/ProtocolParameters.h
     src/module/Callback.h
     src/module/ScopedGilAcquire.h
     src/module/ScopedGilRelease.h

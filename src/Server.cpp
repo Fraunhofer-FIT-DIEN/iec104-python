@@ -728,8 +728,12 @@ Server::execute(IMasterConnection connection,
   return res;
 }
 
-CS104_APCIParameters Server::getParameters() const {
-  return CS104_Slave_getConnectionParameters(slave);
+std::shared_ptr<ProtocolParameters> Server::getParameters() const {
+  // the view holds a strong reference, so capturing `this` is safe
+  return std::make_shared<ProtocolParameters>(
+      CS104_Slave_getConnectionParameters(slave), shared_from_this(),
+      [this]() { return isRunning(); },
+      "while the server is running, call Server.stop() first");
 }
 
 void Server::setOnReceiveRawCallback(py::object &callable) {

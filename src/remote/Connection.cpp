@@ -735,8 +735,15 @@ void Connection::setOnReceiveRawCallback(py::object &callable) {
   py_onReceiveRaw.reset(callable);
 }
 
-CS104_APCIParameters Connection::getParameters() const {
-  return CS104_Connection_getAPCIParameters(connection);
+std::shared_ptr<ProtocolParameters> Connection::getParameters() const {
+  // lib60870 reads the block whenever a (re)connect is attempted, so only a
+  // fully CLOSED connection may be modified. The view holds a strong
+  // reference, so capturing `this` is safe.
+  return std::make_shared<ProtocolParameters>(
+      CS104_Connection_getAPCIParameters(connection), shared_from_this(),
+      [this]() { return state.load() != CLOSED; },
+      "while the connection is not closed, call Connection.disconnect() "
+      "first");
 }
 
 void Connection::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {

@@ -31,6 +31,12 @@ Breaking changes
   If the callback returns ``c104.ResponseState.FAILURE``, raises or returns an invalid value, the point's information is restored to ``previous_info`` after the callback returned.
   Inside the callback ``point.value`` still shows the received value and ``previous_info`` the old one, as before.
   Returning ``c104.ResponseState.SUCCESS`` or ``c104.ResponseState.NONE`` keeps the received value as before.
+- **BC ProtocolParameters are validated and locked while running** \
+  Writing to **Server.protocol_parameters** or **Connection.protocol_parameters** now raises ``ValueError`` for values outside the IEC 60870-5-104 ranges
+  (``send_window_size`` (k) 1..32767, ``receive_window_size`` (w) 1..32767 and w <= k, ``connection_timeout``/``message_timeout``/``confirm_interval`` (t0..t2) 1..255 s, ``keep_alive_interval`` (t3) 1..172800 s)
+  and ``RuntimeError`` while the server is running or the connection is not closed (previously: written unchecked into the live lib60870 parameter block,
+  where ``send_window_size = 0`` led to a zero-size allocation and a division by zero in the receive thread, a negative value to a NULL dereference).
+  Configure the parameters before ``start()`` / ``connect()``; when changing both window sizes set ``send_window_size`` first when increasing and ``receive_window_size`` first when decreasing.
 
 Fixes
 ^^^^^^
