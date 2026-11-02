@@ -99,7 +99,7 @@ std::string connectionStringFormatter(const std::string &ip,
                                       uint_fast16_t port);
 
 /**
- * @brief test if a file exists and is readable
+ * @brief test if a path is an existing, readable regular file
  * @param name file path
  * @return if file is readable or not
  */

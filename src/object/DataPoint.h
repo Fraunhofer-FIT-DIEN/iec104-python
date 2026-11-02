@@ -58,17 +58,16 @@ public:
    * @param dp_related_ioa related information object address, if any
    * @param dp_related_auto_return auto transmit related point on command
    * @param dp_cmd_mode command transmission mode (direct or select-and-execute)
-   * @param tick_rate_ms outer tick rate
+   * @param tick_rate_ms outer tick rate of the owning server/client, must be
+   * non-zero (Station::addPoint guarantees >= 50)
    * @throws std::invalid_argument if type is invalid
    */
   [[nodiscard]] static std::shared_ptr<DataPoint>
   create(std::uint_fast32_t dp_ioa, IEC60870_5_TypeID dp_type,
-         std::shared_ptr<Station> dp_station,
-         std::uint_fast16_t dp_report_ms = 0,
-         std::optional<std::uint_fast32_t> dp_related_ioa = std::nullopt,
-         bool dp_related_auto_return = false,
-         CommandTransmissionMode dp_cmd_mode = DIRECT_COMMAND,
-         std::uint_fast16_t tick_rate_ms = 0) {
+         std::shared_ptr<Station> dp_station, std::uint_fast16_t dp_report_ms,
+         std::optional<std::uint_fast32_t> dp_related_ioa,
+         bool dp_related_auto_return, CommandTransmissionMode dp_cmd_mode,
+         std::uint_fast16_t tick_rate_ms) {
     Module::ScopedGilAcquire scoped("DataPoint.create");
 
     // Not using std::make_shared because the constructor is private.

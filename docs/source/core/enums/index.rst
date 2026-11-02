@@ -28,4 +28,5 @@ List
    commandprocessstate
    commandtransmissionmode
    tlsciphersuite
+   tlseventlevel
    tlsversion

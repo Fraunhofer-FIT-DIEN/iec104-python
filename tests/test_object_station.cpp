@@ -24,6 +24,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "Server.h"
 #include "object/DataPoint.h"
 #include "object/Station.h"
 #include "types.h"
@@ -37,7 +38,8 @@ TEST_CASE("Create station", "[object::station]") {
 // otherwise addPoint(0) never dedups and a peer can grow `points` unbounded.
 TEST_CASE("Station: IOA 0 is a regular, deduplicated address",
           "[object::station][security]") {
-  auto station = Object::Station::create(1, nullptr, nullptr);
+  auto server = Server::create("127.0.0.1", 2404, 100);
+  auto station = server->addStation(1);
 
   auto p0 = station->addPoint(0, IEC60870_5_TypeID::M_SP_NA_1);
   REQUIRE(p0 != nullptr);
@@ -61,7 +63,8 @@ TEST_CASE("Station: IOA 0 is a regular, deduplicated address",
 
 TEST_CASE("Station: getPoint lookup stays consistent with getPoints",
           "[object::station]") {
-  auto station = Object::Station::create(2, nullptr, nullptr);
+  auto server = Server::create("127.0.0.1", 2404, 100);
+  auto station = server->addStation(2);
   constexpr std::uint_fast32_t N = 2000;
 
   for (std::uint_fast32_t ioa = 0; ioa < N; ++ioa) {
@@ -94,4 +97,30 @@ TEST_CASE("Station: getPoint lookup stays consistent with getPoints",
                                IEC60870_5_TypeID::M_SP_NA_1);
   REQUIRE(top != nullptr);
   REQUIRE(station->getPoint(MAX_INFORMATION_OBJECT_ADDRESS).get() == top.get());
+}
+
+// M8: an orphaned station (server/client gone) has no tick rate. addPoint
+// must reject it, otherwise the point's report interval and timer checks
+// would evaluate `% 0` (SIGFPE).
+TEST_CASE("Orphaned station rejects addPoint", "[object::station][M8]") {
+  auto standalone = Object::Station::create(3, nullptr, nullptr);
+  REQUIRE_THROWS_AS(standalone->addPoint(1, IEC60870_5_TypeID::M_ME_NA_1, 1000),
+                    std::runtime_error);
+  REQUIRE_THROWS_AS(standalone->addPoint(2, IEC60870_5_TypeID::M_SP_NA_1),
+                    std::runtime_error);
+  REQUIRE_FALSE(standalone->hasPoints());
+
+  // station outlives its server
+  std::shared_ptr<Object::Station> station;
+  {
+    auto server = Server::create("127.0.0.1", 2404, 100);
+    station = server->addStation(4);
+    auto point = station->addPoint(1, IEC60870_5_TypeID::M_ME_NA_1, 1000);
+    REQUIRE(point != nullptr);
+    REQUIRE(point->getReportInterval_ms() == 1000);
+  }
+  REQUIRE(station->getServer() == nullptr);
+  REQUIRE_THROWS_AS(station->addPoint(2, IEC60870_5_TypeID::M_ME_NA_1, 1000),
+                    std::runtime_error);
+  REQUIRE(station->getPoint(2) == nullptr);
 }

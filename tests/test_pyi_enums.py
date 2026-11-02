@@ -50,6 +50,7 @@ STATUS_ENUMS = [
     "Rqt",
     "Step",
     "TlsCipher",
+    "TlsEventLevel",
     "TlsVersion",
     "Type",
     "Umc",

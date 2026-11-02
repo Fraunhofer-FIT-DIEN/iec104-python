@@ -154,6 +154,8 @@ public:
    * command
    * @param commandMode command transmission mode (direct or select-and-execute)
    * @throws std::invalid_argument if type is invalid
+   * @throws std::runtime_error if the station's server or client no longer
+   * exists
    */
   std::shared_ptr<DataPoint>
   addPoint(std::uint_fast32_t informationObjectAddress, IEC60870_5_TypeID type,

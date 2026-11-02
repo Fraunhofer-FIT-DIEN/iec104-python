@@ -430,5 +430,86 @@ class TransportSecurityReadonlyAcrossSetttersTestCase(unittest.TestCase):
             ts.set_ca_certificate(str(CA_CERT))
 
 
+
+class TransportSecurityLoadFailureTestCase(unittest.TestCase):
+    """M6: load failures raise, the own certificate is one-shot"""
+
+    def setUp(self):
+        require_certs()
+
+    def test_set_certificate_twice_raises(self):
+        ts = c104.TransportSecurity()
+        ts.set_certificate(str(SERVER_CERT), str(SERVER_KEY))
+        with self.assertRaises(ValueError) as cm:
+            ts.set_certificate(str(SERVER_CERT), str(SERVER_KEY))
+        self.assertIn("already been set", str(cm.exception))
+
+    def test_invalid_key_file_can_be_retried(self):
+        ts = c104.TransportSecurity()
+        with self.assertRaises(ValueError):
+            ts.set_certificate(str(SERVER_CERT), str(SERVER_CERT))
+        self.assertIsNone(ts.set_certificate(str(SERVER_CERT), str(SERVER_KEY)))
+
+    def test_invalid_cert_file_poisons_config(self):
+        ts = c104.TransportSecurity()
+        with self.assertRaises(ValueError) as cm:
+            ts.set_certificate(str(SERVER_KEY), str(SERVER_KEY))
+        self.assertIn("Failed to load the certificate", str(cm.exception))
+        with self.assertRaises(ValueError):
+            ts.set_certificate(str(SERVER_CERT), str(SERVER_KEY))
+        with self.assertRaises(ValueError):
+            c104.Server(transport_security=ts)
+
+    def test_unparsable_ca_and_allowed_cert_raise(self):
+        ts = c104.TransportSecurity()
+        with self.assertRaises(ValueError):
+            ts.set_ca_certificate(str(SERVER_KEY))
+        with self.assertRaises(ValueError):
+            ts.add_allowed_remote_certificate(str(SERVER_KEY))
+
+    def test_directory_is_rejected(self):
+        ts = c104.TransportSecurity()
+        with self.assertRaises(ValueError):
+            ts.set_ca_certificate(str(CERTS_DIR))
+        with self.assertRaises(ValueError):
+            ts.add_allowed_remote_certificate(str(CERTS_DIR))
+        with self.assertRaises(ValueError):
+            ts.set_certificate(str(CERTS_DIR), str(SERVER_KEY))
+
+
+class TransportSecurityOnEventTestCase(unittest.TestCase):
+    """on_event(callable)"""
+
+    def test_event_level_enum(self):
+        self.assertEqual(c104.TlsEventLevel.INFO.value, 0)
+        self.assertEqual(c104.TlsEventLevel.WARNING.value, 1)
+        self.assertEqual(c104.TlsEventLevel.INCIDENT.value, 2)
+
+    def test_register_and_unset(self):
+        def tls_on_event(tls: c104.TransportSecurity, level: c104.TlsEventLevel, code: int, message: str,
+                         peer: str) -> None:
+            pass
+
+        ts = c104.TransportSecurity()
+        self.assertIsNone(ts.on_event(callable=tls_on_event))
+        # allowed after the config became readonly
+        c104.Server(transport_security=ts)
+        self.assertIsNone(ts.on_event(callable=tls_on_event))
+        self.assertIsNone(ts.on_event(callable=None))
+
+    def test_wrong_signature_raises(self):
+        def bad(tls: c104.TransportSecurity) -> None:
+            pass
+
+        ts = c104.TransportSecurity()
+        with self.assertRaises(ValueError):
+            ts.on_event(callable=bad)
+
+    def test_not_callable_raises(self):
+        ts = c104.TransportSecurity()
+        with self.assertRaises(TypeError):
+            ts.on_event(callable=42)
+
+
 if __name__ == "__main__":
     unittest.main()

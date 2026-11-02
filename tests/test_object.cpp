@@ -988,11 +988,12 @@ TEST_CASE("Station: via connection (client context)", "[object::station]") {
 
 TEST_CASE("Station: standalone add/drop points & destructor",
           "[object::station]") {
-  auto st = Object::Station::create(40, nullptr, nullptr);
+  // addPoint needs the owner's tick rate, so the station must belong to a
+  // server (a station without server/client rejects addPoint)
+  auto server = Server::create("127.0.0.1", 2404, 100);
+  auto st = server->addStation(40);
   auto p = st->addPoint(1, IEC60870_5_TypeID::M_SP_NA_1);
   REQUIRE(p->getStation().get() == st.get());
-  // tickRate_ms is 0 without server/connection -> a nonzero report interval
-  // would be an invalid multiple; report_ms=0 is fine
   REQUIRE(st->addPoint(2, IEC60870_5_TypeID::M_ME_NC_1) != nullptr);
   REQUIRE(st->getPoints().size() == 2);
   REQUIRE(st->removePoint(1) == true);

@@ -170,10 +170,12 @@ void Client::stop() {
 bool Client::isRunning() { return enabled; }
 
 void Client::setOriginatorAddress(uint_fast8_t address) {
-  std::uint_fast8_t const prev = originatorAddress.load();
+  std::uint_fast8_t const prev = originatorAddress.exchange(address);
   if (prev != address) {
-    originatorAddress.store(address);
-    for (auto &c : connections) {
+    // iterate a snapshot taken under connections_mutex: a concurrent
+    // add_connection()/remove_connection() must not invalidate the loop, and
+    // Connection::setOriginatorAddress() takes its own lock (no nesting)
+    for (auto &c : getConnections()) {
       if (c->getOriginatorAddress() == prev) {
         c->setOriginatorAddress(address);
       }

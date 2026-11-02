@@ -33,6 +33,9 @@
 #include "module/ScopedGilAcquire.h"
 #include "types.h"
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
 bool Remote::isSingleCommonAddress(const std::uint_fast16_t commonAddress) {
   return 0 < commonAddress && IEC60870_GLOBAL_COMMON_ADDRESS > commonAddress;
 }
@@ -314,10 +317,15 @@ std::string Remote::connectionStringFormatter(const std::string &ip,
 }
 
 bool Remote::file_exists(const std::string &name) {
+  // fopen(..., "r") alone also succeeds on directories (POSIX), so check for a
+  // regular file first
+  struct stat st {};
+  if (stat(name.c_str(), &st) != 0 || (st.st_mode & S_IFMT) != S_IFREG) {
+    return false;
+  }
   if (FILE *file = fopen(name.c_str(), "r")) {
     fclose(file);
     return true;
-  } else {
-    return false;
   }
+  return false;
 }

@@ -254,9 +254,7 @@ py::dict explain_bytes_dict(std::string_view obj) {
 }
 
 PY_MODULE(m) {
-#ifdef _WIN32
-  system("chcp 65001 > nul");
-#endif
+  enableUtf8ConsoleOutput();
 
   py::options options;
   options.disable_function_signatures();
@@ -567,6 +565,13 @@ PY_MODULE(m) {
       .value("TLS_1_1", TLS_VERSION_TLS_1_1)
       .value("TLS_1_2", TLS_VERSION_TLS_1_2)
       .value("TLS_1_3", TLS_VERSION_TLS_1_3);
+
+  py::enum_<TLSEventLevel>(
+      m, "TlsEventLevel",
+      "This enum contains the severity levels of TLS security events.")
+      .value("INFO", TLS_SEC_EVT_INFO)
+      .value("WARNING", TLS_SEC_EVT_WARNING)
+      .value("INCIDENT", TLS_SEC_EVT_INCIDENT);
 
   py::enum_<TLSCipherSuite>(
       m, "TlsCipher", "This enum contains all supported TLS cipher suites.")
@@ -1197,6 +1202,12 @@ ValueError
     config is readonly and cannot be modified further
 ValueError
     failed to load the certificate file, the private key file or failed decrypting the private key
+ValueError
+    a certificate has already been set, or a previous attempt failed after the private key was loaded
+
+The own certificate can be set only once per instance, it cannot be replaced. If loading the certificate fails after
+the private key was accepted, the instance becomes unusable: further calls raise and passing it to a client or server
+raises a ValueError. Create a new **c104.TransportSecurity** instance in both cases.
 
 Example
 -------
@@ -1434,6 +1445,66 @@ Example
 )def",
           "min"_a = TLS_VERSION_NOT_SELECTED,
           "max"_a = TLS_VERSION_NOT_SELECTED)
+      .def(
+          "on_event", &Remote::TransportSecurity::setOnEventCallback,
+          R"def(on_event(self: c104.TransportSecurity, callable: collections.abc.Callable[[c104.TransportSecurity, c104.TlsEventLevel, int, str, str], None]) -> None
+
+set python callback that will be executed on TLS security events
+
+TLS security events are reported for failed handshakes (e.g. certificate not trusted, expired or revoked, common name
+mismatch, no shared cipher), insecure TLS versions, and session establishment, renegotiation and resumption.
+The callback only reports events, it cannot change the decision taken by the TLS layer. Unlike the other settings,
+the callback can also be set or changed after the configuration has been passed to a client or server.
+
+Parameters
+----------
+callable: collections.abc.Callable[[c104.TransportSecurity, c104.TlsEventLevel, int, str, str], None]
+    callback function reference, or None to remove the callback
+
+Returns
+-------
+None
+
+Raises
+------
+ValueError
+    callable signature does not match exactly
+
+**Callable signature**
+
+Callable Parameters
+-------------------
+tls: c104.TransportSecurity
+    transport security instance
+level: c104.TlsEventLevel
+    severity of the event
+code: int
+    lib60870 TLS event code (TLS_EVENT_CODE_* in lib60870's tls_config.h), e.g. 14 for certificate not trusted
+message: str
+    human-readable description of the event
+peer: str
+    address of the remote peer, or an empty string if unknown
+
+Callable Returns
+----------------
+None
+
+If the callable raises an exception, the exception is passed to **sys.unraisablehook** with the callable as object and
+the callable stays registered.
+
+The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
+**Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
+They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
+Example
+-------
+>>> def tls_on_event(tls: c104.TransportSecurity, level: c104.TlsEventLevel, code: int, message: str, peer: str) -> None:
+>>>     print("TLS {0} ({1}) from {2}: {3}".format(level, code, peer, message))
+>>>
+>>> tls = c104.TransportSecurity(validate=True, only_known=False)
+>>> tls.on_event(callable=tls_on_event)
+)def",
+          "callable"_a)
       .def("__repr__", &Remote::TransportSecurity::toString);
 
   m.def("explain_bytes", &explain_bytes,
@@ -2852,6 +2923,8 @@ ValueError
     related_auto_return is set, but related_io_address is not set
 ValueError
     related_auto_return is set, but type is not a control type
+RuntimeError
+    the station's server or client no longer exists
 
 Example
 -------

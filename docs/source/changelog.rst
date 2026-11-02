@@ -13,6 +13,7 @@ Features
 - support mathematical operations between instances of the same number class (UInt*, Int* and NormalizedFloat); the result will be of type int
 - support comparison between instances of the same number class (UInt*, Int* and NormalizedFloat)
 - add **Client.remove_connection(ip: str, port: int = 2404)** to close and remove a connection from a client
+- add **TransportSecurity.on_event(callable)** and the **c104.TlsEventLevel** enum to report TLS security events (e.g. certificate not trusted, common name mismatch, handshake failure, session established) to Python; previously they were only printed in debug mode
 
 Breaking changes
 ^^^^^^^^^^^^^^^^
@@ -37,6 +38,11 @@ Breaking changes
   and ``RuntimeError`` while the server is running or the connection is not closed (previously: written unchecked into the live lib60870 parameter block,
   where ``send_window_size = 0`` led to a zero-size allocation and a division by zero in the receive thread, a negative value to a NULL dereference).
   Configure the parameters before ``start()`` / ``connect()``; when changing both window sizes set ``send_window_size`` first when increasing and ``receive_window_size`` first when decreasing.
+- **BC TransportSecurity certificate loading fails loudly** \
+  **TransportSecurity.set_certificate**, **TransportSecurity.set_ca_certificate** and **TransportSecurity.add_allowed_remote_certificate** now raise ``ValueError`` if the file is not a regular file or cannot be parsed
+  (previously: the result of the certificate load was ignored and directories passed the existence check, so the handshakes failed later without a hint).
+  **TransportSecurity.set_certificate** can be called only once per instance, a second call raises ``ValueError`` (previously it failed with a misleading passphrase error).
+  If the certificate fails to load after the private key was accepted, the instance cannot be repaired: further calls and passing it to a server or client raise ``ValueError``; create a new instance.
 
 Fixes
 ^^^^^^
@@ -72,6 +78,9 @@ Fixes
 - fix select-and-execute ownership: a SELECT on an expired selection that another connection still holds now transfers the selection to the new connection and sends the activation termination to the previous owner (previously the stale owner's lock was silently extended while the new connection received a positive confirmation, so its EXECUTE failed)
 - fix selections outliving the connection that created them: selections are bound to a server-internal connection id and removed synchronously when the connection closes or the server stops, so a new connection that reuses the internal lib60870 connection object can neither EXECUTE without its own SELECT nor receive the previous connection's activation termination
 - fix memory leak of the select command copy when a connection with open selections closes or the server stops
+- fix race condition in **Client.originator_address** setter, which iterated the connection list without lock while connections could be added or removed concurrently (use after free)
+- fix crash (division by zero) in **Station.add_point** with ``report_ms`` if the station's server or client no longer exists; **Station.add_point** now raises ``RuntimeError`` for such an orphaned station
+- import on Windows no longer runs ``chcp 65001`` via ``system()`` (spawned ``cmd.exe`` resolving ``chcp`` from the current directory, flashed a console window in GUI apps and also changed the console input code page); the console output code page is set to UTF-8 via ``SetConsoleOutputCP`` instead
 
 
 v2.2.1

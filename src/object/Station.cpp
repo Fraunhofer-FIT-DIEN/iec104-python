@@ -103,6 +103,13 @@ std::shared_ptr<DataPoint> Station::addPoint(
       tickRate_ms = cl->getTickRate_ms();
     }
   }
+  // Server and Client enforce tickRate_ms >= 50, so 0 means the owner is gone.
+  // Reject here, so a DataPoint always has a valid tick rate (report interval
+  // and timer checks divide by it).
+  if (tickRate_ms == 0) {
+    throw std::runtime_error("Cannot add a point to a station whose server or "
+                             "client no longer exists");
+  }
 
   // dedup and insert under the same lock, so two threads adding the same IOA
   // concurrently cannot both succeed

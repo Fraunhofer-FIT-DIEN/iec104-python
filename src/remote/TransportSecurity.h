@@ -32,6 +32,7 @@
 #ifndef C104_REMOTE_TRANSPORTSECURITY_H
 #define C104_REMOTE_TRANSPORTSECURITY_H
 
+#include "module/Callback.h"
 #include "tls_config.h"
 #include "types.h"
 
@@ -92,10 +93,16 @@ public:
   /**
    * @brief load x509 certificate from file with (optional encrypted) key from
    * file used to encrypt the connection
+   *
+   * lib60870 cannot clear an already loaded own certificate or key, so this
+   * can succeed only once per instance. If loading fails after the key was
+   * accepted, the instance is unusable: further calls and get() throw.
+   *
    * @param cert path to certificate file
    * @param key path to certificate private key file
    * @param passphrase passphrase to decrypt the certificate private key
-   * @throws std::invalid_argument if loading the certificate, the key or
+   * @throws std::invalid_argument if a certificate is already configured, a
+   * previous attempt failed, or loading the certificate, the key or
    * decrypting the key fails
    */
   void setCertificate(const std::string &cert, const std::string &key,
@@ -161,6 +168,13 @@ public:
                   TLSConfigVersion max = TLS_VERSION_NOT_SELECTED);
 
   /**
+   * @brief set python callback that is executed on TLS security events
+   * @param callable python callback or None to unset
+   * @throws std::invalid_argument if the callable signature does not match
+   */
+  void setOnEventCallback(py::object &callable);
+
+  /**
    * @brief Retrieves the current TLS configuration for use by client and server
    * instances.
    *
@@ -170,6 +184,8 @@ public:
    *
    * @return The current TLSConfiguration object containing the TLS security
    * settings.
+   * @throws std::invalid_argument if loading the own certificate failed
+   * partway, the configuration would otherwise run with a broken identity
    */
   TLSConfiguration get();
 
@@ -197,6 +213,21 @@ private:
 
   /// @brief toggle, if this config can still be modified or not
   std::atomic_bool readonly{false};
+
+  /// @brief progress of the one-shot own certificate + key load
+  enum class OwnCertificateState { NONE, LOADED, FAILED };
+
+  /// @brief own certificate state, guarded by own_certificate_mutex
+  OwnCertificateState ownCertificateState{OwnCertificateState::NONE};
+
+  /// @brief serializes setCertificate() calls and get()
+  std::mutex own_certificate_mutex;
+
+  /// @brief python callback for TLS security events
+  Module::Callback<void> py_onEvent{
+      "TransportSecurity.on_event",
+      "(tls: c104.TransportSecurity, level: c104.TlsEventLevel, code: int, "
+      "message: str, peer: str) -> None"};
 
 public:
   /**

@@ -25,6 +25,9 @@
 #include <catch2/catch_session.hpp>
 #include <iostream>
 #include <pybind11/embed.h> // everything needed for embedding
+
+#include "types.h"
+
 namespace py = pybind11;
 
 // Implemented in test_message.cpp. Releases the process-lifetime test Servers
@@ -33,9 +36,7 @@ namespace py = pybind11;
 void c104_tests_release_servers();
 
 int main(int argc, char *argv[]) {
-#ifdef _WIN32
-  system("chcp 65001 > nul");
-#endif
+  enableUtf8ConsoleOutput();
 
   py::scoped_interpreter guard{};
 

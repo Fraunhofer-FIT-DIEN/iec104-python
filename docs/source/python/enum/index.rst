@@ -18,6 +18,7 @@ Enums
    rqt
    step
    tlscipher
+   tlseventlevel
    tlsversion
    type
    umc

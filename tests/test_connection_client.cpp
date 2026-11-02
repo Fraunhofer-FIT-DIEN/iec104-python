@@ -847,3 +847,44 @@ TEST_CASE("Connection asduHandler: client not running -> drop",
   REQUIRE(handled == false);
   CS101_ASDU_destroy(asdu);
 }
+
+// M7: setOriginatorAddress iterates a snapshot of `connections` taken under
+// connections_mutex, so it can run concurrently with add/remove_connection
+TEST_CASE("Client setOriginatorAddress races add/remove_connection safely",
+          "[client][M7]") {
+  auto client = Client::create();
+  for (int i = 0; i < 8; ++i) {
+    client->addConnection("127.0.0.1", 2410 + i, INIT_NONE);
+  }
+
+  std::atomic_bool stop{false};
+  {
+    py::gil_scoped_release release;
+    std::thread churn([&]() {
+      py::gil_scoped_acquire acquire;
+      for (int round = 0; round < 50; ++round) {
+        for (int i = 0; i < 8; ++i) {
+          client->addConnection("127.0.0.2", 2430 + i, INIT_NONE);
+        }
+        for (int i = 0; i < 8; ++i) {
+          client->removeConnection("127.0.0.2", 2430 + i);
+        }
+        py::gil_scoped_release yield;
+      }
+      stop.store(true);
+    });
+
+    std::uint_fast8_t oa = 1;
+    while (!stop.load()) {
+      client->setOriginatorAddress(oa);
+      oa = (oa % 200) + 1;
+    }
+    churn.join();
+    client->setOriginatorAddress(42);
+  }
+
+  for (const auto &c : client->getConnections()) {
+    REQUIRE(c->getOriginatorAddress() == 42);
+  }
+  REQUIRE(client->getOriginatorAddress() == 42);
+}

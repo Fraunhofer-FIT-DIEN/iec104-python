@@ -28,6 +28,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <pybind11/eval.h>
 #include <pybind11/pybind11.h> // embedded interpreter requirement (GIL paths)
 
 #include <chrono>
@@ -37,6 +38,7 @@
 #include <vector>
 
 #include "enums.h"
+#include "remote/Helper.h"
 #include "remote/TransportSecurity.h"
 #include "types.h"
 
@@ -332,4 +334,144 @@ TEST_CASE("eventHandler with live TLSConfiguration instance",
                                   nullptr);
 
   setDebug(Debug::None);
+}
+
+// --- M6: load failures are reported, own identity is one-shot --------------
+
+TEST_CASE("setCertificate can be called only once",
+          "[remote::TransportSecurity][M6]") {
+  auto ts = TransportSecurity::create();
+  REQUIRE_NOTHROW(ts->setCertificate(cert(), key()));
+  try {
+    ts->setCertificate(cert(), key());
+    FAIL("second setCertificate must throw");
+  } catch (const std::invalid_argument &e) {
+    REQUIRE(std::string(e.what()).find("already been set") !=
+            std::string::npos);
+  }
+  // the instance stays usable with the first identity
+  REQUIRE(ts->get() != nullptr);
+}
+
+TEST_CASE("setCertificate with an invalid key file can be retried",
+          "[remote::TransportSecurity][M6]") {
+  auto ts = TransportSecurity::create();
+  // a certificate is not a private key: key load fails, nothing is set
+  REQUIRE_THROWS_AS(ts->setCertificate(cert(), cert()), std::invalid_argument);
+  REQUIRE_NOTHROW(ts->setCertificate(cert(), key()));
+}
+
+TEST_CASE("setCertificate with an invalid certificate file poisons the config",
+          "[remote::TransportSecurity][M6]") {
+  auto ts = TransportSecurity::create();
+  // a private key is not a certificate: key loads, certificate fails
+  try {
+    ts->setCertificate(key(), key());
+    FAIL("invalid certificate file must throw");
+  } catch (const std::invalid_argument &e) {
+    REQUIRE(std::string(e.what()).find("Failed to load the certificate") !=
+            std::string::npos);
+  }
+  // the key cannot be unloaded again: retry and get() fail closed
+  try {
+    ts->setCertificate(cert(), key());
+    FAIL("retry after a partial load must throw");
+  } catch (const std::invalid_argument &e) {
+    REQUIRE(std::string(e.what()).find("previous attempt") !=
+            std::string::npos);
+  }
+  REQUIRE_THROWS_AS(ts->get(), std::invalid_argument);
+}
+
+TEST_CASE("certificate loaders reject unparsable files",
+          "[remote::TransportSecurity][M6]") {
+  auto ts = TransportSecurity::create();
+  REQUIRE_THROWS_AS(ts->setCACertificate(key()), std::invalid_argument);
+  REQUIRE_THROWS_AS(ts->addAllowedRemoteCertificate(key()),
+                    std::invalid_argument);
+  // failures do not poison the CA / allowed lists
+  REQUIRE_NOTHROW(ts->setCACertificate(caCert()));
+  REQUIRE_NOTHROW(ts->addAllowedRemoteCertificate(clientCert()));
+}
+
+TEST_CASE("certificate loaders reject directories",
+          "[remote::TransportSecurity][M6]") {
+  std::string const c = cert();
+  std::string const dir = c.substr(0, c.find_last_of('/'));
+  REQUIRE_FALSE(Remote::file_exists(dir));
+  auto ts = TransportSecurity::create();
+  REQUIRE_THROWS_AS(ts->setCertificate(dir, key()), std::invalid_argument);
+  REQUIRE_THROWS_AS(ts->setCertificate(cert(), dir), std::invalid_argument);
+  REQUIRE_THROWS_AS(ts->setCACertificate(dir), std::invalid_argument);
+  REQUIRE_THROWS_AS(ts->addAllowedRemoteCertificate(dir),
+                    std::invalid_argument);
+  // nothing was loaded, a valid identity can still be set
+  REQUIRE_NOTHROW(ts->setCertificate(cert(), key()));
+}
+
+TEST_CASE("on_event forwards TLS events to python",
+          "[remote::TransportSecurity][M6]") {
+  py::dict scope;
+  scope["c104"] = py::module_::import("c104");
+  py::exec(R"(
+events = []
+def on_event(tls: c104.TransportSecurity, level: c104.TlsEventLevel, code: int, message: str, peer: str) -> None:
+    events.append((tls, level, code, message, peer))
+def on_event_raise(tls: c104.TransportSecurity, level: c104.TlsEventLevel, code: int, message: str, peer: str) -> None:
+    events.append(code)
+    raise RuntimeError("boom")
+def on_event_bad(tls: c104.TransportSecurity) -> None:
+    pass
+)",
+           scope);
+
+  auto ts = TransportSecurity::create();
+  py::object cb = scope["on_event"];
+  ts->setOnEventCallback(cb);
+
+  // the callback can also be changed once the config is readonly
+  (void)ts->get();
+
+  TransportSecurity::eventHandler(ts.get(), TLS_SEC_EVT_INCIDENT,
+                                  TLS_EVENT_CODE_ALM_CERT_NOT_TRUSTED,
+                                  "certificate not trusted", nullptr);
+  py::list events = scope["events"];
+  REQUIRE(events.size() == 1);
+  py::tuple ev = events[0];
+  REQUIRE(ev[0].cast<std::shared_ptr<TransportSecurity>>() == ts);
+  REQUIRE(ev[1].cast<TLSEventLevel>() == TLS_SEC_EVT_INCIDENT);
+  REQUIRE(ev[2].cast<int>() == TLS_EVENT_CODE_ALM_CERT_NOT_TRUSTED);
+  REQUIRE(ev[3].cast<std::string>() == "certificate not trusted");
+  REQUIRE(ev[4].cast<std::string>().empty());
+
+  // NULL message must not crash
+  TransportSecurity::eventHandler(ts.get(), TLS_SEC_EVT_INFO,
+                                  TLS_EVENT_CODE_INF_SESSION_ESTABLISHED,
+                                  nullptr, nullptr);
+  REQUIRE(events.size() == 2);
+  REQUIRE(py::tuple(events[1])[3].cast<std::string>().empty());
+
+  // a raising callback is reported and stays registered
+  py::object cb_raise = scope["on_event_raise"];
+  ts->setOnEventCallback(cb_raise);
+  TransportSecurity::eventHandler(ts.get(), TLS_SEC_EVT_WARNING,
+                                  TLS_EVENT_CODE_WRN_INSECURE_TLS_VERSION,
+                                  "insecure", nullptr);
+  TransportSecurity::eventHandler(ts.get(), TLS_SEC_EVT_WARNING,
+                                  TLS_EVENT_CODE_WRN_INSECURE_TLS_VERSION,
+                                  "insecure", nullptr);
+  REQUIRE(events.size() == 4);
+
+  // signature mismatch is rejected
+  py::object cb_bad = scope["on_event_bad"];
+  REQUIRE_THROWS_AS(ts->setOnEventCallback(cb_bad), std::invalid_argument);
+
+  // None unsets
+  py::object none = py::none();
+  ts->setOnEventCallback(none);
+  TransportSecurity::eventHandler(ts.get(), TLS_SEC_EVT_INFO,
+                                  TLS_EVENT_CODE_INF_SESSION_ESTABLISHED,
+                                  "info", nullptr);
+  REQUIRE(events.size() == 4);
+  events.attr("clear")(); // drop the tls references held by the tuples
 }

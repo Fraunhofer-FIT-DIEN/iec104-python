@@ -189,6 +189,17 @@ std::string TimePoint_toString(
 bool localtime_safe(const std::time_t *timep, std::tm *result);
 
 /**
+ * @brief Switch the console output code page to UTF-8 on Windows (no-op on
+ * other platforms or if the process has no console).
+ *
+ * Calls SetConsoleOutputCP directly instead of spawning `chcp` through
+ * `system()`, which would resolve `%COMSPEC%` and `chcp` from the current
+ * directory and flash a console window in GUI applications. The input code
+ * page is left untouched.
+ */
+void enableUtf8ConsoleOutput();
+
+/**
  * @brief Converts a CP56Time2a timestamp to a
  * std::chrono::system_clock::time_point.
  * @param time The CP56Time2a timestamp to be converted.

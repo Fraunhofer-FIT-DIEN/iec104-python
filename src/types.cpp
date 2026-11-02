@@ -182,3 +182,22 @@ struct QualityValueToStringVisitor {
 std::string InfoQuality_toString(const InfoQuality &value) {
   return std::visit(QualityValueToStringVisitor(), value);
 }
+
+// Keep this at the end of the translation unit: <windows.h> defines a lot of
+// macros (ERROR, DELETE, min/max, ...) that must not leak into the code above.
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+
+void enableUtf8ConsoleOutput() {
+  // fails harmlessly (returns FALSE) if the process has no console
+  SetConsoleOutputCP(CP_UTF8);
+}
+#else
+void enableUtf8ConsoleOutput() {}
+#endif
