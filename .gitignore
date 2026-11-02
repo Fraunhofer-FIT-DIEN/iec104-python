@@ -1,6 +1,7 @@
 .idea
 cmake-build-*
 build
+build-coverage
 dist
 *.egg-info
 *.so

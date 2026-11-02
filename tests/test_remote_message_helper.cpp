@@ -37,7 +37,7 @@
  * buffers (e.g. 3-byte 'I-format' frames) caused an out-of-bounds heap read
  * (CWE-125). These cases must not crash and must return a safe placeholder.
  */
-TEST_CASE("rawMessageFormatter does not read out-of-bounds on short buffers",
+TEST_CASE("rawMessageFormatter bound-safe on short buffers",
           "[remote::helper]") {
   const std::size_t bufferLengths[] = {0, 1, 2, 3, 6, 13, 15};
 
@@ -54,8 +54,7 @@ TEST_CASE("rawMessageFormatter does not read out-of-bounds on short buffers",
   }
 }
 
-TEST_CASE("rawMessageDictionaryFormatter does not read out-of-bounds on short "
-          "buffers",
+TEST_CASE("rawMessageDictionaryFormatter bound-safe on short buffers",
           "[remote::helper]") {
   const std::size_t bufferLengths[] = {0, 1, 2, 3, 6, 13, 15};
 
@@ -80,8 +79,7 @@ TEST_CASE("rawMessageDictionaryFormatter does not read out-of-bounds on short "
  * length and assert no out-of-bounds read occurs.
  */
 TEST_CASE(
-    "rawMessageFormatter does not read out-of-bounds on an invalid (too large) "
-    "ASDU length",
+    "rawMessageFormatter bound-safe on an invalid (too large) ASDU length",
     "[remote::helper]") {
   // Real buffers of these sizes, each declaring a large packed length in the
   // length octet (0xFD = 253, 0xFF = 255). The declared length exceeds the
@@ -105,10 +103,8 @@ TEST_CASE(
   }
 }
 
-TEST_CASE(
-    "rawMessageDictionaryFormatter does not read out-of-bounds on an invalid "
-    "(too large) ASDU length",
-    "[remote::helper]") {
+TEST_CASE("rawMessageDictionaryFormatter bound-safe on (too large) ASDU length",
+          "[remote::helper]") {
   // Real buffers claiming a larger length octet than the actual buffer must
   // never be read out-of-bounds, for any received length. tests/main.cpp loads
   // the c104 module so the IEC60870_5_TypeID enum used by the dict formatter is
