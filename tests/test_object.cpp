@@ -902,7 +902,7 @@ TEST_CASE("Station: standalone create + getters", "[object::station]") {
   REQUIRE(st->getConnection() == nullptr);
   REQUIRE(st->hasPoints() == false);
   REQUIRE(st->getPoints().empty());
-  // getPoint returns nullptr for address 0 and for not-found address
+  // getPoint returns nullptr for not-found addresses
   REQUIRE(st->getPoint(0) == nullptr);
   REQUIRE(st->getPoint(55) == nullptr);
   REQUIRE(st->isLocal() == false);

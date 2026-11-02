@@ -1229,6 +1229,12 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
       }
 
       while (message->next()) {
+        if (!message->getInformationObject()) {
+          // lib60870 could not decode this element (truncated / malformed);
+          // IOA reads as 0 then. Do not let a peer auto-create a point from
+          // garbage.
+          throw std::domain_error("Malformed information object");
+        }
         auto point = station->getPoint(message->getIOA());
         if (!point) {
           // accept point via callback?

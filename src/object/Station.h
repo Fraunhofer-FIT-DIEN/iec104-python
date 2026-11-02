@@ -99,8 +99,8 @@ private:
   /// @brief mutex to lock member read/write access
   mutable Module::GilAwareMutex points_mutex{"Station::points_mutex"};
 
-  /// @brief conversion hashmap {IOA,not owning pointer to child DataPoints} to
-  /// find a DataPoint via IOA
+  /// @brief lookup hashmap {IOA, child DataPoint} for O(1) getPoint(); kept in
+  /// sync with `points` under points_mutex (IOA 0 is a regular key)
   std::unordered_map<std::uint_fast32_t, std::shared_ptr<DataPoint>>
       pointIoaMap{};
 
@@ -137,7 +137,7 @@ public:
 
   /**
    * @brief Get a DataPoint that exists at this NetworkStation and is identified
-   * via information object address
+   * via information object address (0..MAX_INFORMATION_OBJECT_ADDRESS)
    * @return Pointer to DataPoint or nullptr
    */
   std::shared_ptr<DataPoint>

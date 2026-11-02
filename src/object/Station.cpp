@@ -47,6 +47,7 @@ Station::Station(std::uint_fast16_t st_commonAddress,
 Station::~Station() {
   {
     std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
+    pointIoaMap.clear();
     points.clear();
   }
   DEBUG_PRINT(Debug::Station, "Removed");
@@ -78,17 +79,13 @@ DataPointVector Station::getPoints() const {
 
 std::shared_ptr<DataPoint>
 Station::getPoint(const std::uint_fast32_t informationObjectAddress) {
-  if (0 == informationObjectAddress) {
+  // IOA 0 is a valid address (DataPoint accepts 0..MAX_IOA)
+  std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
+  auto const it = pointIoaMap.find(informationObjectAddress);
+  if (it == pointIoaMap.end()) {
     return {nullptr};
   }
-
-  std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
-  for (auto &p : points) {
-    if (p->getInformationObjectAddress() == informationObjectAddress) {
-      return p;
-    }
-  }
-  return {nullptr};
+  return it->second;
 }
 
 std::shared_ptr<DataPoint> Station::addPoint(
@@ -97,14 +94,6 @@ std::shared_ptr<DataPoint> Station::addPoint(
     const std::optional<std::uint_fast32_t> relatedInformationObjectAddress,
     const bool relatedInformationObjectAutoReturn,
     const CommandTransmissionMode commandMode) {
-  if (getPoint(informationObjectAddress)) {
-    return {nullptr};
-  }
-
-  DEBUG_PRINT(Debug::Station,
-              "add_point] " + std::string(TypeID_toString(type)) + " | IOA " +
-                  std::to_string(informationObjectAddress));
-
   // forward tickRate_ms
   uint_fast16_t tickRate_ms = 0;
   if (auto sv = getServer()) {
@@ -115,13 +104,24 @@ std::shared_ptr<DataPoint> Station::addPoint(
     }
   }
 
+  // dedup and insert under the same lock, so two threads adding the same IOA
+  // concurrently cannot both succeed
   std::scoped_lock<Module::GilAwareMutex> const lock(points_mutex);
+  if (pointIoaMap.count(informationObjectAddress) > 0) {
+    return {nullptr};
+  }
+
+  DEBUG_PRINT(Debug::Station,
+              "add_point] " + std::string(TypeID_toString(type)) + " | IOA " +
+                  std::to_string(informationObjectAddress));
+
   auto point = DataPoint::create(
       informationObjectAddress, type, shared_from_this(), reportInterval_ms,
       relatedInformationObjectAddress, relatedInformationObjectAutoReturn,
       commandMode, tickRate_ms);
 
   points.push_back(point);
+  pointIoaMap.emplace(informationObjectAddress, point);
   return point;
 }
 
@@ -131,24 +131,17 @@ bool Station::removePoint(const std::uint_fast32_t informationObjectAddress) {
   DEBUG_PRINT(Debug::Station,
               "remove_point] IOA " + std::to_string(informationObjectAddress));
 
-  size_t originalSize = points.size();
+  auto const it = pointIoaMap.find(informationObjectAddress);
+  if (it == pointIoaMap.end()) {
+    return false;
+  }
 
-  // Use std::remove_if to find and remove the entry
-  points.erase(std::remove_if(points.begin(), points.end(),
-                              [informationObjectAddress](
-                                  const std::shared_ptr<DataPoint> &point) {
-                                // Check if the current DataPoint matches the
-                                // provided address
-                                if (point->getInformationObjectAddress() ==
-                                    informationObjectAddress) {
-                                  point->detach();
-                                  return true;
-                                }
-                                return false;
-                              }),
-               points.end());
+  auto const point = it->second;
+  pointIoaMap.erase(it);
+  points.erase(std::remove(points.begin(), points.end(), point), points.end());
+  point->detach();
 
-  return (points.size() < originalSize); // Success if the size decreased
+  return true;
 }
 
 bool Station::isLocal() {

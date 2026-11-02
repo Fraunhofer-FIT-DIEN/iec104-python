@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -31,4 +31,67 @@
 TEST_CASE("Create station", "[object::station]") {
   auto station = Object::Station::create(14, nullptr, nullptr);
   REQUIRE(station->getCommonAddress() == 14);
+}
+
+// IOA 0 is a valid address and must behave like any other,
+// otherwise addPoint(0) never dedups and a peer can grow `points` unbounded.
+TEST_CASE("Station: IOA 0 is a regular, deduplicated address",
+          "[object::station][security]") {
+  auto station = Object::Station::create(1, nullptr, nullptr);
+
+  auto p0 = station->addPoint(0, IEC60870_5_TypeID::M_SP_NA_1);
+  REQUIRE(p0 != nullptr);
+  REQUIRE(p0->getInformationObjectAddress() == 0);
+  REQUIRE(station->getPoint(0).get() == p0.get());
+
+  // repeated add at IOA 0 must not create a second point
+  for (int i = 0; i < 50; ++i) {
+    REQUIRE(station->addPoint(0, IEC60870_5_TypeID::M_SP_NA_1) == nullptr);
+  }
+  REQUIRE(station->getPoints().size() == 1);
+
+  // remove / re-add round trip
+  REQUIRE(station->removePoint(0) == true);
+  REQUIRE(station->getPoint(0) == nullptr);
+  REQUIRE(station->removePoint(0) == false);
+  REQUIRE(station->hasPoints() == false);
+  REQUIRE(station->addPoint(0, IEC60870_5_TypeID::M_ME_NC_1) != nullptr);
+  REQUIRE(station->getPoint(0)->getType() == IEC60870_5_TypeID::M_ME_NC_1);
+}
+
+TEST_CASE("Station: getPoint lookup stays consistent with getPoints",
+          "[object::station]") {
+  auto station = Object::Station::create(2, nullptr, nullptr);
+  constexpr std::uint_fast32_t N = 2000;
+
+  for (std::uint_fast32_t ioa = 0; ioa < N; ++ioa) {
+    REQUIRE(station->addPoint(ioa, IEC60870_5_TypeID::M_SP_NA_1) != nullptr);
+  }
+  REQUIRE(station->getPoints().size() == N);
+  REQUIRE(station->getPoint(MAX_INFORMATION_OBJECT_ADDRESS) == nullptr);
+
+  // every point is reachable by its own IOA and the result is the owned object
+  for (auto const &p : station->getPoints()) {
+    REQUIRE(station->getPoint(p->getInformationObjectAddress()).get() ==
+            p.get());
+  }
+
+  // removing odd addresses leaves even ones reachable and odd ones gone
+  for (std::uint_fast32_t ioa = 1; ioa < N; ioa += 2) {
+    REQUIRE(station->removePoint(ioa) == true);
+  }
+  REQUIRE(station->getPoints().size() == N / 2);
+  for (std::uint_fast32_t ioa = 0; ioa < N; ++ioa) {
+    if (ioa % 2 == 0) {
+      REQUIRE(station->getPoint(ioa) != nullptr);
+    } else {
+      REQUIRE(station->getPoint(ioa) == nullptr);
+    }
+  }
+
+  // highest valid address is accepted as well
+  auto top = station->addPoint(MAX_INFORMATION_OBJECT_ADDRESS,
+                               IEC60870_5_TypeID::M_SP_NA_1);
+  REQUIRE(top != nullptr);
+  REQUIRE(station->getPoint(MAX_INFORMATION_OBJECT_ADDRESS).get() == top.get());
 }

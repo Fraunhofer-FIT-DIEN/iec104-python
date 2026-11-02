@@ -62,6 +62,7 @@ Fixes
 - fix memory leak in **Server.on_clock_sync**
 - fix race condition where a newly opened connection could stay muted (STARTDT never sent) and receive no data
 - fix **Server.protocol_parameters** and **Connection.protocol_parameters** not keeping their owner alive (use after free)
+- fix **Station.get_point(io_address=0)** always returning ``None`` although IOA 0 is a valid address: a client's default ``on_new_point`` handling therefore created a new, unreachable point for every monitoring message at IOA 0 and a malicious server could grow the station's point list without bound; point lookup is now a hash lookup instead of a linear scan and the client drops monitoring messages with undecodable information objects instead of creating points for them
 
 
 v2.2.1
