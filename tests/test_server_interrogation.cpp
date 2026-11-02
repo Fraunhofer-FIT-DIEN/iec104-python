@@ -104,6 +104,11 @@ TEST_CASE("Server interrogation originator address",
 
   CS101_ASDU interrogationAsdu = CS101_ASDU_create(
       &alParams, false, CS101_COT_ACTIVATION, 123, 1, false, false);
+  CS101_ASDU_setTypeID(interrogationAsdu, C_IC_NA_1);
+  InformationObject qoi = (InformationObject)InterrogationCommand_create(
+      nullptr, 0, IEC60870_QOI_STATION);
+  CS101_ASDU_addInformationObject(interrogationAsdu, qoi);
+  InformationObject_destroy(qoi);
 
   // Create an IncomingMessage from the ASDU
   Server::connectionEventHandler(server.get(), mockConnection,
@@ -121,7 +126,8 @@ TEST_CASE("Server interrogation originator address",
   REQUIRE(data.send == 4); // con, batch1-part1, batch1-part2, term
   REQUIRE(data.oa ==
           std::vector<int>({123, 123, 123, 123})); // always expected OA
+  // con/term echo the interrogation command (1 element), batches carry points
   REQUIRE(data.ele ==
-          std::vector<int>({0, 48, 12, 0})); // expected number of elements
+          std::vector<int>({1, 48, 12, 1})); // expected number of elements
   // setDebug(Debug::None);
 }

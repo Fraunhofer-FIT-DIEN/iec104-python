@@ -1236,6 +1236,10 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
 
       const auto io = reinterpret_cast<EndOfInitialization>(
           message->getInformationObject());
+      if (!io) {
+        // IncomingMessage rejects zero-object ASDUs, guard anyway
+        throw std::domain_error("Missing information object");
+      }
       client->onEndOfInitialization(station,
                                     static_cast<CS101_CauseOfInitialization>(
                                         EndOfInitialization_getCOI(io)));

@@ -217,17 +217,40 @@ TEST_CASE("IncomingMessage first/next iteration across multiple objects",
   REQUIRE(m->getIOA() == 1);
 }
 
-TEST_CASE("IncomingMessage empty / no-object message",
+TEST_CASE("IncomingMessage rejects empty / no-object message",
           "[remote::message::incoming]") {
-  // No information objects -> numberOfObjects == 0, position invalid
+  // No information objects -> io/info would stay null for every consumer, so
+  // the message must be rejected on construction
   sCS101_AppLayerParameters params = defaultAppLayerParameters();
   CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_SPONTANEOUS, 0,
                                       7, false, false);
   CS101_ASDU_setTypeID(asdu, M_SP_NA_1);
-  auto m = IncomingMessage::create(asdu, &params);
+  REQUIRE_THROWS_AS(IncomingMessage::create(asdu, &params),
+                    std::invalid_argument);
   CS101_ASDU_destroy(asdu);
-  REQUIRE(m->getNumberOfObjects() == 0);
-  REQUIRE(m->getInformationObject() == nullptr);
+}
+
+TEST_CASE("IncomingMessage rejects zero-element ASDUs from the wire",
+          "[remote::message::incoming]") {
+  // lib60870 skips its VSQ-vs-payload check when numElements == 0, so a
+  // header-only frame with VSQ=0x00 reaches the asdu handlers. Before being
+  // rejected here it produced a null info/io for C_CS_NA_1 (server clock
+  // sync), M_EI_NA_1 (client end of initialization) and command points.
+  sCS101_AppLayerParameters params = defaultAppLayerParameters();
+  for (IEC60870_5_TypeID type : {C_CS_NA_1, M_EI_NA_1, C_SC_NA_1, M_SP_NA_1}) {
+    uint8_t raw[] = {static_cast<uint8_t>(type),
+                     0x00, // VSQ: 0 objects
+                     CS101_COT_ACTIVATION,
+                     0, // COT, OA
+                     0x01,
+                     0x00}; // CA 1
+    CS101_ASDU asdu = CS101_ASDU_createFromBuffer(&params, raw, sizeof(raw));
+    REQUIRE(asdu != nullptr);
+    REQUIRE(CS101_ASDU_getNumberOfElements(asdu) == 0);
+    REQUIRE_THROWS_AS(IncomingMessage::create(asdu, &params),
+                      std::invalid_argument);
+    CS101_ASDU_destroy(asdu);
+  }
 }
 
 TEST_CASE("IncomingMessage rejects CP24Time based types",
@@ -325,6 +348,10 @@ TEST_CASE("IncomingMessage global common address rejected when reachable",
   CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_SPONTANEOUS, 0,
                                       65535, false, false);
   CS101_ASDU_setTypeID(asdu, M_SP_NA_1);
+  auto io =
+      (InformationObject)SinglePointInformation_create(nullptr, 1, true, 0);
+  CS101_ASDU_addInformationObject(asdu, io);
+  InformationObject_destroy(io);
   // currently passes (the guard is empty) - documents behaviour
   REQUIRE_NOTHROW(IncomingMessage::create(asdu, &params));
   CS101_ASDU_destroy(asdu);
@@ -694,46 +721,35 @@ TEST_CASE("IncomingMessage extract control commands (setpoints/binary/time)",
 
 TEST_CASE("IncomingMessage extract pass-through types (no info extracted)",
           "[remote::message::incoming]") {
-  // M_EI_NA_1, C_IC_NA_1, C_CI_NA_1, C_RD_NA_1, C_TS_NA_1 pass and only the
-  // informationObjectAddress is extracted (io remains null).
+  // M_EI_NA_1, C_IC_NA_1, C_CI_NA_1, C_RD_NA_1 pass: the information object
+  // (and its address) is extracted but no Information value object is built.
   sCS101_AppLayerParameters params = defaultAppLayerParameters();
-  {
-    CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_INITIALIZED,
-                                        0, 1, false, false);
-    CS101_ASDU_setTypeID(asdu, M_EI_NA_1);
+  auto make = [&params](IEC60870_5_TypeID type, CS101_CauseOfTransmission cot,
+                        InformationObject io) {
+    CS101_ASDU asdu =
+        CS101_ASDU_create(&params, false, cot, 0, 1, false, false);
+    CS101_ASDU_setTypeID(asdu, type);
+    CS101_ASDU_addInformationObject(asdu, io);
+    InformationObject_destroy(io);
     auto m = IncomingMessage::create(asdu, &params);
     CS101_ASDU_destroy(asdu);
     m->first();
-    REQUIRE(m->getType() == M_EI_NA_1);
+    REQUIRE(m->getType() == type);
+    REQUIRE(m->getInformationObject() != nullptr);
+    return m;
+  };
+  {
+    auto m = make(M_EI_NA_1, CS101_COT_INITIALIZED,
+                  (InformationObject)EndOfInitialization_create(nullptr, 0));
     REQUIRE(m->getInfo() == nullptr);
   }
-  {
-    CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_REQUEST, 0, 1,
-                                        false, false);
-    CS101_ASDU_setTypeID(asdu, C_IC_NA_1);
-    auto m = IncomingMessage::create(asdu, &params);
-    CS101_ASDU_destroy(asdu);
-    m->first();
-    REQUIRE(m->getType() == C_IC_NA_1);
-  }
-  {
-    CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_REQUEST, 0, 1,
-                                        false, false);
-    CS101_ASDU_setTypeID(asdu, C_CI_NA_1);
-    auto m = IncomingMessage::create(asdu, &params);
-    CS101_ASDU_destroy(asdu);
-    m->first();
-    REQUIRE(m->getType() == C_CI_NA_1);
-  }
-  {
-    CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_REQUEST, 0, 1,
-                                        false, false);
-    CS101_ASDU_setTypeID(asdu, C_RD_NA_1);
-    auto m = IncomingMessage::create(asdu, &params);
-    CS101_ASDU_destroy(asdu);
-    m->first();
-    REQUIRE(m->getType() == C_RD_NA_1);
-  }
+  make(C_IC_NA_1, CS101_COT_REQUEST,
+       (InformationObject)InterrogationCommand_create(nullptr, 0,
+                                                      IEC60870_QOI_STATION));
+  make(C_CI_NA_1, CS101_COT_REQUEST,
+       (InformationObject)CounterInterrogationCommand_create(nullptr, 0, 5));
+  make(C_RD_NA_1, CS101_COT_REQUEST,
+       (InformationObject)ReadCommand_create(nullptr, 1));
 }
 
 TEST_CASE("IncomingMessage extract default (unsupported) type is tolerated",

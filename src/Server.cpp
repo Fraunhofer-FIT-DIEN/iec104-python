@@ -1588,18 +1588,26 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
 
     // new clockSyncHandler
     if (message->getType() == C_CS_NA_1) {
-      auto info = message->getInfo();
-      auto time_point = info->getRecordedAt().value_or(info->getProcessedAt());
+      // IncomingMessage rejects zero-object ASDUs, guard anyway
+      if (auto info = message->getInfo()) {
+        auto time_point =
+            info->getRecordedAt().value_or(info->getProcessedAt());
 
-      char ipAddrStr[60];
-      IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
+        char ipAddrStr[60];
+        IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
-      // execute python callback
-      responseState = instance->onClockSync(std::string(ipAddrStr), time_point);
+        // execute python callback
+        responseState =
+            instance->onClockSync(std::string(ipAddrStr), time_point);
 
-      DEBUG_PRINT_CONDITION(debug, Debug::Server,
-                            "clock_sync_handler] TIME " +
-                                TimePoint_toString(time_point));
+        DEBUG_PRINT_CONDITION(debug, Debug::Server,
+                              "clock_sync_handler] TIME " +
+                                  TimePoint_toString(time_point));
+      } else {
+        DEBUG_PRINT_CONDITION(debug, Debug::Server,
+                              "clock_sync_handler] Missing information");
+        responseState = RESPONSE_STATE_FAILURE;
+      }
     } else {
       if (message->getType() >= C_SC_NA_1) {
         if (auto station = instance->getStation(message->getCommonAddress())) {

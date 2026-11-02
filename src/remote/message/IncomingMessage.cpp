@@ -50,8 +50,20 @@ IncomingMessage::IncomingMessage(CS101_ASDU packet,
     asdu = CS101_ASDU_clone(packet, nullptr);
   }
   if (asdu) {
-    extractMetaData();
-    first();
+    // a throwing constructor never runs the destructor: release the clone and
+    // a partially extracted information object before propagating the error
+    try {
+      extractMetaData();
+      first();
+    } catch (...) {
+      if (io) {
+        InformationObject_destroy(io);
+        io = nullptr;
+      }
+      CS101_ASDU_destroy(asdu);
+      asdu = nullptr;
+      throw;
+    }
   }
   DEBUG_PRINT(Debug::Message, "Created (incoming)");
 }
@@ -107,6 +119,15 @@ void IncomingMessage::extractMetaData() {
     throw std::invalid_argument("Message not supported by norm "
                                 "IEC60870-5-104 (101 only)!");
   }
+  }
+
+  // REJECT empty messages: every IEC60870-5-104 ASDU carries at least one
+  // information object; lib60870 does not validate the payload for VSQ=0, and
+  // a zero count would leave io/info null for every consumer
+  if (numberOfObjects == 0) {
+    throw std::invalid_argument(
+        "IncomingMessage with TypeID " + std::string(TypeID_toString(type)) +
+        " must contain at least one information object.");
   }
 
   if (type >= C_SC_NA_1 && type < F_DR_TA_1) {

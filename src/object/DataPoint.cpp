@@ -1109,6 +1109,12 @@ CommandResponseState DataPoint::onReceive(
     std::shared_ptr<Remote::Message::IncomingMessage> message) {
   // swap under lock: concurrent readers must never observe a null info
   auto prev = message->getInfo();
+  if (!prev) {
+    // IncomingMessage rejects zero-object ASDUs, guard anyway
+    DEBUG_PRINT(Debug::Point, "on_receive] Missing information at IOA " +
+                                  std::to_string(informationObjectAddress));
+    return RESPONSE_STATE_FAILURE;
+  }
   {
     std::lock_guard<std::mutex> const lock(info_mutex);
     info.swap(prev);
