@@ -50,6 +50,7 @@
 #include "object/Station.h"
 #include "remote/Connection.h"
 #include "remote/Helper.h"
+#include "remote/TransportSecurity.h"
 #include "remote/message/IncomingMessage.h"
 #include "remote/message/PointCommand.h"
 #include "types.h"
@@ -141,6 +142,28 @@ TEST_CASE("Client create / Connection create lifecycle",
   REQUIRE(client->hasConnections() == false);
   REQUIRE(client->getConnections().empty());
   REQUIRE(client->toString().find("<104.Client") != std::string::npos);
+}
+
+TEST_CASE("Connection keeps TransportSecurity alive after Client is gone",
+          "[client][connection][security]") {
+  // SECURITY.md H3: lib60870 keeps a raw TLSConfiguration pointer for the
+  // whole lifetime of the CS104_Connection, so the configuration must be
+  // co-owned by the Connection and not only by the Client.
+  std::weak_ptr<Remote::TransportSecurity> weak_security;
+  std::shared_ptr<Remote::Connection> con;
+  {
+    auto security = Remote::TransportSecurity::create(false, false);
+    weak_security = security;
+    auto client = Client::create(100, 1000, security);
+    con = client->addConnection("127.0.0.1", 2404, INIT_NONE);
+    REQUIRE(con);
+  } // client and the local security reference are gone here
+
+  REQUIRE(con->getClient() == nullptr);
+  REQUIRE_FALSE(weak_security.expired());
+
+  con.reset();
+  REQUIRE(weak_security.expired());
 }
 
 TEST_CASE("Client create throws on tick_rate below 50", "[client]") {

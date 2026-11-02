@@ -504,6 +504,11 @@ private:
   /// @brief client object reference
   std::weak_ptr<Client> client{};
 
+  /// @brief keeps the TLS configuration alive for as long as the lib60870
+  /// connection (which holds a raw pointer to it) exists, independent of the
+  /// owning client's lifetime
+  std::shared_ptr<Remote::TransportSecurity> security{nullptr};
+
   /// @brief guards client, which is reset by detach() while other threads
   /// read it
   mutable std::mutex client_mutex;

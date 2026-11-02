@@ -51,14 +51,14 @@ Connection::Connection(
     const ConnectionInit _init,
     std::shared_ptr<Remote::TransportSecurity> transport_security,
     const uint_fast8_t originator_address)
-    : client(_client), ip(_ip), port(_port), init(_init),
-      commandTimeout_ms(command_timeout_ms) {
+    : client(_client), security(std::move(transport_security)), ip(_ip),
+      port(_port), init(_init), commandTimeout_ms(command_timeout_ms) {
   Assert_IPv4(_ip);
   Assert_Port(_port);
 
-  if (transport_security) {
-    connection = CS104_Connection_createSecure(ip.c_str(), _port,
-                                               transport_security->get());
+  if (security) {
+    connection =
+        CS104_Connection_createSecure(ip.c_str(), _port, security->get());
   } else {
     connection = CS104_Connection_create(ip.c_str(), _port);
   }
