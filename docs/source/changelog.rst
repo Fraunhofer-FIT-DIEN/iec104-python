@@ -63,6 +63,9 @@ Fixes
 - fix race condition where a newly opened connection could stay muted (STARTDT never sent) and receive no data
 - fix **Server.protocol_parameters** and **Connection.protocol_parameters** not keeping their owner alive (use after free)
 - fix **Station.get_point(io_address=0)** always returning ``None`` although IOA 0 is a valid address: a client's default ``on_new_point`` handling therefore created a new, unreachable point for every monitoring message at IOA 0 and a malicious server could grow the station's point list without bound; point lookup is now a hash lookup instead of a linear scan and the client drops monitoring messages with undecodable information objects instead of creating points for them
+- fix select-and-execute ownership: a SELECT on an expired selection that another connection still holds now transfers the selection to the new connection and sends the activation termination to the previous owner (previously the stale owner's lock was silently extended while the new connection received a positive confirmation, so its EXECUTE failed)
+- fix selections outliving the connection that created them: selections are bound to a server-internal connection id and removed synchronously when the connection closes or the server stops, so a new connection that reuses the internal lib60870 connection object can neither EXECUTE without its own SELECT nor receive the previous connection's activation termination
+- fix memory leak of the select command copy when a connection with open selections closes or the server stops
 
 
 v2.2.1

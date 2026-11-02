@@ -64,9 +64,10 @@ struct MockPeerState {
   int sendACT_CON_count = 0;
   int sendACT_TERM_count = 0;
   int close_count = 0;
-  std::vector<int> send_ids; // CS101_ASDU_getID of every sendASDU call
-  std::vector<int> oa;       // originator addresses pushed on sendASDU
-  std::vector<int> ele;      // number of elements pushed on sendASDU
+  std::vector<int> send_ids;  // CS101_ASDU_getID of every sendASDU call
+  std::vector<int> oa;        // originator addresses pushed on sendASDU
+  std::vector<int> ele;       // number of elements pushed on sendASDU
+  std::vector<bool> negative; // negative flag of every sendASDU call
 };
 
 /**
@@ -84,6 +85,7 @@ inline sIPeerConnection makeMockPeer(MockPeerState &state) {
             (void)CS101_ASDU_getTypeID(asdu);
             s->oa.push_back(CS101_ASDU_getOA(asdu));
             s->ele.push_back(CS101_ASDU_getNumberOfElements(asdu));
+            s->negative.push_back(CS101_ASDU_isNegative(asdu));
             return true;
           },
       .sendACT_CON =

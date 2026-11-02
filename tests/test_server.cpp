@@ -653,14 +653,14 @@ TEST_CASE("Server: sendActivationConfirmation / Termination",
                      IEC60870_GLOBAL_COMMON_ADDRESS);
   server->sendActivationTermination(mock, tg);
   REQUIRE(state.sendASDU_count == 6);
-  CS101_ASDU_destroy(tg);
 
-  // termination on a non-existing connection -> early return
+  // termination on a non-existing connection -> nothing is sent
   Test::MockPeerState state2;
   sIPeerConnection peer2 = Test::makeMockPeer(state2);
   IMasterConnection mock2 = &peer2;
   server->sendActivationTermination(mock2, tg);
   REQUIRE(state2.sendASDU_count == 0);
+  CS101_ASDU_destroy(tg);
 }
 
 // ---------------------------------------------------------------------------
@@ -1134,6 +1134,227 @@ TEST_CASE("Server: getSelector not found", "[server][selector]") {
 
   // getSelector not found
   REQUIRE(server->getSelector(1, 11).has_value() == false);
+}
+
+// ---------------------------------------------------------------------------
+// select-and-execute ownership (SECURITY.md M4)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Send a C_SC_NA_1 select (select=true) or execute (select=false) for
+// CA 1 / IOA 11 through the asdu handler and return whether the ACT_CON that
+// went back to the peer was positive.
+bool sendSingleCommand(const std::shared_ptr<Server> &server,
+                       IMasterConnection connection, Test::MockPeerState &state,
+                       uint_fast8_t oa, bool select) {
+  // the ASDU keeps a pointer to the parameters, see Test::makeASDU
+  static sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
+  CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
+                                    CS101_COT_ACTIVATION, oa, select);
+  const auto before = state.negative.size();
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), connection, asdu) ==
+          true);
+  CS101_ASDU_destroy(asdu);
+  REQUIRE(state.negative.size() == before + 1);
+  return !state.negative.back();
+}
+
+std::shared_ptr<Server> makeSelectServer(uint_fast16_t port,
+                                         uint_fast16_t select_timeout_ms) {
+  auto server = Server::create("127.0.0.1", port, 100, select_timeout_ms);
+  auto station = server->addStation(1);
+  auto point = station->addPoint(11, IEC60870_5_TypeID::C_SC_NA_1);
+  point->setCommandMode(SELECT_AND_EXECUTE_COMMAND);
+  return server;
+}
+
+} // namespace
+
+TEST_CASE("Server: expired selection is taken over by another connection",
+          "[server][selection]") {
+  // 50 ms select timeout, server not started: no periodic cleanup interferes
+  auto server = makeSelectServer(2404, 50);
+
+  Test::MockPeerState stateA;
+  Test::MockPeerState stateB;
+  sIPeerConnection peerA = Test::makeMockPeer(stateA);
+  sIPeerConnection peerB = Test::makeMockPeer(stateB);
+  IMasterConnection a = &peerA;
+  IMasterConnection b = &peerB;
+  Server::connectionEventHandler(server->getCallbackKey(), a,
+                                 CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), b,
+                                 CS104_CON_EVENT_ACTIVATED);
+
+  // A selects, B is rejected while A's selection is valid
+  REQUIRE(sendSingleCommand(server, a, stateA, 1, true) == true);
+  REQUIRE(server->getSelector(1, 11).value() == 1);
+  REQUIRE(sendSingleCommand(server, b, stateB, 2, true) == false);
+  REQUIRE(server->getSelector(1, 11).value() == 1);
+
+  // let A's selection expire
+  std::this_thread::sleep_for(std::chrono::milliseconds(80));
+  REQUIRE(server->getSelector(1, 11).has_value() == false);
+
+  // B takes the selection over, A's lock is not extended
+  REQUIRE(sendSingleCommand(server, b, stateB, 2, true) == true);
+  REQUIRE(server->getSelector(1, 11).value() == 2);
+
+  // only B may execute now
+  REQUIRE(sendSingleCommand(server, a, stateA, 1, false) == false);
+  REQUIRE(sendSingleCommand(server, b, stateB, 2, false) == true);
+}
+
+TEST_CASE("Server: same connection re-select refreshes the selection",
+          "[server][selection]") {
+  auto server = makeSelectServer(2404, 10000);
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+
+  REQUIRE(sendSingleCommand(server, mock, state, 1, true) == true);
+  REQUIRE(server->getSelector(1, 11).value() == 1);
+
+  // a second select by the owner is accepted and carries the new originator
+  REQUIRE(sendSingleCommand(server, mock, state, 3, true) == true);
+  REQUIRE(server->getSelector(1, 11).value() == 3);
+  REQUIRE(sendSingleCommand(server, mock, state, 3, false) == true);
+}
+
+TEST_CASE("Server: unknown connection cannot select", "[server][selection]") {
+  auto server = makeSelectServer(2404, 10000);
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  // no connection event: the server has never seen this connection
+
+  sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
+  CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
+                                    CS101_COT_ACTIVATION, 1, true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, asdu) == true);
+  CS101_ASDU_destroy(asdu);
+  REQUIRE(server->getSelector(1, 11).has_value() == false);
+  // nothing is sent to a connection the server does not know
+  REQUIRE(state.sendASDU_count == 0);
+}
+
+TEST_CASE("Server: closed connection drops its selections synchronously",
+          "[server][selection]") {
+  auto server = makeSelectServer(2404, 10000);
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+  const auto firstId = server->getConnectionId(mock);
+  REQUIRE(firstId.has_value() == true);
+
+  REQUIRE(sendSingleCommand(server, mock, state, 1, true) == true);
+  REQUIRE(server->getSelector(1, 11).has_value() == true);
+
+  // CLOSED: selection is gone right away, no run thread involved
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_CONNECTION_CLOSED);
+  REQUIRE(server->getSelector(1, 11).has_value() == false);
+  REQUIRE(server->getConnectionId(mock).has_value() == false);
+
+  // lib60870 hands the same connection object to the next peer
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_CONNECTION_OPENED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+  const auto secondId = server->getConnectionId(mock);
+  REQUIRE(secondId.has_value() == true);
+  REQUIRE(secondId.value() != firstId.value());
+
+  // the new peer cannot execute without its own select, but may select
+  REQUIRE(sendSingleCommand(server, mock, state, 2, false) == false);
+  REQUIRE(sendSingleCommand(server, mock, state, 2, true) == true);
+  REQUIRE(server->getSelector(1, 11).value() == 2);
+}
+
+TEST_CASE("Server: reused connection object without CLOSED ends the old "
+          "selection",
+          "[server][selection]") {
+  auto server = makeSelectServer(2404, 10000);
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+  const auto firstId = server->getConnectionId(mock);
+  REQUIRE(sendSingleCommand(server, mock, state, 1, true) == true);
+  REQUIRE(server->getActiveConnectionCount() == 1);
+
+  // OPENED for a pointer that is still known = new peer on the same object
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_CONNECTION_OPENED);
+  REQUIRE(server->getSelector(1, 11).has_value() == false);
+  REQUIRE(server->getConnectionId(mock).value() != firstId.value());
+  REQUIRE(server->getActiveConnectionCount() == 0);
+}
+
+TEST_CASE("Server: activation termination is bound to the connection id",
+          "[server][selection]") {
+  auto server = Server::create("127.0.0.1", 2404);
+  server->addStation(1);
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+  const auto firstId = server->getConnectionId(mock).value();
+
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_CONNECTION_CLOSED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_CONNECTION_OPENED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+  const auto secondId = server->getConnectionId(mock).value();
+  REQUIRE(secondId != firstId);
+
+  CS101_ASDU asdu = Test::makeASDU(IEC60870_5_TypeID::C_SC_NA_1, 11,
+                                   CS101_COT_ACTIVATION, 0, 1);
+
+  // stale id: the object belongs to another peer by now -> nothing is sent
+  server->sendActivationTermination(mock, asdu, firstId);
+  REQUIRE(state.sendASDU_count == 0);
+
+  // current id -> sent
+  server->sendActivationTermination(mock, asdu, secondId);
+  REQUIRE(state.sendASDU_count == 1);
+
+  // no id -> pointer check only, as before
+  server->sendActivationTermination(mock, asdu);
+  REQUIRE(state.sendASDU_count == 2);
+  CS101_ASDU_destroy(asdu);
+}
+
+TEST_CASE("Server: stop clears selections", "[server][selection]") {
+  auto server = makeSelectServer(2422, 10000);
+  server->start();
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+
+  REQUIRE(sendSingleCommand(server, mock, state, 1, true) == true);
+  REQUIRE(server->getSelector(1, 11).has_value() == true);
+
+  server->stop();
+  REQUIRE(server->getSelector(1, 11).has_value() == false);
+  REQUIRE(server->isExistingConnection(mock) == false);
 }
 
 TEST_CASE("Server: scheduleTask / schedulePeriodicTask", "[server][sched]") {

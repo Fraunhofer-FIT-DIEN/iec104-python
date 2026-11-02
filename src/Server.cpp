@@ -38,6 +38,7 @@
 #include "remote/message/PointCommand.h"
 #include "remote/message/PointMessage.h"
 #include <pybind11/chrono.h>
+#include <type_traits>
 
 using namespace Remote;
 using namespace std::chrono_literals;
@@ -75,9 +76,9 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
                std::shared_ptr<Remote::TransportSecurity> transport_security)
     : ip(bind_ip), port(tcp_port), tickRate_ms(tick_rate_ms),
       selectTimeout_ms(select_timeout_ms),
-      maxOpenConnections(max_open_connections),
       security(std::move(transport_security)),
-      instanceKey(Module::nextCallbackKey()) {
+      instanceKey(Module::nextCallbackKey()),
+      maxOpenConnections(max_open_connections) {
   if (tickRate_ms < 50)
     throw std::range_error("tickRate_ms must be 50 or greater");
 
@@ -163,6 +164,7 @@ Server::~Server() {
     std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
     connectionMap.clear();
   }
+  clearSelections();
 
   if (onCallbackThread) {
     // stop joins the current thread as soon as the handler returned; the tls
@@ -413,13 +415,16 @@ void Server::stop() {
     std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
     connectionMap.clear();
   }
+  clearSelections();
   activeConnections.store(0);
   openConnections.store(0);
 
   DEBUG_PRINT(Debug::Server, "stop] Stopped");
 }
 
-bool Server::isRunning() { return enabled && CS104_Slave_isRunning(slave); }
+bool Server::isRunning() const {
+  return enabled && CS104_Slave_isRunning(slave);
+}
 
 bool Server::hasStations() const {
   std::lock_guard<Module::GilAwareMutex> const lock(station_mutex);
@@ -432,6 +437,17 @@ bool Server::isExistingConnection(IMasterConnection connection) {
 
   auto it = connectionMap.find(connection);
   return it != connectionMap.end();
+}
+
+std::optional<std::uint64_t>
+Server::getConnectionId(IMasterConnection connection) const {
+  std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+
+  auto it = connectionMap.find(connection);
+  if (it == connectionMap.end()) {
+    return std::nullopt;
+  }
+  return it->second.id;
 }
 
 bool Server::hasOpenConnections() const {
@@ -503,18 +519,15 @@ bool Server::removeStation(std::uint_fast16_t commonAddress) {
 
   size_t originalSize = stations.size();
 
-  stations.erase(
-      std::remove_if(
-          stations.begin(), stations.end(),
-          [commonAddress](const std::shared_ptr<Object::Station> &station) {
-            // Check if the current DataPoint matches the provided address
-            if (station->getCommonAddress() == commonAddress) {
-              station->detach();
-              return true;
-            }
-            return false;
-          }),
-      stations.end());
+  std::erase_if(stations, [commonAddress](
+                              const std::shared_ptr<Object::Station> &station) {
+    // Check if the current DataPoint matches the provided address
+    if (station->getCommonAddress() == commonAddress) {
+      station->detach();
+      return true;
+    }
+    return false;
+  });
 
   return (stations.size() < originalSize); // Success if the size decreased
 }
@@ -522,53 +535,58 @@ bool Server::removeStation(std::uint_fast16_t commonAddress) {
 void Server::cleanupSelections() {
   auto now = std::chrono::steady_clock::now();
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  selectionVector.erase(
-      std::remove_if(selectionVector.begin(), selectionVector.end(),
-                     [this, now](const Selection &s) {
-                       if ((now - s.created) < selectTimeout_ms) {
-                         return false;
-                       } else {
-                         unselect(s);
-                         return true;
-                       }
-                     }),
-      selectionVector.end());
+  std::erase_if(selectionVector, [this, now](const Selection &s) {
+    if ((now - s.created) < selectTimeout_ms) {
+      return false;
+    } else {
+      unselect(s);
+      return true;
+    }
+  });
 }
 
-void Server::dropConnectionSelections(IMasterConnection connection) {
+void Server::dropConnectionSelections(const std::uint64_t connectionId) {
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  selectionVector.erase(std::remove_if(selectionVector.begin(),
-                                       selectionVector.end(),
-                                       [this, connection](const Selection &s) {
-                                         // do not call unselect here, because
-                                         // it is called on connection loss
-                                         return s.connection == connection;
-                                       }),
-                        selectionVector.end());
+  std::erase_if(selectionVector, [connectionId](const Selection &s) {
+    if (s.connectionId != connectionId) {
+      return false;
+    }
+    // no unselect: the connection is gone,
+    // nobody is left to receive the
+    // activation termination
+    CS101_ASDU_destroy(s.asdu);
+    return true;
+  });
+}
+
+void Server::clearSelections() {
+  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
+  for (const auto &s : selectionVector) {
+    CS101_ASDU_destroy(s.asdu);
+  }
+  selectionVector.clear();
 }
 
 void Server::cleanupSelection(uint16_t ca, uint32_t ioa) {
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  selectionVector.erase(std::remove_if(selectionVector.begin(),
-                                       selectionVector.end(),
-                                       [this, ca, ioa](const Selection &s) {
-                                         if (s.ca == ca && s.ioa == ioa) {
-                                           unselect(s);
-                                           return true;
-                                         } else {
-                                           return false;
-                                         }
-                                       }),
-                        selectionVector.end());
+  std::erase_if(selectionVector, [this, ca, ioa](const Selection &s) {
+    if (s.ca == ca && s.ioa == ioa) {
+      unselect(s);
+      return true;
+    } else {
+      return false;
+    }
+  });
 }
 
 std::optional<uint8_t> Server::getSelector(const uint16_t ca,
                                            const uint32_t ioa) {
   auto now = std::chrono::steady_clock::now();
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  auto it = std::find_if(
-      selectionVector.begin(), selectionVector.end(),
-      [ca, ioa](const Selection &s) { return s.ca == ca && s.ioa == ioa; });
+  auto it =
+      std::ranges::find_if(selectionVector, [ca, ioa](const Selection &s) {
+        return s.ca == ca && s.ioa == ioa;
+      });
 
   // selection NOT found
   if (it != selectionVector.end() && (now - it->created) < selectTimeout_ms) {
@@ -577,8 +595,9 @@ std::optional<uint8_t> Server::getSelector(const uint16_t ca,
   return std::nullopt;
 }
 
-bool Server::select(IMasterConnection connection,
-                    std::shared_ptr<Remote::Message::IncomingMessage> message) {
+bool Server::select(
+    IMasterConnection connection,
+    const std::shared_ptr<Remote::Message::IncomingMessage> &message) {
   const auto type = message->getType();
   if (type < C_SC_NA_1 || C_BO_NA_1 == type || C_SE_TC_1 < type) {
     throw std::invalid_argument(
@@ -588,26 +607,50 @@ bool Server::select(IMasterConnection connection,
   const uint8_t oa = message->getOriginatorAddress();
   const uint16_t ca = message->getCommonAddress();
   const uint32_t ioa = message->getIOA();
+
+  // resolve the stable id before locking selection_mutex (lock order:
+  // connection_mutex is never taken while selection_mutex is held)
+  const auto connectionId = getConnectionId(connection);
+  if (!connectionId.has_value()) {
+    DEBUG_PRINT(Debug::Server, "select] Unknown connection, rejected");
+    return false;
+  }
   auto now = std::chrono::steady_clock::now();
 
   std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-  auto it = std::find_if(
-      selectionVector.begin(), selectionVector.end(),
-      [ca, ioa](const Selection &s) { return s.ca == ca && s.ioa == ioa; });
+  auto it =
+      std::ranges::find_if(selectionVector, [ca, ioa](const Selection &s) {
+        return s.ca == ca && s.ioa == ioa;
+      });
 
   // selection NOT found
   if (it == selectionVector.end()) {
     CS101_ASDU cp = CS101_ASDU_clone(message->getAsdu(), nullptr);
-    selectionVector.emplace_back<Selection>({cp, oa, ca, ioa, connection, now});
+    selectionVector.emplace_back<Selection>(
+        {cp, oa, ca, ioa, connection, connectionId.value(), now});
+    return true;
   }
+
   // selection found
-  else {
-    if ((it->connection != connection) &&
-        (now - it->created) < selectTimeout_ms) {
-      return false;
-    }
-    it->created = now;
+  const bool owner = (it->connectionId == connectionId.value());
+  const bool expired = (now - it->created) >= selectTimeout_ms;
+  if (!owner && !expired) {
+    return false;
   }
+
+  if (owner) {
+    // the same master re-selects: supersede silently
+    CS101_ASDU_destroy(it->asdu);
+  } else {
+    // expired selection of another master: terminate it (as the periodic
+    // cleanup would have done) and transfer the ownership completely
+    unselect(*it);
+  }
+  it->asdu = CS101_ASDU_clone(message->getAsdu(), nullptr);
+  it->oa = oa;
+  it->connection = connection;
+  it->connectionId = connectionId.value();
+  it->created = now;
 
   return true;
 }
@@ -616,13 +659,21 @@ void Server::unselect(const Selection &selection) {
   std::weak_ptr<Server> weakSelf =
       shared_from_this(); // Weak reference to `this`
 
-  scheduleTask([weakSelf, selection]() {
+  // the task owns the cloned asdu, so it is freed even if the task is dropped
+  // because the server stopped before it ran
+  std::shared_ptr<std::remove_pointer_t<CS101_ASDU>> const asdu(
+      selection.asdu, [](CS101_ASDU a) { CS101_ASDU_destroy(a); });
+  IMasterConnection const connection = selection.connection;
+  std::uint64_t const connectionId = selection.connectionId;
+
+  scheduleTask([weakSelf, asdu, connection, connectionId]() {
     auto self = weakSelf.lock();
-    if (self) {
-      // Prevent running if `this` was destroyed
-      self->sendActivationTermination(selection.connection, selection.asdu);
-    }
-    CS101_ASDU_destroy(selection.asdu);
+    if (!self)
+      return; // Prevent running if `this` was destroyed
+
+    // only the peer that selected may receive the termination, not a new
+    // peer that lib60870 handed the same connection object to
+    self->sendActivationTermination(connection, asdu.get(), connectionId);
   });
 }
 
@@ -635,15 +686,19 @@ Server::execute(IMasterConnection connection,
   const uint32_t ioa = message->getIOA();
 
   if (SELECT_AND_EXECUTE_COMMAND == point->getCommandMode()) {
+    // see select(): resolve the id before locking selection_mutex
+    const auto connectionId = getConnectionId(connection);
     auto now = std::chrono::steady_clock::now();
 
     std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
-    auto it = std::find_if(
-        selectionVector.begin(), selectionVector.end(),
-        [ca, ioa](const Selection &s) { return s.ca == ca && s.ioa == ioa; });
+    auto it =
+        std::ranges::find_if(selectionVector, [ca, ioa](const Selection &s) {
+          return s.ca == ca && s.ioa == ioa;
+        });
 
-    // selection NOT found
-    selected = (it != selectionVector.end() && (it->connection == connection) &&
+    // selection must exist, be owned by this very connection and be valid
+    selected = (it != selectionVector.end() && connectionId.has_value() &&
+                (it->connectionId == connectionId.value()) &&
                 (now - it->created) < selectTimeout_ms);
     if (!selected) {
       std::cerr << "[c104.Server] Cannot execute command on point in "
@@ -879,7 +934,7 @@ void Server::connectionEventHandler(void *parameter,
                                     IMasterConnection connection,
                                     CS104_PeerConnectionEvent event) {
   bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   if (debug) {
     begin = std::chrono::steady_clock::now();
   }
@@ -899,6 +954,9 @@ void Server::connectionEventHandler(void *parameter,
   char ipAddrStr[60];
   IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
+  // id of a connection that ended with this event, its selections are
+  // dropped below, outside of connection_mutex (lock order, see select())
+  std::optional<std::uint64_t> closedId;
   {
     std::lock_guard<Module::GilAwareMutex> const lock(
         instance->connection_mutex);
@@ -907,58 +965,69 @@ void Server::connectionEventHandler(void *parameter,
       // set as invalid receiver
       auto it = instance->connectionMap.find(connection);
       if (it == instance->connectionMap.end()) {
-        instance->connectionMap[connection] = false;
-      } else if (it->second) {
-        it->second = false;
-        instance->activeConnections--;
+        instance->connectionMap.emplace(
+            connection, PeerConnectionState{.id = ++instance->lastConnectionId,
+                                            .active = false});
+      } else {
+        // lib60870 reused the connection object for a new peer without a
+        // CLOSED event for the old one: new identity, old selections end
+        if (it->second.active) {
+          --instance->activeConnections;
+        }
+        closedId = it->second.id;
+        it->second = PeerConnectionState{.id = ++instance->lastConnectionId,
+                                         .active = false};
       }
 
     } else if (event == CS104_CON_EVENT_CONNECTION_CLOSED) {
       // set as invalid receiver
       auto it = instance->connectionMap.find(connection);
       if (it != instance->connectionMap.end()) {
-        if (it->second) {
-          instance->activeConnections--;
+        if (it->second.active) {
+          --instance->activeConnections;
         }
+        closedId = it->second.id;
         instance->connectionMap.erase(it);
       }
-      // remove selections
 
-      std::weak_ptr<Server> weakSelf = instance; // Weak reference to Server
-      instance->scheduleTask([weakSelf, connection]() {
-        auto self = weakSelf.lock();
-        if (!self)
-          return; // Prevent running if `this` was destroyed
-
-        self->dropConnectionSelections(connection);
-      });
     } else if (event == CS104_CON_EVENT_ACTIVATED) {
       // set as valid receiver
-      auto it = instance->connectionMap.find(connection);
-      if (it == instance->connectionMap.end()) {
-        instance->connectionMap[connection] = true;
-        instance->activeConnections++;
+      if (auto it = instance->connectionMap.find(connection);
+          it == instance->connectionMap.end()) {
+        instance->connectionMap.emplace(
+            connection, PeerConnectionState{.id = ++instance->lastConnectionId,
+                                            .active = true});
+        ++instance->activeConnections;
       } else {
-        if (!it->second) {
-          instance->activeConnections++;
+        if (!it->second.active) {
+          ++instance->activeConnections;
         }
-        it->second = true;
+        it->second.active = true;
       }
 
     } else if (event == CS104_CON_EVENT_DEACTIVATED) {
       // set as invalid receiver
       auto it = instance->connectionMap.find(connection);
       if (it == instance->connectionMap.end()) {
-        instance->connectionMap[connection] = false;
-      } else if (it->second) {
-        instance->activeConnections--;
-        it->second = false;
+        instance->connectionMap.emplace(
+            connection, PeerConnectionState{.id = ++instance->lastConnectionId,
+                                            .active = false});
+      } else if (it->second.active) {
+        --instance->activeConnections;
+        it->second.active = false;
       }
     }
   }
 
+  if (closedId.has_value()) {
+    // synchronously: a new peer may receive the same connection object right
+    // after this event and must not inherit a selection
+    instance->dropConnectionSelections(closedId.value());
+  }
+
   if (debug) {
-    end = std::chrono::steady_clock::now();
+    const std::chrono::steady_clock::time_point end =
+        std::chrono::steady_clock::now();
     DEBUG_PRINT_CONDITION(true, Debug::Server,
                           "connection_event_handler] Connection " +
                               PeerConnectionEvent_toString(event) + " by " +
@@ -999,7 +1068,7 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
   Module::ScopedGilRelease const scoped("Server.send");
 
   bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   if (debug) {
     begin = std::chrono::steady_clock::now();
   }
@@ -1025,7 +1094,8 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
   CS101_ASDU_destroy(asdu);
 
   if (debug) {
-    end = std::chrono::steady_clock::now();
+    const std::chrono::steady_clock::time_point end =
+        std::chrono::steady_clock::now();
     DEBUG_PRINT_CONDITION(true, Debug::Server,
                           "send] Send " +
                               std::string(TypeID_toString(message->getType())) +
@@ -1046,7 +1116,7 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
   Module::ScopedGilRelease const scoped("Server.sendBatch");
 
   bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   if (debug) {
     begin = std::chrono::steady_clock::now();
   }
@@ -1130,7 +1200,8 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
   CS101_ASDU_destroy(asdu);
 
   if (debug) {
-    end = std::chrono::steady_clock::now();
+    const std::chrono::steady_clock::time_point end =
+        std::chrono::steady_clock::now();
     DEBUG_PRINT_CONDITION(true, Debug::Server,
                           "send] Send Batch " +
                               std::string(TypeID_toString(batch->getType())) +
@@ -1145,60 +1216,71 @@ bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
 
 void Server::sendActivationConfirmation(IMasterConnection connection,
                                         CS101_ASDU asdu, bool negative) {
-  if (!isExistingConnection(connection))
-    return;
-
   // manipulate copy instead of original asdu
   CS101_ASDU cp = CS101_ASDU_clone(asdu, nullptr);
   CS101_ASDU_setCOT(cp, CS101_COT_ACTIVATION_CON);
   CS101_ASDU_setNegative(cp, negative);
 
-  if (isGlobalCommonAddress(CS101_ASDU_getCA(asdu))) {
-    DEBUG_PRINT(Debug::Server, "send_activation_confirmation] to all MTUs");
-    std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
-    for (auto &s : stations) {
-      CS101_ASDU_setCA(cp, s->getCommonAddress());
-      IMasterConnection_sendASDU(connection, cp);
-    }
-  } else {
+  if (!sendToConnection(connection, std::nullopt, cp)) {
     DEBUG_PRINT(Debug::Server,
-                "send_activation_confirmation] to requesting MTU");
-    IMasterConnection_sendASDU(connection, cp);
+                "send_activation_confirmation] Connection not found, skip");
   }
   CS101_ASDU_destroy(cp);
 }
 
-void Server::sendActivationTermination(IMasterConnection connection,
-                                       CS101_ASDU asdu) {
-  if (!isExistingConnection(connection)) {
-    DEBUG_PRINT(Debug::Server,
-                "send_activation_termination] Connection not found, skip");
-    return;
-  }
-
+void Server::sendActivationTermination(
+    IMasterConnection connection, CS101_ASDU asdu,
+    const std::optional<std::uint64_t> connectionId) {
   // manipulate copy instead of original asdu
   CS101_ASDU cp = CS101_ASDU_clone(asdu, nullptr);
   CS101_ASDU_setCOT(cp, CS101_COT_ACTIVATION_TERMINATION);
 
-  if (isGlobalCommonAddress(CS101_ASDU_getCA(asdu))) {
+  if (!sendToConnection(connection, connectionId, cp)) {
     DEBUG_PRINT(Debug::Server,
-                "send_activation_termination] to all MTUs (global CA)");
-
-    std::lock_guard<Module::GilAwareMutex> const st_lock(station_mutex);
-    for (auto &s : stations) {
-      CS101_ASDU_setCA(cp, s->getCommonAddress());
-      IMasterConnection_sendASDU(connection, cp);
-      DEBUG_PRINT(Debug::Server,
-                  "send_activation_termination] sent ACT_TERM CA=" +
-                      std::to_string(s->getCommonAddress()));
-    }
-  } else {
-    DEBUG_PRINT(Debug::Server,
-                "send_activation_termination] to requesting MTU CA=" +
-                    std::to_string(CS101_ASDU_getCA(asdu)));
-    IMasterConnection_sendASDU(connection, cp);
+                "send_activation_termination] Connection not found, skip");
   }
   CS101_ASDU_destroy(cp);
+}
+
+bool Server::sendToConnection(IMasterConnection connection,
+                              const std::optional<std::uint64_t> connectionId,
+                              CS101_ASDU asdu) {
+  // collect the target common addresses first: station_mutex must not be
+  // taken while connection_mutex is held
+  const bool global = isGlobalCommonAddress(CS101_ASDU_getCA(asdu));
+  std::vector<std::uint16_t> commonAddresses;
+  if (global) {
+    for (const auto &s : getStations()) {
+      commonAddresses.push_back(s->getCommonAddress());
+    }
+  }
+
+  // verify and send under the lock, so that the connection cannot be closed
+  // and handed to a new peer in between (IMasterConnection_sendASDU only
+  // enqueues and does not block)
+  std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+  auto it = connectionMap.find(connection);
+  if (it == connectionMap.end()) {
+    return false;
+  }
+  if (connectionId.has_value() && it->second.id != connectionId.value()) {
+    DEBUG_PRINT(Debug::Server, "send_to_connection] Connection object was "
+                               "reused by another peer, skip");
+    return false;
+  }
+
+  if (global) {
+    DEBUG_PRINT(Debug::Server, "send_to_connection] to all MTUs (global CA)");
+    for (const auto ca : commonAddresses) {
+      CS101_ASDU_setCA(asdu, ca);
+      IMasterConnection_sendASDU(connection, asdu);
+    }
+  } else {
+    DEBUG_PRINT(Debug::Server, "send_to_connection] to requesting MTU CA=" +
+                                   std::to_string(CS101_ASDU_getCA(asdu)));
+    IMasterConnection_sendASDU(connection, asdu);
+  }
+  return true;
 }
 
 void Server::sendEndOfInitialization(const std::uint_fast16_t commonAddress,
@@ -1207,7 +1289,7 @@ void Server::sendEndOfInitialization(const std::uint_fast16_t commonAddress,
   Module::ScopedGilRelease const scoped("Server.send");
 
   bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   if (debug) {
     begin = std::chrono::steady_clock::now();
   }
@@ -1217,17 +1299,17 @@ void Server::sendEndOfInitialization(const std::uint_fast16_t commonAddress,
   CS101_ASDU asdu =
       CS101_ASDU_create(appLayerParameters, false, CS101_COT_INITIALIZED, 0,
                         commonAddress, false, false);
-  CS101_ASDU_addInformationObject(asdu, (InformationObject)io);
+  CS101_ASDU_addInformationObject(asdu,
+                                  reinterpret_cast<InformationObject>(io));
   CS104_Slave_enqueueASDU(slave, asdu);
   CS101_ASDU_destroy(asdu);
   EndOfInitialization_destroy(io);
 
   if (debug) {
-    end = std::chrono::steady_clock::now();
     DEBUG_PRINT_CONDITION(
         true, Debug::Server,
         "send] Send M_EI_NA_1 | COI: " + CauseOfInitialization_toString(cause) +
-            " | TOTAL " + TICTOC(begin, end));
+            " | TOTAL " + TICTOCNOW(begin));
   }
 }
 
@@ -1236,10 +1318,10 @@ void Server::sendPeriodicInventory() {
     return;
 
   bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
 
   // always initialize begin, as it is used for cyclic report interval
-  begin = std::chrono::steady_clock::now();
+  const std::chrono::steady_clock::time_point begin =
+      std::chrono::steady_clock::now();
 
   bool empty = true;
   IEC60870_5_TypeID type = C_TS_TA_1;
@@ -1285,9 +1367,8 @@ void Server::sendPeriodicInventory() {
   }
 
   if (!empty && debug) {
-    end = std::chrono::steady_clock::now();
     DEBUG_PRINT_CONDITION(true, Debug::Server,
-                          "auto_transmit] TOTAL " + TICTOC(begin, end));
+                          "auto_transmit] TOTAL " + TICTOCNOW(begin));
   }
 }
 
@@ -1349,7 +1430,7 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
                                   CS101_ASDU asdu,
                                   QualifierOfInterrogation qoi) {
   bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   if (debug) {
     begin = std::chrono::steady_clock::now();
   }
@@ -1428,7 +1509,6 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
   }
 
   if (debug) {
-    end = std::chrono::steady_clock::now();
     char ipAddrStr[60];
     IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
@@ -1439,7 +1519,7 @@ bool Server::interrogationHandler(void *parameter, IMasterConnection connection,
                               std::to_string(CS101_ASDU_getOA(asdu)) +
                               " | CA " +
                               std::to_string(CS101_ASDU_getCA(asdu)) +
-                              " | TOTAL " + TICTOC(begin, end));
+                              " | TOTAL " + TICTOCNOW(begin));
   }
   return true;
 }
@@ -1448,7 +1528,7 @@ bool Server::counterInterrogationHandler(void *parameter,
                                          IMasterConnection connection,
                                          CS101_ASDU asdu, QualifierOfCIC qcc) {
   bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   if (debug) {
     begin = std::chrono::steady_clock::now();
   }
@@ -1532,7 +1612,6 @@ bool Server::counterInterrogationHandler(void *parameter,
   }
 
   if (debug) {
-    end = std::chrono::steady_clock::now();
     char ipAddrStr[60];
     IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
@@ -1543,7 +1622,7 @@ bool Server::counterInterrogationHandler(void *parameter,
                               std::to_string(CS101_ASDU_getOA(asdu)) +
                               " | CA " +
                               std::to_string(CS101_ASDU_getCA(asdu)) +
-                              " | TOTAL " + TICTOC(begin, end));
+                              " | TOTAL " + TICTOCNOW(begin));
   }
   return true;
 }
@@ -1551,7 +1630,7 @@ bool Server::counterInterrogationHandler(void *parameter,
 bool Server::readHandler(void *parameter, IMasterConnection connection,
                          CS101_ASDU asdu, int ioAddress) {
   bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   if (debug) {
     begin = std::chrono::steady_clock::now();
   }
@@ -1615,7 +1694,6 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
   }
 
   if (debug) {
-    end = std::chrono::steady_clock::now();
     char ipAddrStr[60];
     IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
@@ -1625,7 +1703,7 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
                               std::to_string(CS101_ASDU_getOA(asdu)) +
                               " | CA " +
                               std::to_string(CS101_ASDU_getCA(asdu)) +
-                              " | TOTAL " + TICTOC(begin, end));
+                              " | TOTAL " + TICTOCNOW(begin));
   }
   return true;
 }
@@ -1633,7 +1711,7 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
 bool Server::asduHandler(void *parameter, IMasterConnection connection,
                          CS101_ASDU asdu) {
   bool const debug = DEBUG_TEST(Debug::Server);
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   if (debug) {
     begin = std::chrono::steady_clock::now();
   }
@@ -1768,7 +1846,6 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
   }
 
   if (debug) {
-    end = std::chrono::steady_clock::now();
     char ipAddrStr[60];
     IMasterConnection_getPeerAddress(connection, ipAddrStr, 60);
 
@@ -1779,7 +1856,7 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
             " | IP " + std::string(ipAddrStr) + " | OA " +
             std::to_string(CS101_ASDU_getOA(asdu)) + " | CA " +
             std::to_string(CS101_ASDU_getCA(asdu)) + " | TOTAL " +
-            TICTOC(begin, end));
+            TICTOCNOW(begin));
   }
   return true;
 }

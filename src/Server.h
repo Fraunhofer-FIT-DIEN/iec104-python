@@ -58,7 +58,25 @@ struct Selection {
   uint16_t ca;
   uint32_t ioa;
   IMasterConnection connection;
+  /// @brief id of the owning connection at selection time, see
+  /// Server::getConnectionId(); lib60870 recycles IMasterConnection objects,
+  /// so the raw pointer alone does not identify a peer
+  std::uint64_t connectionId;
   std::chrono::steady_clock::time_point created;
+};
+
+/**
+ * @brief Per-connection bookkeeping of the server.
+ *
+ * lib60870 keeps a fixed pool of master connection objects and hands the same
+ * `IMasterConnection` pointer to a new peer once the previous one closed. The
+ * `id` is unique per Server instance and never reused, so everything that
+ * outlives a single callback (selections, scheduled responses) binds to the id
+ * instead of the pointer.
+ */
+struct PeerConnectionState {
+  std::uint64_t id;
+  bool active;
 };
 
 /**
@@ -184,7 +202,7 @@ public:
    * @brief test if the server is currently active
    * @return information on active state of server
    */
-  bool isRunning();
+  bool isRunning() const;
 
   /**
    * @brief Test if Stations exists at this NetworkStation
@@ -202,6 +220,19 @@ public:
    * @return True if the connection exists, otherwise false.
    */
   bool isExistingConnection(IMasterConnection connection);
+
+  /**
+   * @brief Retrieves the stable id of a master connection.
+   *
+   * The id is assigned when the connection is first seen and changes if
+   * lib60870 reuses the connection object for a new peer, see
+   * PeerConnectionState.
+   *
+   * @param connection The master connection to look up.
+   * @return The id, or an empty optional if the connection is unknown.
+   */
+  std::optional<std::uint64_t>
+  getConnectionId(IMasterConnection connection) const;
 
   /**
    * @brief Test if Server has open connections to clients
@@ -446,8 +477,14 @@ public:
    * sent.
    * @param asdu The Application Service Data Unit (ASDU) to be sent, modified
    *             within the function.
+   * @param connectionId If set, the message is only sent while @p connection
+   *             still carries this id (see getConnectionId()), i.e. it is
+   *             dropped if the peer that caused it closed and lib60870 reused
+   *             the connection object for a new peer.
    */
-  void sendActivationTermination(IMasterConnection connection, CS101_ASDU asdu);
+  void sendActivationTermination(
+      IMasterConnection connection, CS101_ASDU asdu,
+      std::optional<std::uint64_t> connectionId = std::nullopt);
 
   /**
    * @brief Sends an End of Initialization message (M_EI_NA_1) to the client.
@@ -524,6 +561,24 @@ private:
   void scheduleDataPointTimer();
 
   /**
+   * @brief Sends a prepared response ASDU to a master connection.
+   *
+   * Existence of the connection (and, if given, its id) is verified and the
+   * ASDU is enqueued while connection_mutex is held, so the connection cannot
+   * be closed and handed to a new peer in between. For the global common
+   * address the ASDU is sent once per station with the station's common
+   * address.
+   *
+   * @param connection The master connection to send to.
+   * @param connectionId If set, the id the connection must still carry.
+   * @param asdu Prepared ASDU, modified in place for the global common address.
+   * @return True if the connection was found and the ASDU was sent.
+   */
+  bool sendToConnection(IMasterConnection connection,
+                        std::optional<std::uint64_t> connectionId,
+                        CS101_ASDU asdu);
+
+  /**
    * @brief Cleans up expired selections within the server.
    *
    * The `cleanupSelections` method removes outdated selections from the
@@ -538,14 +593,22 @@ private:
    * connection.
    *
    * This method iterates over the current selections and removes any selections
-   * that are tied to the provided master connection.
-   * Removed selections will NOT trigger an unselect operation, because the
-   * connection is expected to be lost.
+   * that are tied to the provided master connection id and frees their ASDU
+   * copies. Removed selections will NOT trigger an unselect operation, because
+   * the connection is expected to be lost.
    *
-   * @param connection The master connection whose associated selections are to
-   * be removed.
+   * @param connectionId The id of the master connection whose associated
+   * selections are to be removed, see getConnectionId().
    */
-  void dropConnectionSelections(IMasterConnection connection);
+  void dropConnectionSelections(std::uint64_t connectionId);
+
+  /**
+   * @brief Removes all selections without sending an activation termination.
+   *
+   * Used by stop() and the destructor: the peers are gone and a connection
+   * object reused after a restart must not inherit a selection.
+   */
+  void clearSelections();
 
   /**
    * @brief Cleans up a selection associated with the specified common address
@@ -569,9 +632,11 @@ private:
    * The select method identifies a specific control point based on the details
    * provided in the incoming message. If the selection criteria are met (i.e.,
    * the control point type is valid, or it is not time-expired), the selection
-   * is registered or updated. If the control point is already selected and
-   * conflicts with an existing selection, the method may reject the new
-   * selection.
+   * is registered or updated. If the control point is selected by another
+   * connection and that selection has not expired, the new selection is
+   * rejected. An expired selection of another connection is taken over: its
+   * owner receives an activation termination and @p connection becomes the
+   * owner. A connection without an entry in the connection map cannot select.
    *
    * @param connection The master connection that initiated the selection
    * process.
@@ -583,7 +648,7 @@ private:
    * otherwise.
    */
   bool select(IMasterConnection connection,
-              std::shared_ptr<Remote::Message::IncomingMessage> message);
+              const std::shared_ptr<Remote::Message::IncomingMessage> &message);
 
   /**
    * @brief Cancels a previously made selection and performs necessary cleanup.
@@ -667,7 +732,10 @@ private:
   mutable Module::GilAwareMutex connection_mutex{"Server::connection_mutex"};
 
   /// @brief map of all connections to store connection state
-  std::map<IMasterConnection, bool> connectionMap{};
+  std::map<IMasterConnection, PeerConnectionState> connectionMap{};
+
+  /// @brief last connection id handed out, guarded by connection_mutex
+  std::uint64_t lastConnectionId{0};
 
   /// @brief MUTEX Lock to access selectionVEcotr
   mutable Module::GilAwareMutex selection_mutex{"Server::selection_mutex"};
@@ -821,15 +889,15 @@ public:
   static void rawMessageHandler(void *parameter, IMasterConnection connection,
                                 uint_fast8_t *msg, int msgSize, bool sent);
 
-  /**
-   * @brief Callback for reacting on incoming clock sync command and sending
-   * responses
-   * @param parameter reference to custom bound connection data
-   * @param connection reference to internal connection object
-   * @param asdu incoming ASDU packet
-   * @param newtime synchronized current timestamp formated as CP56Time2a
-   * @return if command was handled.. if not it will be passed to asduHandler
-   */
+  // /**
+  //  * @brief Callback for reacting on incoming clock sync command and sending
+  //  * responses
+  //  * @param parameter reference to custom bound connection data
+  //  * @param connection reference to internal connection object
+  //  * @param asdu incoming ASDU packet
+  //  * @param newtime synchronized current timestamp formated as CP56Time2a
+  //  * @return if command was handled.. if not it will be passed to asduHandler
+  //  */
   // static bool clockSyncHandler(void *parameter, IMasterConnection connection,
   // CS101_ASDU asdu, CP56Time2a newtime);
 
