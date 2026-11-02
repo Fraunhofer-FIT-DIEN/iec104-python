@@ -250,9 +250,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
 DataPoint::~DataPoint() { DEBUG_PRINT(Debug::Point, "Removed"); }
 
 std::shared_ptr<Station> DataPoint::getStation() {
-  if (station.expired()) {
-    return {nullptr};
-  }
+  std::lock_guard<std::mutex> const lock(station_mutex);
   return station.lock();
 }
 
@@ -333,7 +331,10 @@ std::optional<std::uint_fast8_t> DataPoint::getSelectedByOriginatorAddress() {
 
 IEC60870_5_TypeID DataPoint::getType() const { return type; }
 
-std::shared_ptr<Information> DataPoint::getInfo() const { return info; }
+std::shared_ptr<Information> DataPoint::getInfo() const {
+  std::lock_guard<std::mutex> const lock(info_mutex);
+  return info;
+}
 
 void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
   bool const debug = DEBUG_TEST(Debug::Point);
@@ -978,13 +979,18 @@ void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
     throw std::invalid_argument("Unsupported type " +
                                 std::string(TypeID_toString(type)));
   }
-  info = std::move(new_info);
+  {
+    std::lock_guard<std::mutex> const lock(info_mutex);
+    info.swap(new_info);
+  }
+  // new_info now holds the previous info and releases it outside the lock
 }
 
-InfoValue DataPoint::getValue() { return info->getValue(); }
+InfoValue DataPoint::getValue() { return getInfo()->getValue(); }
 
 void DataPoint::setValue(const InfoValue new_value) {
-  info->setValue(new_value);
+  auto const current = getInfo();
+  current->setValue(new_value);
   switch (type) {
   case M_SP_TB_1:
   case C_SC_TA_1:
@@ -1004,7 +1010,7 @@ void DataPoint::setValue(const InfoValue new_value) {
   case M_EP_TD_1:
   case M_EP_TE_1:
   case M_EP_TF_1:
-    info->setRecordedAt(std::chrono::system_clock::now());
+    current->setRecordedAt(std::chrono::system_clock::now());
     DEBUG_PRINT(
         Debug::Point,
         "Injecting current local timestamp into information for [c104.Type." +
@@ -1014,10 +1020,11 @@ void DataPoint::setValue(const InfoValue new_value) {
   }
 }
 
-InfoQuality DataPoint::getQuality() { return info->getQuality(); }
+InfoQuality DataPoint::getQuality() { return getInfo()->getQuality(); }
 
 void DataPoint::setQuality(const InfoQuality new_quality) {
-  info->setQuality(new_quality);
+  auto const current = getInfo();
+  current->setQuality(new_quality);
   switch (type) {
   case M_SP_TB_1:
   case C_SC_TA_1:
@@ -1037,7 +1044,7 @@ void DataPoint::setQuality(const InfoQuality new_quality) {
   case M_EP_TD_1:
   case M_EP_TE_1:
   case M_EP_TF_1:
-    info->setRecordedAt(std::chrono::system_clock::now());
+    current->setRecordedAt(std::chrono::system_clock::now());
     DEBUG_PRINT(
         Debug::Point,
         "Injecting current local timestamp into information for [c104.Type." +
@@ -1049,17 +1056,17 @@ void DataPoint::setQuality(const InfoQuality new_quality) {
 
 std::optional<std::chrono::system_clock::time_point>
 DataPoint::getRecordedAt() const {
-  return info->getRecordedAt();
+  return getInfo()->getRecordedAt();
 }
 
 std::chrono::system_clock::time_point DataPoint::getProcessedAt() const {
-  return info->getProcessedAt();
+  return getInfo()->getProcessedAt();
 }
 
 void DataPoint::setProcessedAt(
     const std::chrono::system_clock::time_point val) {
   lastSentAt.store(std::chrono::steady_clock::now());
-  info->setProcessedAt(val);
+  getInfo()->setProcessedAt(val);
 }
 
 std::uint_fast16_t DataPoint::getReportInterval_ms() const {
@@ -1100,8 +1107,12 @@ void DataPoint::setOnReceiveCallback(py::object &callable) {
 
 CommandResponseState DataPoint::onReceive(
     std::shared_ptr<Remote::Message::IncomingMessage> message) {
-  auto prev = std::move(info);
-  info = message->getInfo();
+  // swap under lock: concurrent readers must never observe a null info
+  auto prev = message->getInfo();
+  {
+    std::lock_guard<std::mutex> const lock(info_mutex);
+    info.swap(prev);
+  }
 
   if (py_onReceive.is_set()) {
     DEBUG_PRINT(Debug::Point, "CALLBACK on_receive at IOA " +
@@ -1243,4 +1254,7 @@ bool DataPoint::transmit(const CS101_CauseOfTransmission cause,
   return connection->transmit(shared_from_this(), cause);
 }
 
-void DataPoint::detach() { station.reset(); }
+void DataPoint::detach() {
+  std::lock_guard<std::mutex> const lock(station_mutex);
+  station.reset();
+}

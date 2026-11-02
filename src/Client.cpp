@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -28,6 +28,8 @@
  * @authors Martin Unkel <martin.unkel@fit.fraunhofer.de>
  *
  */
+
+#include <algorithm>
 
 #include "Client.h"
 
@@ -251,6 +253,32 @@ Client::addConnection(const std::string &ip, const uint_fast16_t port,
   connections.push_back(connection);
 
   return connection;
+}
+
+bool Client::removeConnection(const std::string &ip,
+                              const std::uint_fast16_t port) {
+  std::string const conStr = Remote::connectionStringFormatter(ip, port);
+
+  std::shared_ptr<Remote::Connection> removed;
+  {
+    std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+    auto it = std::find_if(connections.begin(), connections.end(),
+                           [&conStr](const auto &c) {
+                             return c->getConnectionString() == conStr;
+                           });
+    if (it == connections.end()) {
+      return false;
+    }
+    removed = *it;
+    connections.erase(it);
+  }
+
+  DEBUG_PRINT(Debug::Client, "remove_connection] IP " + ip + " | PORT " +
+                                 std::to_string(port));
+
+  // outside the lock: closing joins the receive thread, which may need it
+  removed->detach();
+  return true;
 }
 
 void Client::reconnectAll() {

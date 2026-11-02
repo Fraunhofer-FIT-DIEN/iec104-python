@@ -190,6 +190,16 @@ public:
                 ConnectionInit init = INIT_ALL);
 
   /**
+   * @brief close and remove an existing remote server connection from this
+   * client
+   * @param ip remote terminal units ip address
+   * @param port remote terminal units port
+   * @return true if the connection was removed, false if it does not exist
+   */
+  bool removeConnection(const std::string &ip,
+                        std::uint_fast16_t port = IEC_60870_5_104_DEFAULT_PORT);
+
+  /**
    * @brief Get Connection object for a certain commonAddress
    * @param commonAddress common address that should be reached via remote
    * connection

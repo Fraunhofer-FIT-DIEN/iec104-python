@@ -105,7 +105,10 @@ public:
    * @brief Get the value from an information object inside the remote message
    * @return value as Information object
    */
-  virtual std::shared_ptr<Object::Information> getInfo() const { return info; }
+  virtual std::shared_ptr<Object::Information> getInfo() const {
+    std::lock_guard<Module::GilAwareMutex> const lock(access_mutex);
+    return info;
+  }
 
   /**
    * @brief test if the message test flag is set

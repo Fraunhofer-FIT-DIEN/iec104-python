@@ -358,7 +358,10 @@ void Server::stop() {
 
   CS104_Slave_stop(slave);
 
-  connectionMap.clear();
+  {
+    std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+    connectionMap.clear();
+  }
   activeConnections.store(0);
   openConnections.store(0);
 
@@ -706,11 +709,16 @@ Server::onClockSync(const std::string _ip,
       return RESPONSE_STATE_FAILURE;
     }
 
-    PyObject *pydate = PyDateTime_FromDateAndTime(
+    // take ownership of the new reference, otherwise each clock sync leaks it
+    auto pydate = py::reinterpret_steal<py::object>(PyDateTime_FromDateAndTime(
         localtime.tm_year + 1900, localtime.tm_mon + 1, localtime.tm_mday,
-        localtime.tm_hour, localtime.tm_min, localtime.tm_sec, us.count());
+        localtime.tm_hour, localtime.tm_min, localtime.tm_sec, us.count()));
+    if (!pydate) {
+      PyErr_Clear();
+      return RESPONSE_STATE_FAILURE;
+    }
 
-    if (py_onClockSync.call(shared_from_this(), _ip, py::handle(pydate))) {
+    if (py_onClockSync.call(shared_from_this(), _ip, pydate)) {
       try {
         return py_onClockSync.getResult();
       } catch (const std::exception &e) {

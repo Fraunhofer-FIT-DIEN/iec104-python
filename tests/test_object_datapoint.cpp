@@ -22,6 +22,10 @@
  *
  */
 
+#include <atomic>
+#include <thread>
+#include <vector>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include "Server.h"
@@ -98,4 +102,72 @@ TEST_CASE("Set point value via message", "[object::point]") {
 
   InformationObject_destroy(io);
   CS101_ASDU_destroy(asdu);
+}
+
+TEST_CASE("Concurrent point info access", "[object::point]") {
+  // Regression: onReceive moved info out before replacing it, so a concurrent
+  // reader (e.g. Python reading point.value) could dereference a null info.
+  auto server = Server::create();
+  auto station = server->addStation(10);
+  auto point = station->addPoint(11, IEC60870_5_TypeID::M_SP_NA_1);
+
+  sCS101_AppLayerParameters appLayerParameters{.sizeOfTypeId = 1,
+                                               .sizeOfVSQ = 1,
+                                               .sizeOfCOT = 2,
+                                               .originatorAddress = 0,
+                                               .sizeOfCA = 2,
+                                               .sizeOfIOA = 3,
+                                               .maxSizeOfASDU = 249};
+  std::vector<std::shared_ptr<Remote::Message::IncomingMessage>> messages;
+  for (bool const value : {true, false}) {
+    CS101_ASDU asdu = CS101_ASDU_create(
+        &appLayerParameters, false, CS101_COT_SPONTANEOUS, 0, 10, false, false);
+    InformationObject io = (InformationObject)SinglePointInformation_create(
+        nullptr, 11, value, IEC60870_QUALITY_GOOD);
+    CS101_ASDU_addInformationObject(asdu, io);
+    auto message =
+        Remote::Message::IncomingMessage::create(asdu, &appLayerParameters);
+    REQUIRE(message->next());
+    messages.push_back(message);
+    InformationObject_destroy(io);
+    CS101_ASDU_destroy(asdu);
+  }
+
+  constexpr int iterations = 200000;
+  std::atomic_bool done{false};
+  std::atomic_int reads{0};
+
+  std::thread receiver([&]() {
+    for (int i = 0; i < iterations; i++) {
+      point->onReceive(messages[i % 2]);
+    }
+    done = true;
+  });
+  std::thread replacer([&]() {
+    while (!done) {
+      point->setInfo(Object::SingleInfo::create(true));
+    }
+  });
+  std::vector<std::thread> readers;
+  for (int r = 0; r < 4; r++) {
+    readers.emplace_back([&]() {
+      while (!done) {
+        (void)point->getValue();
+        (void)point->getQuality();
+        (void)point->getRecordedAt();
+        (void)point->getProcessedAt();
+        (void)point->toString();
+        reads++;
+      }
+    });
+  }
+
+  receiver.join();
+  replacer.join();
+  for (auto &reader : readers) {
+    reader.join();
+  }
+
+  REQUIRE(reads > 0);
+  REQUIRE(point->getInfo() != nullptr);
 }

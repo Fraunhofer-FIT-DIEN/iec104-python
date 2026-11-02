@@ -278,17 +278,25 @@ TEST_CASE("IncomingMessage rejects sequence and multi-object control messages",
   }
   {
     // control type with multiple objects -> reject
-    CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_ACTIVATION, 0,
-                                        1, false, false);
-    CS101_ASDU_setTypeID(asdu, C_SC_NA_1);
-    auto io1 =
-        (InformationObject)SingleCommand_create(nullptr, 1, true, false, 0);
-    auto io2 =
-        (InformationObject)SingleCommand_create(nullptr, 2, true, false, 0);
-    CS101_ASDU_addInformationObject(asdu, io1);
-    CS101_ASDU_addInformationObject(asdu, io2);
-    InformationObject_destroy(io1);
-    InformationObject_destroy(io2);
+    // lib60870 refuses to add a second object to a command ASDU, so build the
+    // frame from raw bytes as a misbehaving peer would send it
+    uint8_t raw[] = {C_SC_NA_1,
+                     0x02, // VSQ: 2 objects, no sequence
+                     CS101_COT_ACTIVATION,
+                     0, // COT, OA
+                     0x01,
+                     0x00, // CA 1
+                     0x01,
+                     0x00,
+                     0x00,
+                     0x01, // IOA 1, SCO on
+                     0x02,
+                     0x00,
+                     0x00,
+                     0x01}; // IOA 2, SCO on
+    CS101_ASDU asdu = CS101_ASDU_createFromBuffer(&params, raw, sizeof(raw));
+    REQUIRE(asdu != nullptr);
+    REQUIRE(CS101_ASDU_getNumberOfElements(asdu) == 2);
     REQUIRE_THROWS_AS(IncomingMessage::create(asdu, &params),
                       std::invalid_argument);
     CS101_ASDU_destroy(asdu);

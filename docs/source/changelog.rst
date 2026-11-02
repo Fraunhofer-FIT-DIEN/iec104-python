@@ -1,7 +1,7 @@
 Change log
 ==========
 
-v2.2.2
+v2.3.0
 -------
 
 Features
@@ -12,6 +12,7 @@ Features
 - allow setting **Batch.originator_address** to manually send a batch to a specific originator.
 - support mathematical operations between instances of the same number class (UInt*, Int* and NormalizedFloat); the result will be of type int
 - support comparison between instances of the same number class (UInt*, Int* and NormalizedFloat)
+- add **Client.remove_connection(ip: str, port: int = 2404)** to close and remove a connection from a client
 
 Fixes
 ^^^^^^
@@ -31,6 +32,15 @@ Fixes
 - fix potential memory out-of-bound read (up to 4 bytes) via crafted invalid ASDU in debug function **explain_bytes** and **explain_bytes_dict**, where the APDU length is manipulated.
 - **Point.related_io_address** is initialized with valid IOA 0 instead of None
 - **TransportSecurity.set_hostname_verification** is readonly once used in server or connection
+- fix segmentation fault in **Point.value**, **Point.quality** and related getters while an incoming message updates the point concurrently
+- fix segmentation fault in **Point.transmit** after the connection was closed (lib60870 update)
+- fix race conditions on **Station** and **Point** parent references during **remove_station** and **remove_point**
+- fix race conditions in callback result handling and **Information** timestamp getters (free-threaded builds)
+- fix python reference release without GIL, if a point, station, connection or server is destroyed by a background thread
+- fix potential deadlock in **Connection.connect**, **Connection.disconnect** and connection destruction while a callback waits for the GIL
+- fix memory leak in **Server.on_clock_sync**
+- fix race condition where a newly opened connection could stay muted (STARTDT never sent) and receive no data
+- fix **Server.protocol_parameters** and **Connection.protocol_parameters** not keeping their owner alive (use after free)
 
 
 v2.2.1

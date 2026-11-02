@@ -20,8 +20,10 @@ collisions and both server and client are stopped in tearDown.
 """
 
 import datetime
+import gc
 import time
 import unittest
+import weakref
 
 import c104
 
@@ -106,6 +108,38 @@ class ClientLoopbackTestCase(unittest.TestCase):
                       self.connection)
         # no station exists yet -> no match by common address
         self.assertIsNone(self.client.get_connection(common_address=20))
+
+    def test_remove_connection(self):
+        self.server.start()
+        self.client.start()
+        self.assertTrue(
+            wait_for(lambda: self.connection.is_connected),
+            "client never connected to server",
+        )
+        self.assertTrue(
+            wait_for(lambda: self.server.open_connection_count >= 1),
+            "server never registered the connection",
+        )
+
+        # unknown connection -> False
+        self.assertFalse(self.client.remove_connection(ip="127.0.0.1", port=self.PORT + 1))
+
+        # open connection is closed and removed
+        self.assertTrue(self.client.remove_connection(ip="127.0.0.1", port=self.PORT))
+        self.assertFalse(self.client.has_connections)
+        self.assertIsNone(self.client.get_connection(ip="127.0.0.1", port=self.PORT))
+        self.assertFalse(self.connection.is_connected)
+        self.assertEqual(self.connection.state, c104.ConnectionState.CLOSED)
+        self.assertTrue(
+            wait_for(lambda: self.server.open_connection_count == 0),
+            "server still sees the removed connection",
+        )
+
+        # a removed connection cannot be reconnected, but the same remote can be added again
+        with self.assertRaises(RuntimeError):
+            self.connection.connect()
+        self.assertFalse(self.client.remove_connection(ip="127.0.0.1", port=self.PORT))
+        self.assertIsNotNone(self.client.add_connection(ip="127.0.0.1", port=self.PORT))
 
     def test_start_stop_callbacks_and_counters(self):
         states = []
@@ -598,6 +632,38 @@ class ProtocolParametersTestCase(unittest.TestCase):
             connection = client.add_connection(ip="127.0.0.1", port=24211)
             pp = connection.protocol_parameters
             self._assert_get_set(pp)
+        finally:
+            client.stop()
+
+    def test_protocol_parameters_keep_owner_alive(self):
+        # protocol_parameters points into memory owned by the server/connection,
+        # so it must keep its owner alive after all other references are gone
+        server = c104.Server(ip="127.0.0.1", port=24212, tick_rate_ms=100)
+        server_ref = weakref.ref(server)
+        pp = server.protocol_parameters
+        del server
+        gc.collect()
+        self.assertIsNotNone(server_ref())
+        pp.message_timeout = 11
+        self.assertEqual(pp.message_timeout, 11)
+        del pp
+        gc.collect()
+        self.assertIsNone(server_ref())
+
+        client = c104.Client(tick_rate_ms=100)
+        try:
+            connection = client.add_connection(ip="127.0.0.1", port=24213)
+            connection_ref = weakref.ref(connection)
+            pp = connection.protocol_parameters
+            self.assertTrue(client.remove_connection(ip="127.0.0.1", port=24213))
+            del connection
+            gc.collect()
+            self.assertIsNotNone(connection_ref())
+            pp.message_timeout = 11
+            self.assertEqual(pp.message_timeout, 11)
+            del pp
+            gc.collect()
+            self.assertIsNone(connection_ref())
         finally:
             client.stop()
 

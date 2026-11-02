@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -55,16 +55,12 @@ Station::~Station() {
 std::uint_fast16_t Station::getCommonAddress() const { return commonAddress; }
 
 std::shared_ptr<Server> Station::getServer() {
-  if (server.expired()) {
-    return {nullptr};
-  }
+  std::lock_guard<std::mutex> const lock(parent_mutex);
   return server.lock();
 }
 
 std::shared_ptr<Remote::Connection> Station::getConnection() {
-  if (connection.expired()) {
-    return {nullptr};
-  }
+  std::lock_guard<std::mutex> const lock(parent_mutex);
   return connection.lock();
 }
 
@@ -155,7 +151,10 @@ bool Station::removePoint(const std::uint_fast32_t informationObjectAddress) {
   return (points.size() < originalSize); // Success if the size decreased
 }
 
-bool Station::isLocal() { return !server.expired(); }
+bool Station::isLocal() {
+  std::lock_guard<std::mutex> const lock(parent_mutex);
+  return !server.expired();
+}
 
 void Station::sendEndOfInitialization(const CS101_CauseOfInitialization cause) {
   if (auto sv = getServer()) {
@@ -167,6 +166,7 @@ void Station::sendEndOfInitialization(const CS101_CauseOfInitialization cause) {
 }
 
 void Station::detach() {
+  std::lock_guard<std::mutex> const lock(parent_mutex);
   server.reset();
   connection.reset();
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -88,6 +88,10 @@ private:
 
   /// @brief remote connection object reference (only remote station)
   std::weak_ptr<Remote::Connection> connection;
+
+  /// @brief guards server and connection, which are reset by detach() while
+  /// other threads read them
+  mutable std::mutex parent_mutex;
 
   /// @brief child DataPoint objects (owned by this Station)
   DataPointVector points{};

@@ -96,7 +96,11 @@ Connection::~Connection() {
         static_cast<void *>(this)); // Remove from map on destruction
   }
 
-  CS104_Connection_destroy(connection);
+  {
+    // joins the receive thread, which may be waiting for the GIL
+    Module::ScopedGilRelease const scoped("Connection.destroy");
+    CS104_Connection_destroy(connection);
+  }
   DEBUG_PRINT(Debug::Connection, "Removed");
 }
 
@@ -160,13 +164,16 @@ std::uint_fast8_t Connection::getOriginatorAddress() const {
 
 /// @brief client object reference
 std::shared_ptr<Client> Connection::getClient() const {
-  if (client.expired()) {
-    return {nullptr};
-  }
+  std::lock_guard<std::mutex> const lock(client_mutex);
   return client.lock();
 }
 
 void Connection::connect() {
+  if (!getClient()) {
+    throw std::runtime_error("Cannot connect: connection was removed from "
+                             "its client");
+  }
+
   ConnectionState const current = state.load();
   if (current == OPEN || current == OPEN_MUTED || CLOSED_AWAIT_OPEN == current)
     return;
@@ -185,6 +192,8 @@ void Connection::connect() {
   // connect
   setState(CLOSED_AWAIT_OPEN);
 
+  // close joins the receive thread, which may be waiting for the GIL
+  Module::ScopedGilRelease const scoped("Connection.connect");
   std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
 
   // free connection thread if exists
@@ -214,14 +223,34 @@ void Connection::disconnect() {
     setState(OPEN_AWAIT_CLOSED);
   }
 
-  // free connection thread
-  std::unique_lock<Module::GilAwareMutex> lock(connection_mutex);
-  CS104_Connection_close(connection);
-  lock.unlock();
+  // free connection thread (joins it, so it must not wait for our GIL)
+  {
+    Module::ScopedGilRelease const scoped("Connection.disconnect");
+    std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+    CS104_Connection_close(connection);
+  }
 
   // print
   DEBUG_PRINT(Debug::Connection,
               "disconnect] Disconnect from " + getConnectionString());
+}
+
+void Connection::detach() {
+  // release the client first, so the close below cannot schedule a reconnect
+  {
+    std::lock_guard<std::mutex> const lock(client_mutex);
+    client.reset();
+  }
+
+  {
+    Module::ScopedGilRelease const scoped("Connection.detach");
+    std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
+    CS104_Connection_close(connection);
+  }
+  setState(CLOSED);
+
+  DEBUG_PRINT(Debug::Connection,
+              "detach] Removed from client " + getConnectionString());
 }
 
 bool Connection::isOpen() const {
@@ -360,6 +389,12 @@ void Connection::setOpen() {
     return;
   }
 
+  connectionCount++;
+  connectedAt.store(std::chrono::system_clock::now());
+  // set the state before scheduling unmute: the task may run immediately and
+  // unmute() does nothing unless the connection is already open
+  setState(OPEN_MUTED);
+
   if (INIT_MUTED != init) {
     if (auto c = getClient()) {
       std::weak_ptr<Connection> weakSelf =
@@ -375,9 +410,6 @@ void Connection::setOpen() {
           -1);
     }
   }
-  connectionCount++;
-  connectedAt.store(std::chrono::system_clock::now());
-  setState(OPEN_MUTED);
 
   DEBUG_PRINT(Debug::Connection,
               "set_open] Opened connection to " + getConnectionString());

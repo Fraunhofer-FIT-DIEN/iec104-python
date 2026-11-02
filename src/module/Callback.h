@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -35,6 +35,7 @@
 #include <utility>
 
 #include "module/GilAwareMutex.h"
+#include "module/ScopedGilAcquire.h"
 #include "types.h"
 
 using namespace pybind11::literals;
@@ -57,6 +58,31 @@ public:
         remove_if(cb_signature.begin(), cb_signature.end(), isspace),
         cb_signature.end());
     signature = std::move(cb_signature);
+  }
+
+  // noncopyable: copies would duplicate the python reference without the GIL
+  CallbackBase(const CallbackBase &) = delete;
+  CallbackBase &operator=(const CallbackBase &) = delete;
+
+  /**
+   * @brief Releases the python reference with the GIL held.
+   *
+   * The owning object may be destroyed on a lib60870 or worker thread that
+   * dropped the last shared_ptr, so the GIL cannot be assumed here.
+   */
+  ~CallbackBase() {
+#if PY_VERSION_HEX >= 0x030D0000
+    bool const finalizing = Py_IsFinalizing();
+#else
+    bool const finalizing = _Py_IsFinalizing();
+#endif
+    if (!Py_IsInitialized() || finalizing) {
+      // interpreter is gone or going: leak instead of touching refcounts
+      callback.release();
+      return;
+    }
+    ScopedGilAcquire const scoped(name + ".destroy");
+    callback = py::object();
   }
 
   /**
@@ -153,9 +179,6 @@ protected:
   /// @brief store if last execution was successfully
   std::atomic_bool success{false};
 
-  /// @brief timers used for performance measurements and debug logging
-  std::chrono::steady_clock::time_point begin, end;
-
   /// @brief mutex for accessing the callback object
   mutable Module::GilAwareMutex callback_mutex{"Callback::callback_mutex"};
 };
@@ -189,10 +212,13 @@ public:
       return false;
     }
 
+    // locals, not members: call() may run concurrently in free-threaded builds
+    std::chrono::steady_clock::time_point begin;
     if (DEBUG_TEST(Debug::Callback)) {
-      this->begin = std::chrono::steady_clock::now();
+      begin = std::chrono::steady_clock::now();
     }
 
+    std::string result_type{"None"};
     try {
       py::object res = cb(std::forward<Types>(values)...);
 
@@ -200,7 +226,10 @@ public:
       result_type = py::cast<std::string>(py::str(res.get_type()));
 
       // Cast the result to the expected type
-      result = res.cast<T>();
+      T const value = res.cast<T>();
+      lock.lock();
+      result = value;
+      lock.unlock();
       this->success = true;
     } catch (py::error_already_set &e) {
       this->success = PyErr_Occurred();
@@ -251,10 +280,8 @@ public:
     }
 
     if (DEBUG_TEST(Debug::Callback)) {
-      this->end = std::chrono::steady_clock::now();
       DEBUG_PRINT_CONDITION(true, Debug::Callback,
-                            name + "] Stats | TOTAL " +
-                                TICTOC(this->begin, this->end));
+                            name + "] Stats | TOTAL " + TICTOCNOW(begin));
     }
 
     return this->success;
@@ -278,12 +305,8 @@ public:
   }
 
 protected:
-  /// @brief callback return value
+  /// @brief callback return value (must be accessed with callback_mutex)
   T result;
-
-  /// @brief string representing the python type of the result, i.e. str, int,
-  /// list[...]
-  std::string result_type{"None"};
 };
 
 /**
@@ -316,8 +339,10 @@ public:
       return false;
     }
 
+    // locals, not members: call() may run concurrently in free-threaded builds
+    std::chrono::steady_clock::time_point begin;
     if (DEBUG_TEST(Debug::Callback)) {
-      this->begin = std::chrono::steady_clock::now();
+      begin = std::chrono::steady_clock::now();
     }
 
     try {
@@ -346,10 +371,8 @@ public:
     }
 
     if (DEBUG_TEST(Debug::Callback)) {
-      this->end = std::chrono::steady_clock::now();
       DEBUG_PRINT_CONDITION(true, Debug::Callback,
-                            name + "] Stats | TOTAL " +
-                                TICTOC(this->begin, this->end));
+                            name + "] Stats | TOTAL " + TICTOCNOW(begin));
     }
 
     return this->success;

@@ -231,7 +231,7 @@ TEST_CASE("Loopback: handshake, interrogation, end of initialization",
   REQUIRE(client->isRunning());
 
   // ---- ASYNC handshake: poll until the connection is open ----
-  bool opened = waitUntil([&]() { return conn->isOpen(); }, 8000);
+  bool opened = waitUntil([&]() { return conn->getState() == OPEN; }, 8000);
   REQUIRE(opened);
 
   // server should now see an active (open, unmuted) connection
@@ -292,7 +292,7 @@ TEST_CASE("Loopback: connect, disconnect, reconnectAll", "[loopback][client]") {
   REQUIRE_NOTHROW(client->start());
 
   // poll for open state (real TCP connect + START_DT)
-  REQUIRE(waitUntil([&]() { return conn->isOpen(); }, 8000));
+  REQUIRE(waitUntil([&]() { return conn->getState() == OPEN; }, 8000));
   REQUIRE(conn->getState() == OPEN);
   REQUIRE(client->hasOpenConnections());
   REQUIRE(client->getOpenConnectionCount() >= 1);
@@ -307,7 +307,7 @@ TEST_CASE("Loopback: connect, disconnect, reconnectAll", "[loopback][client]") {
 
   // reconnectAll: auto-reconnect
   REQUIRE_NOTHROW(client->reconnectAll());
-  REQUIRE(waitUntil([&]() { return conn->isOpen(); }, 8000));
+  REQUIRE(waitUntil([&]() { return conn->getState() == OPEN; }, 8000));
 
   // mute/unmute on an open connection
   // mute() sends StopDT asynchronously; state transitions to OPEN_MUTED only
@@ -340,7 +340,7 @@ TEST_CASE("Loopback: client clockSync, test, interrogation commands",
   auto conn = client->addConnection("127.0.0.1", port, INIT_NONE);
   client->start();
 
-  REQUIRE(waitUntil([&]() { return conn->isOpen(); }, 8000));
+  REQUIRE(waitUntil([&]() { return conn->getState() == OPEN; }, 8000));
 
   // clockSync success requires OPEN state + a server that replies
   bool cs = conn->clockSync(ca, true);
@@ -400,7 +400,7 @@ TEST_CASE("Loopback: client command transmit + read round trips",
   REQUIRE(clMeas != nullptr);
   client->start();
 
-  REQUIRE(waitUntil([&]() { return conn->isOpen(); }, 8000));
+  REQUIRE(waitUntil([&]() { return conn->getState() == OPEN; }, 8000));
 
   // client -> server single command (C_SC_NA_1) transmit; server must respond
   // ACT_CON (and ACT_TERM). Direct command returns on COMMAND_AWAIT_CON.
@@ -457,7 +457,7 @@ TEST_CASE("Loopback: server spontaneous + periodic transmit to real client",
              [&](py::object &cb) { clSpont->setOnReceiveCallback(cb); });
   client->start();
 
-  REQUIRE(waitUntil([&]() { return conn->isOpen(); }, 8000));
+  REQUIRE(waitUntil([&]() { return conn->getState() == OPEN; }, 8000));
   // Ensure the server has registered the connection as active (STARTDT
   // received) before testing periodic/spontaneous delivery, otherwise
   // sendPeriodicInventory may skip all stations on its first ticks.
@@ -526,7 +526,7 @@ TEST_CASE("Loopback: state-change + raw handlers + on_connect accept/reject",
   // accepted connection: on_connect returns True.
   // hasActiveConnections() is incremented when the server receives STARTDT,
   // which happens asynchronously after the client's isOpen() turns true.
-  bool opened = waitUntil([&]() { return conn->isOpen(); }, 8000);
+  bool opened = waitUntil([&]() { return conn->getState() == OPEN; }, 8000);
   REQUIRE(opened);
   REQUIRE(waitUntil([&]() { return server->hasActiveConnections(); }, 8000));
 
@@ -586,7 +586,7 @@ TEST_CASE("Loopback: server on_clock_sync via client clockSync",
   auto conn = client->addConnection("127.0.0.1", port, INIT_NONE);
   client->start();
 
-  REQUIRE(waitUntil([&]() { return conn->isOpen(); }, 8000));
+  REQUIRE(waitUntil([&]() { return conn->getState() == OPEN; }, 8000));
   bool cs = conn->clockSync(ca, true);
   REQUIRE(cs == true);
 
@@ -638,7 +638,7 @@ TEST_CASE("Loopback: TLS handshake over loopback socket",
   // TLS handshake is async; poll with a generous timeout. If the local build
   // does not support TLS the slave may fail to accept -> connection never
   // opens, guarded by [!mayfail].
-  bool opened = waitUntil([&]() { return conn->isOpen(); }, 8000);
+  bool opened = waitUntil([&]() { return conn->getState() == OPEN; }, 8000);
   if (opened) {
     // push some traffic over the encrypted channel
     bool cs = conn->clockSync(ca, true);

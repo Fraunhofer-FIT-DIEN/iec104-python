@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2024-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -121,8 +121,8 @@ void Information::setProcessedAt(std::chrono::system_clock::time_point val) {
 
 std::string Information::base_toString() const {
   std::ostringstream oss;
-  oss << "recorded_at=" << TimePoint_toString(recorded_at)
-      << ", processed_at=" << TimePoint_toString(processed_at)
+  oss << "recorded_at=" << TimePoint_toString(getRecordedAt())
+      << ", processed_at=" << TimePoint_toString(getProcessedAt())
       << ", readonly=" << bool_toString(readonly) << " at " << std::hex
       << std::showbase << reinterpret_cast<std::uintptr_t>(this);
   return oss.str();

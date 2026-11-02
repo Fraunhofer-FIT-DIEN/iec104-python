@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2024-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -32,6 +32,7 @@
 #ifndef C104_OBJECT_INFORMATION_H
 #define C104_OBJECT_INFORMATION_H
 
+#include <atomic>
 #include <mutex>
 #include <optional>
 #include <variant>
@@ -44,7 +45,7 @@ namespace Object {
 
 class Information : public std::enable_shared_from_this<Information> {
 private:
-  std::mutex mtx;
+  mutable std::mutex mtx;
 
 protected:
   /// @brief timestamp of information value generation, optional
@@ -54,7 +55,7 @@ protected:
   std::chrono::system_clock::time_point processed_at;
 
   /// @brief toggle, if modification is allowed or not
-  bool readonly;
+  std::atomic_bool readonly;
 
   /// @brief retrieve the primary value property - must be implemented by child
   /// classes
@@ -93,8 +94,9 @@ public:
   /// @brief update the primary quality property from variant
   virtual void setQuality(InfoQuality val);
 
-  [[nodiscard]] const std::optional<std::chrono::system_clock::time_point> &
+  [[nodiscard]] std::optional<std::chrono::system_clock::time_point>
   getRecordedAt() const {
+    std::lock_guard<std::mutex> lock(mtx);
     return recorded_at;
   }
 
@@ -102,6 +104,7 @@ public:
   setRecordedAt(std::optional<std::chrono::system_clock::time_point> val);
 
   [[nodiscard]] std::chrono::system_clock::time_point getProcessedAt() const {
+    std::lock_guard<std::mutex> lock(mtx);
     return processed_at;
   }
 

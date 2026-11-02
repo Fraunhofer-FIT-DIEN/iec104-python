@@ -32,6 +32,8 @@
 #ifndef C104_OBJECT_DATAPOINT_H
 #define C104_OBJECT_DATAPOINT_H
 
+#include <mutex>
+
 #include "module/Callback.h"
 #include "module/ScopedGilAcquire.h"
 #include "object/Information.h"
@@ -111,6 +113,10 @@ private:
   /// @brief parent Station object (not owning pointer)
   std::weak_ptr<Station> station;
 
+  /// @brief guards station, which is reset by detach() while other threads
+  /// read it
+  mutable std::mutex station_mutex;
+
   /// @brief IEC60870-5 remote address of a related measurement DataPoint,
   /// UNDEFINED_INFORMATION_OBJECT_ADDRESS if no related point is configured
   std::atomic_uint_fast32_t relatedInformationObjectAddress{
@@ -125,6 +131,10 @@ private:
 
   /// @brief abstract representation of information
   std::shared_ptr<Information> info{nullptr};
+
+  /// @brief guards the info pointer, which is replaced by the receive thread
+  /// while other threads read it
+  mutable std::mutex info_mutex;
 
   /// @brief steady clock to calculate nextReportAt
   std::atomic<std::chrono::steady_clock::time_point> lastSentAt;
@@ -415,7 +425,7 @@ public:
   std::string toString() const {
     std::ostringstream oss;
     oss << "<c104.Point io_address=" << std::to_string(informationObjectAddress)
-        << ", type=" << TypeID_toString(type) << ", info=" << info->name()
+        << ", type=" << TypeID_toString(type) << ", info=" << getInfo()->name()
         << ", report_ms=" << std::to_string(reportInterval_ms.load())
         << ", related_io_address=";
 

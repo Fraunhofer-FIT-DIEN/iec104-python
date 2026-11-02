@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -143,6 +143,12 @@ public:
    * @return information on operation success
    */
   void disconnect();
+
+  /**
+   * @brief Close the connection and release the reference to the owning
+   * client, called if the connection is removed from its client
+   */
+  void detach();
 
   /**
    * @brief Test if connection to remote server is open
@@ -497,6 +503,10 @@ private:
 
   /// @brief client object reference
   std::weak_ptr<Client> client{};
+
+  /// @brief guards client, which is reset by detach() while other threads
+  /// read it
+  mutable std::mutex client_mutex;
 
   /// @brief MUTEX Lock to access non atomic connection information
   mutable Module::GilAwareMutex connection_mutex{

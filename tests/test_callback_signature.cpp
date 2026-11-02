@@ -48,23 +48,23 @@ const char *kCallbackScript = R"(
 import c104
 
 # void callback: exact match for "() -> None"
-def _cb_void() -> None:
+def _sig_cb_void() -> None:
     pass
 
 # typed callback returning a ResponseState, exact match for "() -> c104.ResponseState"
-def _cb_state() -> c104.ResponseState:
+def _sig_cb_state() -> c104.ResponseState:
     return c104.ResponseState.SUCCESS
 
 # declared return annotation matches, but the runtime value is incompatible
-def _cb_state_bad_return() -> c104.ResponseState:
+def _sig_cb_state_bad_return() -> c104.ResponseState:
     return "not-a-response-state"
 
 # wrong parameter count -> signature mismatch for "() -> ..."
-def _cb_wrong_param_count(value: int) -> None:
+def _sig_cb_wrong_param_count(value: int) -> None:
     pass
 
 # wrong parameter type -> signature mismatch for "() -> ..."
-def _cb_wrong_param_type(value: str) -> None:
+def _sig_cb_wrong_param_type(value: str) -> None:
     pass
 )";
 
@@ -91,7 +91,7 @@ TEST_CASE("Callback<void>: valid signature registers and is set",
   ensureCallbacks();
   // Given: a callback expecting "() -> None" and a python callable matching it
   Module::Callback<void> cb{"test.void", "() -> None"};
-  py::object callable = getCallable("_cb_void");
+  py::object callable = getCallable("_sig_cb_void");
 
   // When: registering the matching callable
   REQUIRE_NOTHROW(cb.reset(callable));
@@ -105,7 +105,7 @@ TEST_CASE("Callback<void>: invalid parameter count throws and unsets",
   ensureCallbacks();
   // Given: NO parameters expected, but the callable declares one
   Module::Callback<void> cb{"test.void", "() -> None"};
-  py::object callable = getCallable("_cb_wrong_param_count");
+  py::object callable = getCallable("_sig_cb_wrong_param_count");
 
   // When: registering the mismatched callable
   // Then: an invalid_argument is thrown and the callback is left unset
@@ -118,7 +118,7 @@ TEST_CASE("Callback<void>: invalid parameter type throws and unsets",
   ensureCallbacks();
   // Given: NO parameters expected, but the callable declares a typed parameter
   Module::Callback<void> cb{"test.void", "() -> None"};
-  py::object callable = getCallable("_cb_wrong_param_type");
+  py::object callable = getCallable("_sig_cb_wrong_param_type");
 
   // When: registering the mismatched callable
   // Then: an invalid_argument is thrown and the callback is left unset
@@ -131,7 +131,7 @@ TEST_CASE("Callback<void>: resetting with None unsets without throwing",
   ensureCallbacks();
   // Given: a callback that is currently set
   Module::Callback<void> cb{"test.void", "() -> None"};
-  py::object callable = getCallable("_cb_void");
+  py::object callable = getCallable("_sig_cb_void");
   cb.reset(callable);
   REQUIRE(cb.is_set() == true);
 
@@ -153,7 +153,7 @@ TEST_CASE("Callback<T>: valid call returns true and getResult returns T",
   // Given: a typed callback and a callable returning a ResponseState
   Module::Callback<CommandResponseState> cb{"test.state",
                                             "() -> c104.ResponseState"};
-  py::object callable = getCallable("_cb_state");
+  py::object callable = getCallable("_sig_cb_state");
   cb.reset(callable);
   REQUIRE(cb.is_set() == true);
 
@@ -189,7 +189,7 @@ TEST_CASE("Callback<T>: incompatible return value unsets and loses the result",
   // ResponseState)
   Module::Callback<CommandResponseState> cb{"test.state",
                                             "() -> c104.ResponseState"};
-  py::object callable = getCallable("_cb_state_bad_return");
+  py::object callable = getCallable("_sig_cb_state_bad_return");
   REQUIRE_NOTHROW(cb.reset(callable));
   REQUIRE(cb.is_set() == true);
 

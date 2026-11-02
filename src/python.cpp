@@ -1656,6 +1656,31 @@ Example
 )def",
           "ip"_a, "port"_a = IEC_60870_5_104_DEFAULT_PORT, "init"_a = INIT_ALL)
       .def(
+          "remove_connection", &Client::removeConnection,
+          R"def(remove_connection(self: c104.Client, ip: str, port: int = 2404) -> bool
+
+close and remove an existing remote server connection from this client
+
+A removed connection cannot be connected again, add a new connection instead.
+
+Parameters
+----------
+ip: str
+    remote terminal units ip address
+port: int
+    remote terminal units port
+
+Returns
+-------
+bool
+    True if the connection was successfully removed, otherwise False.
+
+Example
+-------
+>>> my_client.remove_connection(ip="192.168.50.3", port=2406)
+)def",
+          "ip"_a, "port"_a = IEC_60870_5_104_DEFAULT_PORT)
+      .def(
           "get_connection",
           [](Client &client, const std::string ip, const int port,
              const int common_address) {
@@ -1915,7 +1940,7 @@ Example
       .def_property_readonly(
           "protocol_parameters", &Server::getParameters,
           "c104.ProtocolParameters: read and update protocol parameters",
-          py::return_value_policy::reference)
+          py::return_value_policy::reference_internal)
       .def_property("max_connections", &Server::getMaxOpenConnections,
                     &Server::setMaxOpenConnections,
                     "int: maximum number of open connections, 0 = no limit",
@@ -2284,7 +2309,7 @@ Example
       .def_property_readonly(
           "protocol_parameters", &Remote::Connection::getParameters,
           "c104.ProtocolParameters: read and update protocol parameters",
-          py::return_value_policy::reference)
+          py::return_value_policy::reference_internal)
       .def("connect", &Remote::Connection::connect,
            R"def(connect(self: c104.Connection) -> None
 
