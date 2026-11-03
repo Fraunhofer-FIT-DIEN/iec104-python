@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2026-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.

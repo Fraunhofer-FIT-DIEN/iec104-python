@@ -81,6 +81,36 @@ public:
                            recorded_at = std::nullopt,
                        bool readonly = false);
 
+  /**
+   * @brief copy the state of another instance, used by clone() only
+   * @details does not lock other.mtx, clone() holds it during the copy
+   */
+  Information(const Information &other)
+      : std::enable_shared_from_this<Information>(),
+        recorded_at(other.recorded_at), processed_at(other.processed_at),
+        readonly(other.readonly.load()) {}
+  Information &operator=(const Information &) = delete;
+
+  /**
+   * @brief create an independent deep copy of the same dynamic type
+   * @details used by DataPoint::setInfo(), so one python object assigned to
+   * several points never becomes shared mutable state, and normalising the
+   * timestamp never modifies the caller's object
+   * @return new instance with identical values
+   */
+  [[nodiscard]] std::shared_ptr<Information> clone() const {
+    std::lock_guard<std::mutex> lock(mtx);
+    return cloneUnlocked();
+  }
+
+  /**
+   * @brief copy this instance, caller holds mtx - must be implemented by
+   * child classes
+   */
+  [[nodiscard]] virtual std::shared_ptr<Information> cloneUnlocked() const {
+    return std::make_shared<Information>(*this);
+  }
+
   // destructor
   virtual ~Information() = default;
 
@@ -170,6 +200,10 @@ public:
   [[nodiscard]] static std::string name() { return "SingleInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<SingleInfo>(*this);
+  }
 };
 
 /**
@@ -219,6 +253,10 @@ public:
   [[nodiscard]] static std::string name() { return "SingleCmd"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<SingleCmd>(*this);
+  }
 };
 
 /**
@@ -256,6 +294,10 @@ public:
   [[nodiscard]] static std::string name() { return "DoubleInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<DoubleInfo>(*this);
+  }
 };
 
 /**
@@ -305,6 +347,10 @@ public:
   [[nodiscard]] static std::string name() { return "DoubleCmd"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<DoubleCmd>(*this);
+  }
 };
 
 /**
@@ -350,6 +396,10 @@ public:
   [[nodiscard]] static std::string name() { return "StepInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<StepInfo>(*this);
+  }
 };
 
 /**
@@ -399,6 +449,10 @@ public:
   [[nodiscard]] static std::string name() { return "StepCmd"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<StepCmd>(*this);
+  }
 };
 
 /**
@@ -436,6 +490,10 @@ public:
   [[nodiscard]] static std::string name() { return "BinaryInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<BinaryInfo>(*this);
+  }
 };
 
 /**
@@ -468,6 +526,10 @@ public:
   [[nodiscard]] static std::string name() { return "BinaryCmd"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<BinaryCmd>(*this);
+  }
 };
 
 /**
@@ -506,6 +568,10 @@ public:
   [[nodiscard]] static std::string name() { return "NormalizedInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<NormalizedInfo>(*this);
+  }
 };
 
 /**
@@ -553,6 +619,10 @@ public:
   [[nodiscard]] static std::string name() { return "NormalizedCmd"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<NormalizedCmd>(*this);
+  }
 };
 
 /**
@@ -590,6 +660,10 @@ public:
   [[nodiscard]] static std::string name() { return "ScaledInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<ScaledInfo>(*this);
+  }
 };
 
 /**
@@ -636,6 +710,10 @@ public:
   [[nodiscard]] static std::string name() { return "ScaledCmd"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<ScaledCmd>(*this);
+  }
 };
 
 /**
@@ -673,6 +751,10 @@ public:
   [[nodiscard]] static std::string name() { return "ShortInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<ShortInfo>(*this);
+  }
 };
 
 /**
@@ -718,6 +800,10 @@ public:
   [[nodiscard]] static std::string name() { return "ShortCmd"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<ShortCmd>(*this);
+  }
 };
 
 /**
@@ -764,6 +850,10 @@ public:
   [[nodiscard]] static std::string name() { return "BinaryCounterInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<BinaryCounterInfo>(*this);
+  }
 };
 
 /**
@@ -810,6 +900,10 @@ public:
   [[nodiscard]] static std::string name() { return "ProtectionEventInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<ProtectionEquipmentEventInfo>(*this);
+  }
 };
 
 /**
@@ -859,6 +953,10 @@ public:
   [[nodiscard]] static std::string name() { return "ProtectionStartInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<ProtectionEquipmentStartEventsInfo>(*this);
+  }
 };
 
 /**
@@ -908,6 +1006,10 @@ public:
   [[nodiscard]] static std::string name() { return "ProtectionCircuitInfo"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<ProtectionEquipmentOutputCircuitInfo>(*this);
+  }
 };
 
 /**
@@ -953,6 +1055,10 @@ public:
   [[nodiscard]] static std::string name() { return "StatusAndChanged"; }
 
   [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::shared_ptr<Information> cloneUnlocked() const override {
+    return std::make_shared<StatusWithChangeDetection>(*this);
+  }
 };
 
 };     // namespace Object

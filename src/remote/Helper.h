@@ -67,6 +67,19 @@ bool isSingleCommonAddress(std::uint_fast16_t commonAddress);
 bool isGlobalCommonAddress(std::uint_fast16_t commonAddress);
 
 /**
+ * @brief deep copy an ASDU that references the given application layer
+ * parameters instead of the parameters of the source ASDU
+ * @details CS101_ASDU_clone keeps the parameter pointer of the source, so a
+ * clone can never outlive the owner of the source parameters. Use this helper
+ * whenever the copy must be bound to a different (longer living) parameter
+ * block.
+ * @param source ASDU to copy
+ * @param parameters parameter block the copy refers to, must outlive the copy
+ * @return heap allocated ASDU (free via CS101_ASDU_destroy) or nullptr
+ */
+CS101_ASDU cloneAsdu(CS101_ASDU source, CS101_AppLayerParameters parameters);
+
+/**
  * @brief convert a raw message byte stream to a humanly readable string
  * @param msg pointer to first character of message
  * @param msgSize character count of message

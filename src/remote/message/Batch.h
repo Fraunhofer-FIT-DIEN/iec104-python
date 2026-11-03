@@ -1,5 +1,5 @@
 /**
- * Copyright 2025-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2025-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -156,7 +156,7 @@ private:
         const std::optional<Object::DataPointVector> &points);
 
   /// @brief contained DataPoint objects (non-owned)
-  std::map<std::uint_fast16_t, std::weak_ptr<Object::DataPoint>> pointMap{};
+  std::map<std::uint_fast32_t, std::weak_ptr<Object::DataPoint>> pointMap{};
 
   /// @brief mutex to lock member read/write access
   mutable Module::GilAwareMutex points_mutex{"Batch::points_mutex"};

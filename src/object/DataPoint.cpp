@@ -122,6 +122,7 @@ DataPoint::DataPoint(const std::uint_fast32_t dp_ioa,
     info = std::make_shared<DoubleCmd>(IEC60870_DOUBLE_POINT_OFF, false,
                                        CS101_QualifierOfCommand::NONE,
                                        std::nullopt, false);
+    break;
   case C_DC_TA_1:
     info = std::make_shared<DoubleCmd>(IEC60870_DOUBLE_POINT_OFF, false,
                                        CS101_QualifierOfCommand::NONE,
@@ -338,6 +339,14 @@ std::shared_ptr<Information> DataPoint::getInfo() const {
 
 void DataPoint::setInfo(std::shared_ptr<Object::Information> new_info) {
   bool const debug = DEBUG_TEST(Debug::Point);
+
+  if (!new_info) {
+    throw std::invalid_argument("Information must not be None");
+  }
+  // store a private copy: the caller's object is never modified by the
+  // timestamp normalisation below, and assigning the same object to several
+  // points does not make them share mutable state
+  new_info = new_info->clone();
 
   switch (type) {
   case M_SP_NA_1: {
@@ -1132,7 +1141,9 @@ CommandResponseState DataPoint::onReceive(
     // the handler sees the new value via point and the old one via prev;
     // fail closed: a raising handler or an invalid return value rejects the
     // message, the handler itself stays registered
-    res = py_onReceive.call(shared_from_this(), prev, message)
+    // a snapshot: moving its cursor from Python must not affect the caller's
+    // iteration over the message
+    res = py_onReceive.call(shared_from_this(), prev, message->snapshot())
               .value_or(RESPONSE_STATE_FAILURE);
   }
 

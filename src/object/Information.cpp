@@ -37,6 +37,9 @@ Information::Information(
     const std::optional<std::chrono::system_clock::time_point> recorded_at,
     const bool readonly)
     : recorded_at(recorded_at), readonly(readonly) {
+  if (recorded_at.has_value()) {
+    Assert_CP56Time2a(recorded_at.value());
+  }
   processed_at = std::chrono::system_clock::now();
 };
 
@@ -109,6 +112,9 @@ void Information::setRecordedAt(
     std::optional<std::chrono::system_clock::time_point> val) {
   if (readonly) {
     return;
+  }
+  if (val.has_value()) {
+    Assert_CP56Time2a(val.value());
   }
   std::lock_guard<std::mutex> lock(mtx);
   recorded_at = val;

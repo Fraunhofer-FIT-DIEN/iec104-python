@@ -43,6 +43,17 @@ Breaking changes
   (previously: the result of the certificate load was ignored and directories passed the existence check, so the handshakes failed later without a hint).
   **TransportSecurity.set_certificate** can be called only once per instance, a second call raises ``ValueError`` (previously it failed with a misleading passphrase error).
   If the certificate fails to load after the private key was accepted, the instance cannot be repaired: further calls and passing it to a server or client raise ``ValueError``; create a new instance.
+- **BC TransportSecurity rejects unusable TLS versions and NULL ciphers** \
+  **TransportSecurity.set_version** raises ``ValueError`` for ``SSL_3_0``, ``TLS_1_0`` and ``TLS_1_1`` (not supported by the bundled mbedtls, such a configuration could never complete a handshake) and if ``max`` is lower than ``min``.
+  ``min=NOT_SELECTED`` now keeps the TLS 1.2 floor instead of removing it.
+  **TransportSecurity.set_ciphers** raises ``ValueError`` for cipher suites without encryption (``*_WITH_NULL_*``).
+- **BC Client freezes its TransportSecurity on creation** \
+  As documented, a **TransportSecurity** instance becomes read-only as soon as it is passed to **c104.Client** (previously only at the first **Client.add_connection**).
+- **BC Point.info stores a copy** \
+  Assigning an information object to **Point.info** stores a private copy. The assigned object is no longer modified (e.g. its timestamp is no longer dropped or injected to match the point type),
+  and assigning the same object to several points no longer makes them share their value.
+- **BC timestamps must be representable as CP56Time2a** \
+  ``recorded_at`` values before 2000-01-01 or from 2100-01-01 (UTC) raise ``ValueError`` (previously: pre-1970 timestamps encoded uninitialised stack bytes into the message, other years were silently wrapped into 2000..2099).
 
 Fixes
 ^^^^^^
@@ -81,6 +92,21 @@ Fixes
 - fix race condition in **Client.originator_address** setter, which iterated the connection list without lock while connections could be added or removed concurrently (use after free)
 - fix crash (division by zero) in **Station.add_point** with ``report_ms`` if the station's server or client no longer exists; **Station.add_point** now raises ``RuntimeError`` for such an orphaned station
 - import on Windows no longer runs ``chcp 65001`` via ``system()`` (spawned ``cmd.exe`` resolving ``chcp`` from the current directory, flashed a console window in GUI apps and also changed the console input code page); the console output code page is set to UTF-8 via ``SetConsoleOutputCP`` instead
+- fix global common address check for incoming messages: only the broadcast commands (interrogation, counter interrogation, clock sync, reset process) may use common address 65535, other messages with it are rejected as documented
+- fix **Batch** treating information object addresses >= 65536 as their lower 16 bits ("Point already added" for distinct points, wrong sequence detection)
+- fix use after free when an **IncomingMessage** received in a callback is kept and used (e.g. ``message.raw``, ``message.next()``) after its client, server or connection was destroyed
+- fix messages passed to callbacks sharing the element pointer with the internal processing: they are independent copies now, so ``message.first()`` inside **Point.on_receive** can no longer cause an endless loop
+- fix responses to read commands (and the ``RETURN_INFO_REMOTE`` auto return of related points) being sent to every connected client instead of the requesting one only
+- fix unbounded memory growth if an **on_receive_raw**, **on_send_raw** or **on_unexpected_message** callback is slower than the incoming frame rate: at most 10000 notifications are queued per server or client, further ones are dropped with a rate-limited warning on stderr
+- fix raw message callbacks truncating frames longer than 255 bytes
+- fix concurrent **Client.add_connection** or automatic station creation adding the same connection or station twice
+- fix rare hang in **Server.stop()** / **Client.stop()** caused by a lost wake-up of the internal run loop
+- fix **NormalizedFloat** accepting ``NaN`` and integer number classes overflowing during arithmetic with large operands
+- fix initial value of a **C_DC_NA_1** point carrying a timestamp
+- fix **Server.max_connections** setter writing the lib60870 configuration while the server is running; a lower limit now applies to new connections immediately, a higher one at the next start
+- **c104.Server** validates the bind address (IPv4) and port; port 65535 is accepted for servers and connections
+- fix process abort if a callback argument cannot be converted to Python, if releasing a callback fails, or if a callback is released on a background thread while the interpreter shuts down
+- document that ``TransportSecurity(validate=False, only_known=False)`` performs no peer authentication, that **TransportSecurity.set_renegotiation_time(None)** only disables locally initiated renegotiation, and recommend **TransportSecurity.set_hostname_verification** with CA based validation
 
 
 v2.2.1

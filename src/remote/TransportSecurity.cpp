@@ -39,6 +39,33 @@ static void debug_handler(void *ctx, int level, const char *file, int line,
   fprintf(stderr, "[c104.TransportSecurity] TLS(%d): %s", level, str);
 }
 
+bool TransportSecurity::isNullCipherSuite(const TLSCipherSuite cipher) {
+  switch (cipher) {
+  case TLSCipherSuite::RSA_WITH_NULL_MD5:
+  case TLSCipherSuite::RSA_WITH_NULL_SHA:
+  case TLSCipherSuite::PSK_WITH_NULL_SHA:
+  case TLSCipherSuite::DHE_PSK_WITH_NULL_SHA:
+  case TLSCipherSuite::RSA_PSK_WITH_NULL_SHA:
+  case TLSCipherSuite::RSA_WITH_NULL_SHA256:
+  case TLSCipherSuite::PSK_WITH_NULL_SHA256:
+  case TLSCipherSuite::PSK_WITH_NULL_SHA384:
+  case TLSCipherSuite::DHE_PSK_WITH_NULL_SHA256:
+  case TLSCipherSuite::DHE_PSK_WITH_NULL_SHA384:
+  case TLSCipherSuite::RSA_PSK_WITH_NULL_SHA256:
+  case TLSCipherSuite::RSA_PSK_WITH_NULL_SHA384:
+  case TLSCipherSuite::ECDH_ECDSA_WITH_NULL_SHA:
+  case TLSCipherSuite::ECDHE_ECDSA_WITH_NULL_SHA:
+  case TLSCipherSuite::ECDH_RSA_WITH_NULL_SHA:
+  case TLSCipherSuite::ECDHE_RSA_WITH_NULL_SHA:
+  case TLSCipherSuite::ECDHE_PSK_WITH_NULL_SHA:
+  case TLSCipherSuite::ECDHE_PSK_WITH_NULL_SHA256:
+  case TLSCipherSuite::ECDHE_PSK_WITH_NULL_SHA384:
+    return true;
+  default:
+    return false;
+  }
+}
+
 void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
                                      int eventCode, const char *msg,
                                      TLSConnection con) {
@@ -115,14 +142,20 @@ TransportSecurity::~TransportSecurity() {
   }
 }
 
-void TransportSecurity::setCertificate(const std::string &cert,
-                                       const std::string &key,
-                                       const std::string &passphrase) {
+void TransportSecurity::assertWritable() const {
+  // caller holds config_mutex, so no setter can run concurrently with get()
   if (readonly.load()) {
     throw std::invalid_argument(
         "The configuration has already been passed to a client or server and "
         "can no longer be modified.");
   }
+}
+
+void TransportSecurity::setCertificate(const std::string &cert,
+                                       const std::string &key,
+                                       const std::string &passphrase) {
+  std::lock_guard<std::mutex> const lock(config_mutex);
+  assertWritable();
   if (cert.empty()) {
     throw std::invalid_argument("Missing value for cert argument");
   }
@@ -137,7 +170,6 @@ void TransportSecurity::setCertificate(const std::string &cert,
     throw std::invalid_argument("Provided key filepath does not exist: " + key);
   }
 
-  std::lock_guard<std::mutex> const lock(own_certificate_mutex);
   // lib60870 offers no way to clear the own certificate chain or key: a second
   // key load is rejected by mbedtls and a second certificate load would be
   // appended to the chain, so the own identity can be configured only once
@@ -178,11 +210,8 @@ void TransportSecurity::setCertificate(const std::string &cert,
 }
 
 void TransportSecurity::setCACertificate(const std::string &cert) {
-  if (readonly.load()) {
-    throw std::invalid_argument(
-        "The configuration has already been passed to a client or server and "
-        "can no longer be modified.");
-  }
+  std::lock_guard<std::mutex> const lock(config_mutex);
+  assertWritable();
   if (cert.empty()) {
     throw std::invalid_argument("Missing value for cert argument");
   }
@@ -199,13 +228,16 @@ void TransportSecurity::setCACertificate(const std::string &cert) {
 
 void TransportSecurity::setCipherSuites(
     const std::vector<TLSCipherSuite> &ciphers) {
-  if (readonly.load()) {
-    throw std::invalid_argument(
-        "The configuration has already been passed to a client or server and "
-        "can no longer be modified.");
-  }
+  std::lock_guard<std::mutex> const lock(config_mutex);
+  assertWritable();
   if (ciphers.empty()) {
     throw std::invalid_argument("Missing value for allowed ciphers");
+  }
+  for (const auto &cipher : ciphers) {
+    if (isNullCipherSuite(cipher)) {
+      throw std::invalid_argument(
+          "Cipher suites without encryption (*_WITH_NULL_*) are not allowed");
+    }
   }
 
   TLSConfiguration_clearCipherSuiteList(config);
@@ -217,11 +249,8 @@ void TransportSecurity::setCipherSuites(
 
 void TransportSecurity::setRenegotiationTime(
     const std::optional<std::chrono::milliseconds> &interval) {
-  if (readonly.load()) {
-    throw std::invalid_argument(
-        "The configuration has already been passed to a client or server and "
-        "can no longer be modified.");
-  }
+  std::lock_guard<std::mutex> const lock(config_mutex);
+  assertWritable();
   if (interval.has_value()) {
     if (interval.value() < std::chrono::minutes(5) ||
         interval.value() > std::chrono::hours(24)) {
@@ -237,16 +266,13 @@ void TransportSecurity::setRenegotiationTime(
 
 void TransportSecurity::setResumptionInterval(
     const std::optional<std::chrono::seconds> &interval) {
-  if (readonly.load()) {
-    throw std::invalid_argument(
-        "The configuration has already been passed to a client or server and "
-        "can no longer be modified.");
-  }
+  std::lock_guard<std::mutex> const lock(config_mutex);
+  assertWritable();
   if (interval.has_value()) {
     if (interval.value() < std::chrono::minutes(5) ||
         interval.value() > std::chrono::hours(168)) {
       throw std::invalid_argument(
-          "The value must be between 1 second and 7 days.");
+          "The value must be between 5 minutes and 7 days.");
     }
     // default: 6 hours
     TLSConfiguration_enableSessionResumption(config, true);
@@ -258,11 +284,8 @@ void TransportSecurity::setResumptionInterval(
 }
 
 void TransportSecurity::addAllowedRemoteCertificate(const std::string &cert) {
-  if (readonly.load()) {
-    throw std::invalid_argument(
-        "The configuration has already been passed to a client or server and "
-        "can no longer be modified.");
-  }
+  std::lock_guard<std::mutex> const lock(config_mutex);
+  assertWritable();
   if (cert.empty()) {
     throw std::invalid_argument("Missing value for cert argument");
   }
@@ -277,11 +300,8 @@ void TransportSecurity::addAllowedRemoteCertificate(const std::string &cert) {
 
 void TransportSecurity::setHostnameVerification(
     std::optional<std::string> hostname) {
-  if (readonly.load()) {
-    throw std::invalid_argument(
-        "The configuration has already been passed to a client or server and "
-        "can no longer be modified.");
-  }
+  std::lock_guard<std::mutex> const lock(config_mutex);
+  assertWritable();
   if (hostname.has_value()) {
     if (hostname.value().empty()) {
       throw std::invalid_argument("Provided hostname is empty, please provide "
@@ -299,18 +319,31 @@ void TransportSecurity::setHostnameVerification(
 
 void TransportSecurity::setVersion(const TLSConfigVersion min,
                                    const TLSConfigVersion max) {
-  if (readonly.load()) {
-    throw std::invalid_argument(
-        "The configuration has already been passed to a client or server and "
-        "can no longer be modified.");
+  std::lock_guard<std::mutex> const lock(config_mutex);
+  assertWritable();
+  // SSL 3.0, TLS 1.0 and TLS 1.1 do not exist in mbedtls 3.x, such a config
+  // can never complete a handshake
+  for (const auto version : {min, max}) {
+    if (version != TLS_VERSION_NOT_SELECTED && version < TLS_VERSION_TLS_1_2) {
+      throw std::invalid_argument(
+          "TLS versions below 1.2 are not supported, use TLS_1_2 or TLS_1_3");
+    }
   }
-  TLSConfiguration_setMinTlsVersion(config, min);
+  if (min != TLS_VERSION_NOT_SELECTED && max != TLS_VERSION_NOT_SELECTED &&
+      max < min) {
+    throw std::invalid_argument(
+        "The maximum TLS version must not be lower than the minimum version");
+  }
+  // NOT_SELECTED as minimum keeps lib60870's TLS 1.2 floor instead of removing
+  // it
+  TLSConfiguration_setMinTlsVersion(
+      config, min == TLS_VERSION_NOT_SELECTED ? TLS_VERSION_TLS_1_2 : min);
   TLSConfiguration_setMaxTlsVersion(config, max);
 }
 
 TLSConfiguration TransportSecurity::get() {
   {
-    std::lock_guard<std::mutex> const lock(own_certificate_mutex);
+    std::lock_guard<std::mutex> const lock(config_mutex);
     if (ownCertificateState == OwnCertificateState::FAILED) {
       throw std::invalid_argument(
           "Loading the own certificate failed, the TransportSecurity "

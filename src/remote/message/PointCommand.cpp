@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -44,104 +44,107 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
 
   case C_SC_NA_1: {
     auto i = std::dynamic_pointer_cast<Object::SingleCmd>(info);
-    io = (InformationObject)SingleCommand_create(
-        nullptr, informationObjectAddress, i->isOn(), select,
-        static_cast<uint8_t>(i->getQualifier()));
+    io = reinterpret_cast<InformationObject>(
+        SingleCommand_create(nullptr, informationObjectAddress, i->isOn(),
+                             select, static_cast<uint8_t>(i->getQualifier())));
   } break;
 
   case C_SC_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::SingleCmd>(info);
     sCP56Time2a time{};
     from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
-    io = (InformationObject)SingleCommandWithCP56Time2a_create(
+    io = reinterpret_cast<InformationObject>(SingleCommandWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->isOn(), select,
-        static_cast<uint8_t>(i->getQualifier()), &time);
+        static_cast<uint8_t>(i->getQualifier()), &time));
   } break;
 
   case C_DC_NA_1: {
     auto i = std::dynamic_pointer_cast<Object::DoubleCmd>(info);
-    io = (InformationObject)DoubleCommand_create(
-        nullptr, informationObjectAddress, i->getState(), select,
-        static_cast<uint8_t>(i->getQualifier()));
+    io = reinterpret_cast<InformationObject>(
+        DoubleCommand_create(nullptr, informationObjectAddress, i->getState(),
+                             select, static_cast<uint8_t>(i->getQualifier())));
   } break;
 
   case C_DC_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::DoubleCmd>(info);
     sCP56Time2a time{};
     from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
-    io = (InformationObject)DoubleCommandWithCP56Time2a_create(
+    io = reinterpret_cast<InformationObject>(DoubleCommandWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getState(), select,
-        static_cast<uint8_t>(i->getQualifier()), &time);
+        static_cast<uint8_t>(i->getQualifier()), &time));
   } break;
 
   case C_RC_NA_1: {
     auto i = std::dynamic_pointer_cast<Object::StepCmd>(info);
-    io = (InformationObject)StepCommand_create(
-        nullptr, informationObjectAddress, i->getStep(), select,
-        static_cast<uint8_t>(i->getQualifier()));
+    io = reinterpret_cast<InformationObject>(
+        StepCommand_create(nullptr, informationObjectAddress, i->getStep(),
+                           select, static_cast<uint8_t>(i->getQualifier())));
   } break;
 
   case C_RC_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::StepCmd>(info);
     sCP56Time2a time{};
     from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
-    io = (InformationObject)StepCommandWithCP56Time2a_create(
+    io = reinterpret_cast<InformationObject>(StepCommandWithCP56Time2a_create(
         nullptr, informationObjectAddress, i->getStep(), select,
-        static_cast<uint8_t>(i->getQualifier()), &time);
+        static_cast<uint8_t>(i->getQualifier()), &time));
   } break;
 
   case C_BO_NA_1: {
     auto i = std::dynamic_pointer_cast<Object::BinaryCmd>(info);
-    io = (InformationObject)Bitstring32Command_create(
-        nullptr, informationObjectAddress, i->getBlob().get());
+    io = reinterpret_cast<InformationObject>(Bitstring32Command_create(
+        nullptr, informationObjectAddress, i->getBlob().get()));
   } break;
 
   case C_BO_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::BinaryCmd>(info);
     sCP56Time2a time{};
     from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
-    io = (InformationObject)Bitstring32CommandWithCP56Time2a_create(
-        nullptr, informationObjectAddress, i->getBlob().get(), &time);
+    io = reinterpret_cast<InformationObject>(
+        Bitstring32CommandWithCP56Time2a_create(
+            nullptr, informationObjectAddress, i->getBlob().get(), &time));
   } break;
 
   case C_SE_NA_1: {
     auto i = std::dynamic_pointer_cast<Object::NormalizedCmd>(info);
-    io = (InformationObject)SetpointCommandNormalized_create(
+    io = reinterpret_cast<InformationObject>(SetpointCommandNormalized_create(
         nullptr, informationObjectAddress, i->getTarget().get(), select,
-        i->getQualifier().get());
+        i->getQualifier().get()));
   } break;
 
   case C_SE_TA_1: {
     auto i = std::dynamic_pointer_cast<Object::NormalizedCmd>(info);
     sCP56Time2a time{};
     from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
-    io = (InformationObject)SetpointCommandNormalizedWithCP56Time2a_create(
-        nullptr, informationObjectAddress, i->getTarget().get(), select,
-        i->getQualifier().get(), &time);
+    io = reinterpret_cast<InformationObject>(
+        SetpointCommandNormalizedWithCP56Time2a_create(
+            nullptr, informationObjectAddress, i->getTarget().get(), select,
+            i->getQualifier().get(), &time));
   } break;
 
   case C_SE_NB_1: {
     auto i = std::dynamic_pointer_cast<Object::ScaledCmd>(info);
-    io = (InformationObject)SetpointCommandScaled_create(
+    io = reinterpret_cast<InformationObject>(SetpointCommandScaled_create(
         nullptr, informationObjectAddress, i->getTarget().get(), select,
-        i->getQualifier().get());
+        i->getQualifier().get()));
   } break;
 
   case C_SE_TB_1: {
     auto i = std::dynamic_pointer_cast<Object::ScaledCmd>(info);
     sCP56Time2a time{};
     from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
-    io = (InformationObject)SetpointCommandScaledWithCP56Time2a_create(
-        nullptr, informationObjectAddress, i->getTarget().get(), select,
-        i->getQualifier().get(), &time);
+    io = reinterpret_cast<InformationObject>(
+        SetpointCommandScaledWithCP56Time2a_create(
+            nullptr, informationObjectAddress, i->getTarget().get(), select,
+            i->getQualifier().get(), &time));
   } break;
 
     // float Setpoint Command (SHORT)
   case C_SE_NC_1: {
     auto i = std::dynamic_pointer_cast<Object::ShortCmd>(info);
-    io = (InformationObject)SetpointCommandShort_create(
+    io = reinterpret_cast<InformationObject>(SetpointCommandShort_create(
         nullptr, informationObjectAddress, i->getTarget(), select,
-        i->getQualifier().get());
+        i->getQualifier().get()));
   } break;
 
     // float Setpoint Command (SHORT) + Extended Time
@@ -149,9 +152,10 @@ PointCommand::PointCommand(std::shared_ptr<Object::DataPoint> point,
     auto i = std::dynamic_pointer_cast<Object::ShortCmd>(info);
     sCP56Time2a time{};
     from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
-    io = (InformationObject)SetpointCommandShortWithCP56Time2a_create(
-        nullptr, informationObjectAddress, i->getTarget(), select,
-        i->getQualifier().get(), &time);
+    io = reinterpret_cast<InformationObject>(
+        SetpointCommandShortWithCP56Time2a_create(
+            nullptr, informationObjectAddress, i->getTarget(), select,
+            i->getQualifier().get(), &time));
   } break;
 
   default:
@@ -166,50 +170,54 @@ PointCommand::~PointCommand() {
 
   switch (type) {
   case C_SC_NA_1:
-    SingleCommand_destroy((SingleCommand)io);
+    SingleCommand_destroy(reinterpret_cast<SingleCommand>(io));
     break;
   case C_SC_TA_1:
-    SingleCommandWithCP56Time2a_destroy((SingleCommandWithCP56Time2a)io);
+    SingleCommandWithCP56Time2a_destroy(
+        reinterpret_cast<SingleCommandWithCP56Time2a>(io));
     break;
   case C_DC_NA_1:
-    DoubleCommand_destroy((DoubleCommand)io);
+    DoubleCommand_destroy(reinterpret_cast<DoubleCommand>(io));
     break;
   case C_DC_TA_1:
-    DoubleCommandWithCP56Time2a_destroy((DoubleCommandWithCP56Time2a)io);
+    DoubleCommandWithCP56Time2a_destroy(
+        reinterpret_cast<DoubleCommandWithCP56Time2a>(io));
     break;
   case C_RC_NA_1:
-    StepCommand_destroy((StepCommand)io);
+    StepCommand_destroy(reinterpret_cast<StepCommand>(io));
     break;
   case C_RC_TA_1:
-    StepCommandWithCP56Time2a_destroy((StepCommandWithCP56Time2a)io);
+    StepCommandWithCP56Time2a_destroy(
+        reinterpret_cast<StepCommandWithCP56Time2a>(io));
     break;
   case C_BO_NA_1:
-    Bitstring32Command_destroy((Bitstring32Command)io);
+    Bitstring32Command_destroy(reinterpret_cast<Bitstring32Command>(io));
     break;
   case C_BO_TA_1:
     Bitstring32CommandWithCP56Time2a_destroy(
-        (Bitstring32CommandWithCP56Time2a)io);
+        reinterpret_cast<Bitstring32CommandWithCP56Time2a>(io));
     break;
   case C_SE_NA_1:
-    SetpointCommandNormalized_destroy((SetpointCommandNormalized)io);
+    SetpointCommandNormalized_destroy(
+        reinterpret_cast<SetpointCommandNormalized>(io));
     break;
   case C_SE_TA_1:
     SetpointCommandNormalizedWithCP56Time2a_destroy(
-        (SetpointCommandNormalizedWithCP56Time2a)io);
+        reinterpret_cast<SetpointCommandNormalizedWithCP56Time2a>(io));
     break;
   case C_SE_NB_1:
-    SetpointCommandScaled_destroy((SetpointCommandScaled)io);
+    SetpointCommandScaled_destroy(reinterpret_cast<SetpointCommandScaled>(io));
     break;
   case C_SE_TB_1:
     SetpointCommandScaledWithCP56Time2a_destroy(
-        (SetpointCommandScaledWithCP56Time2a)io);
+        reinterpret_cast<SetpointCommandScaledWithCP56Time2a>(io));
     break;
   case C_SE_NC_1:
-    SetpointCommandShort_destroy((SetpointCommandShort)io);
+    SetpointCommandShort_destroy(reinterpret_cast<SetpointCommandShort>(io));
     break;
   case C_SE_TC_1:
     SetpointCommandShortWithCP56Time2a_destroy(
-        (SetpointCommandShortWithCP56Time2a)io);
+        reinterpret_cast<SetpointCommandShortWithCP56Time2a>(io));
     break;
   default:
     std::cerr << "[c104.PointCommand] Unsupported type "

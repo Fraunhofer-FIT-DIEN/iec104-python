@@ -66,11 +66,19 @@ public:
   [[nodiscard]] virtual int getMax() const { return 0; }
 
   // Overloading operators with different types
-  virtual int operator+(const int &other) const { return value + other; }
+  // arithmetic is done in long long: int operands from Python may be close to
+  // INT_MAX, and signed int overflow is undefined behaviour
+  virtual int operator+(const int &other) const {
+    return narrow(static_cast<long long>(value) + other);
+  }
 
-  virtual int operator-(const int &other) const { return value - other; }
+  virtual int operator-(const int &other) const {
+    return narrow(static_cast<long long>(value) - other);
+  }
 
-  virtual int operator*(const int &other) const { return value * other; }
+  virtual int operator*(const int &other) const {
+    return narrow(static_cast<long long>(value) * other);
+  }
 
   virtual int operator/(const int &other) const {
     if (other == 0) {
@@ -80,17 +88,17 @@ public:
   }
 
   LimitedInteger &operator+=(const int &other) {
-    value = check_range(value + other);
+    value = check_range(static_cast<long long>(value) + other);
     return *this;
   }
 
   LimitedInteger &operator-=(const int &other) {
-    value = check_range(value - other);
+    value = check_range(static_cast<long long>(value) - other);
     return *this;
   }
 
   LimitedInteger &operator*=(const int &other) {
-    value = check_range(value * other);
+    value = check_range(static_cast<long long>(value) * other);
     return *this;
   }
 
@@ -128,12 +136,24 @@ protected:
    * @throws std::overflow_error If the value is outside the range defined by
    * getMin() and getMax().
    */
-  [[nodiscard]] T check_range(int v) const {
+  [[nodiscard]] T check_range(long long v) const {
     if (v < getMin() || v > getMax()) {
       throw std::overflow_error(
           "Value does not fit into this specific integer representation.");
     }
-    return v;
+    return static_cast<T>(v);
+  }
+
+  /**
+   * @brief convert an intermediate result back to int
+   * @throws std::overflow_error if the result does not fit into an int
+   */
+  [[nodiscard]] static int narrow(long long v) {
+    if (v < std::numeric_limits<int>::min() ||
+        v > std::numeric_limits<int>::max()) {
+      throw std::overflow_error("Result does not fit into an integer.");
+    }
+    return static_cast<int>(v);
   }
 };
 
@@ -462,7 +482,8 @@ protected:
    * getMin() and getMax().
    */
   [[nodiscard]] float check_range(float v) const {
-    if (v < getMin() || v > getMax()) {
+    // written as a negated in-range test so that NaN is rejected as well
+    if (!(v >= getMin() && v <= getMax())) {
       throw std::overflow_error(
           "Value does not fit into this specific float representation.");
     }

@@ -36,6 +36,7 @@
 
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
+#include "module/TaskLimiter.h"
 #include "remote/Connection.h"
 #include "remote/TransportSecurity.h"
 
@@ -113,7 +114,7 @@ public:
    * connections.
    * @return True if there are active connections, otherwise false.
    */
-  bool hasConnections();
+  bool hasConnections() const;
 
   /**
    * @brief Test if Client has open connections to clients
@@ -211,13 +212,13 @@ public:
   /**
    * @brief reestablish lost connections
    */
-  void reconnectAll();
+  void reconnectAll() const;
 
   /**
    * @brief close all connections to remote servers
    * @return information on operation success
    */
-  void disconnectAll();
+  void disconnectAll() const;
 
   /**
    * @brief set python callback that will be executed on incoming message from
@@ -308,6 +309,23 @@ public:
   void scheduleTask(const std::function<void()> &task,
                     std::int_fast32_t delay = 0);
 
+  /**
+   * @brief reserve a slot for a task that notifies Python about a peer frame
+   * @param what notification name used in the drop warning
+   * @return token to capture in the task, or nullptr if the notification has
+   * to be dropped because too many notifications are pending
+   */
+  Module::TaskLimiter::Token acquireNotificationToken(const char *what) {
+    return notificationLimiter.acquire(what);
+  }
+
+  /**
+   * @brief access the limiter of peer frame notification tasks (testing)
+   */
+  const Module::TaskLimiter &getNotificationLimiter() const {
+    return notificationLimiter;
+  }
+
 private:
   /**
    * @brief Create a new remote connection handler instance that acts as a
@@ -357,6 +375,10 @@ private:
   Remote::ConnectionVector connections;
 
   std::priority_queue<Task> tasks;
+
+  /// @brief bounds tasks fed by peer frames, see SECURITY.md L7
+  Module::TaskLimiter notificationLimiter{
+      "c104.Client", Module::MAX_PENDING_NOTIFICATION_TASKS};
 
   /// @brief client thread to execute reconnects
   std::thread *runThread = nullptr;

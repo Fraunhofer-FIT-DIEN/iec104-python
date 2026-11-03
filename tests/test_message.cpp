@@ -339,11 +339,8 @@ TEST_CASE("IncomingMessage rejects file transfer types",
 
 TEST_CASE("IncomingMessage global common address rejected when reachable",
           "[remote::message::incoming]") {
-  // The guard is `type < C_IC_NA_1 && type > C_RP_NA_1`; with
-  // C_IC_NA_1=100 < C_RP_NA_1=105 this range is empty in the enum, so the
-  // branch is currently unreachable. This test documents the intent: a
-  // non-command type with a global common address would be rejected there.
-  // We still craft one to keep the path exercised if the guard is ever fixed.
+  // SECURITY.md L1: the guard used `&&` and was unreachable; only the
+  // broadcast commands C_IC_NA_1..C_RP_NA_1 may use the global CA 65535
   sCS101_AppLayerParameters params = defaultAppLayerParameters();
   CS101_ASDU asdu = CS101_ASDU_create(&params, false, CS101_COT_SPONTANEOUS, 0,
                                       65535, false, false);
@@ -352,9 +349,19 @@ TEST_CASE("IncomingMessage global common address rejected when reachable",
       (InformationObject)SinglePointInformation_create(nullptr, 1, true, 0);
   CS101_ASDU_addInformationObject(asdu, io);
   InformationObject_destroy(io);
-  // currently passes (the guard is empty) - documents behaviour
-  REQUIRE_NOTHROW(IncomingMessage::create(asdu, &params));
+  REQUIRE_THROWS_AS(IncomingMessage::create(asdu, &params),
+                    std::invalid_argument);
   CS101_ASDU_destroy(asdu);
+
+  // a global interrogation with the global CA stays valid
+  CS101_ASDU gi = CS101_ASDU_create(&params, false, CS101_COT_ACTIVATION, 0,
+                                    65535, false, false);
+  auto qoi = (InformationObject)InterrogationCommand_create(
+      nullptr, 0, IEC60870_QOI_STATION);
+  CS101_ASDU_addInformationObject(gi, qoi);
+  InformationObject_destroy(qoi);
+  REQUIRE_NOTHROW(IncomingMessage::create(gi, &params));
+  CS101_ASDU_destroy(gi);
 }
 
 TEST_CASE("IncomingMessage requireConfirmation / isSelectCommand",
@@ -1064,10 +1071,10 @@ TEST_CASE("PointMessage over monitoring types",
        }},
       {M_SP_TB_1,
        [](auto p) {
-         p->setInfo(
-             Object::SingleInfo::create(true, Quality::None,
-                                        std::chrono::system_clock::time_point(
-                                            std::chrono::milliseconds(1000))));
+         p->setInfo(Object::SingleInfo::create(
+             true, Quality::None,
+             std::chrono::system_clock::time_point(
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {M_DP_NA_1,
        [](auto p) {
@@ -1076,10 +1083,10 @@ TEST_CASE("PointMessage over monitoring types",
        }},
       {M_DP_TB_1,
        [](auto p) {
-         p->setInfo(
-             Object::DoubleInfo::create(IEC60870_DOUBLE_POINT_ON, Quality::None,
-                                        std::chrono::system_clock::time_point(
-                                            std::chrono::milliseconds(1000))));
+         p->setInfo(Object::DoubleInfo::create(
+             IEC60870_DOUBLE_POINT_ON, Quality::None,
+             std::chrono::system_clock::time_point(
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {M_ST_NA_1,
        [](auto p) {
@@ -1088,10 +1095,10 @@ TEST_CASE("PointMessage over monitoring types",
        }},
       {M_ST_TB_1,
        [](auto p) {
-         p->setInfo(
-             Object::StepInfo::create(LimitedInt7(3), false, Quality::None,
-                                      std::chrono::system_clock::time_point(
-                                          std::chrono::milliseconds(1000))));
+         p->setInfo(Object::StepInfo::create(
+             LimitedInt7(3), false, Quality::None,
+             std::chrono::system_clock::time_point(
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {M_BO_NA_1,
        [](auto p) {
@@ -1099,10 +1106,10 @@ TEST_CASE("PointMessage over monitoring types",
        }},
       {M_BO_TB_1,
        [](auto p) {
-         p->setInfo(
-             Object::BinaryInfo::create(Byte32(0xCAFE), Quality::None,
-                                        std::chrono::system_clock::time_point(
-                                            std::chrono::milliseconds(1000))));
+         p->setInfo(Object::BinaryInfo::create(
+             Byte32(0xCAFE), Quality::None,
+             std::chrono::system_clock::time_point(
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {M_ME_NA_1,
        [](auto p) {
@@ -1114,7 +1121,7 @@ TEST_CASE("PointMessage over monitoring types",
          p->setInfo(Object::NormalizedInfo::create(
              NormalizedFloat(0.5f), Quality::None,
              std::chrono::system_clock::time_point(
-                 std::chrono::milliseconds(1000))));
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {M_ME_NB_1,
        [](auto p) {
@@ -1123,10 +1130,10 @@ TEST_CASE("PointMessage over monitoring types",
        }},
       {M_ME_TE_1,
        [](auto p) {
-         p->setInfo(
-             Object::ScaledInfo::create(LimitedInt16(42), Quality::None,
-                                        std::chrono::system_clock::time_point(
-                                            std::chrono::milliseconds(1000))));
+         p->setInfo(Object::ScaledInfo::create(
+             LimitedInt16(42), Quality::None,
+             std::chrono::system_clock::time_point(
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {M_ME_NC_1,
        [](auto p) {
@@ -1134,10 +1141,10 @@ TEST_CASE("PointMessage over monitoring types",
        }},
       {M_ME_TF_1,
        [](auto p) {
-         p->setInfo(
-             Object::ShortInfo::create(3.14f, Quality::None,
-                                       std::chrono::system_clock::time_point(
-                                           std::chrono::milliseconds(1000))));
+         p->setInfo(Object::ShortInfo::create(
+             3.14f, Quality::None,
+             std::chrono::system_clock::time_point(
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {M_IT_NA_1,
        [](auto p) {
@@ -1149,7 +1156,7 @@ TEST_CASE("PointMessage over monitoring types",
          p->setInfo(Object::BinaryCounterInfo::create(
              1234, LimitedUInt5(2), BinaryCounterQuality::None,
              std::chrono::system_clock::time_point(
-                 std::chrono::milliseconds(1000))));
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {M_EP_TD_1,
        [](auto p) {
@@ -1218,10 +1225,10 @@ TEST_CASE("PointCommand over control types (select and execute)",
        }},
       {C_SC_TA_1,
        [](auto p) {
-         p->setInfo(
-             Object::SingleCmd::create(true, CS101_QualifierOfCommand::NONE,
-                                       std::chrono::system_clock::time_point(
-                                           std::chrono::milliseconds(1000))));
+         p->setInfo(Object::SingleCmd::create(
+             true, CS101_QualifierOfCommand::NONE,
+             std::chrono::system_clock::time_point(
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {C_DC_NA_1,
        [](auto p) {
@@ -1233,7 +1240,7 @@ TEST_CASE("PointCommand over control types (select and execute)",
          p->setInfo(Object::DoubleCmd::create(
              IEC60870_DOUBLE_POINT_ON, CS101_QualifierOfCommand::NONE,
              std::chrono::system_clock::time_point(
-                 std::chrono::milliseconds(1000))));
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {C_RC_NA_1,
        [](auto p) {
@@ -1245,7 +1252,7 @@ TEST_CASE("PointCommand over control types (select and execute)",
          p->setInfo(Object::StepCmd::create(
              IEC60870_STEP_HIGHER, CS101_QualifierOfCommand::NONE,
              std::chrono::system_clock::time_point(
-                 std::chrono::milliseconds(1000))));
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {C_BO_NA_1,
        [](auto p) { p->setInfo(Object::BinaryCmd::create(Byte32(0xCAFE))); }},
@@ -1253,7 +1260,7 @@ TEST_CASE("PointCommand over control types (select and execute)",
        [](auto p) {
          p->setInfo(Object::BinaryCmd::create(
              Byte32(0xCAFE), std::chrono::system_clock::time_point(
-                                 std::chrono::milliseconds(1000))));
+                                 std::chrono::milliseconds(1711111111000))));
        }},
       {C_SE_NA_1,
        [](auto p) {
@@ -1265,7 +1272,7 @@ TEST_CASE("PointCommand over control types (select and execute)",
          p->setInfo(Object::NormalizedCmd::create(
              NormalizedFloat(0.5f), LimitedUInt7(0),
              std::chrono::system_clock::time_point(
-                 std::chrono::milliseconds(1000))));
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {C_SE_NB_1,
        [](auto p) {
@@ -1274,10 +1281,10 @@ TEST_CASE("PointCommand over control types (select and execute)",
        }},
       {C_SE_TB_1,
        [](auto p) {
-         p->setInfo(
-             Object::ScaledCmd::create(LimitedInt16(42), LimitedUInt7(0),
-                                       std::chrono::system_clock::time_point(
-                                           std::chrono::milliseconds(1000))));
+         p->setInfo(Object::ScaledCmd::create(
+             LimitedInt16(42), LimitedUInt7(0),
+             std::chrono::system_clock::time_point(
+                 std::chrono::milliseconds(1711111111000))));
        }},
       {C_SE_NC_1,
        [](auto p) {
@@ -1285,10 +1292,10 @@ TEST_CASE("PointCommand over control types (select and execute)",
        }},
       {C_SE_TC_1,
        [](auto p) {
-         p->setInfo(
-             Object::ShortCmd::create(3.14f, LimitedUInt7(0),
-                                      std::chrono::system_clock::time_point(
-                                          std::chrono::milliseconds(1000))));
+         p->setInfo(Object::ShortCmd::create(
+             3.14f, LimitedUInt7(0),
+             std::chrono::system_clock::time_point(
+                 std::chrono::milliseconds(1711111111000))));
        }},
   };
 

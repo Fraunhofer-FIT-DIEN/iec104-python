@@ -1,5 +1,5 @@
 /**
- * Copyright 2025-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2025-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -142,7 +142,7 @@ bool Batch::isSequence() const {
     return true;
   }
 
-  uint_fast16_t previousKey = it->first;
+  std::uint_fast32_t previousKey = it->first;
   ++it;
 
   for (; it != pointMap.end(); ++it) {

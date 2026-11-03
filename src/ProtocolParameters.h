@@ -91,38 +91,38 @@ public:
   int getSendWindowSize() const;
   /// @throws std::invalid_argument if out of range or below w
   /// @throws std::runtime_error if the owner is running
-  void setSendWindowSize(int value);
+  void setSendWindowSize(int value) const;
 
   /// @brief receive window size w: unconfirmed incoming I-frames before
   /// acknowledging
   int getReceiveWindowSize() const;
   /// @throws std::invalid_argument if out of range or above k
   /// @throws std::runtime_error if the owner is running
-  void setReceiveWindowSize(int value);
+  void setReceiveWindowSize(int value) const;
 
   /// @brief t0: socket connection timeout in seconds
   int getConnectionTimeout() const;
   /// @throws std::invalid_argument if out of range
   /// @throws std::runtime_error if the owner is running
-  void setConnectionTimeout(int value);
+  void setConnectionTimeout(int value) const;
 
   /// @brief t1: timeout for sent messages to be acknowledged in seconds
   int getMessageTimeout() const;
   /// @throws std::invalid_argument if out of range
   /// @throws std::runtime_error if the owner is running
-  void setMessageTimeout(int value);
+  void setMessageTimeout(int value) const;
 
   /// @brief t2: maximum interval to acknowledge received messages in seconds
   int getConfirmInterval() const;
   /// @throws std::invalid_argument if out of range
   /// @throws std::runtime_error if the owner is running
-  void setConfirmInterval(int value);
+  void setConfirmInterval(int value) const;
 
   /// @brief t3: maximum silent interval before sending a test frame in seconds
   int getKeepAliveInterval() const;
   /// @throws std::invalid_argument if out of range
   /// @throws std::runtime_error if the owner is running
-  void setKeepAliveInterval(int value);
+  void setKeepAliveInterval(int value) const;
 
   /**
    * @brief the underlying lib60870 parameter block

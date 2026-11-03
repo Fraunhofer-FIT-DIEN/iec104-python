@@ -38,6 +38,7 @@
 
 #include "module/Callback.h"
 #include "module/GilAwareMutex.h"
+#include "module/TaskLimiter.h"
 #include "object/Station.h"
 #include "remote/TransportSecurity.h"
 #include "remote/message/IncomingMessage.h"
@@ -269,7 +270,8 @@ public:
   /**
    * @brief Retrieves a Station that exists on this Server, identified by the
    * given information object address.
-   * @param ca The common address (CA) that uniquely identifies the Station.
+   * @param commonAddress The common address (CA) that uniquely identifies the
+   * Station.
    * @return A shared pointer to the Station if it exists, or nullptr if no
    * matching Station is found.
    */
@@ -320,7 +322,7 @@ public:
    * @param msg Pointer to the raw message data received.
    * @param msgSize Size of the raw message data received in bytes.
    */
-  void onReceiveRaw(unsigned char *msg, unsigned char msgSize);
+  void onReceiveRaw(unsigned char *msg, int msgSize);
 
   /**
    * @brief set python callback that will be executed on outgoing message
@@ -334,7 +336,7 @@ public:
    * @param msg Pointer to the raw message data received.
    * @param msgSize Size of the raw message data received in bytes.
    */
-  void onSendRaw(unsigned char *msg, unsigned char msgSize);
+  void onSendRaw(unsigned char *msg, int msgSize);
 
   /**
    * @brief set python callback that will be executed on incoming clock sync
@@ -407,22 +409,30 @@ public:
    * @param point datapoint that should be send via server
    * @param cause reason for transmission
    * @param originator address of originator
+   * @param connection answer only this client (e.g. a read request), nullptr
+   * broadcasts to all clients
+   * @param connectionId stable id of connection (see getConnectionId()), the
+   * message is dropped if the connection object was reused by another peer
    * @return information on operation success
    * @throws std::invalid_argument if point type is not supported for this
    * operation
    */
   bool transmit(std::shared_ptr<Object::DataPoint> point,
-                CS101_CauseOfTransmission cause, uint_fast8_t originator = 0);
+                CS101_CauseOfTransmission cause, uint_fast8_t originator = 0,
+                IMasterConnection connection = nullptr,
+                std::optional<std::uint64_t> connectionId = std::nullopt);
 
   /**
    * @brief send a message object to a remote client
    * @param message message that should be send via server
    * @param connection send to a single client identified via internal
    * connection object
+   * @param connectionId stable id of connection (see getConnectionId())
    * @return information on operation success
    */
   bool send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
-            IMasterConnection connection = nullptr);
+            IMasterConnection connection = nullptr,
+            std::optional<std::uint64_t> connectionId = std::nullopt);
 
   /**
    * @brief Sends a batch of messages to connected clients
@@ -446,7 +456,7 @@ public:
    *         otherwise false.
    */
   bool sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
-                 IMasterConnection connection = nullptr);
+                 IMasterConnection connection = nullptr) const;
 
   /**
    * @brief Sends an activation confirmation ASDU to the master connection.
@@ -502,7 +512,7 @@ public:
    * that specifies the reason for sending the initialization message.
    */
   void sendEndOfInitialization(std::uint_fast16_t commonAddress,
-                               CS101_CauseOfInitialization cause);
+                               CS101_CauseOfInitialization cause) const;
 
   /**
    * @brief Send periodic measurement broadcasts
@@ -535,6 +545,23 @@ public:
   void scheduleTask(const std::function<void()> &task,
                     std::int_fast32_t delay = 0);
 
+  /**
+   * @brief reserve a slot for a task that notifies Python about a peer frame
+   * @param what notification name used in the drop warning
+   * @return token to capture in the task, or nullptr if the notification has
+   * to be dropped because too many notifications are pending
+   */
+  Module::TaskLimiter::Token acquireNotificationToken(const char *what) {
+    return notificationLimiter.acquire(what);
+  }
+
+  /**
+   * @brief access the limiter of peer frame notification tasks (testing)
+   */
+  const Module::TaskLimiter &getNotificationLimiter() const {
+    return notificationLimiter;
+  }
+
 private:
   /**
    * @brief Create a new remote connection handler instance that acts as a
@@ -544,6 +571,7 @@ private:
    * @param tcp_port port for listening to connections from clients
    * @param tick_rate_ms Interval in milliseconds between two cyclic measurement
    * transmissions
+   * @param select_timeout_ms Interval in milliseconds until a select times out
    * @param max_open_connections maximum number of allowed open connections
    * @param transport_security communication encryption instance reference
    */
@@ -755,6 +783,10 @@ private:
   std::atomic_uint_fast8_t maxOpenConnections{0};
 
   std::priority_queue<Task> tasks;
+
+  /// @brief bounds tasks fed by peer frames, see SECURITY.md L7
+  Module::TaskLimiter notificationLimiter{
+      "c104.Server", Module::MAX_PENDING_NOTIFICATION_TASKS};
 
   /// @brief server thread to execute periodic transmission
   std::thread *runThread = nullptr;

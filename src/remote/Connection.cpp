@@ -53,8 +53,8 @@ Connection::Connection(
     std::shared_ptr<Remote::TransportSecurity> transport_security,
     const uint_fast8_t originator_address)
     : client(_client), security(std::move(transport_security)),
-      instanceKey(Module::nextCallbackKey()), ip(_ip), port(_port), init(_init),
-      commandTimeout_ms(command_timeout_ms) {
+      instanceKey(Module::nextCallbackKey()),
+      commandTimeout_ms(command_timeout_ms), ip(_ip), port(_port), init(_init) {
   Assert_IPv4(_ip);
   Assert_Port(_port);
 
@@ -273,7 +273,7 @@ bool Connection::isOpen() const {
 
 bool Connection::isMuted() const { return state == OPEN_MUTED; }
 
-bool Connection::mute() {
+bool Connection::mute() const {
   Module::ScopedGilRelease const scoped("Connection.mute");
 
   if (!isOpen())
@@ -288,7 +288,7 @@ bool Connection::mute() {
   return true;
 }
 
-bool Connection::unmute() {
+bool Connection::unmute() const {
   Module::ScopedGilRelease const scoped("Connection.unmute");
 
   if (!isOpen())
@@ -402,7 +402,7 @@ void Connection::setOpen() {
     return;
   }
 
-  connectionCount++;
+  ++connectionCount;
   connectedAt.store(std::chrono::system_clock::now());
   // set the state before scheduling unmute: the task may run immediately and
   // unmute() does nothing unless the connection is already open
@@ -552,7 +552,6 @@ void Connection::setCommandSuccess(
   TypeID const type = message->getCauseOfTransmission() == CS101_COT_REQUEST
                           ? C_RD_NA_1
                           : message->getType();
-  ConnectionState const current = state.load();
   bool found = false;
 
   std::string cmdId = std::to_string(message->getCommonAddress()) + "-" +
@@ -691,14 +690,18 @@ bool Connection::hasStation(const std::uint_fast16_t commonAddress) const {
 
 std::shared_ptr<Object::Station>
 Connection::addStation(std::uint_fast16_t commonAddress) {
-  if (hasStation(commonAddress)) {
-    return {nullptr};
+  // check and insert under the same lock: the receive thread (auto-created
+  // stations) and Python may add the same CA concurrently
+  std::lock_guard<Module::GilAwareMutex> const lock(stations_mutex);
+  for (const auto &s : stations) {
+    if (s->getCommonAddress() == commonAddress) {
+      return {nullptr};
+    }
   }
 
   DEBUG_PRINT(Debug::Connection,
               "add_station] CA " + std::to_string(commonAddress));
 
-  std::lock_guard<Module::GilAwareMutex> const lock(stations_mutex);
   auto station =
       Object::Station::create(commonAddress, nullptr, shared_from_this());
 
@@ -714,19 +717,16 @@ bool Connection::removeStation(std::uint_fast16_t commonAddress) {
 
   size_t originalSize = stations.size();
 
-  // Use std::remove_if to find and remove the entry
-  stations.erase(
-      std::remove_if(
-          stations.begin(), stations.end(),
-          [commonAddress](const std::shared_ptr<Object::Station> &station) {
-            // Check if the current DataPoint matches the provided address
-            if (station->getCommonAddress() == commonAddress) {
-              station->detach();
-              return true;
-            }
-            return false;
-          }),
-      stations.end());
+  // Use std::erase_if to find and remove the entry
+  std::erase_if(stations, [commonAddress](
+                              const std::shared_ptr<Object::Station> &station) {
+    // Check if the current DataPoint matches the provided address
+    if (station->getCommonAddress() == commonAddress) {
+      station->detach();
+      return true;
+    }
+    return false;
+  });
 
   return (stations.size() < originalSize); // Success if the size decreased
 }
@@ -746,23 +746,31 @@ std::shared_ptr<ProtocolParameters> Connection::getParameters() const {
       "first");
 }
 
-void Connection::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
+void Connection::onReceiveRaw(unsigned char *msg, int msgSize) {
+  if (msgSize <= 0 || !msg) {
+    return;
+  }
   if (py_onReceiveRaw.is_set()) {
     if (auto c = getClient()) {
+      auto token = c->acquireNotificationToken("on_receive_raw");
+      if (!token) {
+        return; // dropped, the callback cannot keep up with the frame rate
+      }
       // create a copy
-      auto cp = std::shared_ptr<char[]>(new char[msgSize]);
-      memcpy(cp.get(), msg, msgSize);
+      const auto size = static_cast<std::size_t>(msgSize);
+      auto cp = std::shared_ptr<char[]>(new char[size]);
+      memcpy(cp.get(), msg, size);
 
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask([weakSelf, cp, msgSize]() {
+      c->scheduleTask([weakSelf, cp, size, token]() {
         auto self = weakSelf.lock();
         if (!self)
           return; // Prevent running if `this` was destroyed
 
         DEBUG_PRINT(Debug::Connection, "CALLBACK on_receive_raw");
         Module::ScopedGilAcquire const scoped("Connection.on_receive_raw");
-        self->py_onReceiveRaw.call(self, py::bytes(cp.get(), msgSize));
+        self->py_onReceiveRaw.call(self, py::bytes(cp.get(), size));
       });
     }
   }
@@ -772,23 +780,31 @@ void Connection::setOnSendRawCallback(py::object &callable) {
   py_onSendRaw.reset(callable);
 }
 
-void Connection::onSendRaw(unsigned char *msg, unsigned char msgSize) {
+void Connection::onSendRaw(unsigned char *msg, int msgSize) {
+  if (msgSize <= 0 || !msg) {
+    return;
+  }
   if (py_onSendRaw.is_set()) {
     if (auto c = getClient()) {
+      auto token = c->acquireNotificationToken("on_send_raw");
+      if (!token) {
+        return; // dropped, the callback cannot keep up with the frame rate
+      }
       // create a copy
-      auto cp = std::shared_ptr<char[]>(new char[msgSize]);
-      memcpy(cp.get(), msg, msgSize);
+      const auto size = static_cast<std::size_t>(msgSize);
+      auto cp = std::shared_ptr<char[]>(new char[size]);
+      memcpy(cp.get(), msg, size);
 
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask([weakSelf, cp, msgSize]() {
+      c->scheduleTask([weakSelf, cp, size, token]() {
         auto self = weakSelf.lock();
         if (!self)
           return; // Prevent running if `this` was destroyed
 
         DEBUG_PRINT(Debug::Connection, "CALLBACK on_send_raw");
         Module::ScopedGilAcquire const scoped("Connection.on_send_raw");
-        self->py_onSendRaw.call(self, py::bytes(cp.get(), msgSize));
+        self->py_onSendRaw.call(self, py::bytes(cp.get(), size));
       });
     }
   }
@@ -803,19 +819,25 @@ void Connection::onUnexpectedMessage(
     UnexpectedMessageCause cause) {
   if (py_onUnexpectedMessage.is_set()) {
     if (auto c = getClient()) {
-
+      auto token = c->acquireNotificationToken("on_unexpected_message");
+      if (!token) {
+        return; // dropped, the callback cannot keep up with the frame rate
+      }
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask([weakSelf, message, cause]() {
-        auto self = weakSelf.lock();
-        if (!self)
-          return; // Prevent running if `this` was destroyed
+      // snapshot: the task runs concurrently with the receive loop that keeps
+      // iterating the original message
+      c->scheduleTask(
+          [weakSelf, message = message->snapshot(), cause, token]() {
+            auto self = weakSelf.lock();
+            if (!self)
+              return; // Prevent running if `this` was destroyed
 
-        DEBUG_PRINT(Debug::Connection, "CALLBACK on_unexpected_message");
-        Module::ScopedGilAcquire const scoped(
-            "Connection.on_unexpected_message");
-        self->py_onUnexpectedMessage.call(self, message, cause);
-      });
+            DEBUG_PRINT(Debug::Connection, "CALLBACK on_unexpected_message");
+            Module::ScopedGilAcquire const scoped(
+                "Connection.on_unexpected_message");
+            self->py_onUnexpectedMessage.call(self, message, cause);
+          });
     }
   }
 }
@@ -1084,7 +1106,7 @@ bool Connection::read(std::shared_ptr<Object::DataPoint> point,
 /* Callback handler to log sent or received messages (optional) */
 void Connection::rawMessageHandler(void *parameter, uint_fast8_t *msg,
                                    const int msgSize, const bool sent) {
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   bool const debug = DEBUG_TEST(Debug::Connection);
   if (debug) {
     begin = std::chrono::steady_clock::now();
@@ -1108,10 +1130,9 @@ void Connection::rawMessageHandler(void *parameter, uint_fast8_t *msg,
   }
 
   if (debug) {
-    end = std::chrono::steady_clock::now();
     DEBUG_PRINT_CONDITION(true, Debug::Connection,
                           "raw_message_handler] Stats | TOTAL " +
-                              TICTOC(begin, end));
+                              TICTOCNOW(begin));
   }
 }
 
@@ -1120,7 +1141,7 @@ void Connection::connectionHandler(void *parameter, CS104_Connection connection,
   // NEEDS TO BE THREAD SAFE!
   // For CS104 the address parameter has to be ignored
   // NEEDS TO BE ABSOLUTELY NON_BLOCKING
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   bool const debug = DEBUG_TEST(Debug::Connection);
   if (debug) {
     begin = std::chrono::steady_clock::now();
@@ -1160,17 +1181,16 @@ void Connection::connectionHandler(void *parameter, CS104_Connection connection,
   }
 
   if (debug) {
-    end = std::chrono::steady_clock::now();
     DEBUG_PRINT_CONDITION(true, Debug::Connection,
                           "connection_handler] Connection " +
                               ConnectionEvent_toString(event) + " to " +
                               instance->getConnectionString() + " | TOTAL " +
-                              TICTOC(begin, end));
+                              TICTOCNOW(begin));
   }
 }
 
 bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
-  std::chrono::steady_clock::time_point begin, end;
+  std::chrono::steady_clock::time_point begin;
   bool const debug = DEBUG_TEST(Debug::Connection);
   if (debug) {
     begin = std::chrono::steady_clock::now();
@@ -1298,12 +1318,11 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
     }
 
     if (debug) {
-      end = std::chrono::steady_clock::now();
       DEBUG_PRINT_CONDITION(
           true, Debug::Connection,
           "asduHandler] Report Stats | Handled " + bool_toString(handled) +
               " | Type " + std::string(TypeID_toString(type)) + " | CA " +
-              std::to_string(commonAddress) + " | TOTAL " + TICTOC(begin, end));
+              std::to_string(commonAddress) + " | TOTAL " + TICTOCNOW(begin));
     }
 
   } catch (const std::exception &e) {

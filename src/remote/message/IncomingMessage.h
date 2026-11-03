@@ -106,6 +106,16 @@ public:
   bool next();
 
   /**
+   * @brief Create an independent copy positioned at the same information
+   * object
+   * @details Python callbacks receive a snapshot instead of the message that
+   * is being iterated internally, so moving the cursor via first() or next()
+   * from Python cannot disturb (or endlessly restart) the internal loop.
+   * @return new message with its own ASDU copy and cursor
+   */
+  [[nodiscard]] std::shared_ptr<IncomingMessage> snapshot() const;
+
+  /**
    * @brief test if the cause of transmission is compatible with information
    * type
    * @return if cause is valid
@@ -138,10 +148,18 @@ private:
   explicit IncomingMessage(CS101_ASDU packet,
                            CS101_AppLayerParameters app_layer_parameters);
 
+  /**
+   * @brief move the cursor to the given information object position
+   * @param pos position, an invalid position marks the cursor as invalid
+   */
+  void seek(std::uint_fast8_t pos);
+
   /// @brief IEC60870-5-104 asdu struct
   CS101_ASDU asdu;
 
-  const CS101_AppLayerParameters parameters;
+  /// @brief private copy of the application layer parameters, referenced by
+  /// the cloned asdu (must not point into the owner, see SECURITY.md L3)
+  sCS101_AppLayerParameters parameters{};
 
   ///< @brief MUTEX Lock to change extracted information object position
   mutable Module::GilAwareMutex position_mutex{

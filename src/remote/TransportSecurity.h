@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025 Fraunhofer Institute for Applied Information Technology
+ * Copyright 2020-2026 Fraunhofer Institute for Applied Information Technology
  * FIT
  *
  * This file is part of iec104-python.
@@ -189,6 +189,13 @@ public:
    */
   TLSConfiguration get();
 
+  /**
+   * @brief test if a cipher suite offers no encryption (*_WITH_NULL_*)
+   * @param cipher cipher suite to test
+   * @return true if the suite transmits plaintext
+   */
+  static bool isNullCipherSuite(TLSCipherSuite cipher);
+
 private:
   /**
    * @brief Constructs a TransportSecurity instance with specified validation
@@ -217,11 +224,18 @@ private:
   /// @brief progress of the one-shot own certificate + key load
   enum class OwnCertificateState { NONE, LOADED, FAILED };
 
-  /// @brief own certificate state, guarded by own_certificate_mutex
+  /// @brief own certificate state, guarded by config_mutex
   OwnCertificateState ownCertificateState{OwnCertificateState::NONE};
 
-  /// @brief serializes setCertificate() calls and get()
-  std::mutex own_certificate_mutex;
+  /// @brief serializes all setters against each other and against get(), so
+  /// the readonly check and the modification of config are atomic
+  std::mutex config_mutex;
+
+  /**
+   * @brief throw if the configuration is readonly, caller holds config_mutex
+   * @throws std::invalid_argument if get() was already called
+   */
+  void assertWritable() const;
 
   /// @brief python callback for TLS security events
   Module::Callback<void> py_onEvent{
@@ -241,7 +255,7 @@ public:
    */
   std::string toString() const {
     std::ostringstream oss;
-    oss << "<104.TransportSecurity at " << std::hex << std::showbase
+    oss << "<c104.TransportSecurity at " << std::hex << std::showbase
         << reinterpret_cast<std::uintptr_t>(this) << ">";
     return oss.str();
   };

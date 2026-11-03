@@ -37,8 +37,6 @@
 #include "module/ScopedGilRelease.h"
 #include "module/ThreadOwner.h"
 #include "remote/Helper.h"
-#include "remote/message/IncomingMessage.h"
-#include "remote/message/OutgoingMessage.h"
 
 using namespace Remote;
 using namespace std::chrono_literals;
@@ -50,6 +48,11 @@ Client::Client(const std::uint_fast16_t tick_rate_ms,
       security(std::move(transport_security)) {
   if (tickRate_ms < 50)
     throw std::range_error("tickRate_ms must be 50 or greater");
+  if (security) {
+    // freeze the configuration now, as documented, instead of at the first
+    // add_connection(); also rejects a half-loaded own certificate early
+    security->get();
+  }
   DEBUG_PRINT(Debug::Client, "Created");
 }
 
@@ -138,9 +141,11 @@ void Client::start() {
 }
 
 void Client::stopRunThread() {
-  if (running.load()) {
-    runThread_wait.notify_all();
-  }
+  // enabled is already false: pass through the mutex so that the run thread is
+  // either before its predicate check or blocked in wait(), then wake it.
+  // Notify unconditionally, running may not be set yet by a fresh thread.
+  { std::lock_guard<std::mutex> const lock(runThread_mutex); }
+  runThread_wait.notify_all();
 
   if (runThread) {
     runThread->join();
@@ -190,7 +195,7 @@ std::uint_fast8_t Client::getOriginatorAddress() const {
   return originatorAddress.load();
 }
 
-bool Client::hasConnections() {
+bool Client::hasConnections() const {
   std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
 
   return !connections.empty();
@@ -282,16 +287,22 @@ Client::getConnectionFromCommonAddress(const std::uint_fast16_t commonAddress) {
 std::shared_ptr<Remote::Connection>
 Client::addConnection(const std::string &ip, const uint_fast16_t port,
                       const ConnectionInit init) {
-  if (hasConnection(ip, port)) {
-    std::cerr << "[c104.Client] add_connection] Connection already exists"
-              << std::endl;
-    return {nullptr};
+  std::string const conStr = Remote::connectionStringFormatter(ip, port);
+
+  // check and insert under the same lock, concurrent calls must not add the
+  // same connection twice
+  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
+  for (const auto &c : connections) {
+    if (c->getConnectionString() == conStr) {
+      std::cerr << "[c104.Client] add_connection] Connection already exists"
+                << std::endl;
+      return {nullptr};
+    }
   }
 
   DEBUG_PRINT(Debug::Client,
               "add_connection] IP " + ip + " | PORT " + std::to_string(port));
 
-  std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
   auto connection = Remote::Connection::create(
       shared_from_this(), ip, port, commandTimeout_ms, init, security,
       originatorAddress.load());
@@ -307,10 +318,9 @@ bool Client::removeConnection(const std::string &ip,
   std::shared_ptr<Remote::Connection> removed;
   {
     std::lock_guard<Module::GilAwareMutex> const lock(connections_mutex);
-    auto it = std::find_if(connections.begin(), connections.end(),
-                           [&conStr](const auto &c) {
-                             return c->getConnectionString() == conStr;
-                           });
+    const auto it = std::ranges::find_if(connections, [&conStr](const auto &c) {
+      return c->getConnectionString() == conStr;
+    });
     if (it == connections.end()) {
       return false;
     }
@@ -326,7 +336,7 @@ bool Client::removeConnection(const std::string &ip,
   return true;
 }
 
-void Client::reconnectAll() {
+void Client::reconnectAll() const {
   Module::ScopedGilRelease const scoped("Client.reconnectAll");
 
   std::lock_guard<Module::GilAwareMutex> const con_lock(connections_mutex);
@@ -336,7 +346,7 @@ void Client::reconnectAll() {
   }
 }
 
-void Client::disconnectAll() {
+void Client::disconnectAll() const {
   Module::ScopedGilRelease const scoped("Client.disconnectAll");
 
   std::lock_guard<Module::GilAwareMutex> const con_lock(connections_mutex);
@@ -484,8 +494,11 @@ void Client::thread_run() {
 
     {
       std::unique_lock<std::mutex> lock(runThread_mutex);
+      // predicates re-check the state under the lock: a notify_all() from
+      // stopRunThread() that fires before wait() is entered is not lost
       if (tasks.empty()) {
-        runThread_wait.wait(lock);
+        runThread_wait.wait(
+            lock, [this] { return !enabled.load() || !tasks.empty(); });
         continue;
       }
       const auto top = tasks.top();
@@ -506,7 +519,10 @@ void Client::thread_run() {
         task = top.function;
         tasks.pop();
       } else {
-        runThread_wait.wait_until(lock, top.schedule_time);
+        runThread_wait.wait_until(lock, top.schedule_time, [this, &top] {
+          return !enabled.load() ||
+                 tasks.top().schedule_time < top.schedule_time;
+        });
         continue;
       }
     }

@@ -183,8 +183,9 @@ TEST_CASE("Connection create with invalid port throws", "[connection]") {
   auto client = Client::create();
   REQUIRE_THROWS_AS(client->addConnection("127.0.0.1", 0),
                     std::invalid_argument);
-  REQUIRE_THROWS_AS(client->addConnection("127.0.0.1", 65535),
-                    std::invalid_argument);
+  // 65535 is a valid port (SECURITY.md L12), the uint16 parameter cannot
+  // carry anything larger
+  REQUIRE(client->addConnection("127.0.0.1", 65535) != nullptr);
 }
 
 TEST_CASE("Connection basic getters", "[connection]") {

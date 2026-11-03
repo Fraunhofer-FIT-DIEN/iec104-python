@@ -219,6 +219,14 @@ void from_time_point(CP56Time2a time,
                      std::chrono::system_clock::time_point time_point);
 
 /**
+ * @brief Validates that a time point can be encoded as CP56Time2a.
+ * @param time_point time to test
+ * @throws std::invalid_argument if the time is before 2000-01-01 or not before
+ * 2100-01-01 (UTC), the two digit year of CP56Time2a cannot represent it
+ */
+void Assert_CP56Time2a(std::chrono::system_clock::time_point time_point);
+
+/**
  * @brief Represents a task with a name, description, and completion status.
  *
  * Provides functionality to manage and query the task's state, including

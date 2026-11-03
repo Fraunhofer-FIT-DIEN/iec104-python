@@ -32,6 +32,7 @@
 #ifndef C104_MODULE_CALLBACK_H
 #define C104_MODULE_CALLBACK_H
 
+#include <iostream>
 #include <optional>
 #include <utility>
 
@@ -72,18 +73,37 @@ public:
    * dropped the last shared_ptr, so the GIL cannot be assumed here.
    */
   ~CallbackBase() {
-#if PY_VERSION_HEX >= 0x030D0000
-    bool const finalizing = Py_IsFinalizing();
-#else
-    bool const finalizing = _Py_IsFinalizing();
-#endif
-    if (!Py_IsInitialized() || finalizing) {
-      // interpreter is gone or going: leak instead of touching refcounts
-      callback.release();
-      return;
+    try {
+      if (!Py_IsInitialized() || callback.is_none()) {
+        // interpreter is gone, or nothing worth releasing (None is never
+        // freed): leak instead of touching refcounts
+        callback.release();
+        return;
+      }
+      if (PyGILState_Check()) {
+        // holding the GIL, so finalization cannot start concurrently
+        if (isFinalizing()) {
+          callback.release();
+        } else {
+          callback = py::object();
+        }
+        return;
+      }
+      // Foreign thread without the GIL: checking Py_IsFinalizing() and then
+      // calling PyGILState_Ensure() races with interpreter shutdown, and
+      // PyGILState_Ensure() hangs the thread forever once finalization began
+      // (python >= 3.12). Hand the reference to the interpreter instead:
+      // Py_AddPendingCall() needs neither the GIL nor a thread state, the
+      // main thread drops the reference with the GIL held. If the call cannot
+      // be queued (queue full, interpreter shutting down), leak it.
+      PyObject *const obj = callback.release().ptr();
+      if (Py_AddPendingCall(&CallbackBase::releasePending, obj) != 0) {
+        DEBUG_PRINT(Debug::Callback,
+                    name + "] could not queue release, reference leaked");
+      }
+    } catch (...) {
+      // never throw from a destructor; worst case the reference leaks
     }
-    ScopedGilAcquire const scoped(name + ".destroy");
-    callback = py::object();
   }
 
   /**
@@ -152,16 +172,44 @@ public:
   }
 
 protected:
+  /// @brief Py_AddPendingCall() target, runs on the main thread with the GIL
+  static int releasePending(void *obj) {
+    Py_XDECREF(static_cast<PyObject *>(obj));
+    return 0;
+  }
+
+  /// @brief test if the interpreter is shutting down, caller holds the GIL
+  static bool isFinalizing() {
+#if PY_VERSION_HEX >= 0x030D0000
+    return Py_IsFinalizing();
+#else
+    return _Py_IsFinalizing();
+#endif
+  }
+
   /**
    * @brief Unsets the callback function.
    *
    * This function unsets the callback function by setting it to `py::none()`.
+   * Must be called with the GIL held: dropping the reference may run python
+   * code (__del__), a failure there is reported but never propagated.
    */
   void unset() noexcept(true) {
-    DEBUG_PRINT(Debug::Callback, "CLEAR " + name);
-    std::lock_guard<Module::GilAwareMutex> const lock(callback_mutex);
-    if (!callback.is_none()) {
-      callback = py::none();
+    try {
+      DEBUG_PRINT(Debug::Callback, "CLEAR " + name);
+      py::object previous;
+      {
+        std::lock_guard<Module::GilAwareMutex> const lock(callback_mutex);
+        if (callback.is_none()) {
+          return;
+        }
+        previous = std::exchange(callback, py::none());
+      }
+      // previous is released here, outside of callback_mutex
+    } catch (...) {
+      std::cerr << "[c104.Callback] " << name
+                << "] unset failed, the callback may still be registered"
+                << std::endl;
     }
   }
 
@@ -237,6 +285,29 @@ protected:
     }
   }
 
+  /**
+   * @brief Report a C++ exception thrown while invoking the callback.
+   *
+   * Covers everything that is neither a python exception nor a failed return
+   * value conversion, e.g. an argument that pybind11 cannot convert.
+   */
+  void reportUnknownError() const noexcept(true) {
+    try {
+      std::string what = "unknown error";
+      try {
+        throw;
+      } catch (const std::exception &e) {
+        what = e.what();
+      } catch (...) {
+      }
+      std::cerr << "[c104.Callback] " << name
+                << "] failed to invoke the callback: " << what
+                << ", request rejected, handler kept" << std::endl;
+    } catch (...) {
+      // stderr itself failed, nothing left to report to
+    }
+  }
+
   /// @brief callback function reference
   py::object callback;
 
@@ -291,8 +362,10 @@ public:
 
     std::optional<T> result;
     std::string result_type{"None"};
+    bool called = false;
     try {
       py::object res = cb(std::forward<Types>(values)...);
+      called = true;
 
       // Safely get the result type as a string
       result_type = py::cast<std::string>(py::str(res.get_type()));
@@ -302,7 +375,17 @@ public:
     } catch (py::error_already_set &e) {
       this->reportException(cb, e);
     } catch (py::builtin_exception &e) {
-      this->reportCastError(cb, result_type);
+      if (called) {
+        this->reportCastError(cb, result_type);
+      } else {
+        // an argument could not be converted, the callable never ran
+        this->reportUnknownError();
+      }
+    } catch (...) {
+      // e.g. an argument that cannot be converted to python or bad_alloc:
+      // call() is noexcept and runs on lib60870 threads, so fail closed
+      // instead of terminating the process
+      this->reportUnknownError();
     }
 
     if (DEBUG_TEST(Debug::Callback)) {
@@ -355,6 +438,9 @@ public:
       success = true;
     } catch (py::error_already_set &e) {
       this->reportException(cb, e);
+    } catch (...) {
+      // see Callback<T>::call(): never terminate from a noexcept call
+      this->reportUnknownError();
     }
 
     if (DEBUG_TEST(Debug::Callback)) {

@@ -43,8 +43,7 @@ int main(int argc, char *argv[]) {
 
   bool found = false;
   while (!found) {
-    size_t index;
-    index = ROOT.find_last_of("/\\");
+    size_t index = ROOT.find_last_of("/\\");
     std::string const basename = ROOT.substr(index + 1);
     ROOT = ROOT.substr(0, index);
     if (ROOT.empty() || basename.find("cmake") != std::string::npos) {
@@ -72,7 +71,7 @@ int main(int argc, char *argv[]) {
   auto sv_station_2 = my_server->addStation(47);
 
   auto sv_measurement_point = sv_station_2->addPoint(11, M_ME_TF_1, 1000);
-  sv_measurement_point->setValue((float)12.34);
+  sv_measurement_point->setValue(static_cast<float>(12.34));
 
   auto sv_control_setpoint = sv_station_2->addPoint(
       12, C_SE_NC_1, 0, sv_measurement_point->getInformationObjectAddress(),

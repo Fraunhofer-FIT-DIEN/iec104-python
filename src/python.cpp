@@ -557,8 +557,12 @@ PY_MODULE(m) {
       .value("ON", IEC60870_DOUBLE_POINT_ON)
       .value("INDETERMINATE", IEC60870_DOUBLE_POINT_INDETERMINATE);
 
-  py::enum_<TLSConfigVersion>(m, "TlsVersion",
-                              "This enum contains all supported TLS versions.")
+  py::enum_<TLSConfigVersion>(
+      m, "TlsVersion",
+      "This enum contains all TLS versions known to lib60870. Only TLS_1_2 "
+      "and TLS_1_3 are supported by the bundled "
+      "mbedtls, older versions are rejected by "
+      "TransportSecurity.set_version().")
       .value("NOT_SELECTED", TLS_VERSION_NOT_SELECTED)
       .value("SSL_3_0", TLS_VERSION_SSL_3_0)
       .value("TLS_1_0", TLS_VERSION_TLS_1_0)
@@ -574,7 +578,11 @@ PY_MODULE(m) {
       .value("INCIDENT", TLS_SEC_EVT_INCIDENT);
 
   py::enum_<TLSCipherSuite>(
-      m, "TlsCipher", "This enum contains all supported TLS cipher suites.")
+      m, "TlsCipher",
+      "This enum contains all TLS cipher suites known to mbedtls. Only "
+      "a subset is compiled into the bundled mbedtls, suites without "
+      "encryption (*_WITH_NULL_*) are rejected by "
+      "TransportSecurity.set_ciphers().")
       .value("RSA_WITH_NULL_MD5", TLSCipherSuite::RSA_WITH_NULL_MD5)
       .value("RSA_WITH_NULL_SHA", TLSCipherSuite::RSA_WITH_NULL_SHA)
       .value("PSK_WITH_NULL_SHA", TLSCipherSuite::PSK_WITH_NULL_SHA)
@@ -1168,13 +1176,23 @@ Create a transport layer configuration
 Parameters
 ----------
 validate: bool
-    validate certificates of communication partners (chain and time)
+    validate the certificate chain of communication partners against the configured CA certificates, including the validity period
 only_known: bool
     accept communication only from partners with certificate added to the list of allowed remote certificates
+
+**Warning:** ``validate=False`` together with ``only_known=False`` performs **no peer authentication** at all: any peer
+presenting a certificate chain is accepted, which is equivalent to anonymous TLS. Keep at least one of both enabled.
+
+With ``validate=True`` and ``only_known=False`` every device holding a certificate issued by one of the configured CAs is
+accepted, so any device certified by the same CA can impersonate the partner. Clients should additionally call
+**set_hostname_verification()** to bind the connection to the expected server certificate, or use ``only_known=True``
+together with **add_allowed_remote_certificate()**.
 
 Example
 -------
 >>> tls = c104.TransportSecurity(validate=True, only_known=False)
+>>> tls.set_ca_certificate(cert="certs/ca.crt")
+>>> tls.set_hostname_verification(hostname="server.example.com")
 )def",
           "validate"_a = true, "only_known"_a = true)
       .def(
@@ -1265,7 +1283,10 @@ Raises
 ValueError
     config is readonly and cannot be modified further
 ValueError
-    list is empty or contains invalid cipher suites
+    list is empty or contains a cipher suite without encryption (``*_WITH_NULL_*``)
+
+Only cipher suites compiled into the bundled mbedtls can be negotiated, others are skipped during the handshake. If none
+of the configured suites is available, every handshake fails.
 
 Example
 -------
@@ -1325,13 +1346,17 @@ Example
 sets the renegotiation interval
 
 This defines how often the TLS connection should renegotiate. If no interval is
-specified (None), it disables automatic renegotiation.
-Per default renegotiation is disabled.
+specified (None), it disables automatic, locally initiated renegotiation.
+Per default no automatic renegotiation is performed.
+
+**Note:** this setting only controls the periodic renegotiation initiated by this side. Renegotiation requested by the
+peer is still accepted by the underlying TLS library (lib60870 offers no option to refuse it), including peers that do not
+support secure renegotiation (RFC 5746). TLS 1.3 connections are not affected, TLS 1.3 has no renegotiation.
 
 Parameters
 ----------
 interval: datetime.timedelta, optional
-    The interval as a ``datetime.timedelta`` object. If ``None``, renegotiation is disabled.
+    The interval as a ``datetime.timedelta`` object. If ``None``, automatic renegotiation is disabled.
 
 Returns
 -------
@@ -1424,9 +1449,9 @@ When configuring minimum and maximum TLS versions together with cipher suites, i
 Parameters
 ----------
 min: c104.TlsVersion
-    minimum required TLS version for communication
+    minimum required TLS version for communication, ``NOT_SELECTED`` keeps the TLS 1.2 floor
 max: c104.TlsVersion
-    maximum allowed TLS version for communication
+    maximum allowed TLS version for communication, ``NOT_SELECTED`` means no upper limit
 
 Returns
 -------
@@ -1436,12 +1461,13 @@ Raises
 ------
 ValueError
     config is readonly and cannot be modified further
-
+ValueError
+    a version below TLS 1.2 is requested (not supported by the bundled mbedtls) or max is lower than min
 
 Example
 -------
 >>> tls = c104.TransportSecurity(validate=True, only_known=False)
->>> tls.set_version(min=c104.TLSVersion.TLS_1_2, max=c104.TLSVersion.TLS_1_2)
+>>> tls.set_version(min=c104.TlsVersion.TLS_1_2, max=c104.TlsVersion.TLS_1_3)
 )def",
           "min"_a = TLS_VERSION_NOT_SELECTED,
           "max"_a = TLS_VERSION_NOT_SELECTED)
@@ -2024,7 +2050,10 @@ Example
           "(writes are only allowed while the server is stopped)")
       .def_property("max_connections", &Server::getMaxOpenConnections,
                     &Server::setMaxOpenConnections,
-                    "int: maximum number of open connections, 0 = no limit",
+                    "int: maximum number of open connections, 0 = no limit. "
+                    "While the server is running, a lower limit applies to new "
+                    "connections immediately, a higher limit takes effect at "
+                    "the next start()",
                     py::return_value_policy::copy)
       .def("start", &Server::start, R"def(start(self: c104.Server) -> None
 
@@ -2170,6 +2199,10 @@ The callable runs on an internal communication thread. Do not call methods that 
 **Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
 They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
+Notifications are delivered in order by an internal thread. If the callable cannot keep up and 10000 notifications
+of this server are pending (on_receive_raw, on_send_raw and on_unexpected_message combined), further notifications
+are dropped and a warning is printed to stderr at most every 10 seconds.
+
 Example
 -------
 >>> def sv_on_receive_raw(server: c104.Server, data: bytes) -> None:
@@ -2214,6 +2247,10 @@ None
 The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
 **Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
 They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
+Notifications are delivered in order by an internal thread. If the callable cannot keep up and 10000 notifications
+of this server are pending (on_receive_raw, on_send_raw and on_unexpected_message combined), further notifications
+are dropped and a warning is printed to stderr at most every 10 seconds.
 
 Example
 -------
@@ -2365,6 +2402,10 @@ None
 The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
 **Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
 They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
+Notifications are delivered in order by an internal thread. If the callable cannot keep up and 10000 notifications
+of this server are pending (on_receive_raw, on_send_raw and on_unexpected_message combined), further notifications
+are dropped and a warning is printed to stderr at most every 10 seconds.
 
 Example
 -------
@@ -2693,6 +2734,10 @@ The callable runs on an internal communication thread. Do not call methods that 
 **Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
 They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
+Notifications are delivered in order by an internal thread. If the callable cannot keep up and 10000 notifications
+of the owning client are pending (on_receive_raw, on_send_raw and on_unexpected_message of all its connections
+combined), further notifications are dropped and a warning is printed to stderr at most every 10 seconds.
+
 Example
 -------
 >>> def con_on_receive_raw(connection: c104.Connection, data: bytes) -> None:
@@ -2737,6 +2782,10 @@ None
 The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
 **Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
 They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
+Notifications are delivered in order by an internal thread. If the callable cannot keep up and 10000 notifications
+of the owning client are pending (on_receive_raw, on_send_raw and on_unexpected_message of all its connections
+combined), further notifications are dropped and a warning is printed to stderr at most every 10 seconds.
 
 Example
 -------
@@ -2830,6 +2879,10 @@ None
 The callable runs on an internal communication thread. Do not call methods that stop or close that thread from within the callable:
 **Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
 They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
+
+Notifications are delivered in order by an internal thread. If the callable cannot keep up and 10000 notifications
+of the owning client are pending (on_receive_raw, on_send_raw and on_unexpected_message of all its connections
+combined), further notifications are dropped and a warning is printed to stderr at most every 10 seconds.
 
 Example
 -------
@@ -4114,8 +4167,8 @@ Example
 -------
 >>> status_and_changed = c104.StatusAndChanged(status=c104.PackedSingle.I0|c104.PackedSingle.I5, changed=c104.PackedSingle(15), quality=c104.Quality.Invalid, recorded_at=datetime.datetime.now(datetime.utc))
 )def",
-          "status"_a, "changed"_a = FieldSet16(0), "quality"_a = Quality::None,
-          "recorded_at"_a = py::none())
+          "status"_a, "changed"_a = static_cast<FieldSet16>(0),
+          "quality"_a = Quality::None, "recorded_at"_a = py::none())
       .def_property_readonly(
           "status", &Object::StatusWithChangeDetection::getStatus,
           "c104.PackedSingle: the current status (read-only)")
@@ -4215,6 +4268,8 @@ Returns
 -------
 bool
     True, if another information element exists, otherwise False
+
+Messages passed to callbacks are independent copies: moving their element pointer does not affect message processing.
 )def")
       .def("__repr__", &Remote::Message::IncomingMessage::toString);
 

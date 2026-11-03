@@ -362,8 +362,24 @@ class TransportSecurityVersionTestCase(unittest.TestCase):
 
     def test_min_max_range(self):
         ts = c104.TransportSecurity()
-        self.assertIsNone(ts.set_version(c104.TlsVersion.TLS_1_0,
+        self.assertIsNone(ts.set_version(c104.TlsVersion.TLS_1_2,
                                          c104.TlsVersion.TLS_1_3))
+
+    def test_versions_below_1_2_rejected(self):
+        # SECURITY.md L4: SSL 3.0 / TLS 1.0 / TLS 1.1 are not compiled into mbedtls
+        ts = c104.TransportSecurity()
+        for old in (c104.TlsVersion.SSL_3_0, c104.TlsVersion.TLS_1_0, c104.TlsVersion.TLS_1_1):
+            with self.assertRaises(ValueError):
+                ts.set_version(old, c104.TlsVersion.TLS_1_3)
+            with self.assertRaises(ValueError):
+                ts.set_version(c104.TlsVersion.NOT_SELECTED, old)
+        with self.assertRaises(ValueError):
+            ts.set_version(c104.TlsVersion.TLS_1_3, c104.TlsVersion.TLS_1_2)
+
+    def test_null_ciphers_rejected(self):
+        ts = c104.TransportSecurity()
+        with self.assertRaises(ValueError):
+            ts.set_ciphers([c104.TlsCipher.RSA_WITH_NULL_SHA256])
 
     def test_not_selected(self):
         ts = c104.TransportSecurity()
@@ -409,17 +425,12 @@ class TransportSecurityReadonlyAcrossSetttersTestCase(unittest.TestCase):
         self._assert_readonly(ts)
 
     def test_readonly_after_passed_to_client(self):
-        # OBSERVED behavior: unlike a Server, passing the config to a Client
-        # does NOT flip the readonly lock -- the config stays modifiable. The
-        # class docstring claims "assigned to a client or server ... becomes
-        # read-only" but only the Server path enforces it in this build.
+        # SECURITY.md L4: like a Server, a Client freezes the config on creation
+        # (it used to stay modifiable until the first add_connection)
         ts = c104.TransportSecurity()
         client = c104.Client(transport_security=ts)
         self.assertIsNotNone(client)
-        # still fully modifiable after being handed to a Client
-        self.assertIsNone(ts.set_certificate(str(SERVER_CERT), str(SERVER_KEY)))
-        self.assertIsNone(ts.set_ca_certificate(str(CA_CERT)))
-        self.assertIsNone(ts.set_ciphers([c104.TlsCipher.RSA_WITH_AES_128_CBC_SHA]))
+        self._assert_readonly(ts)
 
     def test_readonly_persists(self):
         # A config given to a server stays readonly even on a fresh instance of

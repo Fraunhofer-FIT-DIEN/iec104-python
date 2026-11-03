@@ -68,7 +68,7 @@ void ProtocolParameters::assertRange(const char *name, const int value,
 
 int ProtocolParameters::getSendWindowSize() const { return parameters->k; }
 
-void ProtocolParameters::setSendWindowSize(const int value) {
+void ProtocolParameters::setSendWindowSize(const int value) const {
   assertWritable("send_window_size");
   assertRange("send_window_size", value, K_MIN, K_MAX);
   if (value < parameters->w) {
@@ -82,7 +82,7 @@ void ProtocolParameters::setSendWindowSize(const int value) {
 
 int ProtocolParameters::getReceiveWindowSize() const { return parameters->w; }
 
-void ProtocolParameters::setReceiveWindowSize(const int value) {
+void ProtocolParameters::setReceiveWindowSize(const int value) const {
   assertWritable("receive_window_size");
   assertRange("receive_window_size", value, W_MIN, W_MAX);
   if (value > parameters->k) {
@@ -96,7 +96,7 @@ void ProtocolParameters::setReceiveWindowSize(const int value) {
 
 int ProtocolParameters::getConnectionTimeout() const { return parameters->t0; }
 
-void ProtocolParameters::setConnectionTimeout(const int value) {
+void ProtocolParameters::setConnectionTimeout(const int value) const {
   assertWritable("connection_timeout");
   assertRange("connection_timeout", value, T_MIN, T_MAX);
   parameters->t0 = value;
@@ -104,7 +104,7 @@ void ProtocolParameters::setConnectionTimeout(const int value) {
 
 int ProtocolParameters::getMessageTimeout() const { return parameters->t1; }
 
-void ProtocolParameters::setMessageTimeout(const int value) {
+void ProtocolParameters::setMessageTimeout(const int value) const {
   assertWritable("message_timeout");
   assertRange("message_timeout", value, T_MIN, T_MAX);
   parameters->t1 = value;
@@ -112,7 +112,7 @@ void ProtocolParameters::setMessageTimeout(const int value) {
 
 int ProtocolParameters::getConfirmInterval() const { return parameters->t2; }
 
-void ProtocolParameters::setConfirmInterval(const int value) {
+void ProtocolParameters::setConfirmInterval(const int value) const {
   assertWritable("confirm_interval");
   assertRange("confirm_interval", value, T_MIN, T_MAX);
   parameters->t2 = value;
@@ -120,7 +120,7 @@ void ProtocolParameters::setConfirmInterval(const int value) {
 
 int ProtocolParameters::getKeepAliveInterval() const { return parameters->t3; }
 
-void ProtocolParameters::setKeepAliveInterval(const int value) {
+void ProtocolParameters::setKeepAliveInterval(const int value) const {
   assertWritable("keep_alive_interval");
   assertRange("keep_alive_interval", value, T_MIN, T3_MAX);
   parameters->t3 = value;

@@ -166,14 +166,14 @@ public:
    * server to client
    * @return information on operation success
    */
-  bool mute();
+  bool mute() const;
 
   /**
    * @brief Unmute an open connection to remote server - enabled messages from
    * server to client
    * @return information on operation success
    */
-  bool unmute();
+  bool unmute() const;
 
   // Client accessors
 
@@ -288,7 +288,7 @@ public:
    * @param msg Pointer to the raw message data.
    * @param msgSize Size of the raw message data in bytes.
    */
-  void onReceiveRaw(unsigned char *msg, unsigned char msgSize);
+  void onReceiveRaw(unsigned char *msg, int msgSize);
 
   /**
    * @brief set python callback that will be executed on outgoing message
@@ -302,7 +302,7 @@ public:
    * @param msg Pointer to the raw message data to be sent.
    * @param msgSize Size of the raw message in bytes.
    */
-  void onSendRaw(unsigned char *msg, unsigned char msgSize);
+  void onSendRaw(unsigned char *msg, int msgSize);
 
   /**
    * @brief set python callback that will be executed on connection state

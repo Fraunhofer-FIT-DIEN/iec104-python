@@ -269,7 +269,15 @@ TEST_CASE("setVersion valid version combinations",
   REQUIRE_NOTHROW(
       ts->setVersion(TLS_VERSION_NOT_SELECTED, TLS_VERSION_NOT_SELECTED));
   REQUIRE_NOTHROW(ts->setVersion(TLS_VERSION_TLS_1_2, TLS_VERSION_TLS_1_3));
-  REQUIRE_NOTHROW(ts->setVersion(TLS_VERSION_TLS_1_0, TLS_VERSION_TLS_1_2));
+  // SECURITY.md L4: versions below TLS 1.2 do not exist in mbedtls 3.x
+  REQUIRE_THROWS_AS(ts->setVersion(TLS_VERSION_TLS_1_0, TLS_VERSION_TLS_1_2),
+                    std::invalid_argument);
+  REQUIRE_THROWS_AS(ts->setVersion(TLS_VERSION_SSL_3_0), std::invalid_argument);
+  REQUIRE_THROWS_AS(
+      ts->setVersion(TLS_VERSION_NOT_SELECTED, TLS_VERSION_TLS_1_1),
+      std::invalid_argument);
+  REQUIRE_THROWS_AS(ts->setVersion(TLS_VERSION_TLS_1_3, TLS_VERSION_TLS_1_2),
+                    std::invalid_argument);
 }
 
 TEST_CASE("debug print paths in constructor/destructor/get",

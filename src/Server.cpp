@@ -33,6 +33,7 @@
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
 #include "module/ThreadOwner.h"
+#include "remote/Helper.h"
 #include "remote/TransportSecurity.h"
 #include "remote/message/Batch.h"
 #include "remote/message/PointCommand.h"
@@ -81,6 +82,8 @@ Server::Server(const std::string &bind_ip, const std::uint_fast16_t tcp_port,
       maxOpenConnections(max_open_connections) {
   if (tickRate_ms < 50)
     throw std::range_error("tickRate_ms must be 50 or greater");
+  Assert_IPv4(bind_ip);
+  Assert_Port(tcp_port);
 
   // create a new slave/server instance with default connection parameters and
   // default message queue size
@@ -198,11 +201,10 @@ std::string Server::getIP() const { return ip; }
 std::uint_fast16_t Server::getPort() const { return port; }
 
 void Server::setMaxOpenConnections(std::uint_fast8_t max_open_connections) {
-  uint_fast8_t const prev = maxOpenConnections.load();
-  if (prev != max_open_connections) {
-    maxOpenConnections.store(max_open_connections);
-    CS104_Slave_setMaxOpenConnections(slave, max_open_connections);
-  }
+  // lib60870 reads its limit unsynchronised from the server thread and must
+  // only be configured before start(): just store the value here. start()
+  // hands it to lib60870, connectionRequestHandler() enforces later changes.
+  maxOpenConnections.store(max_open_connections);
 }
 
 std::uint_fast8_t Server::getMaxOpenConnections() const {
@@ -218,6 +220,7 @@ void Server::start() {
 
   Module::ScopedGilRelease const scoped("Server.start");
 
+  CS104_Slave_setMaxOpenConnections(slave, maxOpenConnections.load());
   CS104_Slave_start(slave);
 
   if (!CS104_Slave_isRunning(slave)) {
@@ -334,8 +337,11 @@ void Server::thread_run() {
 
     {
       std::unique_lock<std::mutex> lock(runThread_mutex);
+      // predicates re-check the state under the lock: a notify_all() from
+      // stopRunThread() that fires before wait() is entered is not lost
       if (tasks.empty()) {
-        runThread_wait.wait(lock);
+        runThread_wait.wait(
+            lock, [this] { return !enabled.load() || !tasks.empty(); });
         continue;
       }
       const auto top = tasks.top();
@@ -356,7 +362,10 @@ void Server::thread_run() {
         task = top.function;
         tasks.pop();
       } else {
-        runThread_wait.wait_until(lock, top.schedule_time);
+        runThread_wait.wait_until(lock, top.schedule_time, [this, &top] {
+          return !enabled.load() ||
+                 tasks.top().schedule_time < top.schedule_time;
+        });
         continue;
       }
     }
@@ -388,9 +397,11 @@ void Server::thread_run() {
 }
 
 void Server::stopRunThread() {
-  if (running.load()) {
-    runThread_wait.notify_all();
-  }
+  // enabled is already false: pass through the mutex so that the run thread is
+  // either before its predicate check or blocked in wait(), then wake it.
+  // Notify unconditionally, running may not be set yet by a fresh thread.
+  { std::lock_guard<std::mutex> const lock(runThread_mutex); }
+  runThread_wait.notify_all();
 
   if (runThread) {
     runThread->join();
@@ -625,7 +636,7 @@ bool Server::select(
 
   // selection NOT found
   if (it == selectionVector.end()) {
-    CS101_ASDU cp = CS101_ASDU_clone(message->getAsdu(), nullptr);
+    CS101_ASDU cp = Remote::cloneAsdu(message->getAsdu(), appLayerParameters);
     selectionVector.emplace_back<Selection>(
         {cp, oa, ca, ioa, connection, connectionId.value(), now});
     return true;
@@ -646,7 +657,7 @@ bool Server::select(
     // cleanup would have done) and transfer the ownership completely
     unselect(*it);
   }
-  it->asdu = CS101_ASDU_clone(message->getAsdu(), nullptr);
+  it->asdu = Remote::cloneAsdu(message->getAsdu(), appLayerParameters);
   it->oa = oa;
   it->connection = connection;
   it->connectionId = connectionId.value();
@@ -740,22 +751,30 @@ void Server::setOnReceiveRawCallback(py::object &callable) {
   py_onReceiveRaw.reset(callable);
 }
 
-void Server::onReceiveRaw(unsigned char *msg, unsigned char msgSize) {
+void Server::onReceiveRaw(unsigned char *msg, int msgSize) {
+  if (msgSize <= 0 || !msg) {
+    return;
+  }
   if (py_onReceiveRaw.is_set()) {
+    auto token = acquireNotificationToken("on_receive_raw");
+    if (!token) {
+      return; // dropped, the callback cannot keep up with the frame rate
+    }
     // create a copy
-    auto cp = std::shared_ptr<char[]>(new char[msgSize]);
-    memcpy(cp.get(), msg, msgSize);
+    const auto size = static_cast<std::size_t>(msgSize);
+    auto cp = std::shared_ptr<char[]>(new char[size]);
+    memcpy(cp.get(), msg, size);
 
     std::weak_ptr<Server> weakSelf =
         shared_from_this(); // Weak reference to Server
-    scheduleTask([weakSelf, cp, msgSize]() {
+    scheduleTask([weakSelf, cp, size, token]() {
       auto self = weakSelf.lock();
       if (!self)
         return; // Prevent running if `this` was destroyed
 
       DEBUG_PRINT(Debug::Server, "CALLBACK on_receive_raw");
       Module::ScopedGilAcquire const scoped("Server.on_receive_raw");
-      self->py_onReceiveRaw.call(self, py::bytes(cp.get(), msgSize));
+      self->py_onReceiveRaw.call(self, py::bytes(cp.get(), size));
     });
   }
 }
@@ -764,22 +783,30 @@ void Server::setOnSendRawCallback(py::object &callable) {
   py_onSendRaw.reset(callable);
 }
 
-void Server::onSendRaw(unsigned char *msg, unsigned char msgSize) {
+void Server::onSendRaw(unsigned char *msg, int msgSize) {
+  if (msgSize <= 0 || !msg) {
+    return;
+  }
   if (py_onSendRaw.is_set()) {
+    auto token = acquireNotificationToken("on_send_raw");
+    if (!token) {
+      return; // dropped, the callback cannot keep up with the frame rate
+    }
     // create a copy
-    auto cp = std::shared_ptr<char[]>(new char[msgSize]);
-    memcpy(cp.get(), msg, msgSize);
+    const auto size = static_cast<std::size_t>(msgSize);
+    auto cp = std::shared_ptr<char[]>(new char[size]);
+    memcpy(cp.get(), msg, size);
 
     std::weak_ptr<Server> weakSelf =
         shared_from_this(); // Weak reference to Server
-    scheduleTask([weakSelf, cp, msgSize]() {
+    scheduleTask([weakSelf, cp, size, token]() {
       auto self = weakSelf.lock();
       if (!self)
         return; // Prevent running if `this` was destroyed
 
       DEBUG_PRINT(Debug::Server, "CALLBACK on_send_raw");
       Module::ScopedGilAcquire const scoped("Server.on_send_raw");
-      self->py_onSendRaw.call(self, py::bytes(cp.get(), msgSize));
+      self->py_onSendRaw.call(self, py::bytes(cp.get(), size));
     });
   }
 }
@@ -891,9 +918,14 @@ void Server::onUnexpectedMessage(
   CS101_ASDU_destroy(cp);
 
   if (py_onUnexpectedMessage.is_set()) {
+    auto token = acquireNotificationToken("on_unexpected_message");
+    if (!token) {
+      return; // dropped, the callback cannot keep up with the frame rate
+    }
     std::weak_ptr<Server> weakSelf =
         shared_from_this(); // Weak reference to Server
-    scheduleTask([weakSelf, message, cause]() {
+    // snapshot: the task runs on another thread than the message handler
+    scheduleTask([weakSelf, message = message->snapshot(), cause, token]() {
       auto self = weakSelf.lock();
       if (!self)
         return; // Prevent running if `this` was destroyed
@@ -919,6 +951,15 @@ bool Server::connectionRequestHandler(void *parameter, const char *ipAddress) {
   const auto instance = getInstance(parameter);
   if (!instance) {
     DEBUG_PRINT(Debug::Server, "Reject connection request in shutdown");
+    return false;
+  }
+
+  // max_connections may have been lowered while running, see
+  // setMaxOpenConnections()
+  const auto maxOpen = instance->maxOpenConnections.load();
+  if (maxOpen > 0 &&
+      CS104_Slave_getOpenConnections(instance->slave) >= maxOpen) {
+    DEBUG_PRINT(Debug::Server, "Reject connection request: max_connections");
     return false;
   }
 
@@ -1042,7 +1083,9 @@ void Server::connectionEventHandler(void *parameter,
 
 bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
                       const CS101_CauseOfTransmission cause,
-                      const uint_fast8_t originator) {
+                      const uint_fast8_t originator,
+                      IMasterConnection connection,
+                      const std::optional<std::uint64_t> connectionId) {
   auto type = point->getType();
 
   // report monitoring point
@@ -1050,7 +1093,7 @@ bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
     auto message = Message::PointMessage::create(std::move(point));
     message->setCauseOfTransmission(cause);
     message->setOriginatorAddress(originator);
-    return send(std::move(message));
+    return send(std::move(message), connection, connectionId);
   }
 
   // lazy confirm previous control command
@@ -1058,14 +1101,15 @@ bool Server::transmit(std::shared_ptr<Object::DataPoint> point,
     auto message = Message::PointCommand::create(std::move(point));
     message->setCauseOfTransmission(cause);
     message->setOriginatorAddress(originator);
-    return send(std::move(message));
+    return send(std::move(message), connection, connectionId);
   }
 
   throw std::invalid_argument("Invalid point type");
 }
 
 bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
-                  IMasterConnection connection) {
+                  IMasterConnection connection,
+                  const std::optional<std::uint64_t> connectionId) {
   if (!enabled.load() || !hasActiveConnections())
     return false;
 
@@ -1086,16 +1130,21 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
   CS101_ASDU_addInformationObject(asdu, message->getInformationObject());
 
   // @todo high vs low priority messages
+  bool sent = true;
   if (!connection || CS101_COT_PERIODIC == message->getCauseOfTransmission() ||
       CS101_COT_SPONTANEOUS == message->getCauseOfTransmission())
     // low priority
     CS104_Slave_enqueueASDU(slave, asdu);
   else {
-    // high priority
-    IMasterConnection_sendASDU(connection, asdu);
+    // high priority, only to the given connection: verified under
+    // connection_mutex, so a closed or recycled connection is skipped
+    sent = sendToConnection(connection, connectionId, asdu);
   }
 
   CS101_ASDU_destroy(asdu);
+  if (!sent) {
+    return false;
+  }
 
   if (debug) {
     const std::chrono::steady_clock::time_point end =
@@ -1113,7 +1162,7 @@ bool Server::send(std::shared_ptr<Remote::Message::OutgoingMessage> message,
 }
 
 bool Server::sendBatch(std::shared_ptr<Remote::Message::Batch> batch,
-                       IMasterConnection connection) {
+                       IMasterConnection connection) const {
   if (!enabled.load() || !hasActiveConnections())
     return false;
 
@@ -1287,8 +1336,9 @@ bool Server::sendToConnection(IMasterConnection connection,
   return true;
 }
 
-void Server::sendEndOfInitialization(const std::uint_fast16_t commonAddress,
-                                     const CS101_CauseOfInitialization cause) {
+void Server::sendEndOfInitialization(
+    const std::uint_fast16_t commonAddress,
+    const CS101_CauseOfInitialization cause) const {
 
   Module::ScopedGilRelease const scoped("Server.send");
 
@@ -1670,8 +1720,10 @@ bool Server::readHandler(void *parameter, IMasterConnection connection,
           success = true;
 
           try {
+            // answer the requesting client only, not every connected peer
             instance->transmit(point, CS101_COT_REQUEST,
-                               message->getOriginatorAddress());
+                               message->getOriginatorAddress(), connection,
+                               instance->getConnectionId(connection));
           } catch (const std::exception &e) {
             std::cerr << "[c104.Server] read] Auto respond failed for "
                       << TypeID_toString(point->getType()) << " at IOA "
@@ -1786,12 +1838,17 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                   if (related_ioa.has_value()) {
                     auto related_point = station->getPoint(related_ioa.value());
                     auto originator = message->getOriginatorAddress();
+                    // return the info to the commanding client only; the id
+                    // detects a connection object recycled in the meantime
+                    const auto connectionId =
+                        instance->getConnectionId(connection);
                     std::weak_ptr<Server> weakSelf =
                         instance; // Weak reference to Server
                     std::weak_ptr<Object::DataPoint> weakPoint =
                         related_point; // Weak reference to Point
                     instance->scheduleTask(
-                        [weakSelf, weakPoint, originator]() {
+                        [weakSelf, weakPoint, originator, connection,
+                         connectionId]() {
                           auto self = weakSelf.lock();
                           if (!self)
                             return; // Prevent running if `this` was destroyed
@@ -1802,9 +1859,12 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
                                     // destroyed
 
                           try {
-                            self->transmit(related,
-                                           CS101_COT_RETURN_INFO_REMOTE,
-                                           originator);
+                            if (!connectionId.has_value()) {
+                              return; // requesting connection unknown
+                            }
+                            self->transmit(
+                                related, CS101_COT_RETURN_INFO_REMOTE,
+                                originator, connection, connectionId);
                           } catch (const std::exception &e) {
                             std::cerr
                                 << "[c104.Server] asdu_handler] Auto transmit "

@@ -176,7 +176,19 @@ class PointServerTestCase(unittest.TestCase):
                                       datetime.timezone.utc))
         p.info = new_info
         self.assertAlmostEqual(p.info.value, 77.7, places=3)
-        self.assertEqual(p.info, new_info)
+        self.assertEqual(p.info.quality, c104.Quality.Invalid)
+        # SECURITY.md L12: the point stores a private copy, the caller's object
+        # is not modified (M_ME_NC_1 drops the timestamp only in the copy) and
+        # points assigned the same object do not share state
+        self.assertIsNot(p.info, new_info)
+        self.assertIsNone(p.info.recorded_at)
+        self.assertIsNotNone(new_info.recorded_at)
+        p2 = self.station.add_point(io_address=117, type=c104.Type.M_ME_NC_1)
+        p2.info = new_info
+        p.value = 1.5
+        self.assertAlmostEqual(p.value, 1.5, places=3)
+        self.assertAlmostEqual(p2.value, 77.7, places=3)
+        self.assertAlmostEqual(new_info.value, 77.7, places=3)
 
     def test_quality_set_get(self):
         p = self.station.add_point(io_address=18, type=c104.Type.M_ME_NC_1)

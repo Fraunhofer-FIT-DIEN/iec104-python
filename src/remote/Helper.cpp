@@ -44,6 +44,28 @@ bool Remote::isGlobalCommonAddress(const std::uint_fast16_t commonAddress) {
   return IEC60870_GLOBAL_COMMON_ADDRESS == commonAddress;
 }
 
+CS101_ASDU Remote::cloneAsdu(CS101_ASDU source,
+                             CS101_AppLayerParameters parameters) {
+  if (!source || !parameters) {
+    return nullptr;
+  }
+  CS101_ASDU copy = CS101_ASDU_create(
+      parameters, CS101_ASDU_isSequence(source), CS101_ASDU_getCOT(source),
+      CS101_ASDU_getOA(source), CS101_ASDU_getCA(source),
+      CS101_ASDU_isTest(source), CS101_ASDU_isNegative(source));
+  if (!copy) {
+    return nullptr;
+  }
+  CS101_ASDU_setTypeID(copy, CS101_ASDU_getTypeID(source));
+  CS101_ASDU_setNumberOfElements(copy, CS101_ASDU_getNumberOfElements(source));
+  if (!CS101_ASDU_addPayload(copy, CS101_ASDU_getPayload(source),
+                             CS101_ASDU_getPayloadSize(source))) {
+    CS101_ASDU_destroy(copy);
+    return nullptr;
+  }
+  return copy;
+}
+
 std::string Remote::rawMessageFormatter(const uint_fast8_t *msg,
                                         const int msgSize) {
   std::string s;
@@ -107,11 +129,12 @@ std::string Remote::rawMessageFormatter(const uint_fast8_t *msg,
       auto typeId = (IEC60870_5_TypeID)msg[IEC60870_TYPEID_OFFSET];
       s += " | " + std::string(TypeID_toString(typeId));
 
-      numberOfObjects = (uint8_t)(msg[IEC60870_STRUCTURE_OFFSET] & 0b01111111);
-      sequence = (bool)(msg[IEC60870_STRUCTURE_OFFSET] & 0b10000000);
+      numberOfObjects =
+          static_cast<uint8_t>(msg[IEC60870_STRUCTURE_OFFSET] & 0b01111111);
+      sequence = static_cast<bool>(msg[IEC60870_STRUCTURE_OFFSET] & 0b10000000);
 
-      auto cot = (CS101_CauseOfTransmission)(msg[IEC60870_MSGINFO_OFFSET] &
-                                             0b00111111);
+      auto cot = static_cast<CS101_CauseOfTransmission>(
+          msg[IEC60870_MSGINFO_OFFSET] & 0b00111111);
       s += " | " + std::string(CS101_CauseOfTransmission_toString(cot));
 
       if (msg[IEC60870_MSGINFO_OFFSET] & 0b01000000) {
@@ -228,7 +251,7 @@ py::dict Remote::rawMessageDictionaryFormatter(const uint_fast8_t *msg,
     } else {
       d["format"] = "S";
       if (messageSize >= 6) {
-        d["rx"] = ((uint16_t)msg[IEC60870_FORMAT_OFFSET + 2] +
+        d["rx"] = (static_cast<uint16_t>(msg[IEC60870_FORMAT_OFFSET + 2]) +
                    (msg[IEC60870_FORMAT_OFFSET + 3] << 8)) >>
                   1;
       }
@@ -239,10 +262,10 @@ py::dict Remote::rawMessageDictionaryFormatter(const uint_fast8_t *msg,
     // the frame sequence (tx/rx) counters live at offsets 2..5 and need at
     // least 6 octets to be read safely
     if (messageSize >= 6) {
-      uint16_t rx = ((uint16_t)msg[IEC60870_FORMAT_OFFSET + 2] +
+      uint16_t rx = (static_cast<uint16_t>(msg[IEC60870_FORMAT_OFFSET + 2]) +
                      (msg[IEC60870_FORMAT_OFFSET + 3] << 8)) >>
                     1;
-      d["tx"] = ((uint16_t)msg[IEC60870_FORMAT_OFFSET] +
+      d["tx"] = (static_cast<uint16_t>(msg[IEC60870_FORMAT_OFFSET]) +
                  (msg[IEC60870_FORMAT_OFFSET + 1] << 8)) >>
                 1;
       d["rx"] = rx;
@@ -253,42 +276,47 @@ py::dict Remote::rawMessageDictionaryFormatter(const uint_fast8_t *msg,
     // the ASDU header spans offsets 6..11 and needs at least 12 octets to be
     // read safely
     if (messageSize >= 12) {
-      type = (IEC60870_5_TypeID)msg[IEC60870_TYPEID_OFFSET];
+      type = static_cast<IEC60870_5_TypeID>(msg[IEC60870_TYPEID_OFFSET]);
       d["type"] = type;
 
       d["numberOfObjects"] =
-          (uint8_t)(msg[IEC60870_STRUCTURE_OFFSET] & 0b01111111);
-      d["sequence"] = (bool)(msg[IEC60870_STRUCTURE_OFFSET] & 0b10000000);
+          static_cast<uint8_t>(msg[IEC60870_STRUCTURE_OFFSET] & 0b01111111);
+      d["sequence"] =
+          static_cast<bool>(msg[IEC60870_STRUCTURE_OFFSET] & 0b10000000);
 
-      d["cot"] = (CS101_CauseOfTransmission)(msg[IEC60870_MSGINFO_OFFSET] &
-                                             0b00111111);
-      d["negative"] = (bool)(msg[IEC60870_MSGINFO_OFFSET] & 0b01000000);
-      d["test"] = (bool)(msg[IEC60870_MSGINFO_OFFSET] & 0b10000000);
+      d["cot"] = static_cast<CS101_CauseOfTransmission>(
+          msg[IEC60870_MSGINFO_OFFSET] & 0b00111111);
+      d["negative"] =
+          static_cast<bool>(msg[IEC60870_MSGINFO_OFFSET] & 0b01000000);
+      d["test"] = static_cast<bool>(msg[IEC60870_MSGINFO_OFFSET] & 0b10000000);
 
-      d["commonAddress"] = (uint16_t)msg[IEC60870_TARGETCA1_OFFSET] +
-                           (msg[IEC60870_TARGETCA2_OFFSET] << 8);
-      d["originatorAddress"] = (uint8_t)msg[IEC60870_SOURCECA_OFFSET];
+      d["commonAddress"] =
+          static_cast<uint16_t>(msg[IEC60870_TARGETCA1_OFFSET]) +
+          (msg[IEC60870_TARGETCA2_OFFSET] << 8);
+      d["originatorAddress"] =
+          static_cast<uint8_t>(msg[IEC60870_SOURCECA_OFFSET]);
     }
 
     if (messageSize > IEC60870_OBJECT_OFFSET) {
 
       if (messageSize > IEC60870_OBJECT_OFFSET + 2) {
         d["firstInformationObjectAddress"] =
-            (uint32_t)msg[IEC60870_OBJECT_OFFSET] +
+            static_cast<uint32_t>(msg[IEC60870_OBJECT_OFFSET]) +
             (msg[IEC60870_OBJECT_OFFSET + 1] << 8) +
             (msg[IEC60870_OBJECT_OFFSET + 2] << 16);
 
         if ((type >= C_SC_NA_1 && type <= C_SE_NC_1) ||
             (type >= C_SC_TA_1 && type <= C_SE_TC_1)) {
           if (messageSize > IEC60870_OBJECT_OFFSET + 3) {
-            d["select"] = (bool)(msg[IEC60870_OBJECT_OFFSET + 3] >> 7);
+            d["select"] =
+                static_cast<bool>(msg[IEC60870_OBJECT_OFFSET + 3] >> 7);
           }
         }
       }
 
       std::string s;
-      int i;
-      for (i = IEC60870_OBJECT_OFFSET; i < static_cast<int>(messageSize); i++) {
+      for (int i = IEC60870_OBJECT_OFFSET; i < static_cast<int>(messageSize);
+           i++) {
         char buffer[6];
         snprintf(buffer, 5, "%02x ", msg[i]);
         s += buffer;

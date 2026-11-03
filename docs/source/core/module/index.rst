@@ -8,3 +8,5 @@ Module
    gilawaremutex
    scopedgilacquire
    scopedgilrelease
+   tasklimiter
+   threadowner

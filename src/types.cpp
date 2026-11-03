@@ -111,7 +111,7 @@ void Assert_IPv4(const std::string &s) {
 }
 
 void Assert_Port(const int_fast64_t port) {
-  if (port < 1 || port > 65534)
+  if (port < 1 || port > 65535)
     throw std::invalid_argument("Port " + std::to_string(port) +
                                 " is invalid!");
 }
@@ -121,11 +121,30 @@ std::chrono::system_clock::time_point to_time_point(const CP56Time2a time) {
       std::chrono::milliseconds(CP56Time2a_toMsTimestamp(time)));
 }
 
+// CP56Time2a encodes the year as two digits, lib60870 decodes it as 20xx
+static constexpr std::int64_t CP56TIME2A_MIN_MS = 946684800000LL;  // 2000-01-01
+static constexpr std::int64_t CP56TIME2A_MAX_MS = 4102444800000LL; // 2100-01-01
+
+void Assert_CP56Time2a(const std::chrono::system_clock::time_point time_point) {
+  const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          time_point.time_since_epoch())
+                          .count();
+  if (millis < CP56TIME2A_MIN_MS || millis >= CP56TIME2A_MAX_MS) {
+    throw std::invalid_argument(
+        "Timestamp " + TimePoint_toString(time_point) +
+        " cannot be represented as CP56Time2a, the supported range is "
+        "2000-01-01T00:00:00Z up to 2099-12-31T23:59:59.999Z");
+  }
+}
+
 void from_time_point(CP56Time2a time,
                      const std::chrono::system_clock::time_point time_point) {
-  auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    time_point.time_since_epoch())
-                    .count();
+  // negative values would wrap to a huge uint64_t, gmtime fails silently and
+  // uninitialised stack bytes would be encoded; years >= 2100 wrap to 20xx
+  Assert_CP56Time2a(time_point);
+  const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          time_point.time_since_epoch())
+                          .count();
 
   CP56Time2a_createFromMsTimestamp(time, static_cast<uint64_t>(millis));
 }

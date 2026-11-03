@@ -7,6 +7,9 @@ Helper
 .. doxygenfunction:: isGlobalCommonAddress
    :project: iec104-python
 
+.. doxygenfunction:: cloneAsdu
+   :project: iec104-python
+
 .. doxygenfunction:: rawMessageFormatter
    :project: iec104-python
 

@@ -1073,10 +1073,11 @@ TEST_CASE("Assert_IPv4", "[types]") {
 TEST_CASE("Assert_Port", "[types]") {
   REQUIRE_NOTHROW(Assert_Port(1));
   REQUIRE_NOTHROW(Assert_Port(65534));
+  REQUIRE_NOTHROW(Assert_Port(65535)); // SECURITY.md L12: valid TCP port
   REQUIRE_NOTHROW(Assert_Port(2404));
   REQUIRE_THROWS_AS(Assert_Port(0), std::invalid_argument);
   REQUIRE_THROWS_AS(Assert_Port(-1), std::invalid_argument);
-  REQUIRE_THROWS_AS(Assert_Port(65535), std::invalid_argument);
+  REQUIRE_THROWS_AS(Assert_Port(65536), std::invalid_argument);
 }
 
 // ---------------------------------------------------------------------------
