@@ -155,6 +155,9 @@ Server::~Server() {
     delete runThread;
     runThread = nullptr;
   } else {
+    // the run thread may be waiting for the GIL inside a python callback, so
+    // it must be joined without holding it (pybind11 destroys with the GIL)
+    Module::ScopedGilRelease const scoped("Server.destroyRunThread");
     stopRunThread();
   }
 
