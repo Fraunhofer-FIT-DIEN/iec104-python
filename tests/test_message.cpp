@@ -33,6 +33,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <sstream>
 
@@ -1205,6 +1206,69 @@ TEST_CASE("PointMessage throws for unsupported types",
   // A control point is not a monitoring point -> default throw
   auto point = makeAttachedPoint(C_SC_NA_1, 10, 1);
   REQUIRE_THROWS_AS(PointMessage::create(point), std::invalid_argument);
+}
+
+TEST_CASE("PointMessage counter objects keep their binary counter reading",
+          "[remote::message::pointmessage]") {
+  // Regression: the counter cases used to heap-allocate the
+  // BinaryCounterReading (BinaryCounterReading_create(nullptr, ...)) and never
+  // destroy it. Neither the fix nor its regression is observable through the
+  // returned object, because IntegratedTotals_create copies the BCR by value
+  // either way: this test pins that copy contract (value, sequence number,
+  // quality flags and timestamp survive), while the repeated construction is
+  // the amplifier for the leak itself. Leak-freedom is asserted out of band by
+  // running this target under ASan/LSan -- there is no portable in-process
+  // allocation counter to assert on here.
+  const int32_t counter = 1234;
+  const BinaryCounterQuality quality = BinaryCounterQuality::Carry |
+                                       BinaryCounterQuality::Adjusted |
+                                       BinaryCounterQuality::Invalid;
+  const auto recorded = std::chrono::system_clock::time_point(
+      std::chrono::milliseconds(1711111111000));
+
+  auto withoutTime = makeAttachedPoint(M_IT_NA_1, 10, 201);
+  withoutTime->setInfo(Object::BinaryCounterInfo::create(
+      counter, LimitedUInt5(2), quality, recorded));
+  auto withTime = makeAttachedPoint(M_IT_TB_1, 10, 202);
+  withTime->setInfo(Object::BinaryCounterInfo::create(counter, LimitedUInt5(2),
+                                                      quality, recorded));
+
+  const sCP56Time2a expectedTime = makeTime(1711111111000);
+
+  for (int i = 0; i < 500; i++) {
+    {
+      auto msg = PointMessage::create(withoutTime);
+      auto totals =
+          reinterpret_cast<IntegratedTotals>(msg->getInformationObject());
+      REQUIRE(totals != nullptr);
+      auto bcr = IntegratedTotals_getBCR(totals);
+      REQUIRE(BinaryCounterReading_getValue(bcr) == counter);
+      REQUIRE(BinaryCounterReading_getSequenceNumber(bcr) == 2);
+      REQUIRE(BinaryCounterReading_hasCarry(bcr));
+      REQUIRE(BinaryCounterReading_isAdjusted(bcr));
+      REQUIRE(BinaryCounterReading_isInvalid(bcr));
+    }
+    {
+      auto msg = PointMessage::create(withTime);
+      auto totals = reinterpret_cast<IntegratedTotalsWithCP56Time2a>(
+          msg->getInformationObject());
+      REQUIRE(totals != nullptr);
+      auto bcr =
+          IntegratedTotals_getBCR(reinterpret_cast<IntegratedTotals>(totals));
+      REQUIRE(BinaryCounterReading_getValue(bcr) == counter);
+      REQUIRE(BinaryCounterReading_getSequenceNumber(bcr) == 2);
+      REQUIRE(BinaryCounterReading_hasCarry(bcr));
+      REQUIRE(BinaryCounterReading_isAdjusted(bcr));
+      REQUIRE(BinaryCounterReading_isInvalid(bcr));
+      // Compare the encoded CP56Time2a bytes: both sides go through
+      // CP56Time2a_createFromMsTimestamp (UTC on every platform), whereas a
+      // ms round-trip would depend on lib60870's my_mktime.
+      REQUIRE(
+          std::memcmp(
+              IntegratedTotalsWithCP56Time2a_getTimestamp(totals)->encodedValue,
+              expectedTime.encodedValue, 7) == 0);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

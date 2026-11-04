@@ -173,8 +173,12 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
   case M_IT_NA_1: {
     auto i = std::dynamic_pointer_cast<Object::BinaryCounterInfo>(info);
     auto q = std::get<BinaryCounterQuality>(i->getQuality());
+    // The BCR is copied into the information object, so a zero-initialized
+    // stack instance is enough: no heap allocation and no destroy (see
+    // BinaryCounterReading_create / IntegratedTotals_create).
+    sBinaryCounterReading bcr{};
     BinaryCounterReading _value = BinaryCounterReading_create(
-        nullptr, i->getCounter(), i->getSequence().get(),
+        &bcr, i->getCounter(), i->getSequence().get(),
         ::test(q, BinaryCounterQuality::Carry),
         ::test(q, BinaryCounterQuality::Adjusted),
         ::test(q, BinaryCounterQuality::Invalid));
@@ -187,8 +191,9 @@ PointMessage::PointMessage(std::shared_ptr<Object::DataPoint> point)
     auto q = std::get<BinaryCounterQuality>(i->getQuality());
     sCP56Time2a time{};
     from_time_point(&time, i->getRecordedAt().value_or(i->getProcessedAt()));
+    sBinaryCounterReading bcr{};
     BinaryCounterReading _value = BinaryCounterReading_create(
-        nullptr, i->getCounter(), i->getSequence().get(),
+        &bcr, i->getCounter(), i->getSequence().get(),
         ::test(q, BinaryCounterQuality::Carry),
         ::test(q, BinaryCounterQuality::Adjusted),
         ::test(q, BinaryCounterQuality::Invalid));
