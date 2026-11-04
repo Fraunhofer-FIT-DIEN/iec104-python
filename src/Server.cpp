@@ -1812,7 +1812,22 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
       }
     } else {
       if (message->getType() >= C_SC_NA_1) {
-        if (auto station = instance->getStation(message->getCommonAddress())) {
+        // SECURITY.md M11: only an ACTIVATION may select or execute a command.
+        // Both rejections leave the point and the selection untouched and keep
+        // responseState at NONE, so no confirmation is reflected back to the
+        // peer; the negative UNKNOWN_COT answer is sent below.
+        const auto cot = message->getCauseOfTransmission();
+        if (cot == CS101_COT_DEACTIVATION) {
+          // a cancel request; cancelling a selection is not implemented yet
+          // (SEC-04), so it is rejected instead of refreshing or dropping it
+          responseState = RESPONSE_STATE_NONE;
+          cause = UNKNOWN_COT;
+        } else if (cot != CS101_COT_ACTIVATION) {
+          // reflected confirmations (7, 9, 10) must never execute a command
+          responseState = RESPONSE_STATE_NONE;
+          cause = UNKNOWN_COT;
+        } else if (auto station =
+                       instance->getStation(message->getCommonAddress())) {
           if (auto point = station->getPoint(message->getIOA())) {
             if (point->getType() == message->getType()) {
 

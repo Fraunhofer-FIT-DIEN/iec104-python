@@ -1116,8 +1116,127 @@ TEST_CASE("Server: asduHandler related auto return path", "[server][asdu]") {
 }
 
 // ---------------------------------------------------------------------------
-// getSelector / select edge + scheduler
+// command COT gating (SECURITY.md M11)
 // ---------------------------------------------------------------------------
+
+TEST_CASE("Server: asduHandler dispatches only ACTIVATION commands",
+          "[server][asdu][security]") {
+  // every COT that IncomingMessage accepts for a command ASDU: 6..10 and
+  // 44..47. Only ACTIVATION may reach select()/execute().
+  const std::vector<CS101_CauseOfTransmission> causes = {
+      CS101_COT_ACTIVATION,             // 6 -> the only accepted cause
+      CS101_COT_ACTIVATION_CON,         // 7 -> reflected confirmation
+      CS101_COT_DEACTIVATION,           // 8 -> cancel, see SEC-04
+      CS101_COT_DEACTIVATION_CON,       // 9
+      CS101_COT_ACTIVATION_TERMINATION, // 10 -> reflected confirmation
+      CS101_COT_UNKNOWN_TYPE_ID,        // 44
+      CS101_COT_UNKNOWN_COT,            // 45
+      CS101_COT_UNKNOWN_CA,             // 46
+      CS101_COT_UNKNOWN_IOA};           // 47
+
+  // the ASDU keeps a pointer to the parameters, see Test::makeASDU
+  static sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
+
+  auto server = Server::create("127.0.0.1", 2499);
+  auto station = server->addStation(1);
+
+  // one point per cause: every point starts at false and is never reset, so a
+  // rejected cause cannot be hidden by a preceding one. DIRECT command mode
+  // (the default) means no selection is involved, so every observable change of
+  // the point comes from execute()
+  std::vector<std::shared_ptr<Object::DataPoint>> points;
+  for (std::size_t i = 0; i < causes.size(); i++) {
+    points.push_back(station->addPoint(11 + i, IEC60870_5_TypeID::C_SC_NA_1));
+  }
+
+  for (std::size_t i = 0; i < causes.size(); i++) {
+    const auto cot = causes[i];
+    const auto point = points[i];
+    const auto ioa = 11 + i;
+    CAPTURE(static_cast<int>(cot));
+
+    // a fresh peer per cause, so one rejected cause cannot influence another
+    Test::MockPeerState state;
+    sIPeerConnection peer = Test::makeMockPeer(state);
+    IMasterConnection mock = &peer;
+    Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                   CS104_CON_EVENT_ACTIVATED);
+
+    // on=true, select=false: executing the command raises the point value
+    CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, ioa,
+                                      1, cot, 0, false);
+    REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, asdu) == true);
+    CS101_ASDU_destroy(asdu);
+
+    if (cot == CS101_COT_ACTIVATION) {
+      // executed and confirmed with a positive ACT_CON
+      REQUIRE(std::get<bool>(point->getValue()) == true);
+      REQUIRE(state.sendASDU_count == 1);
+      REQUIRE(state.cot.back() == CS101_COT_ACTIVATION_CON);
+      REQUIRE(state.negative.back() == false);
+    } else {
+      // rejected: value untouched, exactly one negative UNKNOWN_COT reply and
+      // no confirmation reflected back to the peer
+      REQUIRE(std::get<bool>(point->getValue()) == false);
+      REQUIRE(server->getSelector(1, ioa).has_value() == false);
+      REQUIRE(state.sendASDU_count == 1);
+      REQUIRE(state.cot.back() == CS101_COT_UNKNOWN_COT);
+      REQUIRE(state.negative.back() == true);
+      REQUIRE(state.sendACT_TERM_count == 0);
+    }
+  }
+}
+
+TEST_CASE("Server: asduHandler DEACTIVATION neither selects nor executes",
+          "[server][asdu][security]") {
+  // the ASDU keeps a pointer to the parameters, see Test::makeASDU
+  static sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
+
+  auto server = Server::create("127.0.0.1", 2498);
+  auto station = server->addStation(1);
+  auto point = station->addPoint(11, IEC60870_5_TypeID::C_SC_NA_1);
+  point->setCommandMode(SELECT_AND_EXECUTE_COMMAND);
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+
+  // a normal selection, originator address 1
+  CS101_ASDU sel = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
+                                   CS101_COT_ACTIVATION, 1, true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, sel) == true);
+  CS101_ASDU_destroy(sel);
+  REQUIRE(server->getSelector(1, 11).has_value() == true);
+  REQUIRE(server->getSelector(1, 11).value() == 1);
+
+  const auto sent = state.sendASDU_count;
+
+  // DEACTIVATION select (a cancel request) must not refresh the selection
+  CS101_ASDU deact = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11,
+                                     1, CS101_COT_DEACTIVATION, 7, true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, deact) == true);
+  CS101_ASDU_destroy(deact);
+  REQUIRE(server->getSelector(1, 11).has_value() == true);
+  REQUIRE(server->getSelector(1, 11).value() == 1); // still 1, not 7
+  REQUIRE(state.sendASDU_count == sent + 1);
+  REQUIRE(state.cot.back() == CS101_COT_UNKNOWN_COT);
+  REQUIRE(state.negative.back() == true);
+
+  // DEACTIVATION execute must operate neither the point nor the selection
+  CS101_ASDU deact_exec =
+      makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
+                      CS101_COT_DEACTIVATION, 1, false);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, deact_exec) ==
+          true);
+  CS101_ASDU_destroy(deact_exec);
+  REQUIRE(std::get<bool>(point->getValue()) == false);
+  REQUIRE(server->getSelector(1, 11).has_value() == true);
+  REQUIRE(state.sendASDU_count == sent + 2);
+  REQUIRE(state.cot.back() == CS101_COT_UNKNOWN_COT);
+  REQUIRE(state.negative.back() == true);
+}
 
 TEST_CASE("Server: getSelector not found", "[server][selector]") {
   auto server = Server::create("127.0.0.1", 2404);
