@@ -230,6 +230,10 @@ public:
    * @brief Wait for command confirmation and success information, release
    * outgoing message LOCK for this command and get information on last commands
    * success
+   * @details Returns immediately if the result was already delivered by
+   * setCommandSuccess() before this call, so a fast peer response cannot be
+   * mistaken for a timeout. Blocks up to the client command timeout otherwise,
+   * and reports false on timeout.
    * @param cmdId unique command id
    * @return information on last command success
    */

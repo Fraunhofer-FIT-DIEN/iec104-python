@@ -461,10 +461,9 @@ TEST_CASE("Connection setCommandSuccess drives result states",
   conn->addStation(7);
 
   // Each case: prepare a cmdId in a particular state, then feed a matching
-  // message so setCommandSuccess executes the relevant switch branch. We do not
-  // await here (a condition-variable signal is lost if it arrives before the
-  // wait, and awaiting would block for the full timeout); the await success
-  // path is covered in a dedicated threaded test below.
+  // message so setCommandSuccess executes the relevant switch branch. The await
+  // success path (including a result delivered before the wait) is covered in a
+  // dedicated test below.
 
   // COMMAND_AWAIT_CON + positive ACTIVATION_CON -> SUCCESS
   conn->prepareCommandSuccess("7-M_SP_NA_1-331", COMMAND_AWAIT_CON);
@@ -624,6 +623,42 @@ TEST_CASE("Connection awaitCommandSuccess timeout branch",
   conn->prepareCommandSuccess("timeout-id", COMMAND_AWAIT_CON);
   // nothing notifies / sets a result -> wait_until times out after ~50ms
   REQUIRE(conn->awaitCommandSuccess("timeout-id") == false);
+}
+
+TEST_CASE("Connection awaitCommandSuccess sees a result delivered before "
+          "the wait",
+          "[connection][command]") {
+  // The peer answers in microseconds on loopback, so setCommandSuccess() can
+  // run between prepareCommandSuccess() and awaitCommandSuccess(). Such a
+  // result must not be lost: waiting before looking would discard the only
+  // wakeup and report the timeout as a command failure (the intermittent
+  // loopback transmit/read/clockSync failures). A 2000ms command timeout keeps
+  // a regression failing fast instead of blocking for the 10s default.
+  auto client = Client::create(100, 2000);
+  auto conn = client->addConnection("127.0.0.1", 2404);
+  conn->addStation(7);
+
+  // ACTIVATION_CON for a command (COMMAND_AWAIT_CON) arrived before the await
+  conn->prepareCommandSuccess("7-M_SP_NA_1-500", COMMAND_AWAIT_CON);
+  conn->setCommandSuccess(
+      makeSinglePointMessage(7, 500, CS101_COT_ACTIVATION_CON));
+  REQUIRE(conn->awaitCommandSuccess("7-M_SP_NA_1-500") == true);
+
+  // the value of a read (COMMAND_AWAIT_REQUEST) arrived before the await
+  conn->prepareCommandSuccess("7-C_RD_NA_1-501", COMMAND_AWAIT_REQUEST);
+  conn->setCommandSuccess(makeSinglePointMessage(7, 501, CS101_COT_REQUEST));
+  REQUIRE(conn->awaitCommandSuccess("7-C_RD_NA_1-501") == true);
+
+  // a negative confirmation delivered early still reports failure
+  conn->prepareCommandSuccess("7-M_SP_NA_1-502", COMMAND_AWAIT_CON);
+  conn->setCommandSuccess(
+      makeSinglePointMessage(7, 502, CS101_COT_ACTIVATION_CON, true));
+  REQUIRE(conn->awaitCommandSuccess("7-M_SP_NA_1-502") == false);
+
+  // a result cancelled before the await reports failure as well
+  conn->prepareCommandSuccess("7-M_SP_NA_1-503", COMMAND_AWAIT_CON);
+  conn->cancelCommandSuccess("7-M_SP_NA_1-503");
+  REQUIRE(conn->awaitCommandSuccess("7-M_SP_NA_1-503") == false);
 }
 
 TEST_CASE("Client reconnectAll does not spawn sockets when closed",

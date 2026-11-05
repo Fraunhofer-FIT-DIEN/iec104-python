@@ -615,13 +615,14 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
 
     DEBUG_PRINT(Debug::Connection, "await_command_success] Await " + cmdId);
 
+    // check before waiting: setCommandSuccess() may already have delivered the
+    // result between prepareCommandSuccess() and this call - a peer answers in
+    // microseconds on loopback - and that wakeup is gone by now. Waiting first
+    // would block for the whole command timeout and report a timeout as a
+    // failure. Holding the map lock while checking closes the race: the setter
+    // either got the lock first (and the state below already shows the result)
+    // or it is still blocked, so wait_until() is entered before it notifies.
     while (true) {
-      if (response_wait.wait_until(map_lock, end) == std::cv_status::timeout) {
-        DEBUG_PRINT(Debug::Connection,
-                    "await_command_success] Timeout " + cmdId);
-        break; // timeout
-      }
-
       auto const _it = expectedResponseMap.find(cmdId);
 
       // is result still requested?
@@ -644,6 +645,12 @@ bool Connection::awaitCommandSuccess(const std::string &cmdId) {
 
       DEBUG_PRINT(Debug::Connection,
                   "await_command_success] Non-topic " + cmdId);
+
+      if (response_wait.wait_until(map_lock, end) == std::cv_status::timeout) {
+        DEBUG_PRINT(Debug::Connection,
+                    "await_command_success] Timeout " + cmdId);
+        break; // timeout
+      }
     }
 
     // delete cmd if still valid
