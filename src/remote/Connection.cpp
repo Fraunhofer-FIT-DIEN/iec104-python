@@ -230,6 +230,9 @@ void Connection::disconnect() {
     return;
   }
 
+  // a pending initialization of this opening is pointless from now on
+  cancelInit();
+
   if (CLOSED_AWAIT_RECONNECT == current) {
     setState(CLOSED);
   } else {
@@ -260,6 +263,7 @@ void Connection::detach() {
     std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
     CS104_Connection_close(connection);
   }
+  cancelInit();
   setState(CLOSED);
 
   DEBUG_PRINT(Debug::Connection,
@@ -272,6 +276,10 @@ bool Connection::isOpen() const {
 }
 
 bool Connection::isMuted() const { return state == OPEN_MUTED; }
+
+bool Connection::isInitializationPending() const {
+  return initClaim.load() != 0;
+}
 
 bool Connection::mute() const {
   Module::ScopedGilRelease const scoped("Connection.mute");
@@ -303,6 +311,73 @@ bool Connection::unmute() const {
   return true;
 }
 
+bool Connection::beginInit(std::uint_fast64_t &claim) {
+  // the sequence keeps tokens unique, so a claim that was cancelled and taken
+  // again can never be mistaken for the original one
+  std::uint_fast64_t const token = ++initClaimSequence;
+  std::uint_fast64_t expected = 0;
+  if (!initClaim.compare_exchange_strong(expected, token)) {
+    return false;
+  }
+  claim = token;
+  return true;
+}
+
+void Connection::endInit(const std::uint_fast64_t claim) {
+  // only the owner of the guard may release it: 0 means it was already
+  // cancelled by a close, anything else means a newer opening took over
+  std::uint_fast64_t expected = claim;
+  initClaim.compare_exchange_strong(expected, 0);
+}
+
+void Connection::cancelInit() { initClaim.store(0); }
+
+void Connection::runInit(const std::uint_fast64_t claim,
+                         const ConnectionInit procedure) {
+  if (initClaim.load() != claim) {
+    // the connection was closed, reopened or detached while the task waited in
+    // the queue: this initialization belongs to a past generation
+    DEBUG_PRINT(Debug::Connection,
+                "init] Drop stale initialization of " + getConnectionString());
+    return;
+  }
+
+  // releases the guard even if an initialization step throws, so a failing
+  // procedure cannot block every following STARTDT_CON
+  struct InitClaimGuard {
+    Connection *connection;
+    std::uint_fast64_t claim;
+    ~InitClaimGuard() { connection->endInit(claim); }
+  } const guard{this, claim};
+
+  try {
+    switch (procedure) {
+    case INIT_ALL:
+      interrogation(IEC60870_GLOBAL_COMMON_ADDRESS, CS101_COT_ACTIVATION,
+                    QOI_STATION, true);
+      clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+      break;
+    case INIT_INTERROGATION:
+      interrogation(IEC60870_GLOBAL_COMMON_ADDRESS, CS101_COT_ACTIVATION,
+                    QOI_STATION, true);
+      break;
+    case INIT_CLOCK_SYNC:
+      clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
+      break;
+    default:
+      break;
+    }
+  } catch (const std::exception &e) {
+    // a failed initialization must not leave the connection muted forever
+    std::cerr << "[c104.Connection] init] Initialization of "
+              << getConnectionString() << " aborted: " << e.what() << std::endl;
+  }
+
+  if (initClaim.load() == claim) {
+    setState(OPEN);
+  }
+}
+
 void Connection::setMuted(bool value) {
   ConnectionState current = state.load();
   if (OPEN == current && value) {
@@ -317,57 +392,48 @@ void Connection::setMuted(bool value) {
 
     switch (init) {
     case INIT_ALL:
-      if (auto c = getClient()) {
-
-        std::weak_ptr<Connection> weakSelf =
-            shared_from_this(); // Weak reference to `this`
-        c->scheduleTask(
-            [weakSelf]() {
-              auto self = weakSelf.lock();
-              if (!self)
-                return; // Prevent running if `this` was destroyed
-
-              self->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
-                                  CS101_COT_ACTIVATION, QOI_STATION, true);
-              self->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
-              self->setState(OPEN);
-            },
-            -1);
-      }
-      break;
     case INIT_INTERROGATION:
-      if (auto c = getClient()) {
-        std::weak_ptr<Connection> weakSelf =
-            shared_from_this(); // Weak reference to `this`
+    case INIT_CLOCK_SYNC: {
+      // a peer may repeat STARTDT_CON for every frame it sends: only the event
+      // that flips the guard from free to claimed schedules the single queued
+      // initialization of this opening (SECURITY.md M13)
+      std::uint_fast64_t claim = 0;
+      if (!beginInit(claim)) {
+        DEBUG_PRINT(Debug::Connection,
+                    "set_muted] Initialization already pending for " +
+                        getConnectionString());
+        break;
+      }
+
+      auto c = getClient();
+      if (!c) {
+        endInit(claim);
+        break;
+      }
+
+      std::weak_ptr<Connection> weakSelf =
+          shared_from_this(); // Weak reference to `this`
+      ConnectionInit const procedure = init.load();
+      try {
         c->scheduleTask(
-            [weakSelf]() {
+            [weakSelf, claim, procedure]() {
               auto self = weakSelf.lock();
               if (!self)
                 return; // Prevent running if `this` was destroyed
 
-              self->interrogation(IEC60870_GLOBAL_COMMON_ADDRESS,
-                                  CS101_COT_ACTIVATION, QOI_STATION, true);
-              self->setState(OPEN);
+              self->runInit(claim, procedure);
             },
             -1);
+      } catch (const std::exception &e) {
+        // the task never reached the queue: release the guard so a later
+        // STARTDT_CON can retry the initialization
+        endInit(claim);
+        std::cerr << "[c104.Connection] set_muted] Cannot schedule "
+                     "initialization of "
+                  << getConnectionString() << ": " << e.what() << std::endl;
       }
       break;
-    case INIT_CLOCK_SYNC:
-      if (auto c = getClient()) {
-        std::weak_ptr<Connection> weakSelf =
-            shared_from_this(); // Weak reference to `this`
-        c->scheduleTask(
-            [weakSelf]() {
-              auto self = weakSelf.lock();
-              if (!self)
-                return; // Prevent running if `this` was destroyed
-
-              self->clockSync(IEC60870_GLOBAL_COMMON_ADDRESS, true);
-              self->setState(OPEN);
-            },
-            -1);
-      }
-      break;
+    }
     default:
       setState(OPEN);
     }
@@ -402,6 +468,8 @@ void Connection::setOpen() {
     return;
   }
 
+  // a new opening starts a new initialization generation
+  cancelInit();
   ++connectionCount;
   connectedAt.store(std::chrono::system_clock::now());
   // set the state before scheduling unmute: the task may run immediately and
@@ -438,6 +506,10 @@ void Connection::setClosed() {
                 "set_closed] Already closed to " + getConnectionString());
     return;
   }
+
+  // the queued initialization may be dropped with a stopping client thread,
+  // so closing has to release the guard itself
+  cancelInit();
 
   if (CLOSED_AWAIT_OPEN != current && CLOSED_AWAIT_RECONNECT != current) {
     // set disconnected if connected previously

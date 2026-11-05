@@ -472,6 +472,11 @@ void Client::schedulePeriodicTask(const std::function<void()> &task,
   runThread_wait.notify_one();
 }
 
+std::size_t Client::getPendingTaskCount() const {
+  std::lock_guard<std::mutex> const lock(runThread_mutex);
+  return tasks.size();
+}
+
 void Client::scheduleTask(const std::function<void()> &task,
                           std::int_fast32_t delay) {
   {

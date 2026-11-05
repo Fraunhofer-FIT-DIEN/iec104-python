@@ -162,6 +162,15 @@ public:
   bool isMuted() const;
 
   /**
+   * @brief Test if an initialization procedure is still queued for this
+   * connection
+   * @details exposed for the STARTDT_CON flood regression test of
+   * SECURITY.md M13; not part of the python API
+   * @return information on pending initialization state
+   */
+  bool isInitializationPending() const;
+
+  /**
    * @brief Mute an open connection to remote server - disable messages from
    * server to client
    * @return information on operation success
@@ -556,6 +565,16 @@ private:
   /// @brief current state of state machine behaviour
   std::atomic<ConnectionState> state{CLOSED};
 
+  /// @brief token of the initialization task claimed by setMuted(), 0 if no
+  /// initialization is pending
+  /// @details a peer may repeat STARTDT_CON as often as it wants: only the
+  /// caller that flips this value from 0 to a token schedules a task, so a
+  /// frame flood cannot queue one initialization per frame (SECURITY.md M13)
+  std::atomic<std::uint_fast64_t> initClaim{0};
+
+  /// @brief source of unique claim tokens for initClaim
+  std::atomic_uint_fast64_t initClaimSequence{0};
+
   /// @brief timestamp of last successfully connection opening
   std::atomic<std::chrono::system_clock::time_point> connectedAt{};
 
@@ -620,6 +639,37 @@ private:
    * handler
    */
   void setState(ConnectionState connectionState);
+
+  /**
+   * @brief claim the right to schedule the connection initialization
+   * @param claim receives the unique token of the claim on success
+   * @return true if this caller flipped the guard from free to claimed and is
+   * therefore the only one allowed to schedule a task
+   */
+  bool beginInit(std::uint_fast64_t &claim);
+
+  /**
+   * @brief release an initialization claim
+   * @param claim token returned by beginInit(); a claim taken over by a newer
+   * opening leaves the guard untouched
+   */
+  void endInit(std::uint_fast64_t claim);
+
+  /**
+   * @brief drop any initialization claim, used when the connection closes
+   * @details the queued task may have been dropped by a stopped client thread,
+   * so the closing side has to reset the guard instead of waiting for the task
+   */
+  void cancelInit();
+
+  /**
+   * @brief execute a queued connection initialization
+   * @details returns without touching the state if the claim was cancelled or
+   * overtaken by a newer opening while the task waited in the queue
+   * @param claim token returned by beginInit() when the task was scheduled
+   * @param procedure initialization procedure to run
+   */
+  void runInit(std::uint_fast64_t claim, ConnectionInit procedure);
 
 public:
   /**

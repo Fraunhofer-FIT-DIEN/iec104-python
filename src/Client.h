@@ -326,6 +326,14 @@ public:
     return notificationLimiter;
   }
 
+  /**
+   * @brief number of tasks currently waiting in the client task queue
+   * (testing)
+   * @details lets a test prove that repeated peer frames do not grow the queue
+   * @return amount of queued tasks
+   */
+  [[nodiscard]] std::size_t getPendingTaskCount() const;
+
 private:
   /**
    * @brief Create a new remote connection handler instance that acts as a

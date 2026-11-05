@@ -849,6 +849,59 @@ TEST_CASE("Connection asduHandler: client not running -> drop",
   CS101_ASDU_destroy(asdu);
 }
 
+// M13: a peer that repeats STARTDT_CON must not be able to queue one
+// initialization task per frame. The initialization is claimed once per
+// opening and released when it runs or when the connection closes.
+TEST_CASE("Connection STARTDT_CON flood queues a single initialization",
+          "[security][medium][connection]") {
+  auto client = Client::create();
+  auto conn = client->addConnection("127.0.0.1", 2404); // INIT_ALL
+  void *key = conn->getCallbackKey();
+
+  // the client thread is not started, so scheduled tasks stay in the queue and
+  // the flood can be measured without any timing dependency
+  REQUIRE(client->isRunning() == false);
+
+  conn->setOpen();
+  REQUIRE(conn->getState() == OPEN_MUTED);
+  REQUIRE(conn->isInitializationPending() == false);
+  const std::size_t baseline = client->getPendingTaskCount();
+
+  // the first STARTDT_CON claims the initialization and queues one task
+  Remote::Connection::connectionHandler(key, nullptr,
+                                        CS104_CONNECTION_STARTDT_CON_RECEIVED);
+  REQUIRE(conn->isInitializationPending() == true);
+  const std::size_t afterFirst = client->getPendingTaskCount();
+  REQUIRE(afterFirst == baseline + 1);
+
+  // the flood: repeating STARTDT_CON/STOPDT_CON pairs must neither queue more
+  // tasks nor release the claim of the still pending initialization
+  for (int i = 0; i < 500; ++i) {
+    Remote::Connection::connectionHandler(
+        key, nullptr, CS104_CONNECTION_STARTDT_CON_RECEIVED);
+    Remote::Connection::connectionHandler(key, nullptr,
+                                          CS104_CONNECTION_STOPDT_CON_RECEIVED);
+  }
+  REQUIRE(client->getPendingTaskCount() == afterFirst);
+  REQUIRE(conn->isInitializationPending() == true);
+  REQUIRE(conn->getState() == OPEN_MUTED);
+
+  // closing releases the claim even though the queued task never ran
+  conn->setClosed();
+  REQUIRE(conn->isInitializationPending() == false);
+
+  // the next opening starts a new generation that initializes again, once
+  conn->setOpen();
+  REQUIRE(conn->getState() == OPEN_MUTED);
+  const std::size_t afterReopen = client->getPendingTaskCount();
+  for (int i = 0; i < 100; ++i) {
+    Remote::Connection::connectionHandler(
+        key, nullptr, CS104_CONNECTION_STARTDT_CON_RECEIVED);
+  }
+  REQUIRE(conn->isInitializationPending() == true);
+  REQUIRE(client->getPendingTaskCount() == afterReopen + 1);
+}
+
 // M7: setOriginatorAddress iterates a snapshot of `connections` taken under
 // connections_mutex, so it can run concurrently with add/remove_connection
 TEST_CASE("Client setOriginatorAddress races add/remove_connection safely",
