@@ -364,10 +364,14 @@ def _l11_cb(value) -> None:
   // used to escape the noexcept call() as py::cast_error -> std::terminate
   REQUIRE_FALSE(cb.call(NotBound{}));
   REQUIRE(cb.is_set());
+  // the caught cast_error left a pending TypeError indicator behind, which
+  // used to be attributed to the next python call on this thread
+  REQUIRE(PyErr_Occurred() == nullptr);
 
   Module::Callback<bool> cbr("Test.l11r", "(value) -> None");
   cbr.reset(callable);
   REQUIRE_FALSE(cbr.call(NotBound{}).has_value());
+  REQUIRE(PyErr_Occurred() == nullptr);
 }
 
 // --------------------------------------------------------------------- L12

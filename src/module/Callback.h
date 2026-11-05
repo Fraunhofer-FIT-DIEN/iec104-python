@@ -286,6 +286,26 @@ protected:
   }
 
   /**
+   * @brief Discard a python error indicator left behind by a failed call.
+   *
+   * pybind11 raises the indicator (`set_error()`) *before* it throws, e.g. when
+   * an argument cannot be converted to a python object or a return value has an
+   * unregistered type. Containing the C++ exception alone would leave that
+   * indicator pending, and it would then be attributed to whatever python call
+   * runs next on this thread. Only called when a thread state is available: on
+   * a foreign thread without the GIL there is no indicator of ours to clear.
+   */
+  static void discardPendingError() noexcept(true) {
+    try {
+      if (PyGILState_Check() && PyErr_Occurred() != nullptr) {
+        PyErr_Clear();
+      }
+    } catch (...) {
+      // nothing left to report to
+    }
+  }
+
+  /**
    * @brief Report a C++ exception thrown while invoking the callback.
    *
    * Covers everything that is neither a python exception nor a failed return
@@ -300,6 +320,7 @@ protected:
         what = e.what();
       } catch (...) {
       }
+      discardPendingError();
       std::cerr << "[c104.Callback] " << name
                 << "] failed to invoke the callback: " << what
                 << ", request rejected, handler kept" << std::endl;
