@@ -54,6 +54,11 @@ Breaking changes
   and assigning the same object to several points no longer makes them share their value.
 - **BC timestamps must be representable as CP56Time2a** \
   ``recorded_at`` values before 2000-01-01 or from 2100-01-01 (UTC) raise ``ValueError`` (previously: pre-1970 timestamps encoded uninitialised stack bytes into the message, other years were silently wrapped into 2000..2099).
+- **BC flagged commands are rejected** \
+  A command ASDU carrying the test bit (T) or the P/N (negative) bit is no longer selected, executed or used to cancel a selection.
+  Such a message is answered with a negative ``UNKNOWN_COT`` confirmation, reported to **Server.on_unexpected_message** and leaves every point and selection
+  untouched (previously: both flags were ignored and the command reached ``select()``, ``execute()`` or ``cancelSelection()``).
+  Test-mode commands are not supported by ``c104`` and a negative activation is not a request, so neither is treated as one.
 
 Fixes
 ^^^^^^

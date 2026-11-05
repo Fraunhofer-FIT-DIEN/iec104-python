@@ -1866,7 +1866,17 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
         // a DEACTIVATION may only cancel the requester's own
         // selection and never executes a command
         const auto cot = message->getCauseOfTransmission();
-        if (cot != CS101_COT_ACTIVATION && cot != CS101_COT_DEACTIVATION) {
+        if (message->isTest() || message->isNegative()) {
+          // fail closed: a flagged command carries no executable request.
+          // Commands in test mode are not supported and a negative (P/N)
+          // activation is not a request, so neither may reach select(),
+          // execute() or cancelSelection(). Rejecting here keeps every point
+          // and selection untouched; onUnexpectedMessage() below answers with
+          // a negative UNKNOWN_COT echo and no confirmation is reflected.
+          responseState = RESPONSE_STATE_NONE;
+          cause = UNKNOWN_COT;
+        } else if (cot != CS101_COT_ACTIVATION &&
+                   cot != CS101_COT_DEACTIVATION) {
           // reflected confirmations (7, 9, 10) must never execute a command
           responseState = RESPONSE_STATE_NONE;
           cause = UNKNOWN_COT;

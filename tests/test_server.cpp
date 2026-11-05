@@ -66,6 +66,12 @@ def _srv_unexpected(server: c104.Server, message: c104.IncomingMessage, cause: c
     pass
 def _srv_connect(server: c104.Server, ip: str) -> bool:
     return True
+
+_srv_cmd_rx_count = 0
+def _srv_cmd_rx(point: c104.Point, previous_info: c104.Information, message: c104.IncomingMessage) -> c104.ResponseState:
+    global _srv_cmd_rx_count
+    _srv_cmd_rx_count += 1
+    return c104.ResponseState.SUCCESS
 )");
 }
 
@@ -77,9 +83,10 @@ py::object getCallable(const char *name) {
 CS101_ASDU makeCommandAsdu(sCS101_AppLayerParameters &params,
                            IEC60870_5_TypeID type, uint_fast32_t ioa,
                            uint_fast16_t ca, CS101_CauseOfTransmission cot,
-                           uint_fast8_t oa, bool select) {
+                           uint_fast8_t oa, bool select, bool isTest = false,
+                           bool isNegative = false) {
   CS101_ASDU asdu =
-      CS101_ASDU_create(&params, false, cot, oa, ca, false, false);
+      CS101_ASDU_create(&params, false, cot, oa, ca, isTest, isNegative);
   CS101_ASDU_setTypeID(asdu, type);
   InformationObject io = nullptr;
   switch (type) {
@@ -111,6 +118,25 @@ CS101_ASDU makeCommandAsdu(sCS101_AppLayerParameters &params,
   }
   CS101_ASDU_addInformationObject(asdu, io);
   return asdu;
+}
+
+// the flag combinations a command ASDU can carry besides its cause (the only
+// two protocol flags an ASDU header has, see CS101_ASDU_initializeStatic)
+struct FlagCase {
+  bool isTest;
+  bool isNegative;
+  const char *label;
+};
+
+std::vector<FlagCase> flaggedCommandCases() {
+  return {{true, false, "T only"},
+          {false, true, "P/N only"},
+          {true, true, "T and P/N"}};
+}
+
+// number of on_receive invocations recorded by the _srv_cmd_rx python callback
+int commandRxCount() {
+  return py::module_::import("__main__").attr("_srv_cmd_rx_count").cast<int>();
 }
 
 } // namespace
@@ -1202,6 +1228,111 @@ TEST_CASE("Server: asduHandler dispatches only ACTIVATION commands",
   }
 }
 
+TEST_CASE("Server: asduHandler rejects T and P/N flagged commands",
+          "[server][asdu][security]") {
+  // a command carrying the test bit (T) or the P/N bit is not an executable
+  // request: it must never reach select()/execute(), never run the point's
+  // on_receive callback and never change the point. The single answer is a
+  // negative UNKNOWN_COT echo, no confirmation is reflected.
+  const auto cases = flaggedCommandCases();
+
+  // the ASDU keeps a pointer to the parameters, see Test::makeASDU
+  static sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
+
+  ensureServerCallbacks();
+  auto server = Server::create("127.0.0.1", 2496);
+  auto station = server->addStation(1);
+
+  // one point per flag combination: every point starts and stays false, so a
+  // rejected command cannot be hidden by a preceding one
+  std::vector<std::shared_ptr<Object::DataPoint>> points;
+  for (std::size_t i = 0; i < cases.size(); i++) {
+    auto point = station->addPoint(11 + i, IEC60870_5_TypeID::C_SC_NA_1);
+    auto cb = getCallable("_srv_cmd_rx");
+    point->setOnReceiveCallback(cb);
+    points.push_back(point);
+  }
+  REQUIRE(commandRxCount() == 0);
+
+  for (std::size_t i = 0; i < cases.size(); i++) {
+    const auto &flags = cases[i];
+    const auto ioa = 11 + i;
+    CAPTURE(flags.label);
+
+    // a fresh peer per case, so one rejected command cannot influence another
+    Test::MockPeerState state;
+    sIPeerConnection peer = Test::makeMockPeer(state);
+    IMasterConnection mock = &peer;
+    Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                   CS104_CON_EVENT_ACTIVATED);
+
+    // on=true, select=false, ACTIVATION: executing it would raise the value
+    CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, ioa,
+                                      1, CS101_COT_ACTIVATION, 0, false,
+                                      flags.isTest, flags.isNegative);
+    REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, asdu) == true);
+    CS101_ASDU_destroy(asdu);
+
+    REQUIRE(std::get<bool>(points[i]->getValue()) == false);
+    REQUIRE(server->getSelector(1, ioa).has_value() == false);
+    REQUIRE(commandRxCount() == 0);
+    REQUIRE(state.sendASDU_count == 1);
+    REQUIRE(state.cot.back() == CS101_COT_UNKNOWN_COT);
+    REQUIRE(state.negative.back() == true);
+    REQUIRE(state.sendACT_TERM_count == 0);
+  }
+}
+
+TEST_CASE("Server: flagged DEACTIVATION does not cancel a selection",
+          "[server][asdu][security]") {
+  // the same gate covers a cancel request: a flagged DEACTIVATION must not
+  // reach cancelSelection(), so the requester's own selection survives and no
+  // DEACT_CON is sent
+  const auto cases = flaggedCommandCases();
+
+  // the ASDU keeps a pointer to the parameters, see Test::makeASDU
+  static sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
+
+  auto server = Server::create("127.0.0.1", 2495);
+  auto station = server->addStation(1);
+  auto point = station->addPoint(11, IEC60870_5_TypeID::C_SC_NA_1);
+  point->setCommandMode(SELECT_AND_EXECUTE_COMMAND);
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+
+  // a normal selection, originator address 1
+  CS101_ASDU sel = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
+                                   CS101_COT_ACTIVATION, 1, true);
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, sel) == true);
+  CS101_ASDU_destroy(sel);
+  REQUIRE(server->getSelector(1, 11).has_value() == true);
+
+  const auto sent = state.sendASDU_count;
+
+  for (std::size_t i = 0; i < cases.size(); i++) {
+    const auto &flags = cases[i];
+    CAPTURE(flags.label);
+
+    CS101_ASDU deact = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11,
+                                       1, CS101_COT_DEACTIVATION, 1, false,
+                                       flags.isTest, flags.isNegative);
+    REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, deact) == true);
+    CS101_ASDU_destroy(deact);
+
+    REQUIRE(server->getSelector(1, 11).has_value() == true);
+    REQUIRE(state.cot.back() == CS101_COT_UNKNOWN_COT);
+    REQUIRE(state.negative.back() == true);
+  }
+
+  REQUIRE(state.sendASDU_count == sent + 3);
+  REQUIRE(state.sendACT_TERM_count == 0);
+  REQUIRE(std::get<bool>(point->getValue()) == false);
+}
+
 TEST_CASE("Server: asduHandler DEACTIVATION cancels the requester's selection",
           "[server][asdu][security]") {
   // the ASDU keeps a pointer to the parameters, see Test::makeASDU
@@ -1311,9 +1442,8 @@ bool sendCancel(const std::shared_ptr<Server> &server,
                 uint_fast8_t oa, bool select) {
   // the ASDU keeps a pointer to the parameters, see Test::makeASDU
   static sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
-  CS101_ASDU asdu =
-      makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
-                      CS101_COT_DEACTIVATION, oa, select);
+  CS101_ASDU asdu = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
+                                    CS101_COT_DEACTIVATION, oa, select);
   const auto before = state.negative.size();
   REQUIRE(Server::asduHandler(server->getCallbackKey(), connection, asdu) ==
           true);
