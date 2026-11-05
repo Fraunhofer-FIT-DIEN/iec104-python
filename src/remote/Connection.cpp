@@ -138,25 +138,30 @@ void Connection::setState(ConnectionState connectionState) {
   ConnectionState const prev = state.load();
   if (prev != connectionState) {
     state.store(connectionState);
-    if (py_onStateChange.is_set()) {
-      if (auto c = getClient()) {
-        std::weak_ptr<Connection> weakSelf =
-            shared_from_this(); // Weak reference to `this`
-        c->scheduleTask([weakSelf, connectionState]() {
-          auto self = weakSelf.lock();
-          if (!self)
-            return; // Prevent running if `this` was destroyed
-
-          DEBUG_PRINT(Debug::Connection, "CALLBACK on_state_change");
-          Module::ScopedGilAcquire const scoped("Connection.on_state_change");
-          self->py_onStateChange.call(self, connectionState);
-        });
-      }
-    }
-    DEBUG_PRINT(Debug::Connection,
-                "state] " + ConnectionState_toString(prev) + " -> " +
-                    ConnectionState_toString(connectionState));
+    notifyStateChange(prev, connectionState);
   }
+}
+
+void Connection::notifyStateChange(ConnectionState prev,
+                                   ConnectionState connectionState) {
+  if (py_onStateChange.is_set()) {
+    if (auto c = getClient()) {
+      std::weak_ptr<Connection> weakSelf =
+          shared_from_this(); // Weak reference to `this`
+      c->scheduleTask([weakSelf, connectionState]() {
+        auto self = weakSelf.lock();
+        if (!self)
+          return; // Prevent running if `this` was destroyed
+
+        DEBUG_PRINT(Debug::Connection, "CALLBACK on_state_change");
+        Module::ScopedGilAcquire const scoped("Connection.on_state_change");
+        self->py_onStateChange.call(self, connectionState);
+      });
+    }
+  }
+  DEBUG_PRINT(Debug::Connection, "state] " + ConnectionState_toString(prev) +
+                                     " -> " +
+                                     ConnectionState_toString(connectionState));
 }
 
 void Connection::setOriginatorAddress(uint_fast8_t address) {
@@ -342,8 +347,10 @@ void Connection::runInit(const std::uint_fast64_t claim,
     return;
   }
 
-  // releases the guard even if an initialization step throws, so a failing
-  // procedure cannot block every following STARTDT_CON
+  // releases the claim even if a step throws something that is not an
+  // std::exception, so nothing can block every following STARTDT_CON. It runs
+  // after the reconciliation below, and releasing twice is a no-op, because
+  // endInit() only succeeds for its own token
   struct InitClaimGuard {
     Connection *connection;
     std::uint_fast64_t claim;
@@ -368,14 +375,47 @@ void Connection::runInit(const std::uint_fast64_t claim,
       break;
     }
   } catch (const std::exception &e) {
-    // a failed initialization must not leave the connection muted forever
+    // a failed initialization must not leave the connection muted forever. The
+    // message is bounded: a library error text is not ours to trust with the
+    // size of our log
+    constexpr std::size_t maxMessageLength = 200;
+    std::string message = e.what();
+    if (message.size() > maxMessageLength) {
+      message.resize(maxMessageLength);
+      message += "...";
+    }
     std::cerr << "[c104.Connection] init] Initialization of "
-              << getConnectionString() << " aborted: " << e.what() << std::endl;
+              << getConnectionString() << " aborted: " << message << std::endl;
+  } catch (...) {
+    // a foreign exception must not escape into the client thread
+    std::cerr << "[c104.Connection] init] Initialization of "
+              << getConnectionString() << " aborted: unknown exception"
+              << std::endl;
   }
 
+  // the initialization is done, possibly failed: unmute again so the connection
+  // is usable. Only the mute this initialization owns may be lifted - every
+  // close, reopen and detach cancels the claim, so an intact claim proves that
+  // the mute below is still this generation's, and the CAS itself neither
+  // resurrects CLOSED nor touches the awaiting states
   if (initClaim.load() == claim) {
-    setState(OPEN);
+    ConnectionState prev = OPEN_MUTED;
+    if (state.compare_exchange_strong(prev, OPEN)) {
+      notifyStateChange(prev, OPEN);
+    }
+  } else {
+    DEBUG_PRINT(Debug::Connection,
+                "init] Drop reconciliation of " + getConnectionString());
   }
+}
+
+bool Connection::runPendingInitializationForTesting() {
+  std::uint_fast64_t claim = 0;
+  if (!beginInit(claim)) {
+    return false;
+  }
+  runInit(claim, init.load());
+  return true;
 }
 
 void Connection::setMuted(bool value) {

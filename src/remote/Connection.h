@@ -171,6 +171,14 @@ public:
   bool isInitializationPending() const;
 
   /**
+   * @brief Run a connection initialization as if the queued task had run
+   * @details exposed for the initialization containment regression test of
+   * SECURITY.md M13; not part of the python API
+   * @return true if the initialization could be claimed and was executed
+   */
+  bool runPendingInitializationForTesting();
+
+  /**
    * @brief Mute an open connection to remote server - disable messages from
    * server to client
    * @return information on operation success
@@ -641,6 +649,14 @@ private:
   void setState(ConnectionState connectionState);
 
   /**
+   * @brief emit the state change callback and diagnostic for a transition that
+   * was already published to `state` by the caller
+   * @param prev state the caller replaced
+   * @param connectionState state the caller published
+   */
+  void notifyStateChange(ConnectionState prev, ConnectionState connectionState);
+
+  /**
    * @brief claim the right to schedule the connection initialization
    * @param claim receives the unique token of the claim on success
    * @return true if this caller flipped the guard from free to claimed and is
@@ -665,7 +681,9 @@ private:
   /**
    * @brief execute a queued connection initialization
    * @details returns without touching the state if the claim was cancelled or
-   * overtaken by a newer opening while the task waited in the queue
+   * overtaken by a newer opening while the task waited in the queue. The claim
+   * is released on every exit path and a still muted connection of this
+   * generation is unmuted afterwards even if a step failed
    * @param claim token returned by beginInit() when the task was scheduled
    * @param procedure initialization procedure to run
    */

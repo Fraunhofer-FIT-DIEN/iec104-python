@@ -902,6 +902,109 @@ TEST_CASE("Connection STARTDT_CON flood queues a single initialization",
   REQUIRE(client->getPendingTaskCount() == afterReopen + 1);
 }
 
+// M13: a failing initialization step must neither strand the connection in
+// OPEN_MUTED nor keep the initialization claim, and its completion must never
+// resurrect a state that a close or a newer generation already published.
+// The failure is injected by pre-registering the command id the step prepares:
+// interrogation()/clockSync() throw before any socket is used, so the whole
+// case runs synchronously without timing dependencies.
+TEST_CASE("Connection failed initialization opens and frees the claim",
+          "[security][medium][connection]") {
+  auto client = Client::create();
+  auto conn = client->addConnection("127.0.0.1", 2404); // INIT_ALL
+  void *key = conn->getCallbackKey();
+
+  // the client thread is not started: a leak of the claim would be visible
+  REQUIRE(client->isRunning() == false);
+
+  conn->setOpen();
+  REQUIRE(conn->getState() == OPEN_MUTED);
+  REQUIRE(conn->isInitializationPending() == false);
+
+  const std::string interrogationId =
+      std::to_string(IEC60870_GLOBAL_COMMON_ADDRESS) + "-C_IC_NA_1-0";
+  conn->prepareCommandSuccess(interrogationId, COMMAND_AWAIT_CON_TERM);
+
+  const std::size_t baseline = client->getPendingTaskCount();
+  REQUIRE(conn->runPendingInitializationForTesting() == true);
+
+  // the aborted procedure is contained: the connection is usable again and the
+  // guard is free for the next STARTDT_CON
+  REQUIRE(conn->getState() == ConnectionState::OPEN);
+  REQUIRE(conn->isInitializationPending() == false);
+  REQUIRE(conn->isMuted() == false);
+  // no on_state_change callback is registered, so the transition queues nothing
+  REQUIRE(client->getPendingTaskCount() == baseline);
+
+  // a later initialization of the same connection can claim the guard again;
+  // a leaked claim would already fail here
+  conn->cancelCommandSuccess(interrogationId);
+  conn->setMuted(true);
+  REQUIRE(conn->getState() == OPEN_MUTED);
+  Remote::Connection::connectionHandler(key, nullptr,
+                                        CS104_CONNECTION_STARTDT_CON_RECEIVED);
+  REQUIRE(conn->isInitializationPending() == true);
+
+  // the queued task owns the guard, so a second claim is refused
+  REQUIRE(conn->runPendingInitializationForTesting() == false);
+  REQUIRE(conn->getState() == OPEN_MUTED);
+
+  // closing drops the claim of the never executed task
+  conn->setClosed();
+  REQUIRE(conn->isInitializationPending() == false);
+}
+
+TEST_CASE("Connection initialization cannot undo a close",
+          "[security][medium][connection]") {
+  auto client = Client::create();
+  auto conn = client->addConnection("127.0.0.1", 2404); // INIT_ALL
+
+  conn->setOpen();
+  REQUIRE(conn->getState() == OPEN_MUTED);
+
+  // the connection closes while its initialization is still pending: the close
+  // wins and the completing task must not overwrite the closed state
+  conn->setClosed();
+  conn->disconnect(); // CLOSED_AWAIT_RECONNECT -> CLOSED
+  REQUIRE(conn->getState() == ConnectionState::CLOSED);
+
+  REQUIRE(conn->runPendingInitializationForTesting() == true);
+  REQUIRE(conn->getState() == ConnectionState::CLOSED);
+  REQUIRE(conn->isInitializationPending() == false);
+}
+
+TEST_CASE("Connection clock-sync initialization failure is contained",
+          "[security][medium][connection]") {
+  auto client = Client::create();
+  auto conn = client->addConnection("127.0.0.1", 2405, INIT_CLOCK_SYNC);
+
+  conn->setOpen();
+  REQUIRE(conn->getState() == OPEN_MUTED);
+
+  conn->prepareCommandSuccess(std::to_string(IEC60870_GLOBAL_COMMON_ADDRESS) +
+                                  "-C_CS_NA_1-0",
+                              COMMAND_AWAIT_CON);
+
+  REQUIRE(conn->runPendingInitializationForTesting() == true);
+  REQUIRE(conn->getState() == ConnectionState::OPEN);
+  REQUIRE(conn->isInitializationPending() == false);
+}
+
+TEST_CASE("Connection initialization without a socket completes quietly",
+          "[security][medium][connection]") {
+  auto client = Client::create();
+  auto conn = client->addConnection("127.0.0.1", 2406, INIT_INTERROGATION);
+
+  conn->setOpen();
+  REQUIRE(conn->getState() == OPEN_MUTED);
+
+  // lib60870 declines the send on a connection without a socket, so the
+  // procedure returns false instead of waiting for a response
+  REQUIRE(conn->runPendingInitializationForTesting() == true);
+  REQUIRE(conn->getState() == ConnectionState::OPEN);
+  REQUIRE(conn->isInitializationPending() == false);
+}
+
 // M7: setOriginatorAddress iterates a snapshot of `connections` taken under
 // connections_mutex, so it can run concurrently with add/remove_connection
 TEST_CASE("Client setOriginatorAddress races add/remove_connection safely",
