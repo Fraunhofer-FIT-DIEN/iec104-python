@@ -376,7 +376,7 @@ private:
 
   std::priority_queue<Task> tasks;
 
-  /// @brief bounds tasks fed by peer frames, see SECURITY.md L7
+  /// @brief bounds tasks fed by peer frames (SECURITY)
   Module::TaskLimiter notificationLimiter{
       "c104.Client", Module::MAX_PENDING_NOTIFICATION_TASKS};
 

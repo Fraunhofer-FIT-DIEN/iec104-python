@@ -496,8 +496,8 @@ public:
    * @param negative A flag indicating whether the confirmation is negative
    * (true) or positive (false).
    */
-  void sendDeactivationConfirmation(IMasterConnection connection, CS101_ASDU asdu,
-                                    bool negative = false);
+  void sendDeactivationConfirmation(IMasterConnection connection,
+                                    CS101_ASDU asdu, bool negative = false);
 
   /**
    * @brief Sends an activation termination ASDU to the master connection.
@@ -831,7 +831,7 @@ private:
 
   std::priority_queue<Task> tasks;
 
-  /// @brief bounds tasks fed by peer frames, see SECURITY.md L7
+  /// @brief bounds tasks fed by peer frames (SECURITY)
   Module::TaskLimiter notificationLimiter{
       "c104.Server", Module::MAX_PENDING_NOTIFICATION_TASKS};
 

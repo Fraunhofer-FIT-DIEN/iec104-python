@@ -158,7 +158,7 @@ private:
   CS101_ASDU asdu;
 
   /// @brief private copy of the application layer parameters, referenced by
-  /// the cloned asdu (must not point into the owner, see SECURITY.md L3)
+  /// the cloned asdu (must not point into the owner)
   sCS101_AppLayerParameters parameters{};
 
   ///< @brief MUTEX Lock to change extracted information object position

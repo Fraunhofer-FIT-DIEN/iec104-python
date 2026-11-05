@@ -49,9 +49,8 @@ namespace Module {
  * @details Every frame received or sent can schedule a task that calls a
  * Python callback (on_receive_raw, on_send_raw, on_unexpected_message). If
  * the callback is slower than the frame rate, the run loop's task queue would
- * otherwise grow without bound (see SECURITY.md L7). Server and Client each
- * own one limiter with MAX_PENDING_NOTIFICATION_TASKS slots; connections use
- * the limiter of their client.
+ * otherwise grow without bound. Server and Client each own one limiter with
+ * MAX_PENDING_NOTIFICATION_TASKS slots; connections use the clients limiter.
  *
  * A slot is represented by a Token. acquire() is the admission check: it
  * returns nullptr if all slots are taken, then the notification must be

@@ -1862,13 +1862,9 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
       }
     } else {
       if (message->getType() >= C_SC_NA_1) {
-        // SECURITY.md M11: only an ACTIVATION may select or execute a
-        // command; a DEACTIVATION may only cancel the requester's own
-        // selection and never executes a command. The rejected COTs
-        // (reflected confirmations 7, 9, 10 and the cause report COTs) leave
-        // the point and the selection untouched and keep responseState at
-        // NONE, so no confirmation is reflected back to the peer; the negative
-        // UNKNOWN_COT answer is sent below.
+        // only an ACTIVATION may select or execute a command
+        // a DEACTIVATION may only cancel the requester's own
+        // selection and never executes a command
         const auto cot = message->getCauseOfTransmission();
         if (cot != CS101_COT_ACTIVATION && cot != CS101_COT_DEACTIVATION) {
           // reflected confirmations (7, 9, 10) must never execute a command
@@ -1880,8 +1876,8 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
             if (point->getType() == message->getType()) {
 
               if (cot == CS101_COT_DEACTIVATION) {
-                // SECURITY.md SEC-04: cancel only the requester's own matching
-                // selection; the select/execute flag of the cancel request is
+                // cancel only the requester's own matching selection
+                // the select/execute flag of the cancel request is
                 // ignored and a command is never executed by a DEACTIVATION.
                 // A point in DIRECT command mode has no selection, so the
                 // request is answered negatively. responseState stays NONE so
