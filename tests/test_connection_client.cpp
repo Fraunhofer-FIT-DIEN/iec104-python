@@ -75,6 +75,11 @@ import c104
 def _cb_state(connection: c104.Connection, state: c104.ConnectionState) -> None:
     pass
 
+_state_calls = []
+
+def _cb_state_record(connection: c104.Connection, state: c104.ConnectionState) -> None:
+    _state_calls.append(int(state))
+
 def _cb_raw(connection: c104.Connection, data: bytes) -> None:
     pass
 
@@ -1003,6 +1008,110 @@ TEST_CASE("Connection initialization without a socket completes quietly",
   REQUIRE(conn->runPendingInitializationForTesting() == true);
   REQUIRE(conn->getState() == ConnectionState::OPEN);
   REQUIRE(conn->isInitializationPending() == false);
+}
+
+// M13: a peer that flips the connection state faster than python can consume
+// the callbacks must not grow the client task queue without bound. Every
+// notification takes a limiter slot before it is scheduled, so the excess is
+// dropped while the state transition itself is published anyway.
+// The client thread is never started, so every assertion is about queue
+// bookkeeping only and needs no timing.
+TEST_CASE("Connection on_state_change flood is limiter bounded",
+          "[security][medium][connection]") {
+  ensureConnectionCallbacks();
+  auto client = Client::create();
+  // INIT_MUTED: setOpen() publishes OPEN_MUTED and schedules no unmute task,
+  // so every queued task below is a state-change notification
+  auto conn = client->addConnection("127.0.0.1", 2404, INIT_MUTED);
+
+  py::object callback = cb("_cb_state_record");
+  REQUIRE_FALSE(callback.is_none());
+  conn->setOnStateChangeCallback(callback);
+
+  py::list calls = py::globals()["_state_calls"].cast<py::list>();
+  calls.attr("clear")();
+
+  REQUIRE(client->isRunning() == false);
+  const std::size_t limit = Module::MAX_PENDING_NOTIFICATION_TASKS;
+  const Module::TaskLimiter &limiter = client->getNotificationLimiter();
+  REQUIRE(limiter.limit() == limit);
+  REQUIRE(limiter.pending() == 0u);
+  REQUIRE(limiter.dropped() == 0u);
+
+  // a transition reserves a slot before it is scheduled ...
+  conn->setOpen();
+  REQUIRE(conn->getState() == OPEN_MUTED);
+  REQUIRE(limiter.pending() == 1u);
+  REQUIRE(client->getPendingTaskCount() == 1u);
+
+  // ... and running the task returns it
+  REQUIRE(client->runPendingTasksForTesting() == 1u);
+  REQUIRE(limiter.pending() == 0u);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+  REQUIRE(py::len(calls) == 1u);
+  REQUIRE(calls[0].cast<int>() == static_cast<int>(OPEN_MUTED));
+
+  // the flood: alternating mute/unmute publishes every transition, but only
+  // the first `limit` notifications find a free slot.
+  // state is OPEN_MUTED here, so the even iterations unmute to OPEN and the
+  // odd iterations mute back to OPEN_MUTED
+  calls.attr("clear")();
+  const std::size_t excess = 50;
+  ConnectionState expected = OPEN_MUTED;
+  for (std::size_t i = 0; i < limit + excess; ++i) {
+    bool const mute = (i % 2) != 0;
+    conn->setMuted(mute);
+    expected = mute ? OPEN_MUTED : OPEN;
+    // dropping a notification never prevents the underlying transition
+    REQUIRE(conn->getState() == expected);
+  }
+  REQUIRE(limiter.pending() == limit);
+  REQUIRE(client->getPendingTaskCount() == limit);
+  REQUIRE(limiter.dropped() == static_cast<std::uint64_t>(excess));
+
+  // execution returns every reserved slot, the dropped notifications are lost
+  REQUIRE(client->runPendingTasksForTesting() == limit);
+  REQUIRE(limiter.pending() == 0u);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+  REQUIRE(py::len(calls) == limit);
+  // only the first `limit` iterations were queued; the queue order must not
+  // matter, so count the notified states instead of reading the tail
+  std::size_t openCalls = 0;
+  std::size_t mutedCalls = 0;
+  for (std::size_t i = 0; i < limit; ++i) {
+    int const state = calls[i].cast<int>();
+    if (state == static_cast<int>(OPEN)) {
+      ++openCalls;
+    } else if (state == static_cast<int>(OPEN_MUTED)) {
+      ++mutedCalls;
+    }
+  }
+  REQUIRE(openCalls + mutedCalls == limit); // no other state was notified
+  REQUIRE(openCalls == (limit + 1) / 2);    // even iterations unmute to OPEN
+  REQUIRE(mutedCalls == limit / 2);         // odd iterations mute again
+
+  // discarded tasks release their slots as well, the notifications never ran
+  // (state is OPEN_MUTED here, so the loop starts with an unmute)
+  calls.attr("clear")();
+  for (std::size_t i = 0; i < limit; ++i) {
+    conn->setMuted((i % 2) != 0);
+  }
+  REQUIRE(limiter.pending() == limit);
+  REQUIRE(client->discardPendingTasksForTesting() == limit);
+  REQUIRE(limiter.pending() == 0u);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+  REQUIRE(py::len(calls) == 0u);
+
+  // the connection is still usable after a flood: the next transition is
+  // published and notified again
+  REQUIRE(conn->getState() == OPEN_MUTED);
+  conn->setMuted(false);
+  REQUIRE(conn->getState() == OPEN);
+  REQUIRE(limiter.pending() == 1u);
+  REQUIRE(client->runPendingTasksForTesting() == 1u);
+  REQUIRE(limiter.pending() == 0u);
+  REQUIRE(py::len(calls) == 1u);
+  REQUIRE(calls[0].cast<int>() == static_cast<int>(OPEN));
 }
 
 // M7: setOriginatorAddress iterates a snapshot of `connections` taken under

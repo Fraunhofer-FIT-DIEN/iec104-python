@@ -477,6 +477,45 @@ std::size_t Client::getPendingTaskCount() const {
   return tasks.size();
 }
 
+std::size_t Client::runPendingTasksForTesting() {
+  std::size_t executed = 0;
+  while (true) {
+    std::function<void()> task;
+    {
+      std::unique_lock<std::mutex> lock(runThread_mutex);
+      if (tasks.empty() ||
+          std::chrono::steady_clock::now() < tasks.top().schedule_time) {
+        break; // nothing due, scheduled tasks stay queued
+      }
+      task = tasks.top().function;
+      tasks.pop();
+    }
+
+    // same containment as thread_run(): a throwing task must not abort the
+    // drain, and the queue entry is already gone
+    try {
+      task();
+    } catch (const std::exception &e) {
+      std::cerr << "[c104.Client] testing] Task aborted: " << e.what()
+                << std::endl;
+    }
+    ++executed;
+  }
+  return executed;
+}
+
+std::size_t Client::discardPendingTasksForTesting() {
+  std::lock_guard<std::mutex> const lock(runThread_mutex);
+  std::size_t const discarded = tasks.size();
+  if (discarded > 0) {
+    // same discard as thread_run() on stop: the destroyed std::functions
+    // release the notification tokens they captured
+    std::priority_queue<Task> empty;
+    std::swap(tasks, empty);
+  }
+  return discarded;
+}
+
 void Client::scheduleTask(const std::function<void()> &task,
                           std::int_fast32_t delay) {
   {

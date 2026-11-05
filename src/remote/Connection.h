@@ -651,6 +651,11 @@ private:
   /**
    * @brief emit the state change callback and diagnostic for a transition that
    * was already published to `state` by the caller
+   * @details the callback task holds a notification limiter token, so a peer
+   * that drives transitions faster than the callback runs gets its excess
+   * notifications dropped instead of growing the client task queue. A dropped
+   * notification only loses the callback: the state transition itself is
+   * already published when this is called
    * @param prev state the caller replaced
    * @param connectionState state the caller published
    */

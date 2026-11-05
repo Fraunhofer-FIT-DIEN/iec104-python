@@ -334,6 +334,23 @@ public:
    */
   [[nodiscard]] std::size_t getPendingTaskCount() const;
 
+  /**
+   * @brief Execute every due task as if the run thread had executed it
+   * @details exposed for the state-change notification regression test of
+   * SECURITY.md M13; not part of the python API. The run thread must not be
+   * active, tasks scheduled for a later timestamp stay queued.
+   * @return amount of executed tasks
+   */
+  std::size_t runPendingTasksForTesting();
+
+  /**
+   * @brief Drop the queued tasks as a stopping run thread does
+   * @details exposed for the state-change notification regression test of
+   * SECURITY.md M13; not part of the python API.
+   * @return amount of discarded tasks
+   */
+  std::size_t discardPendingTasksForTesting();
+
 private:
   /**
    * @brief Create a new remote connection handler instance that acts as a

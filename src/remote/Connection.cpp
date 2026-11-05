@@ -146,17 +146,25 @@ void Connection::notifyStateChange(ConnectionState prev,
                                    ConnectionState connectionState) {
   if (py_onStateChange.is_set()) {
     if (auto c = getClient()) {
-      std::weak_ptr<Connection> weakSelf =
-          shared_from_this(); // Weak reference to `this`
-      c->scheduleTask([weakSelf, connectionState]() {
-        auto self = weakSelf.lock();
-        if (!self)
-          return; // Prevent running if `this` was destroyed
+      // the notification is bounded like the peer frame callbacks: a peer that
+      // drives transitions faster than python can consume them must not grow
+      // the client task queue without bound (SECURITY.md M13)
+      auto token = c->acquireNotificationToken("on_state_change");
+      if (token) {
+        std::weak_ptr<Connection> weakSelf =
+            shared_from_this(); // Weak reference to `this`
+        c->scheduleTask([weakSelf, connectionState, token]() {
+          auto self = weakSelf.lock();
+          if (!self)
+            return; // Prevent running if `this` was destroyed
 
-        DEBUG_PRINT(Debug::Connection, "CALLBACK on_state_change");
-        Module::ScopedGilAcquire const scoped("Connection.on_state_change");
-        self->py_onStateChange.call(self, connectionState);
-      });
+          DEBUG_PRINT(Debug::Connection, "CALLBACK on_state_change");
+          Module::ScopedGilAcquire const scoped("Connection.on_state_change");
+          self->py_onStateChange.call(self, connectionState);
+        });
+      }
+      // a dropped notification only loses the callback: the transition itself
+      // was published by the caller before this notification was attempted
     }
   }
   DEBUG_PRINT(Debug::Connection, "state] " + ConnectionState_toString(prev) +
