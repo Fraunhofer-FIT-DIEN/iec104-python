@@ -238,12 +238,22 @@ public:
 
   /**
    * @brief Test if Server has open connections to clients
+   *
+   * Reads the counter maintained by the connection events (see
+   * connectionEventHandler) and is therefore safe to call from python and
+   * from connection callbacks.
+   *
    * @return information if at least one connection exists
    */
   bool hasOpenConnections() const;
 
   /**
    * @brief get number of open connections to clients
+   *
+   * Counts every connection lib60870 reported as opened and not yet closed,
+   * independent of its STARTDT/STOPDT state. Use getActiveConnectionCount()
+   * for the active subset.
+   *
    * @return open connection count
    */
   std::uint_fast8_t getOpenConnectionCount() const;
@@ -251,6 +261,10 @@ public:
   /**
    * @brief Test if Server has active (open and not muted) connections to
    * clients
+   *
+   * An active connection is an open connection that completed STARTDT and has
+   * not been deactivated by STOPDT again.
+   *
    * @return information if at least one connection is active
    */
   bool hasActiveConnections() const;
@@ -820,10 +834,11 @@ private:
   /// @brief vector of all selections
   std::vector<Selection> selectionVector{};
 
-  /// @brief number of active connections
+  /// @brief number of active connections, maintained under connection_mutex
   std::atomic_uint_fast8_t activeConnections{0};
 
-  /// @brief number of open connections
+  /// @brief number of open connections, maintained under connection_mutex by
+  /// connectionEventHandler; never read from lib60870 on a python path
   std::atomic_uint_fast8_t openConnections{0};
 
   /// @brief maximum number of connections (0-255), 0 = no limit

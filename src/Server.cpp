@@ -169,6 +169,11 @@ Server::~Server() {
   {
     std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
     connectionMap.clear();
+    // no further OPENED/CLOSED event is handled after this point (the
+    // instance is already unregistered), so the counters must not keep the
+    // last session's values
+    activeConnections.store(0);
+    openConnections.store(0);
   }
   clearSelections();
 
@@ -428,10 +433,12 @@ void Server::stop() {
   {
     std::lock_guard<Module::GilAwareMutex> const lock(connection_mutex);
     connectionMap.clear();
+    // CS104_Slave_stop() above terminated every connection thread, so the
+    // counters are reset together with the state they describe
+    activeConnections.store(0);
+    openConnections.store(0);
   }
   clearSelections();
-  activeConnections.store(0);
-  openConnections.store(0);
 
   DEBUG_PRINT(Debug::Server, "stop] Stopped");
 }
@@ -464,12 +471,16 @@ Server::getConnectionId(IMasterConnection connection) const {
   return it->second.id;
 }
 
-bool Server::hasOpenConnections() const {
-  return CS104_Slave_getOpenConnections(slave) > 0;
-}
+// SECURITY: both open-connection getters read the event-maintained counter and
+// must never call CS104_Slave_getOpenConnections(). That function takes
+// lib60870's openConnectionsLock, which the listening thread holds while a new
+// peer completes its TLS handshake. A silent TCP peer would block a
+// GIL-holding caller for the whole handshake, and a call from on_event (which
+// already runs under that lock) would self-deadlock.
+bool Server::hasOpenConnections() const { return openConnections.load() > 0; }
 
 std::uint_fast8_t Server::getOpenConnectionCount() const {
-  return CS104_Slave_getOpenConnections(slave);
+  return openConnections.load();
 }
 
 bool Server::hasActiveConnections() const {
@@ -1049,9 +1060,12 @@ void Server::connectionEventHandler(void *parameter,
         instance->connectionMap.emplace(
             connection, PeerConnectionState{.id = ++instance->lastConnectionId,
                                             .active = false});
+        ++instance->openConnections;
       } else {
         // lib60870 reused the connection object for a new peer without a
-        // CLOSED event for the old one: new identity, old selections end
+        // CLOSED event for the old one: new identity, old selections end.
+        // The old peer is replaced by the new one, so the open count stays
+        // the same.
         if (it->second.active) {
           --instance->activeConnections;
         }
@@ -1069,6 +1083,12 @@ void Server::connectionEventHandler(void *parameter,
         }
         closedId = it->second.id;
         instance->connectionMap.erase(it);
+        // guarded: a CLOSED event without a matching OPENED entry must not
+        // wrap the unsigned counter. All mutation happens under
+        // connection_mutex, so the check-then-decrement is race free.
+        if (instance->openConnections.load() > 0) {
+          --instance->openConnections;
+        }
       }
 
     } else if (event == CS104_CON_EVENT_ACTIVATED) {

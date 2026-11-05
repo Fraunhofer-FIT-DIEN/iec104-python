@@ -301,38 +301,50 @@ TEST_CASE(
   REQUIRE(server->isExistingConnection(mock) == false);
   REQUIRE(server->hasActiveConnections() == false);
   REQUIRE(server->getActiveConnectionCount() == 0);
+  REQUIRE(server->hasOpenConnections() == false);
+  REQUIRE(server->getOpenConnectionCount() == 0);
 
   // OPENED: adds to map as invalid receiver
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_OPENED);
   REQUIRE(server->isExistingConnection(mock) == true);
   REQUIRE(server->getActiveConnectionCount() == 0);
+  // open counts every connection, independent of STARTDT state (SECURITY M12)
+  REQUIRE(server->getOpenConnectionCount() == 1);
+  REQUIRE(server->hasOpenConnections() == true);
 
-  // OPENED again (already in map, second==false) -> no downcount
+  // OPENED again (already in map, second==false) -> no downcount. lib60870
+  // reused the connection object for a new peer, so one peer replaces another
+  // and the open count must not grow or shrink.
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_OPENED);
   REQUIRE(server->getActiveConnectionCount() == 0);
+  REQUIRE(server->getOpenConnectionCount() == 1);
 
   // ACTIVATED: mark valid -> activeConnections++
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_ACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 1);
   REQUIRE(server->hasActiveConnections() == true);
+  REQUIRE(server->getOpenConnectionCount() == 1);
 
   // ACTIVATED again (already active) -> no double increment
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_ACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 1);
+  REQUIRE(server->getOpenConnectionCount() == 1);
 
-  // DEACTIVATED: active -> false, decrement
+  // DEACTIVATED: active -> false, decrement. The connection stays open.
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_DEACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 0);
+  REQUIRE(server->getOpenConnectionCount() == 1);
 
   // DEACTIVATED again (second==false) -> no change
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_DEACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 0);
+  REQUIRE(server->getOpenConnectionCount() == 1);
 
   // reopen + activate, then CLOSED removes entry + active--
   Server::connectionEventHandler(server->getCallbackKey(), mock,
@@ -340,10 +352,13 @@ TEST_CASE(
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_ACTIVATED);
   REQUIRE(server->getActiveConnectionCount() == 1);
+  REQUIRE(server->getOpenConnectionCount() == 1);
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_CLOSED);
   REQUIRE(server->isExistingConnection(mock) == false);
   REQUIRE(server->getActiveConnectionCount() == 0);
+  REQUIRE(server->getOpenConnectionCount() == 0);
+  REQUIRE(server->hasOpenConnections() == false);
 }
 
 TEST_CASE("Server: connection event CLOSED on active entry & unknown close",
@@ -356,14 +371,18 @@ TEST_CASE("Server: connection event CLOSED on active entry & unknown close",
   // CLOSED on a connection NOT in map -> no-op, still schedules drop
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_CLOSED);
+  // an unmatched CLOSED event must not wrap the unsigned open counter
+  REQUIRE(server->getOpenConnectionCount() == 0);
 
   // OPENED then CLOSED (not active at close time) -> no downcount, entry
   // removed
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_OPENED);
+  REQUIRE(server->getOpenConnectionCount() == 1);
   Server::connectionEventHandler(server->getCallbackKey(), mock,
                                  CS104_CON_EVENT_CONNECTION_CLOSED);
   REQUIRE(server->isExistingConnection(mock) == false);
+  REQUIRE(server->getOpenConnectionCount() == 0);
 }
 
 TEST_CASE("Server: connection event in shutdown (null instance)",
@@ -530,7 +549,30 @@ TEST_CASE("Server: open connection counts without clients",
   REQUIRE(server->getOpenConnectionCount() == 0);
   server->start();
   REQUIRE_NOTHROW(server->hasOpenConnections());
+  REQUIRE(server->getOpenConnectionCount() == 0);
+
+  // an event-maintained count survives stop/start cycles: open a peer through
+  // the handler, then stop the server, which must reset both counters
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_CONNECTION_OPENED);
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+  REQUIRE(server->getOpenConnectionCount() == 1);
+  REQUIRE(server->getActiveConnectionCount() == 1);
+
   server->stop();
+  REQUIRE(server->getOpenConnectionCount() == 0);
+  REQUIRE(server->getActiveConnectionCount() == 0);
+  REQUIRE(server->hasOpenConnections() == false);
+
+  // restart and reuse: the counts start from zero again
+  REQUIRE_NOTHROW(server->start());
+  REQUIRE(server->getOpenConnectionCount() == 0);
+  REQUIRE(server->getActiveConnectionCount() == 0);
+  REQUIRE_NOTHROW(server->stop());
 }
 
 // ---------------------------------------------------------------------------
