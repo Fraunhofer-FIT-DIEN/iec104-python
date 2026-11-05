@@ -478,6 +478,28 @@ public:
                                   bool negative = false);
 
   /**
+   * @brief Sends a deactivation confirmation ASDU to the master connection.
+   *
+   * This method clones the incoming DEACTIVATION ASDU into a confirmation
+   * message with the Cause of Transmission set to deactivation confirmation
+   * (CS101_COT_DEACTIVATION_CON). It answers a cancel request the way
+   * sendActivationConfirmation() answers an activation: a positive
+   * confirmation reports that the requester's own matching selection was
+   * cancelled, a negative one that no such selection existed. If the ASDU is
+   * intended for a global common address, it is sent to all connected
+   * stations; otherwise it is sent directly to the requesting connection.
+   *
+   * @param connection The master connection to which the deactivation
+   * confirmation will be sent.
+   * @param asdu The ASDU (Application Service Data Unit) to be cloned and
+   * modified for the confirmation.
+   * @param negative A flag indicating whether the confirmation is negative
+   * (true) or positive (false).
+   */
+  void sendDeactivationConfirmation(IMasterConnection connection, CS101_ASDU asdu,
+                                    bool negative = false);
+
+  /**
    * @brief Sends an activation termination ASDU to the master connection.
    *
    * This method clones and tansforms the incoming ASDU with the Cause of
@@ -692,6 +714,31 @@ private:
    * to be canceled, including information about the master connection and ASDU.
    */
   void unselect(const Selection &selection);
+
+  /**
+   * @brief Cancels the requesting connection's own selection.
+   *
+   * Handles a command DEACTIVATION: looks up the selection addressed by the
+   * message's common and information object addresses and removes it, but
+   * only if it is owned by @p connection (same stable connection id, see
+   * getConnectionId()) and has not expired. A missing, foreign, unknown or
+   * expired selection is left untouched, so no peer can affect another
+   * peer's selection through a cancel request.
+   *
+   * Unlike unselect() no activation termination is scheduled: the caller
+   * answers with a DEACT_CON that already reports the outcome, and the
+   * cancelled command must never execute afterwards.
+   *
+   * @param connection The master connection that requested the cancellation.
+   * @param message A shared pointer to the incoming DEACTIVATION message
+   * addressing the selection to cancel.
+   *
+   * @return True if the matching selection of this very connection was
+   * removed; false if no cancellable selection exists.
+   */
+  bool cancelSelection(
+      IMasterConnection connection,
+      const std::shared_ptr<Remote::Message::IncomingMessage> &message);
 
   /**
    * @brief Executes a command on a specified data point based on an incoming

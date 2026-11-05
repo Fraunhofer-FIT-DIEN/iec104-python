@@ -29,6 +29,9 @@
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
 
+#include <algorithm>
+#include <future>
+
 #include "Server.h"
 #include "mock_helpers.h"
 #include "object/DataPoint.h"
@@ -1122,11 +1125,13 @@ TEST_CASE("Server: asduHandler related auto return path", "[server][asdu]") {
 TEST_CASE("Server: asduHandler dispatches only ACTIVATION commands",
           "[server][asdu][security]") {
   // every COT that IncomingMessage accepts for a command ASDU: 6..10 and
-  // 44..47. Only ACTIVATION may reach select()/execute().
+  // 44..47. Only ACTIVATION may reach select()/execute(); DEACTIVATION may
+  // only cancel a selection, and these points are in DIRECT command mode, so
+  // they have none.
   const std::vector<CS101_CauseOfTransmission> causes = {
       CS101_COT_ACTIVATION,             // 6 -> the only accepted cause
       CS101_COT_ACTIVATION_CON,         // 7 -> reflected confirmation
-      CS101_COT_DEACTIVATION,           // 8 -> cancel, see SEC-04
+      CS101_COT_DEACTIVATION,           // 8 -> cancel only, see SEC-04
       CS101_COT_DEACTIVATION_CON,       // 9
       CS101_COT_ACTIVATION_TERMINATION, // 10 -> reflected confirmation
       CS101_COT_UNKNOWN_TYPE_ID,        // 44
@@ -1174,6 +1179,16 @@ TEST_CASE("Server: asduHandler dispatches only ACTIVATION commands",
       REQUIRE(state.sendASDU_count == 1);
       REQUIRE(state.cot.back() == CS101_COT_ACTIVATION_CON);
       REQUIRE(state.negative.back() == false);
+    } else if (cot == CS101_COT_DEACTIVATION) {
+      // a cancel request never selects or executes; DIRECT mode has no
+      // selection, so the single answer is a negative DEACT_CON and no
+      // activation termination is queued
+      REQUIRE(std::get<bool>(point->getValue()) == false);
+      REQUIRE(server->getSelector(1, ioa).has_value() == false);
+      REQUIRE(state.sendASDU_count == 1);
+      REQUIRE(state.cot.back() == CS101_COT_DEACTIVATION_CON);
+      REQUIRE(state.negative.back() == true);
+      REQUIRE(state.sendACT_TERM_count == 0);
     } else {
       // rejected: value untouched, exactly one negative UNKNOWN_COT reply and
       // no confirmation reflected back to the peer
@@ -1187,7 +1202,7 @@ TEST_CASE("Server: asduHandler dispatches only ACTIVATION commands",
   }
 }
 
-TEST_CASE("Server: asduHandler DEACTIVATION neither selects nor executes",
+TEST_CASE("Server: asduHandler DEACTIVATION cancels the requester's selection",
           "[server][asdu][security]") {
   // the ASDU keeps a pointer to the parameters, see Test::makeASDU
   static sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
@@ -1213,28 +1228,29 @@ TEST_CASE("Server: asduHandler DEACTIVATION neither selects nor executes",
 
   const auto sent = state.sendASDU_count;
 
-  // DEACTIVATION select (a cancel request) must not refresh the selection
+  // DEACTIVATION select (a cancel request) removes the own selection; the
+  // select flag and the originator address of the cancel are irrelevant
   CS101_ASDU deact = makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11,
                                      1, CS101_COT_DEACTIVATION, 7, true);
   REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, deact) == true);
   CS101_ASDU_destroy(deact);
-  REQUIRE(server->getSelector(1, 11).has_value() == true);
-  REQUIRE(server->getSelector(1, 11).value() == 1); // still 1, not 7
+  REQUIRE(server->getSelector(1, 11).has_value() == false);
   REQUIRE(state.sendASDU_count == sent + 1);
-  REQUIRE(state.cot.back() == CS101_COT_UNKNOWN_COT);
-  REQUIRE(state.negative.back() == true);
+  REQUIRE(state.cot.back() == CS101_COT_DEACTIVATION_CON);
+  REQUIRE(state.negative.back() == false);
+  REQUIRE(state.sendACT_TERM_count == 0);
 
-  // DEACTIVATION execute must operate neither the point nor the selection
+  // the cancellation removed the selection, it did not execute it: the
+  // follow-up execute finds nothing to consume and is answered negatively
   CS101_ASDU deact_exec =
       makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
-                      CS101_COT_DEACTIVATION, 1, false);
+                      CS101_COT_ACTIVATION, 1, false);
   REQUIRE(Server::asduHandler(server->getCallbackKey(), mock, deact_exec) ==
           true);
   CS101_ASDU_destroy(deact_exec);
   REQUIRE(std::get<bool>(point->getValue()) == false);
-  REQUIRE(server->getSelector(1, 11).has_value() == true);
   REQUIRE(state.sendASDU_count == sent + 2);
-  REQUIRE(state.cot.back() == CS101_COT_UNKNOWN_COT);
+  REQUIRE(state.cot.back() == CS101_COT_ACTIVATION_CON);
   REQUIRE(state.negative.back() == true);
 }
 
@@ -1286,6 +1302,25 @@ std::shared_ptr<Server> makeSelectServer(uint_fast16_t port,
   auto point = station->addPoint(11, IEC60870_5_TypeID::C_SC_NA_1);
   point->setCommandMode(SELECT_AND_EXECUTE_COMMAND);
   return server;
+}
+
+// Send a C_SC_NA_1 DEACTIVATION (cancel request) for CA 1 / IOA 11 through the
+// asdu handler and return whether the DEACT_CON that went back was positive.
+bool sendCancel(const std::shared_ptr<Server> &server,
+                IMasterConnection connection, Test::MockPeerState &state,
+                uint_fast8_t oa, bool select) {
+  // the ASDU keeps a pointer to the parameters, see Test::makeASDU
+  static sCS101_AppLayerParameters params = Test::defaultAppLayerParameters();
+  CS101_ASDU asdu =
+      makeCommandAsdu(params, IEC60870_5_TypeID::C_SC_NA_1, 11, 1,
+                      CS101_COT_DEACTIVATION, oa, select);
+  const auto before = state.negative.size();
+  REQUIRE(Server::asduHandler(server->getCallbackKey(), connection, asdu) ==
+          true);
+  CS101_ASDU_destroy(asdu);
+  REQUIRE(state.negative.size() == before + 1);
+  REQUIRE(state.cot.back() == CS101_COT_DEACTIVATION_CON);
+  return !state.negative.back();
 }
 
 } // namespace
@@ -1342,6 +1377,113 @@ TEST_CASE("Server: same connection re-select refreshes the selection",
   REQUIRE(sendSingleCommand(server, mock, state, 3, true) == true);
   REQUIRE(server->getSelector(1, 11).value() == 3);
   REQUIRE(sendSingleCommand(server, mock, state, 3, false) == true);
+}
+
+// ---------------------------------------------------------------------------
+// cancellation of selections by command DEACTIVATION (SECURITY.md SEC-04)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Server: DEACTIVATION by a foreign connection is rejected",
+          "[server][selection][security]") {
+  auto server = makeSelectServer(2404, 10000);
+
+  Test::MockPeerState stateA;
+  Test::MockPeerState stateB;
+  sIPeerConnection peerA = Test::makeMockPeer(stateA);
+  sIPeerConnection peerB = Test::makeMockPeer(stateB);
+  IMasterConnection a = &peerA;
+  IMasterConnection b = &peerB;
+  Server::connectionEventHandler(server->getCallbackKey(), a,
+                                 CS104_CON_EVENT_ACTIVATED);
+  Server::connectionEventHandler(server->getCallbackKey(), b,
+                                 CS104_CON_EVENT_ACTIVATED);
+
+  REQUIRE(sendSingleCommand(server, a, stateA, 1, true) == true);
+  REQUIRE(server->getSelector(1, 11).value() == 1);
+
+  // B addresses A's selection: negative DEACT_CON, nothing is removed
+  REQUIRE(sendCancel(server, b, stateB, 2, false) == false);
+  REQUIRE(server->getSelector(1, 11).has_value() == true);
+  REQUIRE(server->getSelector(1, 11).value() == 1);
+  REQUIRE(stateB.sendACT_TERM_count == 0);
+
+  // A's selection survived untouched, so A may still execute it
+  REQUIRE(sendSingleCommand(server, a, stateA, 1, false) == true);
+}
+
+TEST_CASE("Server: DEACTIVATION without a selection is rejected",
+          "[server][selection][security]") {
+  auto server = makeSelectServer(2404, 10000);
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+
+  // nothing to cancel: negative DEACT_CON instead of a silent accept
+  REQUIRE(sendCancel(server, mock, state, 1, false) == false);
+  REQUIRE(server->getSelector(1, 11).has_value() == false);
+  REQUIRE(state.sendACT_TERM_count == 0);
+}
+
+TEST_CASE("Server: DEACTIVATION of an expired selection is rejected",
+          "[server][selection][security]") {
+  // 50 ms select timeout, server not started: no periodic cleanup interferes
+  auto server = makeSelectServer(2404, 50);
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+
+  REQUIRE(sendSingleCommand(server, mock, state, 1, true) == true);
+  REQUIRE(server->getSelector(1, 11).has_value() == true);
+
+  // the timeout is the behavior under test, so time has to pass here
+  std::this_thread::sleep_for(std::chrono::milliseconds(80));
+
+  // an expired selection is not the requester's valid one any more: it is
+  // reported as not cancelled and left for select()/cleanupSelections()
+  REQUIRE(sendCancel(server, mock, state, 1, false) == false);
+  REQUIRE(server->getSelector(1, 11).has_value() == false);
+  REQUIRE(state.sendACT_TERM_count == 0);
+}
+
+TEST_CASE("Server: DEACTIVATION never queues an activation termination",
+          "[server][selection][security]") {
+  auto server = makeSelectServer(2423, 10000);
+  server->start();
+
+  Test::MockPeerState state;
+  sIPeerConnection peer = Test::makeMockPeer(state);
+  IMasterConnection mock = &peer;
+  Server::connectionEventHandler(server->getCallbackKey(), mock,
+                                 CS104_CON_EVENT_ACTIVATED);
+
+  REQUIRE(sendSingleCommand(server, mock, state, 1, true) == true);
+  REQUIRE(sendCancel(server, mock, state, 1, false) == true);
+  REQUIRE(server->getSelector(1, 11).has_value() == false);
+
+  // barrier instead of a sleep: the run thread executes tasks as a min-heap on
+  // their due time, so a marker scheduled 1 ms ahead runs after every 0 ms task
+  // a cancellation could have queued. Its promise publishes that ordering.
+  std::promise<void> reached;
+  auto marker = reached.get_future();
+  server->scheduleTask([&reached]() { reached.set_value(); }, 1);
+  REQUIRE(marker.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready);
+
+  // cancelled, not executed: no activation termination reached the peer
+  REQUIRE(state.sendACT_TERM_count == 0);
+  REQUIRE(std::none_of(state.cot.begin(), state.cot.end(), [](int c) {
+    return c == CS101_COT_ACTIVATION_TERMINATION;
+  }));
+  REQUIRE(std::count(state.cot.begin(), state.cot.end(),
+                     CS101_COT_DEACTIVATION_CON) == 1);
+
+  server->stop();
 }
 
 TEST_CASE("Server: unknown connection cannot select", "[server][selection]") {

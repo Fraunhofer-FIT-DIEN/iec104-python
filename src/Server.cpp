@@ -691,6 +691,39 @@ void Server::unselect(const Selection &selection) {
   });
 }
 
+bool Server::cancelSelection(
+    IMasterConnection connection,
+    const std::shared_ptr<Remote::Message::IncomingMessage> &message) {
+  const uint16_t ca = message->getCommonAddress();
+  const uint32_t ioa = message->getIOA();
+
+  // see select(): resolve the id before locking selection_mutex (lock order:
+  // connection_mutex is never taken while selection_mutex is held)
+  const auto connectionId = getConnectionId(connection);
+  auto now = std::chrono::steady_clock::now();
+
+  std::lock_guard<Module::GilAwareMutex> const lock(selection_mutex);
+  auto it =
+      std::ranges::find_if(selectionVector, [ca, ioa](const Selection &s) {
+        return s.ca == ca && s.ioa == ioa;
+      });
+
+  // only the requester's own, still valid selection may be cancelled; a
+  // missing, foreign, unknown or expired selection is left untouched
+  if (it == selectionVector.end() || !connectionId.has_value() ||
+      it->connectionId != connectionId.value() ||
+      (now - it->created) >= selectTimeout_ms) {
+    return false;
+  }
+
+  // the cloned asdu belongs to the selection and is freed with it; no
+  // unselect(): a termination would announce an execution that never happens,
+  // the caller's DEACT_CON already reports the cancellation
+  CS101_ASDU_destroy(it->asdu);
+  selectionVector.erase(it);
+  return true;
+}
+
 CommandResponseState
 Server::execute(IMasterConnection connection,
                 std::shared_ptr<Remote::Message::IncomingMessage> message,
@@ -1284,6 +1317,20 @@ void Server::sendActivationConfirmation(IMasterConnection connection,
   CS101_ASDU_destroy(cp);
 }
 
+void Server::sendDeactivationConfirmation(IMasterConnection connection,
+                                          CS101_ASDU asdu, bool negative) {
+  // manipulate copy instead of original asdu
+  CS101_ASDU cp = CS101_ASDU_clone(asdu, nullptr);
+  CS101_ASDU_setCOT(cp, CS101_COT_DEACTIVATION_CON);
+  CS101_ASDU_setNegative(cp, negative);
+
+  if (!sendToConnection(connection, std::nullopt, cp)) {
+    DEBUG_PRINT(Debug::Server,
+                "send_deactivation_confirmation] Connection not found, skip");
+  }
+  CS101_ASDU_destroy(cp);
+}
+
 void Server::sendActivationTermination(
     IMasterConnection connection, CS101_ASDU asdu,
     const std::optional<std::uint64_t> connectionId) {
@@ -1815,17 +1862,15 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
       }
     } else {
       if (message->getType() >= C_SC_NA_1) {
-        // SECURITY.md M11: only an ACTIVATION may select or execute a command.
-        // Both rejections leave the point and the selection untouched and keep
-        // responseState at NONE, so no confirmation is reflected back to the
-        // peer; the negative UNKNOWN_COT answer is sent below.
+        // SECURITY.md M11: only an ACTIVATION may select or execute a
+        // command; a DEACTIVATION may only cancel the requester's own
+        // selection and never executes a command. The rejected COTs
+        // (reflected confirmations 7, 9, 10 and the cause report COTs) leave
+        // the point and the selection untouched and keep responseState at
+        // NONE, so no confirmation is reflected back to the peer; the negative
+        // UNKNOWN_COT answer is sent below.
         const auto cot = message->getCauseOfTransmission();
-        if (cot == CS101_COT_DEACTIVATION) {
-          // a cancel request; cancelling a selection is not implemented yet
-          // (SEC-04), so it is rejected instead of refreshing or dropping it
-          responseState = RESPONSE_STATE_NONE;
-          cause = UNKNOWN_COT;
-        } else if (cot != CS101_COT_ACTIVATION) {
+        if (cot != CS101_COT_ACTIVATION && cot != CS101_COT_DEACTIVATION) {
           // reflected confirmations (7, 9, 10) must never execute a command
           responseState = RESPONSE_STATE_NONE;
           cause = UNKNOWN_COT;
@@ -1834,7 +1879,20 @@ bool Server::asduHandler(void *parameter, IMasterConnection connection,
           if (auto point = station->getPoint(message->getIOA())) {
             if (point->getType() == message->getType()) {
 
-              if (message->isSelectCommand()) {
+              if (cot == CS101_COT_DEACTIVATION) {
+                // SECURITY.md SEC-04: cancel only the requester's own matching
+                // selection; the select/execute flag of the cancel request is
+                // ignored and a command is never executed by a DEACTIVATION.
+                // A point in DIRECT command mode has no selection, so the
+                // request is answered negatively. responseState stays NONE so
+                // the generic block below does not reflect a second
+                // confirmation: the DEACT_CON is the single answer.
+                const bool cancelled =
+                    instance->cancelSelection(connection, message);
+                instance->sendDeactivationConfirmation(connection, asdu,
+                                                       !cancelled);
+                responseState = RESPONSE_STATE_NONE;
+              } else if (message->isSelectCommand()) {
                 if (SELECT_AND_EXECUTE_COMMAND == point->getCommandMode()) {
                   responseState = instance->select(connection, message)
                                       ? RESPONSE_STATE_SUCCESS
