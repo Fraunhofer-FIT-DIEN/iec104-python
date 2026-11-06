@@ -1149,6 +1149,146 @@ TEST_CASE("Connection on_state_change flood is limiter bounded",
   REQUIRE(calls[0].cast<int>() == static_cast<int>(OPEN));
 }
 
+// M13: the static lib60870 handlers are called from C and must contain every
+// exception, including an allocation failure of the client task queue they
+// schedule into. The failure is injected through the client instead of a real
+// allocation, so the case is deterministic: the client thread is never
+// started and no assertion depends on timing.
+TEST_CASE("Connection handlers contain injected scheduling failures",
+          "[security][medium][connection]") {
+  ensureConnectionCallbacks();
+  auto client = Client::create();
+  // INIT_MUTED: setOpen() publishes OPEN_MUTED without scheduling an unmute
+  // task, so every queued task below is a notification
+  auto conn = client->addConnection("127.0.0.1", 2404, INIT_MUTED);
+  void *key = conn->getCallbackKey();
+
+  py::object stateCb = cb("_cb_state_record");
+  py::object rawCb = cb("_cb_raw");
+  REQUIRE_FALSE(stateCb.is_none());
+  REQUIRE_FALSE(rawCb.is_none());
+  conn->setOnStateChangeCallback(stateCb);
+  conn->setOnReceiveRawCallback(rawCb);
+  conn->setOnSendRawCallback(rawCb);
+
+  py::list calls = py::globals()["_state_calls"].cast<py::list>();
+  calls.attr("clear")();
+
+  REQUIRE(client->isRunning() == false);
+  const Module::TaskLimiter &limiter = client->getNotificationLimiter();
+  REQUIRE(limiter.pending() == 0u);
+
+  // every scheduling attempt of the handlers below fails, standing in for an
+  // allocation failure inside the client task queue
+  client->setTaskSchedulingFailureForTesting(true);
+
+  // connection event: the transition itself is published, only its
+  // notification is lost, and no limiter slot stays reserved
+  Remote::Connection::connectionHandler(key, nullptr, CS104_CONNECTION_OPENED);
+  REQUIRE(conn->getState() == OPEN_MUTED);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+  REQUIRE(limiter.pending() == 0u);
+  REQUIRE(limiter.dropped() == 0u);
+
+  // raw message handler, both directions: the message copy is made and then
+  // dropped with the failed scheduling attempt
+  uint_fast8_t buf[4] = {0x68, 0x02, 0x00, 0x00};
+  Remote::Connection::rawMessageHandler(key, buf, 4, false);
+  Remote::Connection::rawMessageHandler(key, buf, 4, true);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+  REQUIRE(limiter.pending() == 0u);
+
+  // the notification helpers below are reached from the handlers too: a failed
+  // scheduling attempt must release the limiter token it reserved instead of
+  // keeping the slot for the rest of the process
+  conn->setMuted(false); // OPEN_MUTED -> OPEN
+  REQUIRE(conn->getState() == OPEN);
+  REQUIRE(limiter.pending() == 0u);
+  conn->setMuted(true); // OPEN -> OPEN_MUTED
+  REQUIRE(conn->getState() == OPEN_MUTED);
+  REQUIRE(limiter.pending() == 0u);
+
+  py::object unexpCb = cb("_cb_unexpected");
+  REQUIRE_FALSE(unexpCb.is_none());
+  conn->setOnUnexpectedMessageCallback(unexpCb);
+  conn->onUnexpectedMessage(makeSinglePointMessage(3, 1, CS101_COT_SPONTANEOUS),
+                            UNKNOWN_IOA);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+  REQUIRE(limiter.pending() == 0u);
+
+  // asdu handler: a failure inside the handler is reported to lib60870 as
+  // "not handled" instead of unwinding into C (the client is not running here,
+  // so this drives the contained-throw path of the handler)
+  auto asdu = Test::makeASDU(IEC60870_5_TypeID::M_SP_NA_1, 1,
+                             CS101_COT_SPONTANEOUS, 0, 3);
+  REQUIRE(Remote::Connection::asduHandler(key, 0, asdu) == false);
+  CS101_ASDU_destroy(asdu);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+  REQUIRE(limiter.pending() == 0u);
+
+  // close event: the state is published and the notification plus the queued
+  // reconnect of the failed scheduling attempts leave nothing behind
+  Remote::Connection::connectionHandler(key, nullptr, CS104_CONNECTION_CLOSED);
+  REQUIRE(conn->getState() == CLOSED_AWAIT_RECONNECT);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+  REQUIRE(limiter.pending() == 0u);
+
+  // the same event is contained when it arrives through the FAILED branch
+  Remote::Connection::connectionHandler(key, nullptr, CS104_CONNECTION_FAILED);
+  REQUIRE(conn->getState() == CLOSED_AWAIT_RECONNECT);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+
+  // an opening whose initialization cannot be scheduled releases its guard, so
+  // the connection never stays permanently claimed
+  auto initConn = client->addConnection("127.0.0.1", 2403, INIT_ALL);
+  void *initKey = initConn->getCallbackKey();
+  Remote::Connection::connectionHandler(initKey, nullptr,
+                                        CS104_CONNECTION_OPENED);
+  REQUIRE(initConn->getState() == OPEN_MUTED);
+  REQUIRE(initConn->isInitializationPending() == false);
+
+  Remote::Connection::connectionHandler(initKey, nullptr,
+                                        CS104_CONNECTION_STARTDT_CON_RECEIVED);
+  REQUIRE(initConn->isInitializationPending() == false);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+  REQUIRE(limiter.pending() == 0u);
+
+  // the handlers recover once scheduling works again: the guard is claimed
+  // again and the notification of the reopen is queued
+  client->setTaskSchedulingFailureForTesting(false);
+
+  Remote::Connection::connectionHandler(initKey, nullptr,
+                                        CS104_CONNECTION_STARTDT_CON_RECEIVED);
+  REQUIRE(initConn->isInitializationPending() == true);
+  REQUIRE(client->getPendingTaskCount() == 1u);
+
+  Remote::Connection::connectionHandler(key, nullptr, CS104_CONNECTION_OPENED);
+  REQUIRE(conn->getState() == OPEN_MUTED);
+  REQUIRE(client->getPendingTaskCount() == 2u);
+  REQUIRE(limiter.pending() == 1u);
+
+  // a closing connection releases the initialization guard of the queued task
+  // instead of leaving it claimed, and the queued task itself drops as stale
+  Remote::Connection::connectionHandler(initKey, nullptr,
+                                        CS104_CONNECTION_CLOSED);
+  REQUIRE(initConn->getState() == CLOSED_AWAIT_RECONNECT);
+  REQUIRE(initConn->isInitializationPending() == false);
+
+  // the queued notification and the stale initialization task run normally
+  // afterwards, the reconnect queued with a delay stays queued
+  REQUIRE(limiter.pending() == 1u);
+  REQUIRE(client->runPendingTasksForTesting() == 2u);
+  REQUIRE(client->getPendingTaskCount() == 1u);
+  REQUIRE(limiter.pending() == 0u);
+  REQUIRE(limiter.dropped() == 0u);
+  REQUIRE(py::len(calls) == 1u);
+  REQUIRE(calls[0].cast<int>() == static_cast<int>(OPEN_MUTED));
+
+  // the delayed reconnect is the only task left and is dropped cleanly
+  REQUIRE(client->discardPendingTasksForTesting() == 1u);
+  REQUIRE(client->getPendingTaskCount() == 0u);
+}
+
 // M7: setOriginatorAddress iterates a snapshot of `connections` taken under
 // connections_mutex, so it can run concurrently with add/remove_connection
 TEST_CASE("Client setOriginatorAddress races add/remove_connection safely",

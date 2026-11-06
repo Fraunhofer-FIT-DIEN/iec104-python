@@ -29,8 +29,10 @@
  *
  */
 
-#include "Connection.h"
+#include <new>
+
 #include "Client.h"
+#include "Connection.h"
 #include "module/ScopedGilAcquire.h"
 #include "module/ScopedGilRelease.h"
 #include "module/ThreadOwner.h"
@@ -45,6 +47,37 @@ using namespace std::chrono_literals;
 // Define static members
 std::unordered_map<void *, std::weak_ptr<Connection>> Connection::instanceMap;
 std::mutex Connection::instanceMapMutex;
+
+namespace {
+/**
+ * @brief Report a contained failure of a handler or of a callback it drives.
+ *
+ * @details lib60870 calls the handlers of this class from its own threads and
+ * an exception escaping them terminates the process. This function therefore
+ * runs inside the catch block of such a handler and must not throw itself: the
+ * message is built and printed inside its own try block, and truncated to a
+ * bounded length so a peer-driven failure cannot flood the log.
+ *
+ * @param site short name of the operation that failed
+ * @param context what the operation tried to do
+ * @param what exception message, nullptr for a non-std exception
+ */
+void printContainedFailure(const char *site, const char *context,
+                           const char *what) noexcept {
+  try {
+    std::string message = what ? what : "unknown exception";
+    constexpr std::size_t maxMessageLength = 200;
+    if (message.size() > maxMessageLength) {
+      message.resize(maxMessageLength);
+      message += "...";
+    }
+    std::cerr << "[c104.Connection] " << site << "] " << context << ": "
+              << message << std::endl;
+  } catch (...) {
+    // a diagnostic must never throw out of the catch block of a C callback
+  }
+}
+} // namespace
 
 Connection::Connection(
     std::shared_ptr<Client> _client, const std::string &_ip,
@@ -144,32 +177,44 @@ void Connection::setState(ConnectionState connectionState) {
 
 void Connection::notifyStateChange(ConnectionState prev,
                                    ConnectionState connectionState) {
-  if (py_onStateChange.is_set()) {
-    if (auto c = getClient()) {
-      // the notification is bounded like the peer frame callbacks: a peer that
-      // drives transitions faster than python can consume them must not grow
-      // the client task queue without bound (SECURITY.md M13)
-      auto token = c->acquireNotificationToken("on_state_change");
-      if (token) {
-        std::weak_ptr<Connection> weakSelf =
-            shared_from_this(); // Weak reference to `this`
-        c->scheduleTask([weakSelf, connectionState, token]() {
-          auto self = weakSelf.lock();
-          if (!self)
-            return; // Prevent running if `this` was destroyed
+  // the notification allocates and schedules: contain it here so a state
+  // transition driven by lib60870 cannot throw into C, and so the limiter
+  // token is always released (SECURITY.md M13)
+  try {
+    if (py_onStateChange.is_set()) {
+      if (auto c = getClient()) {
+        // the notification is bounded like the peer frame callbacks: a peer
+        // that drives transitions faster than python can consume them must not
+        // grow the client task queue without bound (SECURITY.md M13)
+        auto token = c->acquireNotificationToken("on_state_change");
+        if (token) {
+          std::weak_ptr<Connection> weakSelf =
+              shared_from_this(); // Weak reference to `this`
+          c->scheduleTask([weakSelf, connectionState, token]() {
+            auto self = weakSelf.lock();
+            if (!self)
+              return; // Prevent running if `this` was destroyed
 
-          DEBUG_PRINT(Debug::Connection, "CALLBACK on_state_change");
-          Module::ScopedGilAcquire const scoped("Connection.on_state_change");
-          self->py_onStateChange.call(self, connectionState);
-        });
+            DEBUG_PRINT(Debug::Connection, "CALLBACK on_state_change");
+            Module::ScopedGilAcquire const scoped("Connection.on_state_change");
+            self->py_onStateChange.call(self, connectionState);
+          });
+        }
+        // a dropped notification only loses the callback: the transition
+        // itself was published by the caller before this notification was
+        // attempted
       }
-      // a dropped notification only loses the callback: the transition itself
-      // was published by the caller before this notification was attempted
     }
+    DEBUG_PRINT(Debug::Connection,
+                "state] " + ConnectionState_toString(prev) + " -> " +
+                    ConnectionState_toString(connectionState));
+  } catch (const std::exception &e) {
+    printContainedFailure("notify_state_change", "Cannot notify state change",
+                          e.what());
+  } catch (...) {
+    printContainedFailure("notify_state_change", "Cannot notify state change",
+                          nullptr);
   }
-  DEBUG_PRINT(Debug::Connection, "state] " + ConnectionState_toString(prev) +
-                                     " -> " +
-                                     ConnectionState_toString(connectionState));
 }
 
 void Connection::setOriginatorAddress(uint_fast8_t address) {
@@ -503,15 +548,25 @@ void Connection::setOpen() {
     if (auto c = getClient()) {
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask(
-          [weakSelf]() {
-            auto self = weakSelf.lock();
-            if (!self)
-              return; // Prevent running if `this` was destroyed
+      try {
+        c->scheduleTask(
+            [weakSelf]() {
+              auto self = weakSelf.lock();
+              if (!self)
+                return; // Prevent running if `this` was destroyed
 
-            self->disconnect();
-          },
-          -1);
+              self->disconnect();
+            },
+            -1);
+      } catch (const std::exception &e) {
+        // a dropped disconnect keeps the connection in OPEN_AWAIT_CLOSED: the
+        // reopen below recovers it, so no guard has to be released here
+        printContainedFailure("set_open", "Cannot schedule disconnect",
+                              e.what());
+      } catch (...) {
+        printContainedFailure("set_open", "Cannot schedule disconnect",
+                              nullptr);
+      }
     }
     return;
   }
@@ -528,15 +583,23 @@ void Connection::setOpen() {
     if (auto c = getClient()) {
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask(
-          [weakSelf]() {
-            auto self = weakSelf.lock();
-            if (!self)
-              return; // Prevent running if `this` was destroyed
+      try {
+        c->scheduleTask(
+            [weakSelf]() {
+              auto self = weakSelf.lock();
+              if (!self)
+                return; // Prevent running if `this` was destroyed
 
-            self->unmute();
-          },
-          -1);
+              self->unmute();
+            },
+            -1);
+      } catch (const std::exception &e) {
+        // the connection stays muted: STARTDT_CON of the next opening unmutes
+        // it, and a lost unmute never leaves a guard set
+        printContainedFailure("set_open", "Cannot schedule unmute", e.what());
+      } catch (...) {
+        printContainedFailure("set_open", "Cannot schedule unmute", nullptr);
+      }
     }
   }
 
@@ -573,15 +636,26 @@ void Connection::setClosed() {
 
       std::weak_ptr<Connection> weakSelf =
           shared_from_this(); // Weak reference to `this`
-      c->scheduleTask(
-          [weakSelf]() {
-            auto self = weakSelf.lock();
-            if (!self)
-              return; // Prevent running if `this` was destroyed
+      try {
+        c->scheduleTask(
+            [weakSelf]() {
+              auto self = weakSelf.lock();
+              if (!self)
+                return; // Prevent running if `this` was destroyed
 
-            self->connect();
-          },
-          1000);
+              self->connect();
+            },
+            1000);
+      } catch (const std::exception &e) {
+        // the connection stays in CLOSED_AWAIT_RECONNECT without a queued
+        // reconnect; the next connect/disconnect attempt recovers it and this
+        // path holds no guard or token
+        printContainedFailure("set_closed", "Cannot schedule reconnect",
+                              e.what());
+      } catch (...) {
+        printContainedFailure("set_closed", "Cannot schedule reconnect",
+                              nullptr);
+      }
     }
   }
 
@@ -877,29 +951,40 @@ void Connection::onReceiveRaw(unsigned char *msg, int msgSize) {
   if (msgSize <= 0 || !msg) {
     return;
   }
-  if (py_onReceiveRaw.is_set()) {
-    if (auto c = getClient()) {
-      auto token = c->acquireNotificationToken("on_receive_raw");
-      if (!token) {
-        return; // dropped, the callback cannot keep up with the frame rate
+  // the notification allocates and schedules: contain it here so a state
+  // transition driven by lib60870 cannot throw into C, and so the limiter
+  // token is always released (SECURITY.md M13)
+  try {
+    if (py_onReceiveRaw.is_set()) {
+      if (auto c = getClient()) {
+        auto token = c->acquireNotificationToken("on_receive_raw");
+        if (!token) {
+          return; // dropped, the callback cannot keep up with the frame rate
+        }
+        // create a copy
+        const auto size = static_cast<std::size_t>(msgSize);
+        auto cp = std::shared_ptr<char[]>(new char[size]);
+        memcpy(cp.get(), msg, size);
+
+        std::weak_ptr<Connection> weakSelf =
+            shared_from_this(); // Weak reference to `this`
+        c->scheduleTask([weakSelf, cp, size, token]() {
+          auto self = weakSelf.lock();
+          if (!self)
+            return; // Prevent running if `this` was destroyed
+
+          DEBUG_PRINT(Debug::Connection, "CALLBACK on_receive_raw");
+          Module::ScopedGilAcquire const scoped("Connection.on_receive_raw");
+          self->py_onReceiveRaw.call(self, py::bytes(cp.get(), size));
+        });
       }
-      // create a copy
-      const auto size = static_cast<std::size_t>(msgSize);
-      auto cp = std::shared_ptr<char[]>(new char[size]);
-      memcpy(cp.get(), msg, size);
-
-      std::weak_ptr<Connection> weakSelf =
-          shared_from_this(); // Weak reference to `this`
-      c->scheduleTask([weakSelf, cp, size, token]() {
-        auto self = weakSelf.lock();
-        if (!self)
-          return; // Prevent running if `this` was destroyed
-
-        DEBUG_PRINT(Debug::Connection, "CALLBACK on_receive_raw");
-        Module::ScopedGilAcquire const scoped("Connection.on_receive_raw");
-        self->py_onReceiveRaw.call(self, py::bytes(cp.get(), size));
-      });
     }
+  } catch (const std::exception &e) {
+    printContainedFailure("on_receive_raw",
+                          "Cannot forward received raw message", e.what());
+  } catch (...) {
+    printContainedFailure("on_receive_raw",
+                          "Cannot forward received raw message", nullptr);
   }
 }
 
@@ -911,29 +996,40 @@ void Connection::onSendRaw(unsigned char *msg, int msgSize) {
   if (msgSize <= 0 || !msg) {
     return;
   }
-  if (py_onSendRaw.is_set()) {
-    if (auto c = getClient()) {
-      auto token = c->acquireNotificationToken("on_send_raw");
-      if (!token) {
-        return; // dropped, the callback cannot keep up with the frame rate
+  // the notification allocates and schedules: contain it here so a state
+  // transition driven by lib60870 cannot throw into C, and so the limiter
+  // token is always released (SECURITY.md M13)
+  try {
+    if (py_onSendRaw.is_set()) {
+      if (auto c = getClient()) {
+        auto token = c->acquireNotificationToken("on_send_raw");
+        if (!token) {
+          return; // dropped, the callback cannot keep up with the frame rate
+        }
+        // create a copy
+        const auto size = static_cast<std::size_t>(msgSize);
+        auto cp = std::shared_ptr<char[]>(new char[size]);
+        memcpy(cp.get(), msg, size);
+
+        std::weak_ptr<Connection> weakSelf =
+            shared_from_this(); // Weak reference to `this`
+        c->scheduleTask([weakSelf, cp, size, token]() {
+          auto self = weakSelf.lock();
+          if (!self)
+            return; // Prevent running if `this` was destroyed
+
+          DEBUG_PRINT(Debug::Connection, "CALLBACK on_send_raw");
+          Module::ScopedGilAcquire const scoped("Connection.on_send_raw");
+          self->py_onSendRaw.call(self, py::bytes(cp.get(), size));
+        });
       }
-      // create a copy
-      const auto size = static_cast<std::size_t>(msgSize);
-      auto cp = std::shared_ptr<char[]>(new char[size]);
-      memcpy(cp.get(), msg, size);
-
-      std::weak_ptr<Connection> weakSelf =
-          shared_from_this(); // Weak reference to `this`
-      c->scheduleTask([weakSelf, cp, size, token]() {
-        auto self = weakSelf.lock();
-        if (!self)
-          return; // Prevent running if `this` was destroyed
-
-        DEBUG_PRINT(Debug::Connection, "CALLBACK on_send_raw");
-        Module::ScopedGilAcquire const scoped("Connection.on_send_raw");
-        self->py_onSendRaw.call(self, py::bytes(cp.get(), size));
-      });
     }
+  } catch (const std::exception &e) {
+    printContainedFailure("on_send_raw", "Cannot forward sent raw message",
+                          e.what());
+  } catch (...) {
+    printContainedFailure("on_send_raw", "Cannot forward sent raw message",
+                          nullptr);
   }
 }
 
@@ -944,28 +1040,39 @@ void Connection::setOnUnexpectedMessageCallback(py::object &callable) {
 void Connection::onUnexpectedMessage(
     std::shared_ptr<Message::IncomingMessage> message,
     UnexpectedMessageCause cause) {
-  if (py_onUnexpectedMessage.is_set()) {
-    if (auto c = getClient()) {
-      auto token = c->acquireNotificationToken("on_unexpected_message");
-      if (!token) {
-        return; // dropped, the callback cannot keep up with the frame rate
-      }
-      std::weak_ptr<Connection> weakSelf =
-          shared_from_this(); // Weak reference to `this`
-      // snapshot: the task runs concurrently with the receive loop that keeps
-      // iterating the original message
-      c->scheduleTask(
-          [weakSelf, message = message->snapshot(), cause, token]() {
-            auto self = weakSelf.lock();
-            if (!self)
-              return; // Prevent running if `this` was destroyed
+  // the notification allocates and schedules: contain it here so a state
+  // transition driven by lib60870 cannot throw into C, and so the limiter
+  // token is always released (SECURITY.md M13)
+  try {
+    if (py_onUnexpectedMessage.is_set()) {
+      if (auto c = getClient()) {
+        auto token = c->acquireNotificationToken("on_unexpected_message");
+        if (!token) {
+          return; // dropped, the callback cannot keep up with the frame rate
+        }
+        std::weak_ptr<Connection> weakSelf =
+            shared_from_this(); // Weak reference to `this`
+        // snapshot: the task runs concurrently with the receive loop that
+        // keeps iterating the original message
+        c->scheduleTask(
+            [weakSelf, message = message->snapshot(), cause, token]() {
+              auto self = weakSelf.lock();
+              if (!self)
+                return; // Prevent running if `this` was destroyed
 
-            DEBUG_PRINT(Debug::Connection, "CALLBACK on_unexpected_message");
-            Module::ScopedGilAcquire const scoped(
-                "Connection.on_unexpected_message");
-            self->py_onUnexpectedMessage.call(self, message, cause);
-          });
+              DEBUG_PRINT(Debug::Connection, "CALLBACK on_unexpected_message");
+              Module::ScopedGilAcquire const scoped(
+                  "Connection.on_unexpected_message");
+              self->py_onUnexpectedMessage.call(self, message, cause);
+            });
+      }
     }
+  } catch (const std::exception &e) {
+    printContainedFailure("on_unexpected_message",
+                          "Cannot forward unexpected message", e.what());
+  } catch (...) {
+    printContainedFailure("on_unexpected_message",
+                          "Cannot forward unexpected message", nullptr);
   }
 }
 
@@ -1239,27 +1346,38 @@ void Connection::rawMessageHandler(void *parameter, uint_fast8_t *msg,
     begin = std::chrono::steady_clock::now();
   }
 
-  // ~Connection() / ~Client() must not join this thread, see
-  // Module::ScopedThreadOwner. Keyed by parameter and declared before
-  // instance, so the marker is still active when the shared_ptr is
-  // released at the end of scope.
-  Module::ScopedThreadOwner const owner(parameter);
-  const auto instance = getInstance(parameter);
-  if (!instance) {
-    DEBUG_PRINT(Debug::Connection, "Ignore raw message in shutdown");
-    return;
-  }
+  // lib60870 calls this handler from its own thread: no exception may escape
+  // into C, neither from the message copy and the task scheduling it drives
+  // nor from the diagnostics below (SECURITY.md M13)
+  try {
+    // ~Connection() / ~Client() must not join this thread, see
+    // Module::ScopedThreadOwner. Keyed by parameter and declared before
+    // instance, so the marker is still active when the shared_ptr is
+    // released at the end of scope.
+    Module::ScopedThreadOwner const owner(parameter);
+    const auto instance = getInstance(parameter);
+    if (!instance) {
+      DEBUG_PRINT(Debug::Connection, "Ignore raw message in shutdown");
+      return;
+    }
 
-  if (sent) {
-    instance->onSendRaw(msg, msgSize);
-  } else {
-    instance->onReceiveRaw(msg, msgSize);
-  }
+    if (sent) {
+      instance->onSendRaw(msg, msgSize);
+    } else {
+      instance->onReceiveRaw(msg, msgSize);
+    }
 
-  if (debug) {
-    DEBUG_PRINT_CONDITION(true, Debug::Connection,
-                          "raw_message_handler] Stats | TOTAL " +
-                              TICTOCNOW(begin));
+    if (debug) {
+      DEBUG_PRINT_CONDITION(true, Debug::Connection,
+                            "raw_message_handler] Stats | TOTAL " +
+                                TICTOCNOW(begin));
+    }
+  } catch (const std::exception &e) {
+    printContainedFailure("raw_message_handler", "Cannot forward raw message",
+                          e.what());
+  } catch (...) {
+    printContainedFailure("raw_message_handler", "Cannot forward raw message",
+                          nullptr);
   }
 }
 
@@ -1274,45 +1392,56 @@ void Connection::connectionHandler(void *parameter, CS104_Connection connection,
     begin = std::chrono::steady_clock::now();
   }
 
-  // ~Connection() / ~Client() must not join this thread, see
-  // Module::ScopedThreadOwner. Keyed by parameter and declared before
-  // instance, so the marker is still active when the shared_ptr is
-  // released at the end of scope.
-  Module::ScopedThreadOwner const owner(parameter);
-  const auto instance = getInstance(parameter);
-  if (!instance) {
-    DEBUG_PRINT(Debug::Connection, "Ignore connection event " +
-                                       ConnectionEvent_toString(event) +
-                                       " in shutdown");
-    return;
-  }
+  // lib60870 calls this handler from its own thread: no exception may escape
+  // into C, neither from the state transitions and the task scheduling they
+  // drive nor from the diagnostics below (SECURITY.md M13)
+  try {
+    // ~Connection() / ~Client() must not join this thread, see
+    // Module::ScopedThreadOwner. Keyed by parameter and declared before
+    // instance, so the marker is still active when the shared_ptr is
+    // released at the end of scope.
+    Module::ScopedThreadOwner const owner(parameter);
+    const auto instance = getInstance(parameter);
+    if (!instance) {
+      DEBUG_PRINT(Debug::Connection, "Ignore connection event " +
+                                         ConnectionEvent_toString(event) +
+                                         " in shutdown");
+      return;
+    }
 
-  switch (event) {
-  case CS104_CONNECTION_OPENED: {
-    instance->setOpen();
-    break;
-  }
-  case CS104_CONNECTION_FAILED:
-  case CS104_CONNECTION_CLOSED: {
-    instance->setClosed();
-    break;
-  }
-  case CS104_CONNECTION_STARTDT_CON_RECEIVED: {
-    instance->setMuted(false);
-    break;
-  }
-  case CS104_CONNECTION_STOPDT_CON_RECEIVED: {
-    instance->setMuted(true);
-    break;
-  }
-  }
+    switch (event) {
+    case CS104_CONNECTION_OPENED: {
+      instance->setOpen();
+      break;
+    }
+    case CS104_CONNECTION_FAILED:
+    case CS104_CONNECTION_CLOSED: {
+      instance->setClosed();
+      break;
+    }
+    case CS104_CONNECTION_STARTDT_CON_RECEIVED: {
+      instance->setMuted(false);
+      break;
+    }
+    case CS104_CONNECTION_STOPDT_CON_RECEIVED: {
+      instance->setMuted(true);
+      break;
+    }
+    }
 
-  if (debug) {
-    DEBUG_PRINT_CONDITION(true, Debug::Connection,
-                          "connection_handler] Connection " +
-                              ConnectionEvent_toString(event) + " to " +
-                              instance->getConnectionString() + " | TOTAL " +
-                              TICTOCNOW(begin));
+    if (debug) {
+      DEBUG_PRINT_CONDITION(true, Debug::Connection,
+                            "connection_handler] Connection " +
+                                ConnectionEvent_toString(event) + " to " +
+                                instance->getConnectionString() + " | TOTAL " +
+                                TICTOCNOW(begin));
+    }
+  } catch (const std::exception &e) {
+    printContainedFailure("connection_handler", "Cannot apply connection event",
+                          e.what());
+  } catch (...) {
+    printContainedFailure("connection_handler", "Cannot apply connection event",
+                          nullptr);
   }
 }
 
@@ -1324,19 +1453,23 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
   }
   bool handled = false;
 
-  // ~Connection() / ~Client() must not join this thread, see
-  // Module::ScopedThreadOwner. Keyed by parameter and declared before
-  // instance, so the marker is still active when the shared_ptr is
-  // released at the end of scope.
-  Module::ScopedThreadOwner const owner(parameter);
-  const auto instance = getInstance(parameter);
-  if (!instance) {
-    DEBUG_PRINT_CONDITION(debug, Debug::Connection,
-                          "asdu_handler] Drop message: Connection removed");
-    return false;
-  }
-
+  // lib60870 calls this handler from its own thread: no exception may escape
+  // into C, neither from the message handling and the task scheduling it
+  // drives nor from the diagnostics below. The marker and the instance lookup
+  // are contained too, they allocate and copy (SECURITY.md M13)
   try {
+    // ~Connection() / ~Client() must not join this thread, see
+    // Module::ScopedThreadOwner. Keyed by parameter and declared before
+    // instance, so the marker is still active when the shared_ptr is
+    // released at the end of scope.
+    Module::ScopedThreadOwner const owner(parameter);
+    const auto instance = getInstance(parameter);
+    if (!instance) {
+      DEBUG_PRINT_CONDITION(debug, Debug::Connection,
+                            "asdu_handler] Drop message: Connection removed");
+      return false;
+    }
+
     const auto client = instance->getClient();
     if (!client || !client->isRunning()) {
       throw std::runtime_error("Client not running");
@@ -1452,11 +1585,24 @@ bool Connection::asduHandler(void *parameter, int address, CS101_ASDU asdu) {
               std::to_string(commonAddress) + " | TOTAL " + TICTOCNOW(begin));
     }
 
+  } catch (const std::bad_alloc &) {
+    // an allocation or scheduling failure is not a peer protocol fault, so it
+    // is reported even without debug enabled
+    printContainedFailure("asdu_handler", "Drop message: allocation failed",
+                          nullptr);
   } catch (const std::exception &e) {
-    DEBUG_PRINT_CONDITION(debug, Debug::Connection,
-                          "asdu_handler] Drop message: " +
-                              std::string(e.what()));
+    // the debug print builds a string and may allocate: contain it, a
+    // diagnostic must never throw out of the catch path of a C callback
+    try {
+      DEBUG_PRINT_CONDITION(debug, Debug::Connection,
+                            "asdu_handler] Drop message: " +
+                                std::string(e.what()));
+    } catch (...) {
+    }
+  } catch (...) {
+    printContainedFailure("asdu_handler", "Drop message", nullptr);
   }
 
+  // a dropped message is reported to lib60870 as not handled
   return handled;
 }

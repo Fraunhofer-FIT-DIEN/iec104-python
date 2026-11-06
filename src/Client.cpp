@@ -30,6 +30,7 @@
  */
 
 #include <algorithm>
+#include <new>
 
 #include "Client.h"
 
@@ -516,8 +517,16 @@ std::size_t Client::discardPendingTasksForTesting() {
   return discarded;
 }
 
+void Client::setTaskSchedulingFailureForTesting(bool enabled) {
+  failTaskSchedulingForTesting.store(enabled);
+}
+
 void Client::scheduleTask(const std::function<void()> &task,
                           std::int_fast32_t delay) {
+  if (failTaskSchedulingForTesting.load()) {
+    // stands in for the allocation failure of the queue insertion below
+    throw std::bad_alloc();
+  }
   {
     std::lock_guard<std::mutex> lock(runThread_mutex);
     if (delay < 0) {

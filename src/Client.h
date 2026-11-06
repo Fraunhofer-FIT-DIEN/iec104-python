@@ -351,6 +351,16 @@ public:
    */
   std::size_t discardPendingTasksForTesting();
 
+  /**
+   * @brief Make the next task scheduling attempts fail with a bad_alloc
+   * @details exposed for the handler regression test of SECURITY.md M13: it
+   * injects the allocation failures that a lib60870 callback must contain.
+   * The run thread must not be active while this is armed; not part of the
+   * python API.
+   * @param enabled whether scheduling attempts throw
+   */
+  void setTaskSchedulingFailureForTesting(bool enabled);
+
 private:
   /**
    * @brief Create a new remote connection handler instance that acts as a
@@ -392,6 +402,9 @@ private:
 
   /// @brief client thread state
   std::atomic_bool running{false};
+
+  /// @brief injected task scheduling failure state (testing)
+  std::atomic_bool failTaskSchedulingForTesting{false};
 
   /// @brief MUTEX Lock to access connectionMap
   mutable Module::GilAwareMutex connections_mutex{"Client::connections_mutex"};
