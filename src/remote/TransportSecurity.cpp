@@ -31,6 +31,7 @@
 
 #include "TransportSecurity.h"
 #include "Helper.h"
+#include "module/ThreadOwner.h"
 
 using namespace Remote;
 
@@ -69,6 +70,14 @@ bool TransportSecurity::isNullCipherSuite(const TLSCipherSuite cipher) {
 void TransportSecurity::eventHandler(void *parameter, TLSEventLevel eventLevel,
                                      int eventCode, const char *msg,
                                      TLSConnection con) {
+  // lib60870 raises TLS events directly on the handshake or connection thread,
+  // so the caller carries no callback key to mark. Declare a wildcard marker
+  // before the shared_ptr is resolved: this thread can never name the object a
+  // python callback may drop the last reference of, and it must not tear that
+  // object down while the handler, the resolved shared_ptr and the lib60870
+  // call stack are still using it.
+  Module::ScopedThreadOwner const owner(Module::ScopedThreadOwner::ANY);
+
   std::shared_ptr<TransportSecurity> instance{};
   try {
     instance = static_cast<TransportSecurity *>(parameter)->shared_from_this();

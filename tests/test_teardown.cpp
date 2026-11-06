@@ -223,6 +223,63 @@ TEST_CASE("ScopedThreadOwner marks the current thread only",
   REQUIRE_FALSE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&a));
 }
 
+TEST_CASE("ScopedThreadOwner::ANY matches every key, nests and restores",
+          "[module][thread-owner][security]") {
+  int a = 0;
+  int b = 0;
+  REQUIRE_FALSE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&a));
+
+  // the wildcard protects an object whose key the thread cannot name, e.g. a
+  // lib60870 TLS event handler running on the handshake thread
+  {
+    Module::ScopedThreadOwner const wildcard(Module::ScopedThreadOwner::ANY);
+    REQUIRE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&a));
+    REQUIRE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&b));
+    REQUIRE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(
+        static_cast<const void *>("unrelated key")));
+    // a wildcard never makes "no owner" match
+    REQUIRE_FALSE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(nullptr));
+    // it is not a run loop of a single object, so it is never destroyed
+    Module::ScopedThreadOwner::markDestroyed(&a);
+    REQUIRE_FALSE(wildcard.ownerDestroyed());
+
+    // a keyed marker nests inside the wildcard; ordinary key semantics stay
+    // untouched: the keyed marker still only matches its own key
+    {
+      Module::ScopedThreadOwner const inner(&b);
+      REQUIRE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&a));
+      REQUIRE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&b));
+      REQUIRE(inner.ownerDestroyed() == false);
+      Module::ScopedThreadOwner::markDestroyed(&b);
+      REQUIRE(inner.ownerDestroyed());
+      REQUIRE_FALSE(wildcard.ownerDestroyed());
+
+      // markers stay thread local
+      bool seenElsewhere = true;
+      std::thread([&]() {
+        seenElsewhere = Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&a);
+      }).join();
+      REQUIRE_FALSE(seenElsewhere);
+    }
+    // the keyed marker is gone again, so the wildcard alone governs this
+    // thread and every key matches once more. That the keyed marker stack
+    // itself is restored is covered by the keyed-only case above; the
+    // wildcard must not change those ordinary key semantics.
+    REQUIRE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&b));
+    REQUIRE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&a));
+  }
+  // the wildcard marker is strictly scoped
+  REQUIRE_FALSE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&a));
+
+  // a keyed marker below a removed wildcard still works as before
+  {
+    Module::ScopedThreadOwner const keyed(&a);
+    REQUIRE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&a));
+    REQUIRE_FALSE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&b));
+  }
+  REQUIRE_FALSE(Module::ScopedThreadOwner::isCurrentThreadOwnedBy(&a));
+}
+
 TEST_CASE("nextCallbackKey is unique and distinct from object addresses",
           "[module][thread-owner][security]") {
   auto server = Server::create("127.0.0.1", 26230);

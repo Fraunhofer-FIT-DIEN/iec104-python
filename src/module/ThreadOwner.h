@@ -77,14 +77,37 @@ inline void *nextCallbackKey() noexcept {
  * parameter, see nextCallbackKey()) before resolving the instance, run
  * loops mark their owner for the lifetime of the thread. Markers nest, are
  * strictly scoped and allocation free.
+ *
+ * A thread that runs on behalf of an object it cannot name - lib60870 raises
+ * TLS security events directly on the handshake or connection thread, which
+ * carries no callback key - marks ANY instead, which matches every owner in
+ * isCurrentThreadOwnedBy(). That lets a python callback invoked from such a
+ * thread drop the last reference to a Server, Client, Connection or
+ * TransportSecurity without tearing it down under the running callback.
  */
 class ScopedThreadOwner {
 public:
   /**
+   * @brief Owner key that protects every object about to be torn down.
+   *
+   * Pass this as owner_ptr when the current thread runs on behalf of an object
+   * whose key is unknowable, for example a lib60870 TLS event handler that is
+   * called from the handshake thread. isCurrentThreadOwnedBy() reports a match
+   * for such a marker whatever key the destructor asks about.
+   *
+   * The token is a pointer-sized value that no allocation can ever have, so it
+   * never collides with a real owner. It is a marker key only: it is not an
+   * object address for markDestroyed() and ownerDestroyed() stays false on a
+   * wildcard marker.
+   */
+  inline static const void *const ANY =
+      reinterpret_cast<const void *>(static_cast<std::uintptr_t>(-1));
+
+  /**
    * @brief Mark the current thread as owned by owner_ptr until destruction.
    *
    * @param owner_ptr the object whose teardown must not run on this thread,
-   * nullptr is accepted and never matches
+   * or ANY to protect every object; nullptr is accepted and never matches
    */
   explicit ScopedThreadOwner(const void *owner_ptr) noexcept
       : owner(owner_ptr), prev(top()) {
@@ -100,6 +123,9 @@ public:
   /**
    * @brief Check if a marker for owner_ptr is active on the calling thread.
    *
+   * A marker created with ANY matches every owner_ptr, so an owner destroyed
+   * on a thread that cannot name its own key still defers its teardown.
+   *
    * @param owner_ptr the object about to be torn down
    * @return true if the calling thread executes on behalf of owner_ptr
    */
@@ -108,7 +134,7 @@ public:
       return false;
     }
     for (auto *marker = top(); marker; marker = marker->prev) {
-      if (marker->owner == owner_ptr) {
+      if (marker->owner == owner_ptr || marker->owner == ANY) {
         return true;
       }
     }
@@ -121,6 +147,9 @@ public:
    * Called by the owner's destructor when it runs on its own run thread, so
    * the loop behind the marker returns without touching the destroyed object,
    * see ownerDestroyed().
+   *
+   * Only keyed markers are flagged: a wildcard marker (ANY) does not describe a
+   * run loop of a single object and is never reported as destroyed.
    *
    * @param owner_ptr the object being destroyed
    */

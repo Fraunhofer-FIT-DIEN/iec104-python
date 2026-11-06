@@ -166,6 +166,28 @@ def _loop_cb_pt_before_auto_transmit(point: c104.Point) -> None:
   }
 }
 
+bool fileExists(const std::string &path) {
+  if (std::FILE *f = std::fopen(path.c_str(), "r")) {
+    std::fclose(f);
+    return true;
+  }
+  return false;
+}
+
+/// A listening socket can only be bound once the previous slave was destroyed.
+/// Called from waitUntil() with the GIL released; Server::create needs it.
+bool portIsFree(uint_fast16_t port) {
+  py::gil_scoped_acquire const gil;
+  try {
+    auto probe = Server::create("127.0.0.1", port, 50, 10000, 8);
+    probe->start();
+    probe->stop();
+    return true;
+  } catch (const std::exception &) {
+    return false;
+  }
+}
+
 /// Bind one of the registered python globals to a named lvalue and invoke @p
 /// fn. The callback setters take a non-const `py::object &`, so the caller must
 /// own a named local.
@@ -190,6 +212,7 @@ constexpr uint_fast16_t PORT_PERIODIC = 26207;
 constexpr uint_fast16_t PORT_CALLBACKS = 26208;
 constexpr uint_fast16_t PORT_CLOCKSYNC = 26209;
 constexpr uint_fast16_t PORT_TLS = 26210;
+constexpr uint_fast16_t PORT_TLS_OWNER = 26235;
 
 } // namespace
 
@@ -649,4 +672,127 @@ TEST_CASE("Loopback: TLS handshake over loopback socket",
 
   REQUIRE_NOTHROW(client->stop());
   REQUIRE_NOTHROW(server->stop());
+}
+
+// ===========================================================================
+// 9. SEC-11 / M14: the TLS event handler drops the last Server reference.
+//    TLS_SEC_EVT_INFO is raised inline by mbedtls_ssl_handshake() inside
+//    TLSSocket_create() from MasterConnection_init(), which the slave runs on
+//    its own accepting thread. That thread carries no Server reference, so the
+//    handler that drops the last one destroys the Server on it: ~Server() must
+//    recognise the thread (ScopedThreadOwner::ANY) and hand CS104_Slave_stop()
+//    to a neutral thread. Otherwise the stop self-waits on the calling thread
+//    and the TLS configuration can be torn down mid-handshake.
+// ===========================================================================
+TEST_CASE("Loopback: TLS on_event dropping the last Server reference defers "
+          "teardown",
+          "[loopback][tls][thread-owner][security]") {
+  const uint_fast16_t port = PORT_TLS_OWNER;
+  const uint_fast16_t ca = 15;
+
+  auto serverCert = resolveCertPath("server1.crt");
+  auto serverKey = resolveCertPath("server1.key");
+  auto caCert = resolveCertPath("ca.crt");
+  auto clientCert = resolveCertPath("client1.crt");
+  auto clientKey = resolveCertPath("client1.key");
+  if (!fileExists(serverCert) || !fileExists(serverKey) ||
+      !fileExists(caCert) || !fileExists(clientCert) || !fileExists(clientKey))
+    SKIP("TLS test certificates not available");
+
+  py::exec(R"(
+import c104
+import threading
+
+_tls_owner_inside = threading.Event()
+_tls_owner_release = threading.Event()
+_tls_owner_server = None
+_tls_owner_events = []
+
+def _tls_owner_reset() -> None:
+    _tls_owner_inside.clear()
+    _tls_owner_release.clear()
+    del _tls_owner_events[:]
+    global _tls_owner_server
+    _tls_owner_server = None
+
+def _tls_owner_on_event(tls: c104.TransportSecurity, level: c104.TlsEventLevel, code: int, message: str, peer: str) -> None:
+    global _tls_owner_server
+    _tls_owner_events.append((int(level), code))
+    # Park on the first event: it is raised on the slave's accepting thread,
+    # the very thread CS104_Slave_stop() destroys, so dropping the reference
+    # here is what forces ~Server() to recognise that thread.
+    _tls_owner_inside.set()
+    _tls_owner_release.wait(10.0)
+    # the handler, not the test thread, drops the last reference: the teardown
+    # then starts on the thread the handler runs on
+    _tls_owner_server = None
+)",
+           py::globals());
+  py::globals()["_tls_owner_reset"]();
+
+  auto serverTs = Remote::TransportSecurity::create(false, false);
+  REQUIRE(serverTs != nullptr);
+  REQUIRE_NOTHROW(serverTs->setCertificate(serverCert, serverKey));
+  REQUIRE_NOTHROW(serverTs->setCACertificate(caCert));
+  {
+    py::object cb = py::globals()["_tls_owner_on_event"];
+    REQUIRE_NOTHROW(serverTs->setOnEventCallback(cb));
+  }
+
+  auto server = Server::create("127.0.0.1", port, 50, 10000, 8, serverTs);
+  REQUIRE(server != nullptr);
+  server->addStation(ca);
+  REQUIRE_NOTHROW(server->start());
+  REQUIRE(server->isRunning());
+  void *const key = server->getCallbackKey();
+
+  // hand the only strong reference to python before any client can connect
+  py::globals()["_tls_owner_server"] = py::cast(server);
+  server.reset();
+
+  auto clientTs = Remote::TransportSecurity::create(false, false);
+  REQUIRE(clientTs != nullptr);
+  REQUIRE_NOTHROW(clientTs->setCertificate(clientCert, clientKey));
+  REQUIRE_NOTHROW(clientTs->setCACertificate(caCert));
+
+  auto client = Client::create(50, 10000, clientTs);
+  auto conn = client->addConnection("127.0.0.1", port, INIT_NONE);
+  REQUIRE(conn != nullptr);
+  client->start();
+
+  // the server side handler parks inside the TLS handshake
+  REQUIRE(py::cast<bool>(py::globals()["_tls_owner_inside"].attr("wait")(8.0)));
+  // it fired while the handshake was running, the instance is still registered
+  REQUIRE(Server::getInstance(key) != nullptr);
+
+  // let the handler return and drop the last reference on the accepting thread
+  py::globals()["_tls_owner_release"].attr("set")();
+
+  REQUIRE(
+      waitUntil([&]() { return Server::getInstance(key) == nullptr; }, 8000));
+
+  // The slave kept running after the handler dropped the last reference: the
+  // deferred teardown must not tear the accepting thread down underneath the
+  // handshake still in flight. A destructor that self-joined the accepting
+  // thread instead deadlocks inside CS104_Slave_stop(), the loop stops
+  // accepting, and the session never opens.
+  REQUIRE(waitUntil([&]() { return conn->getState() == OPEN; }, 8000));
+
+  REQUIRE_NOTHROW(client->stop());
+  conn.reset();
+  client.reset();
+
+  // the listening socket is only released once the deferred teardown completed
+  REQUIRE(waitUntil([&]() { return portIsFree(port); }, 8000, 100));
+
+  // the handler really saw a TLS security event, not just a closed connection
+  py::list const events = py::globals()["_tls_owner_events"];
+  REQUIRE(py::len(events) > 0);
+  bool sawEstablished = false;
+  for (auto const &event : events) {
+    py::tuple const pair = py::reinterpret_borrow<py::tuple>(event);
+    if (py::cast<int>(pair[1]) == TLS_EVENT_CODE_INF_SESSION_ESTABLISHED)
+      sawEstablished = true;
+  }
+  REQUIRE(sawEstablished);
 }

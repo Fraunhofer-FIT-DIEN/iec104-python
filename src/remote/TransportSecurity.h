@@ -74,12 +74,23 @@ public:
   /**
    * @brief Destructor for the TransportSecurity class.
    *
-   * Clean up the TLS configuration structures
+   * Clean up the TLS configuration structures. A Server or Client that still
+   * references this instance keeps the TLS configuration alive until its
+   * native teardown completed, so lib60870 never dispatches an event into a
+   * destroyed configuration.
    */
   ~TransportSecurity();
 
   /**
    * @brief Handles TLS-related events during the TransportSecurity lifetime.
+   *
+   * lib60870 calls this handler directly on the handshake or connection thread,
+   * which carries no callback key of its own. The handler therefore declares a
+   * wildcard thread-owner marker (see Module::ScopedThreadOwner) before it
+   * resolves the instance: a python on_event callback may drop the last Server,
+   * Client, Connection or TransportSecurity reference, and that teardown must
+   * be deferred to a neutral thread instead of running on this call stack.
+   *
    * @param parameter A pointer to user-defined data or context associated with
    * the event.
    * @param eventLevel The severity level of the TLS event.

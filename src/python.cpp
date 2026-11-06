@@ -1522,6 +1522,12 @@ The callable runs on an internal communication thread. Do not call methods that 
 **Server.stop()**, **Client.stop()**, **Client.disconnect_all()**, **Client.reconnect_all()**, **Client.remove_connection()**, **Connection.connect()** and **Connection.disconnect()**.
 They wait for the thread the callable is running on and would deadlock. Trigger such calls from another thread instead.
 
+Dropping the last reference to the **c104.TransportSecurity** instance, the **c104.Server**, the **c104.Client** or a
+**c104.Connection** from within the callable is safe. The TLS layer reports events from its handshake and connection
+threads, which the library cannot attribute to a single owner, so the handler holds a wildcard thread-owner marker: the
+teardown is deferred to a neutral thread and the TLS configuration stays alive until the native teardown completed. The
+callable also stays registered and can be invoked again for later events of the same configuration.
+
 Example
 -------
 >>> def tls_on_event(tls: c104.TransportSecurity, level: c104.TlsEventLevel, code: int, message: str, peer: str) -> None:
