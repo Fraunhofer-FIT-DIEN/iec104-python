@@ -768,8 +768,25 @@ def _tls_owner_on_event(tls: c104.TransportSecurity, level: c104.TlsEventLevel, 
   // let the handler return and drop the last reference on the accepting thread
   py::globals()["_tls_owner_release"].attr("set")();
 
+#if defined(Py_GIL_DISABLED)
+  // Free-threaded CPython defers the dealloc of an object whose last
+  // reference was dropped by a thread that is not its owning thread (the
+  // accepting thread here). The dealloc runs only when the owning thread
+  // executes Python again, so pump the GC from this thread to observe the
+  // deferred teardown within the deadline.
+  REQUIRE(waitUntil(
+      [&]() {
+        {
+          py::gil_scoped_acquire const gil;
+          py::module_::import("gc").attr("collect")();
+        }
+        return Server::getInstance(key) == nullptr;
+      },
+      8000));
+#else
   REQUIRE(
       waitUntil([&]() { return Server::getInstance(key) == nullptr; }, 8000));
+#endif
 
   // The slave kept running after the handler dropped the last reference: the
   // deferred teardown must not tear the accepting thread down underneath the
