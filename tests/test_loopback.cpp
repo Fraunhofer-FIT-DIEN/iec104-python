@@ -115,7 +115,7 @@ void ensurePythonCallbacks() {
   try {
     py::exec(R"(
 import c104
-import datetime
+import datetime as dt
 
 def _loop_cb_on_connect_accept(server: c104.Server, ip: str) -> bool:
     return True
@@ -123,7 +123,7 @@ def _loop_cb_on_connect_accept(server: c104.Server, ip: str) -> bool:
 def _loop_cb_on_connect_reject(server: c104.Server, ip: str) -> bool:
     return False
 
-def _loop_cb_on_clock_sync(server: c104.Server, ip: str, date_time: datetime.datetime) -> c104.ResponseState:
+def _loop_cb_on_clock_sync(server: c104.Server, ip: str, date_time: dt.datetime) -> c104.ResponseState:
     return c104.ResponseState.SUCCESS
 
 def _loop_cb_recv_raw_server(server: c104.Server, data: bytes) -> None:
