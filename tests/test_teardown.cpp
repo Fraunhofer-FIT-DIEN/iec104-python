@@ -44,6 +44,7 @@
 #include "Client.h"
 #include "Server.h"
 #include "module/GilAwareMutex.h"
+#include "module/GilState.h"
 #include "module/ThreadOwner.h"
 #include "object/DataPoint.h"
 #include "object/Station.h"
@@ -166,7 +167,7 @@ TEST_CASE("GilAwareMutex::lock blocks instead of throwing after 100 ms",
 
   REQUIRE(waited >= 200ms);
   // the GIL held by the test thread is restored after the blocking wait
-  REQUIRE(PyGILState_Check());
+  REQUIRE(Module::hasAttachedThreadState());
 }
 
 TEST_CASE("GilAwareMutex works through std::lock_guard in noexcept context",

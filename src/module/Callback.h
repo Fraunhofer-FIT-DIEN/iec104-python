@@ -37,6 +37,7 @@
 #include <utility>
 
 #include "module/GilAwareMutex.h"
+#include "module/GilState.h"
 #include "module/ScopedGilAcquire.h"
 #include "types.h"
 
@@ -80,22 +81,23 @@ public:
         callback.release();
         return;
       }
-      if (PyGILState_Check()) {
+      if (hasAttachedThreadState()) {
         // holding the GIL, so finalization cannot start concurrently
-        if (isFinalizing()) {
+        if (Module::isFinalizing()) {
           callback.release();
         } else {
           callback = py::object();
         }
         return;
       }
-      // Foreign thread without the GIL: checking Py_IsFinalizing() and then
-      // calling PyGILState_Ensure() races with interpreter shutdown, and
-      // PyGILState_Ensure() hangs the thread forever once finalization began
-      // (python >= 3.12). Hand the reference to the interpreter instead:
-      // Py_AddPendingCall() needs neither the GIL nor a thread state, the
-      // main thread drops the reference with the GIL held. If the call cannot
-      // be queued (queue full, interpreter shutting down), leak it.
+      // Foreign thread without a thread state, so without the GIL: checking
+      // Py_IsFinalizing() and then calling PyGILState_Ensure() races with
+      // interpreter shutdown, and PyGILState_Ensure() hangs the thread forever
+      // once finalization began (python >= 3.12). Hand the reference to the
+      // interpreter instead: Py_AddPendingCall() needs neither the GIL nor a
+      // thread state, the main thread drops the reference with the GIL held.
+      // If the call cannot be queued (queue full, interpreter shutting down),
+      // leak it.
       PyObject *const obj = callback.release().ptr();
       if (Py_AddPendingCall(&CallbackBase::releasePending, obj) != 0) {
         DEBUG_PRINT(Debug::Callback,
@@ -176,15 +178,6 @@ protected:
   static int releasePending(void *obj) {
     Py_XDECREF(static_cast<PyObject *>(obj));
     return 0;
-  }
-
-  /// @brief test if the interpreter is shutting down, caller holds the GIL
-  static bool isFinalizing() {
-#if PY_VERSION_HEX >= 0x030D0000
-    return Py_IsFinalizing();
-#else
-    return _Py_IsFinalizing();
-#endif
   }
 
   /**
@@ -297,7 +290,7 @@ protected:
    */
   static void discardPendingError() noexcept(true) {
     try {
-      if (PyGILState_Check() && PyErr_Occurred() != nullptr) {
+      if (hasAttachedThreadState() && PyErr_Occurred() != nullptr) {
         PyErr_Clear();
       }
     } catch (...) {

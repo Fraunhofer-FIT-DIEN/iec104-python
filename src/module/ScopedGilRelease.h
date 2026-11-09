@@ -35,6 +35,7 @@
 
 #include <utility>
 
+#include "module/GilState.h"
 #include "types.h"
 
 namespace Module {
@@ -55,14 +56,15 @@ public:
    * @brief Releasing the GIL within the given scope for non-blocking non-python
    * tasks.
    *
-   * If the GIL is not even acquired, it logs the action without releasing.
+   * If the calling thread is not attached and therefore cannot hold the GIL, it
+   * logs the action without releasing.
    *
    * @param callback_name The name of the GIL-dropping scope, used for debugging
    * purposes.
    */
   explicit ScopedGilRelease(std::string callback_name)
       : name(std::move(callback_name)) {
-    if (PyGILState_Check()) {
+    if (hasAttachedThreadState()) {
       gil = new py::gil_scoped_release(false);
       DEBUG_PRINT(Debug::Gil, "<--| Release GIL | " + name);
     } else {
@@ -81,7 +83,7 @@ public:
   ~ScopedGilRelease() {
     if (gil) {
       delete gil;
-      DEBUG_PRINT(Debug::Gil, +"-->| Re-acquire GIL | " + name);
+      DEBUG_PRINT(Debug::Gil, "-->| Re-acquire GIL | " + name);
     } else {
       DEBUG_PRINT(Debug::Gil, "--?| (Re-Acquire) GIL | " + name);
     }

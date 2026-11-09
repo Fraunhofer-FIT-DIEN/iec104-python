@@ -35,6 +35,7 @@
 
 #include <utility>
 
+#include "module/GilState.h"
 #include "types.h"
 
 namespace Module {
@@ -58,14 +59,15 @@ public:
    * @brief Acquiring the GIL within the given scope for safe interaction with
    * the Python interpreter.
    *
-   * If the GIL is already acquired, it logs the action without re-acquiring.
+   * If the calling thread is already attached and therefore holds the GIL, it
+   * logs the action without re-acquiring.
    *
    * @param callback_name A string representing the name of the scope or
    * function acquiring the GIL, used for debugging and logging purposes.
    */
   explicit ScopedGilAcquire(std::string callback_name)
       : gil(), name(std::move(callback_name)) {
-    if (PyGILState_Check()) {
+    if (hasAttachedThreadState()) {
       DEBUG_PRINT(Debug::Gil, "--?| (Acquire) GIL | " + name);
     } else {
       DEBUG_PRINT(Debug::Gil, "-->| Acquire GIL | " + name);

@@ -168,6 +168,7 @@ set(c104_SOURCES
     src/module/ThreadOwner.h
     src/module/TaskLimiter.h
     src/module/GilAwareMutex.h
+    src/module/GilState.h
     src/object/DateTime.cpp
     src/object/DateTime.h
     src/object/Information.h
@@ -237,6 +238,7 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/depends/catch/src"
     tests/test_enum_sweep.cpp
     tests/test_teardown.cpp
     tests/test_security_low.cpp
+    tests/test_gil_state.cpp
     tests/main.cpp)
 
   if(TARGET c104_tests)
