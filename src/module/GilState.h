@@ -60,6 +60,13 @@ namespace Module {
  * alias on 3.9 to 3.12, and PyThreadState_GET() on PyPy and GraalVM. All of
  * them return NULL instead of aborting on an unattached thread.
  *
+ * Note that _PyThreadState_UncheckedGet() is only per-thread since CPython
+ * 3.12; before that it returned the thread state of the current GIL holder
+ * (a process-wide value), so comparing it against this thread's own
+ * PyGILState_GetThisThreadState() is required on 3.9 to 3.11: a thread that
+ * released the GIL still has a thread state there, but it is not the current
+ * one anymore, and an unrelated attached thread reports true otherwise.
+ *
  * On a free-threaded build (3.13t+) a thread keeps its thread state without
  * holding the GIL, so this answers only "the interpreter knows this thread":
  * that is sufficient, because there the GIL acquisition and release helpers
@@ -71,10 +78,22 @@ namespace Module {
  * different interpreter also reports true. This module does not support being
  * imported into more than one interpreter.
  *
- * @return true if the calling thread has a python thread state
+ * @return true if the calling thread is attached and, on GIL builds, holds
+ * the GIL
  */
 inline bool hasAttachedThreadState() noexcept {
+#if defined(Py_GIL_DISABLED)
+  // free-threaded: the interpreter knows this thread iff it has a thread state
   return py::detail::get_thread_state_unchecked() != nullptr;
+#else
+  // GIL builds: the calling thread is the GIL holder iff its own thread state
+  // (per-thread TSS) is the currently active one. Before CPython 3.12 the
+  // unchecked getter returned the holder's thread state for every thread, so
+  // a plain non-null test would report "attached" for a released thread while
+  // another thread holds the GIL.
+  PyThreadState *const mine = PyGILState_GetThisThreadState();
+  return mine != nullptr && py::detail::get_thread_state_unchecked() == mine;
+#endif
 }
 
 /**

@@ -358,6 +358,48 @@ TEST_CASE("callbacks and mutexes survive a subinterpreter in a fresh process",
   REQUIRE(output.find(kChildMarker) != std::string::npos);
 }
 
+TEST_CASE("hasAttachedThreadState is per-thread while another thread "
+          "holds the GIL",
+          "[module][gil]") {
+#if defined(Py_GIL_DISABLED)
+  // free-threaded builds have no GIL to release, so the detached-vs-holder
+  // distinction this case verifies does not exist there
+  SKIP("no GIL on free-threaded builds");
+#else
+  // main thread holds the GIL at this point
+  REQUIRE(Module::hasAttachedThreadState());
+
+  std::atomic_bool worker_holding{false};
+  std::atomic_bool main_probed{false};
+
+  {
+    py::gil_scoped_release release;
+    std::thread worker([&]() {
+      py::gil_scoped_acquire acquire;
+      worker_holding.store(true);
+      while (!main_probed.load()) {
+        std::this_thread::yield();
+      }
+    });
+
+    while (!worker_holding.load()) {
+      std::this_thread::yield();
+    }
+
+    // the worker holds the GIL; this thread released it, so it must not be
+    // considered attached (pre-3.12 the unchecked getter returned the GIL
+    // holder's thread state, which would report true here)
+    REQUIRE_FALSE(Module::hasAttachedThreadState());
+
+    main_probed.store(true);
+    worker.join();
+  }
+
+  // the scope restored the GIL on the main thread
+  REQUIRE(Module::hasAttachedThreadState());
+#endif
+}
+
 TEST_CASE(kChildCaseName, "[gil-subprocess-child][.]") {
   if (!supportsSubinterpreters()) {
     SKIP("this interpreter cannot create subinterpreters");
