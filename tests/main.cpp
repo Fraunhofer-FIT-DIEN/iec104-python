@@ -54,6 +54,21 @@ int main(int argc, char *argv[]) {
                  "be fully exercisable)\n";
   }
 
+#if defined(Py_GIL_DISABLED)
+  // On free-threaded builds the embedded c104 module must declare
+  // Py_MOD_GIL_NOT_USED (see PY_MODULE in src/python.cpp). Otherwise the
+  // import above re-enables the GIL for the whole test process and the suite
+  // runs with the GIL on, hiding the free-threaded code paths.
+  bool const gilEnabled =
+      py::cast<bool>(py::module_::import("sys").attr("_is_gil_enabled")());
+  if (gilEnabled) {
+    std::cerr << "[c104_tests] FAILURE: free-threaded build but the embedded "
+                 "c104 module re-enabled the GIL at import; the suite would "
+                 "not test free-threaded execution\n";
+    return 1;
+  }
+#endif
+
   int result = Catch::Session().run(argc, argv);
 
   // Destroy the process-lifetime test Servers *before* the interpreter below is
