@@ -26,6 +26,8 @@
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
 
+#include <cstring>
+
 #include "Server.h"
 #include "object/DataPoint.h"
 #include "object/Station.h"
@@ -92,8 +94,13 @@ TEST_CASE("Server interrogation originator address",
       .close = [](IMasterConnection self) {},
       .getPeerAddress =
           [](IMasterConnection self, char *addrBuf, int addrBufSize) {
-            memcpy(addrBuf, "127.0.0.1", addrBufSize);
-            return 0;
+            const char *addr = "127.0.0.1";
+            int len = (int)strlen(addr);
+            if (len >= addrBufSize)
+              return 0;
+            memcpy(addrBuf, addr, len);
+            addrBuf[len] = 0;
+            return len;
           },
       .getApplicationLayerParameters =
           [](IMasterConnection self) {

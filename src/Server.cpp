@@ -356,7 +356,13 @@ void Server::thread_run() {
 
       auto now = std::chrono::steady_clock::now();
       if (now >= top.schedule_time) {
-        auto delay = now - top.schedule_time;
+        // time_point::min() is the "run immediately" sentinel (delay < 0);
+        // subtracting it from now would overflow, so only measure the delay
+        // for real scheduled times.
+        auto const is_immediate =
+            top.schedule_time == std::chrono::steady_clock::time_point::min();
+        auto delay = is_immediate ? std::chrono::steady_clock::duration::zero()
+                                  : now - top.schedule_time;
         if (delay > TASK_DELAY_THRESHOLD) {
           DEBUG_PRINT_CONDITION(
               debug, Debug::Server,
