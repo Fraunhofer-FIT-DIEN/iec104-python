@@ -768,6 +768,21 @@ def _tls_owner_on_event(tls: c104.TransportSecurity, level: c104.TlsEventLevel, 
   // let the handler return and drop the last reference on the accepting thread
   py::globals()["_tls_owner_release"].attr("set")();
 
+  // The slave must keep running after the handler dropped the last reference:
+  // the teardown must not tear the accepting thread down underneath the
+  // handshake still in flight. A destructor that self-joined the accepting
+  // thread instead deadlocks inside CS104_Slave_stop(), the loop stops
+  // accepting, and the session never opens. On GIL builds ~Server() already
+  // ran on the accepting thread and deferred CS104_Slave_stop() to a neutral
+  // thread; on free-threaded CPython the interpreter itself defers the dealloc
+  // to the owning thread, so the Server stays alive here. Both must let the
+  // session open.
+  REQUIRE(waitUntil([&]() { return conn->getState() == OPEN; }, 8000));
+
+  REQUIRE_NOTHROW(client->stop());
+  conn.reset();
+  client.reset();
+
 #if defined(Py_GIL_DISABLED)
   // Free-threaded CPython defers the dealloc of an object whose last
   // reference was dropped by a thread that is not its owning thread (the
@@ -787,17 +802,6 @@ def _tls_owner_on_event(tls: c104.TransportSecurity, level: c104.TlsEventLevel, 
   REQUIRE(
       waitUntil([&]() { return Server::getInstance(key) == nullptr; }, 8000));
 #endif
-
-  // The slave kept running after the handler dropped the last reference: the
-  // deferred teardown must not tear the accepting thread down underneath the
-  // handshake still in flight. A destructor that self-joined the accepting
-  // thread instead deadlocks inside CS104_Slave_stop(), the loop stops
-  // accepting, and the session never opens.
-  REQUIRE(waitUntil([&]() { return conn->getState() == OPEN; }, 8000));
-
-  REQUIRE_NOTHROW(client->stop());
-  conn.reset();
-  client.reset();
 
   // the listening socket is only released once the deferred teardown completed
   REQUIRE(waitUntil([&]() { return portIsFree(port); }, 8000, 100));
